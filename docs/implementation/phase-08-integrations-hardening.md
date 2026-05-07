@@ -9,10 +9,21 @@ Complete external integrations, observability, and hardening work.
 - NiFi integration.
 - Confluence Server/Data Center polling.
 - Jira Server/Data Center polling.
+- Old Microsoft Office binary format extraction (`.doc`, `.xls`, `.ppt`).
 - Observability stack.
 - Security sanitization.
 - Performance tuning.
 - Final documentation pass.
+
+## Implementation Notes
+
+- Old Office binary formats (`.doc`, `.xls`, `.ppt`) are deferred to this phase
+  because they require extra system dependencies (`antiword` for `.doc`,
+  `xlrd` or `pywin32` COM for `.xls`/`.ppt`) and are increasingly rare in
+  modern enterprise environments. The extraction registry will gain new
+  extractors: `DocExtractor`, `XlsExtractor`, `PptExtractor`.
+- These extractors should follow the same `Extractor` protocol as Phase 03a
+  and return `""` on failure without raising.
 
 ## Decision Gates
 
