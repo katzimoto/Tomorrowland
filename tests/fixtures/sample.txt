@@ -1,0 +1,2 @@
+Hello TXT World
+This is a test document for extraction.
