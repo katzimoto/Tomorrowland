@@ -1,0 +1,33 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# JavaScript / TypeScript
+node_modules/
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Docker and local runtime data
+data/
+tmp/
+*.log
+
+# Editors and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp

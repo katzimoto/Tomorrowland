@@ -1,0 +1,52 @@
+name: Codex Review
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  reviewer:
+    name: Reviewer agent
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show review contract
+        run: |
+          set -euo pipefail
+          test -f agents.md
+          test -f skill.md
+          sed -n '/## Agent: Reviewer/,$p' agents.md | sed -n '1,120p'
+
+      - name: Run Codex Reviewer when available
+        run: |
+          set -euo pipefail
+          mkdir -p review
+          if command -v codex >/dev/null 2>&1; then
+            codex run --agent reviewer --skills skill.md --pr "${{ github.event.pull_request.number }}"
+          else
+            {
+              echo "## Review"
+              echo
+              echo "Automated Codex review is not active because the codex CLI is not"
+              echo "installed on this runner. Run the Reviewer agent manually before merge."
+            } > "review/${{ github.event.pull_request.number }}.md"
+          fi
+
+      - name: Upload review artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-review
+          path: review/

@@ -1,0 +1,50 @@
+name: Codex Developer
+
+on:
+  workflow_dispatch:
+    inputs:
+      spec_path:
+        description: "Path to the phase plan or feature spec"
+        required: true
+        default: "docs/implementation/phase-00-repo-bootstrap.md"
+  issues:
+    types:
+      - labeled
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+
+jobs:
+  developer:
+    name: Developer agent
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'codex-dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show agent contract
+        run: |
+          set -euo pipefail
+          test -f agents.md
+          test -f skill.md
+          sed -n '1,80p' agents.md
+
+      - name: Run Codex Developer when available
+        run: |
+          set -euo pipefail
+          SPEC_PATH="${{ inputs.spec_path || github.event.issue.html_url }}"
+          if command -v codex >/dev/null 2>&1; then
+            codex run --agent developer --skills skill.md "$SPEC_PATH"
+            git diff --exit-code && {
+              echo "Developer agent produced no changes."
+              exit 1
+            }
+          else
+            echo "codex CLI is not installed on this runner."
+            echo "Install/configure codex before enabling automated implementation."
+          fi

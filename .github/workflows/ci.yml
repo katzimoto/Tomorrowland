@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  repository-checks:
+    name: Repository checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check required bootstrap files
+        run: |
+          set -euo pipefail
+          test -f docs/logical-spec.md
+          test -f docs/review/spec-gaps.md
+          test -f docs/implementation/README.md
+          test -f .github/pull_request_template.md
+
+      - name: Check markdown structure
+        run: |
+          set -euo pipefail
+          find . -name '*.md' -not -path './.git/*' -print0 |
+            xargs -0 -I {} sh -c 'first="$(head -n 1 "$1")"; test "${first#\#}" != "$first" || test "$first" = "---"' sh {}
+
+      - name: Python checks when configured
+        run: |
+          set -euo pipefail
+          if test -f pyproject.toml; then
+            python -m pip install --upgrade pip
+            python -m pip install ruff mypy pytest pytest-cov
+            ruff check .
+            ruff format --check .
+            mypy src --strict
+            pytest
+          else
+            echo "No pyproject.toml found; skipping Python checks."
+          fi
+
+      - name: Node checks when configured
+        run: |
+          set -euo pipefail
+          if test -f package.json; then
+            npm ci
+            npm run lint --if-present
+            npm test --if-present
+            npm run build --if-present
+          else
+            echo "No package.json found; skipping Node checks."
+          fi
+
+      - name: Docker Compose check when configured
+        run: |
+          set -euo pipefail
+          if test -f docker-compose.yml; then
+            docker compose config
+          else
+            echo "No docker-compose.yml found; skipping compose check."
+          fi
