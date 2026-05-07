@@ -6,27 +6,44 @@ from pathlib import Path
 
 from services.extraction.base import Extractor
 from services.extraction.docx import DocxExtractor
+from services.extraction.eml import EmlExtractor
+from services.extraction.html import HtmlExtractor
+from services.extraction.json_extractor import JsonExtractor
+from services.extraction.odt import OdtExtractor
 from services.extraction.pdf import PdfExtractor
 from services.extraction.plain import PlainExtractor
 from services.extraction.pptx_extractor import PptxExtractor
 from services.extraction.xlsx import XlsxExtractor
+from services.extraction.xml_extractor import XmlExtractor
+
+_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+_PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 class ExtractorRegistry:
     """Map MIME types to concrete extractors."""
 
     def __init__(self) -> None:
-        docx_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        pptx_mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-        xlsx_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         self._extractors: dict[str, Extractor] = {
+            # Plain text family
             "text/plain": PlainExtractor(),
             "text/markdown": PlainExtractor(),
             "text/csv": PlainExtractor(),
+            "text/html": HtmlExtractor(),
+            "text/xml": XmlExtractor(),
+            "application/json": JsonExtractor(),
+            "application/xml": XmlExtractor(),
+            # PDF
             "application/pdf": PdfExtractor(),
-            docx_mime: DocxExtractor(),
-            pptx_mime: PptxExtractor(),
-            xlsx_mime: XlsxExtractor(),
+            # Microsoft Office
+            _DOCX_MIME: DocxExtractor(),
+            _PPTX_MIME: PptxExtractor(),
+            _XLSX_MIME: XlsxExtractor(),
+            # OpenDocument
+            "application/vnd.oasis.opendocument.text": OdtExtractor(),
+            # Email
+            "message/rfc822": EmlExtractor(),
         }
 
     def register(self, mime_type: str, extractor: Extractor) -> None:

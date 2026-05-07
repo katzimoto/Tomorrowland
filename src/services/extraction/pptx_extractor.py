@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pptx import Presentation
+from pptx.exc import PackageNotFoundError
 
 
 class PptxExtractor:
@@ -20,5 +21,5 @@ class PptxExtractor:
                     if hasattr(shape, "text") and shape.text:
                         texts.append(shape.text)
             return "\n".join(texts)
-        except Exception:
+        except (OSError, KeyError, PackageNotFoundError):
             return ""

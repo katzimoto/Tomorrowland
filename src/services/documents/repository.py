@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import cast
 from uuid import UUID, uuid4
 
@@ -9,14 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.engine import Connection, RowMapping
 
 from services.documents.models import DocumentRow, DocumentSource, DocumentStatus
-
-
-def _db_uuid(value: UUID) -> str:
-    return value.hex
-
-
-def _to_uuid(value: object) -> UUID:
-    return value if isinstance(value, UUID) else UUID(str(value))
+from shared.db import db_uuid, to_uuid
 
 
 class DocumentRepository:
@@ -29,7 +23,7 @@ class DocumentRepository:
         self,
         source_id: UUID,
         external_id: str,
-        source: str,
+        source: DocumentSource,
         mime_type: str,
         path: str | None = None,
         title: str | None = None,
@@ -64,8 +58,8 @@ class DocumentRepository:
                 """
             ),
             {
-                "id": _db_uuid(doc_id),
-                "source_id": _db_uuid(source_id),
+                "id": db_uuid(doc_id),
+                "source_id": db_uuid(source_id),
                 "external_id": external_id,
                 "source": source,
                 "path": path,
@@ -85,8 +79,8 @@ class DocumentRepository:
                 ),
                 {
                     "sha256": sha256,
-                    "doc_id": _db_uuid(doc_id),
-                    "source_id": _db_uuid(source_id),
+                    "doc_id": db_uuid(doc_id),
+                    "source_id": db_uuid(source_id),
                 },
             )
 
@@ -102,18 +96,18 @@ class DocumentRepository:
             return None
         return self._row_to_model(row)
 
-    def update_status(self, doc_id: UUID, status: str) -> None:
+    def update_status(self, doc_id: UUID, status: DocumentStatus) -> None:
         """Update the document status."""
         self._connection.execute(
             sa.text("UPDATE documents SET status = :status WHERE id = :id"),
-            {"status": status, "id": _db_uuid(doc_id)},
+            {"status": status, "id": db_uuid(doc_id)},
         )
 
     def list_by_source(self, source_id: UUID) -> list[DocumentRow]:
         """List all documents belonging to a source."""
         rows = self._connection.execute(
             sa.text("SELECT * FROM documents WHERE source_id = :source_id"),
-            {"source_id": _db_uuid(source_id)},
+            {"source_id": db_uuid(source_id)},
         ).mappings()
         return [self._row_to_model(row) for row in rows]
 
@@ -121,7 +115,7 @@ class DocumentRepository:
         return (
             self._connection.execute(
                 sa.text("SELECT * FROM documents WHERE id = :id"),
-                {"id": _db_uuid(doc_id)},
+                {"id": db_uuid(doc_id)},
             )
             .mappings()
             .first()
@@ -131,14 +125,12 @@ class DocumentRepository:
     def _row_to_model(row: RowMapping) -> DocumentRow:
         metadata = row["metadata"]
         if isinstance(metadata, str):
-            import json
-
             metadata = json.loads(metadata) if metadata else {}
         elif metadata is None:
             metadata = {}
         return DocumentRow(
-            id=_to_uuid(row["id"]),
-            source_id=_to_uuid(row["source_id"]),
+            id=to_uuid(row["id"]),
+            source_id=to_uuid(row["source_id"]),
             external_id=str(row["external_id"]),
             source=cast("DocumentSource", str(row["source"])),
             path=row["path"],

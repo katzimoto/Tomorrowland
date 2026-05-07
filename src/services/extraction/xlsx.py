@@ -21,5 +21,5 @@ class XlsxExtractor:
                         if cell.value is not None:
                             texts.append(str(cell.value))
             return "\n".join(texts)
-        except Exception:
+        except (OSError, KeyError):
             return ""

@@ -9,14 +9,7 @@ from sqlalchemy.engine import Connection, RowMapping
 
 from services.auth.ldap import LdapProfile
 from services.auth.models import AuthSource, UserIdentity
-
-
-def _db_uuid(value: UUID) -> str:
-    return value.hex
-
-
-def _to_uuid(value: object) -> UUID:
-    return value if isinstance(value, UUID) else UUID(str(value))
+from shared.db import db_uuid, to_uuid
 
 
 class AuthRepository:
@@ -70,7 +63,7 @@ class AuthRepository:
                 """
             ),
             {
-                "id": _db_uuid(user_id),
+                "id": db_uuid(user_id),
                 "email": email,
                 "display_name": display_name,
                 "password_hash": password_hash,
@@ -96,7 +89,7 @@ class AuthRepository:
                     """
                 ),
                 {
-                    "id": _db_uuid(user_id),
+                    "id": db_uuid(user_id),
                     "email": profile.email,
                     "display_name": profile.display_name,
                 },
@@ -111,7 +104,7 @@ class AuthRepository:
                     WHERE id = :id
                     """
                 ),
-                {"id": _db_uuid(user_id), "display_name": profile.display_name},
+                {"id": db_uuid(user_id), "display_name": profile.display_name},
             )
         self.set_user_groups(user_id, profile.group_names)
         user = self.get_user_by_email(profile.email)
@@ -123,13 +116,13 @@ class AuthRepository:
         """Replace a user's group memberships by group name."""
         self._connection.execute(
             sa.text("DELETE FROM user_groups WHERE user_id = :user_id"),
-            {"user_id": _db_uuid(user_id)},
+            {"user_id": db_uuid(user_id)},
         )
         for group_name in group_names:
             group_id = self.ensure_group(group_name)
             self._connection.execute(
                 sa.text("INSERT INTO user_groups (user_id, group_id) VALUES (:user_id, :group_id)"),
-                {"user_id": _db_uuid(user_id), "group_id": _db_uuid(group_id)},
+                {"user_id": db_uuid(user_id), "group_id": db_uuid(group_id)},
             )
 
     def ensure_group(self, name: str) -> UUID:
@@ -139,13 +132,13 @@ class AuthRepository:
             {"name": name},
         ).scalar_one_or_none()
         if existing is not None:
-            return _to_uuid(existing)
+            return to_uuid(existing)
         group_id = uuid4()
         try:
             with self._connection.begin_nested():
                 self._connection.execute(
                     sa.text("INSERT INTO groups (id, name) VALUES (:id, :name)"),
-                    {"id": _db_uuid(group_id), "name": name},
+                    {"id": db_uuid(group_id), "name": name},
                 )
             return group_id
         except sa.exc.IntegrityError:
@@ -153,13 +146,13 @@ class AuthRepository:
                 sa.text("SELECT id FROM groups WHERE name = :name"),
                 {"name": name},
             ).scalar_one()
-            return _to_uuid(existing)
+            return to_uuid(existing)
 
     def touch_last_login(self, user_id: UUID) -> None:
         """Record a successful login timestamp for a user."""
         self._connection.execute(
             sa.text("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = :id"),
-            {"id": _db_uuid(user_id)},
+            {"id": db_uuid(user_id)},
         )
 
     def create_ingestion_source(self, name: str, source_type: str = "folder") -> UUID:
@@ -172,7 +165,7 @@ class AuthRepository:
                 VALUES (:id, :name, :type, 'en')
                 """
             ),
-            {"id": _db_uuid(source_id), "name": name, "type": source_type},
+            {"id": db_uuid(source_id), "name": name, "type": source_type},
         )
         return source_id
 
@@ -185,7 +178,7 @@ class AuthRepository:
                 VALUES (:source_id, :group_id)
                 """
             ),
-            {"source_id": _db_uuid(source_id), "group_id": _db_uuid(group_id)},
+            {"source_id": db_uuid(source_id), "group_id": db_uuid(group_id)},
         )
 
     def create_document(self, source_id: UUID, external_id: str = "file:/data/a.txt") -> UUID:
@@ -198,7 +191,7 @@ class AuthRepository:
                 VALUES (:id, :source_id, :external_id, 'folder', 'text/plain')
                 """
             ),
-            {"id": _db_uuid(doc_id), "source_id": _db_uuid(source_id), "external_id": external_id},
+            {"id": db_uuid(doc_id), "source_id": db_uuid(source_id), "external_id": external_id},
         )
         return doc_id
 
@@ -214,24 +207,24 @@ class AuthRepository:
                 WHERE source_id = :source_id
                 """
             ),
-            {"source_id": _db_uuid(source_id)},
+            {"source_id": db_uuid(source_id)},
         ).scalars()
-        allowed_groups = {_to_uuid(row) for row in rows}
+        allowed_groups = {to_uuid(row) for row in rows}
         return bool(allowed_groups.intersection(user.groups))
 
     def document_source_id(self, doc_id: UUID) -> UUID | None:
         """Return the ingestion source for a document when it exists."""
         value = self._connection.execute(
             sa.text("SELECT source_id FROM documents WHERE id = :id"),
-            {"id": _db_uuid(doc_id)},
+            {"id": db_uuid(doc_id)},
         ).scalar_one_or_none()
-        return None if value is None else _to_uuid(value)
+        return None if value is None else to_uuid(value)
 
     def _identity_from_row(self, row: RowMapping) -> UserIdentity:
-        user_id = _to_uuid(row["id"])
+        user_id = to_uuid(row["id"])
         groups = self._connection.execute(
             sa.text("SELECT group_id FROM user_groups WHERE user_id = :user_id"),
-            {"user_id": _db_uuid(user_id)},
+            {"user_id": db_uuid(user_id)},
         ).scalars()
         return UserIdentity(
             id=user_id,
@@ -239,7 +232,7 @@ class AuthRepository:
             display_name=row["display_name"],
             auth_source=self._auth_source(row["auth_source"]),
             is_admin=bool(row["is_admin"]),
-            groups=[_to_uuid(group_id) for group_id in groups],
+            groups=[to_uuid(group_id) for group_id in groups],
         )
 
     @staticmethod

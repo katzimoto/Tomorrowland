@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pypdf import PdfReader
+from pypdf.errors import PdfStreamError
 
 
 class PdfExtractor:
@@ -16,5 +17,5 @@ class PdfExtractor:
             reader = PdfReader(str(path))
             pages = [page.extract_text() or "" for page in reader.pages]
             return "\n".join(pages)
-        except Exception:
+        except (OSError, ValueError, PdfStreamError):
             return ""

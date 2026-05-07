@@ -1,6 +1,19 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from sqlalchemy import MetaData
+
+
+def db_uuid(value: UUID) -> str:
+    """Convert a UUID to its hex string for database storage."""
+    return value.hex
+
+
+def to_uuid(value: object) -> UUID:
+    """Convert a database value back to a UUID."""
+    return value if isinstance(value, UUID) else UUID(str(value))
+
 
 metadata = MetaData(
     naming_convention={
