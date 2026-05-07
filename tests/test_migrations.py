@@ -4,27 +4,9 @@ from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
-from alembic import command
-from alembic.config import Config
 from sqlalchemy import Engine
 
 from shared.feature_flags import SYSTEM_CONFIG_DEFAULTS
-
-
-@pytest.fixture()
-def migrated_engine(tmp_path) -> Engine:  # type: ignore[no-untyped-def]
-    db_path = tmp_path / "foundation.db"
-    url = f"sqlite:///{db_path}"
-    cfg = Config("alembic.ini")
-    cfg.set_main_option("sqlalchemy.url", url)
-
-    command.upgrade(cfg, "head")
-
-    engine = sa.create_engine(url)
-    try:
-        yield engine
-    finally:
-        engine.dispose()
 
 
 def test_foundation_migration_creates_expected_tables(migrated_engine: Engine) -> None:

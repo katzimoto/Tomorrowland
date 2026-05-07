@@ -14,6 +14,16 @@ Implement authentication and backend permission enforcement.
 - Source permission enforcement.
 - Admin-only guards.
 
+## Implementation Notes
+
+- Local auth uses bcrypt password hashes stored in `users.password_hash`.
+- LDAP support is represented by an adapter boundary that returns normalized
+  profile/group data; real LDAP network binding is deferred behind that boundary.
+- JWTs carry the Phase 02 user context: user ID, email, admin flag, auth source,
+  group IDs, and expiry.
+- Document access is enforced through source-level grants resolved from
+  `source_permissions`, matching the Phase 01 access decision.
+
 ## Validation
 
 - Unit tests cover password auth, LDAP fallback behavior, JWT payloads, group
