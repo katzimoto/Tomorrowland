@@ -8,7 +8,7 @@
 **Neverland** is a local-first knowledge intelligence system for private document corpora.
 - **Stack:** Python 3.13, FastAPI, SQLAlchemy, PostgreSQL, Elasticsearch, Qdrant, LibreTranslate, Docker Compose
 - **Architecture:** REST API + background workers (fast/slow/intelligence), air-gapped deployment
-- **Current state:** Phase 05b complete (translation enrichment). Phase 06 (intelligence layer) is next.
+- **Current state:** Phase 06 complete (intelligence layer). Phase 07a (document comments) in review.
 
 ### Key docs to read first
 1. `docs/logical-spec.md` — What the product does (domain, actors, capabilities)
@@ -216,6 +216,12 @@ User Preview
     → Record view in document_views
     → Auto-enrich if view count ≥ threshold
 
+Document Comments (07a)
+    → GET /documents/{doc_id}/comments
+    → POST /documents/{doc_id}/comments
+    → PATCH /documents/{doc_id}/comments/{comment_id}
+    → DELETE /documents/{doc_id}/comments/{comment_id} (soft delete)
+
 Manual Translation
     → POST /documents/{doc_id}/translate
     → Set translation_quality = 'pending_high'
@@ -234,6 +240,7 @@ null  --manual/auto-->  "pending_high"  --slow worker-->  "high"
 - `ingestion_sources`, `source_permissions` — document sources
 - `documents` — core document metadata (status, translation_quality)
 - `document_views` — per-user view tracking
+- `document_comments` — per-document threaded comments (07a)
 - `system_config` — feature flags and tunables (JSON values)
 
 ---
@@ -254,16 +261,21 @@ null  --manual/auto-->  "pending_high"  --slow worker-->  "high"
 
 ---
 
-## 8. Next Phase (Phase 06)
+## 8. Next Phase (Phase 07)
 
-See `docs/implementation/phase-06-intelligence-layer.md`.
+Phase 06 is complete (intelligence layer). See `docs/implementation/phase-07-rag-ui-features.md`.
 
-Goal: Add best-effort local LLM intelligence without blocking ingestion.
-- Ollama service integration
-- Worker-intelligence service (`worker-intelligence/` package)
-- Summarization, entity extraction, auto-tagging, alert matching
-- Mocked Ollama tests
-- Best-effort failure behavior (no DLQ, no blocking)
+Phase 07 execution order (sequential, one PR per sub-phase, stop for review after each):
+1. **07a** — Document comments API + backend (PR #16, in review)
+2. **07b** — Annotations API + backend
+3. **07c** — RAG Q&A endpoint + service (Qdrant payloads only, no Postgres chunks table)
+4. **07d** — Subscriptions, notifications, alert matching
+5. **07e** — Related documents + expertise map
+
+Key decisions locked in for Phase 07:
+- Alert matching trigger: Both ingest-time + admin trigger
+- RAG chunk source: Qdrant payloads only (Option A)
+- Expertise map: Views + annotations + comments + subscriptions
 
 ---
 
