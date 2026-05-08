@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from services.alerts.service import AlertMatcher
 from services.chunking.splitter import chunk_text
 from services.documents.repository import DocumentRepository
 from services.extraction.registry import ExtractorRegistry
@@ -32,6 +33,7 @@ class PipelineWorker:
         es_client: ElasticsearchSearchClient,
         qdrant_client: QdrantSearchClient,
         intelligence_worker: IntelligenceWorker | None = None,
+        alert_matcher: AlertMatcher | None = None,
     ) -> None:
         self._doc_repo = document_repository
         self._extractor = extractor_registry
@@ -40,6 +42,7 @@ class PipelineWorker:
         self._es = es_client
         self._qdrant = qdrant_client
         self._intelligence = intelligence_worker
+        self._alert_matcher = alert_matcher
 
     def process_document(self, doc_id: UUID) -> None:
         """Run the full pipeline for a single document.
@@ -122,6 +125,17 @@ class PipelineWorker:
             except Exception:
                 logger.exception(
                     "Intelligence failed for doc_id=%s correlation=%s",
+                    doc_id,
+                    get_correlation_id(),
+                )
+
+        # 9. Alert matching (best-effort, never blocking)
+        if self._alert_matcher is not None:
+            try:
+                self._alert_matcher.match_document(doc, translated)
+            except Exception:
+                logger.exception(
+                    "Alert matching failed for doc_id=%s correlation=%s",
                     doc_id,
                     get_correlation_id(),
                 )

@@ -48,3 +48,23 @@ Detailed document comment plan:
 - Document comments are visible only to users with document access.
 - Comment creators and admins can edit/delete according to policy.
 - Annotation and notification workflows persist and render expected state.
+
+## Phase 07d Backend Slice
+
+Subscriptions and notifications are implemented as a backend-only slice:
+
+- `alert_subscriptions` stores user-owned topic rules with a query, threshold,
+  enabled state, timestamps, and last notification time.
+- `alert_notifications` stores per-user document matches and cascades with
+  subscription, user, and document deletion.
+- `GET|POST /subscriptions`, `PUT|DELETE /subscriptions/{id}` manage only the
+  authenticated user's subscriptions.
+- `GET /notifications` returns unread notifications by default, and
+  `PUT /notifications/{id}/read` marks a user's own notification read.
+- `AlertMatcher` compares document text and subscription queries with the
+  project `MockEncoder`, filters candidates through source permissions, and
+  de-duplicates subscription/document notifications.
+- Alert matching runs best-effort during folder ingestion when
+  `alerts.check_on_ingest` is enabled.
+- `POST /admin/alerts/{doc_id}/trigger` lets admins match one indexed document
+  on demand.
