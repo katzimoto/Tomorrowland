@@ -37,10 +37,17 @@ class PreviewService:
         self._connection = connection
         self._extractor = extractor_registry or ExtractorRegistry()
 
-    def get_preview(self, doc_id: UUID, user_id: UUID) -> dict[str, Any]:
+    def get_preview(
+        self,
+        doc_id: UUID,
+        user_id: UUID,
+        translation_version_id: UUID | None = None,
+    ) -> dict[str, Any]:
         """Return preview metadata, snippet, and view count for *doc_id*.
 
         Also records a view by *user_id* if not already present.
+        If *translation_version_id* is provided and the version is available,
+        the snippet is rendered from the stored translated text.
         """
 
         row = (
@@ -84,7 +91,7 @@ class PreviewService:
         # Auto-enrich: queue for high-quality translation when view threshold is crossed
         self._maybe_auto_enrich(doc_id, view_count, row["translation_quality"])
 
-        snippet = self._generate_snippet(row["path"], row["mime_type"])
+        snippet = self._generate_snippet(row["path"], row["mime_type"], translation_version_id)
 
         return {
             "doc_id": str(doc_id),
@@ -96,8 +103,33 @@ class PreviewService:
             "view_count": view_count,
         }
 
-    def _generate_snippet(self, file_path: str | None, mime_type: str) -> str:
+    def _generate_snippet(
+        self,
+        file_path: str | None,
+        mime_type: str,
+        translation_version_id: UUID | None = None,
+    ) -> str:
         """Return a truncated preview snippet for a document."""
+        # If a specific translation version is requested and available, use it
+        if translation_version_id is not None:
+            version_row = (
+                self._connection.execute(
+                    sa.text(
+                        """
+                        SELECT translated_text, status
+                        FROM document_translation_versions
+                        WHERE id = :id AND status = 'available'
+                        """
+                    ),
+                    {"id": db_uuid(translation_version_id)},
+                )
+                .mappings()
+                .first()
+            )
+            if version_row and version_row["translated_text"]:
+                text: str = version_row["translated_text"]
+                return text[:SNIPPET_LENGTH]
+
         if file_path is None:
             return ""
 
@@ -130,7 +162,10 @@ class PreviewService:
         view_count: int,
         current_quality: str | None,
     ) -> None:
-        """Queue document for enrichment if view threshold is crossed."""
+        """Queue document for enrichment if view threshold is crossed.
+
+        Creates a translation version record for auditability.
+        """
         if current_quality in ("high", "pending_high"):
             return
 
@@ -145,17 +180,67 @@ class PreviewService:
         if isinstance(threshold, str):
             threshold = int(threshold)
 
-        if view_count >= threshold:
-            self._connection.execute(
-                sa.text(
+        if view_count < threshold:
+            return
+
+        # Check if a pending/running version already exists
+        existing = self._connection.execute(
+            sa.text(
+                """
+                    SELECT id FROM document_translation_versions
+                    WHERE doc_id = :doc_id
+                      AND request_type = 'auto_enrich'
+                      AND status IN ('pending', 'running')
+                    LIMIT 1
                     """
-                    UPDATE documents
-                    SET translation_quality = 'pending_high'
-                    WHERE id = :id
+            ),
+            {"doc_id": db_uuid(doc_id)},
+        ).scalar_one_or_none()
+        if existing:
+            return
+
+        # Create auto_enrich version
+        next_number = self._connection.execute(
+            sa.text(
+                """
+                    SELECT COALESCE(MAX(version_number), 0) + 1
+                    FROM document_translation_versions
+                    WHERE doc_id = :doc_id
                     """
-                ),
-                {"id": db_uuid(doc_id)},
-            )
+            ),
+            {"doc_id": db_uuid(doc_id)},
+        ).scalar_one()
+
+        self._connection.execute(
+            sa.text(
+                """
+                INSERT INTO document_translation_versions (
+                    id, doc_id, version_number, label, quality, request_type,
+                    status, target_language
+                )
+                VALUES (
+                    :id, :doc_id, :version_number, 'Auto-enrich', 'high',
+                    'auto_enrich', 'pending', 'en'
+                )
+                """
+            ),
+            {
+                "id": db_uuid(uuid4()),
+                "doc_id": db_uuid(doc_id),
+                "version_number": next_number,
+            },
+        )
+
+        self._connection.execute(
+            sa.text(
+                """
+                UPDATE documents
+                SET translation_quality = 'pending_high'
+                WHERE id = :id
+                """
+            ),
+            {"id": db_uuid(doc_id)},
+        )
 
     @staticmethod
     def _archive_snippet(path: Path) -> str:

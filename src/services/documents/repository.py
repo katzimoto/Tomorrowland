@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import cast
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
@@ -186,3 +186,169 @@ class DocumentRepository:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
+
+
+class TranslationVersionRepository:
+    """CRUD and queries for document translation versions."""
+
+    def __init__(self, connection: Connection) -> None:
+        self._connection = connection
+
+    def create_version(
+        self,
+        doc_id: UUID,
+        label: str,
+        quality: str,
+        request_type: str,
+        requested_by_id: UUID | None = None,
+        target_language: str = "en",
+        request_note: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a pending translation version and return its record."""
+        version_number = self._get_next_version_number(doc_id)
+        version_id = uuid4()
+        row = (
+            self._connection.execute(
+                sa.text(
+                    """
+                    INSERT INTO document_translation_versions (
+                        id, doc_id, version_number, label, quality, request_type,
+                        status, target_language, requested_by_id, request_note
+                    )
+                    VALUES (
+                        :id, :doc_id, :version_number, :label, :quality, :request_type,
+                        'pending', :target_language, :requested_by_id, :request_note
+                    )
+                    RETURNING id, doc_id, version_number, label, source_language,
+                              target_language, quality, request_type, status,
+                              requested_by_id, requested_at
+                    """
+                ),
+                {
+                    "id": db_uuid(version_id),
+                    "doc_id": db_uuid(doc_id),
+                    "version_number": version_number,
+                    "label": label,
+                    "quality": quality,
+                    "request_type": request_type,
+                    "target_language": target_language,
+                    "requested_by_id": db_uuid(requested_by_id) if requested_by_id else None,
+                    "request_note": request_note,
+                },
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            raise RuntimeError("version insert did not persist")
+        return dict(row)
+
+    def list_versions(self, doc_id: UUID) -> list[dict[str, Any]]:
+        """List all translation versions for a document, newest first."""
+        rows = self._connection.execute(
+            sa.text(
+                """
+                SELECT * FROM document_translation_versions
+                WHERE doc_id = :doc_id
+                ORDER BY version_number DESC
+                """
+            ),
+            {"doc_id": db_uuid(doc_id)},
+        ).mappings()
+        return [dict(row) for row in rows]
+
+    def get_pending_versions(self, doc_id: UUID) -> list[dict[str, Any]]:
+        """Return pending translation versions for a document."""
+        rows = self._connection.execute(
+            sa.text(
+                """
+                SELECT * FROM document_translation_versions
+                WHERE doc_id = :doc_id AND status = 'pending'
+                ORDER BY version_number
+                """
+            ),
+            {"doc_id": db_uuid(doc_id)},
+        ).mappings()
+        return [dict(row) for row in rows]
+
+    def find_pending_or_running(
+        self,
+        doc_id: UUID,
+        target_language: str,
+    ) -> dict[str, Any] | None:
+        """Return a pending or running version for the same doc + language."""
+        row = (
+            self._connection.execute(
+                sa.text(
+                    """
+                    SELECT * FROM document_translation_versions
+                    WHERE doc_id = :doc_id
+                      AND target_language = :target_language
+                      AND status IN ('pending', 'running')
+                    ORDER BY requested_at DESC
+                    LIMIT 1
+                    """
+                ),
+                {
+                    "doc_id": db_uuid(doc_id),
+                    "target_language": target_language,
+                },
+            )
+            .mappings()
+            .first()
+        )
+        return dict(row) if row else None
+
+    def update_version_status(
+        self,
+        version_id: UUID,
+        status: str,
+        translated_text: str | None = None,
+        error_summary: str | None = None,
+    ) -> None:
+        """Update version status and optional result fields."""
+        self._connection.execute(
+            sa.text(
+                """
+                UPDATE document_translation_versions
+                SET status = :status,
+                    translated_text = COALESCE(
+                        :translated_text, translated_text
+                    ),
+                    error_summary = COALESCE(
+                        :error_summary, error_summary
+                    ),
+                    started_at = CASE
+                        WHEN :status = 'running'
+                        THEN CURRENT_TIMESTAMP
+                        ELSE started_at
+                    END,
+                    completed_at = CASE
+                        WHEN :status IN ('available', 'failed', 'canceled')
+                        THEN CURRENT_TIMESTAMP
+                        ELSE completed_at
+                    END
+                WHERE id = :id
+                """
+            ),
+            {
+                "status": status,
+                "translated_text": translated_text,
+                "error_summary": error_summary,
+                "id": db_uuid(version_id),
+            },
+        )
+
+    def _get_next_version_number(self, doc_id: UUID) -> int:
+        """Return the next version number for a document."""
+        result = self._connection.execute(
+            sa.text(
+                """
+                SELECT COALESCE(MAX(version_number), 0) + 1
+                FROM document_translation_versions
+                WHERE doc_id = :doc_id
+                """
+            ),
+            {"doc_id": db_uuid(doc_id)},
+        ).scalar_one()
+        return int(result)

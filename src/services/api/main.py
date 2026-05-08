@@ -19,7 +19,7 @@ from services.auth.models import LoginRequest, LoginResponse, TokenPayload, User
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.auth.service import AuthService
-from services.documents.repository import DocumentRepository
+from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from services.extraction.registry import ExtractorRegistry
 from services.permissions.enforcer import assert_doc_access, require_admin
 from services.pipeline.worker import PipelineWorker
@@ -342,13 +342,16 @@ def create_app(
     def preview(
         doc_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
+        translation_version_id: UUID | None = None,
     ) -> PreviewResponse:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
             assert_doc_access(doc_id, user, auth_repo)
 
             preview_service = PreviewService(connection)
-            result = preview_service.get_preview(doc_id, user.sub)
+            result = preview_service.get_preview(
+                doc_id, user.sub, translation_version_id=translation_version_id
+            )
             if not result:
                 raise HTTPException(status_code=404, detail="Document not found")
 
@@ -386,15 +389,54 @@ def create_app(
             if doc is None:
                 raise HTTPException(status_code=404, detail="Document not found")
 
-            if doc.translation_quality not in ("high", "pending_high"):
-                doc_repo.update_translation_quality(doc_id, "pending_high")
-                doc = doc_repo.get_by_id(doc_id)
-                assert doc is not None
+            version_repo = TranslationVersionRepository(connection)
+            existing = version_repo.find_pending_or_running(doc_id, doc.target_language)
+            if existing:
+                return {
+                    "doc_id": str(doc_id),
+                    "translation_version_id": str(existing["id"]),
+                    "status": existing["status"],
+                }
+
+            version = version_repo.create_version(
+                doc_id=doc_id,
+                label=f"Manual {doc.target_language}",
+                quality="high",
+                request_type="manual",
+                requested_by_id=user.sub,
+                target_language=doc.target_language,
+            )
+            doc_repo.update_translation_quality(doc_id, "pending_high")
 
             return {
-                "doc_id": str(doc.id),
-                "translation_quality": doc.translation_quality,
+                "doc_id": str(doc_id),
+                "translation_version_id": str(version["id"]),
+                "status": version["status"],
             }
+
+    @app.get("/documents/{doc_id}/translation-versions")
+    def list_translation_versions(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, Any]]:
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(doc_id, user, auth_repo)
+
+            version_repo = TranslationVersionRepository(connection)
+            versions = version_repo.list_versions(doc_id)
+            return [
+                {
+                    "version_id": str(v["id"]),
+                    "version_number": v["version_number"],
+                    "label": v["label"],
+                    "quality": v["quality"],
+                    "status": v["status"],
+                    "target_language": v["target_language"],
+                    "requested_at": _fmt_dt(v["requested_at"]),
+                }
+                for v in versions
+            ]
 
     @app.get("/admin/enrichment-queue")
     def enrichment_queue(

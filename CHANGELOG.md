@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Phase 05c: Translation versions — `document_translation_versions` table, `GET /documents/{doc_id}/translation-versions`, versioned preview with `?translation_version_id=`, `POST /documents/{doc_id}/translate` creates version records, `SlowWorker` processes pending versions, auto-enrich creates `auto_enrich` version.
 - Phase 05b: Translation enrichment — manual request `POST /documents/{doc_id}/translate`, auto-enrich threshold via `document_views` count, `SlowWorker` re-translation/re-indexing, `GET /admin/enrichment-queue`.
 - Phase 05a: Preview service — truncated MIME-type-aware snippets, HTML sanitization, archive filename listing, per-user view tracking via `document_views`, `GET /me/activity`.
 - Phase 04: Admin operations — users, groups, sources, permissions, config, DLQ retry, activity audit.
