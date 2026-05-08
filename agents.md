@@ -228,6 +228,9 @@ Annotations (07b)
     → PUT /annotations/{annotation_id}
     → DELETE /annotations/{annotation_id} (hard delete)
 
+RAG Q&A (07c)
+    → POST /qa → {question, top_k?} → {answer, citations[], model}
+
 Manual Translation
     → POST /documents/{doc_id}/translate
     → Set translation_quality = 'pending_high'
@@ -248,6 +251,7 @@ null  --manual/auto-->  "pending_high"  --slow worker-->  "high"
 - `document_views` — per-user view tracking
 - `document_comments` — per-document threaded comments (07a)
 - `annotations` — per-document highlights with notes and position (07b)
+- `rag_qa` — Qdrant chunks + Ollama for Q&A (07c, no new table)
 - `system_config` — feature flags and tunables (JSON values)
 
 ---
@@ -274,8 +278,8 @@ Phase 06 is complete (intelligence layer). See `docs/implementation/phase-07-rag
 
 Phase 07 execution order (sequential, one PR per sub-phase, stop for review after each):
 1. **07a** — Document comments API + backend (PR #16, merged)
-2. **07b** — Annotations API + backend (PR #17, in review)
-3. **07c** — RAG Q&A endpoint + service (Qdrant payloads only, no Postgres chunks table)
+2. **07b** — Annotations API + backend (PR #17, merged)
+3. **07c** — RAG Q&A endpoint + service (PR #18, in review)
 4. **07d** — Subscriptions, notifications, alert matching
 5. **07e** — Related documents + expertise map
 

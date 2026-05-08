@@ -471,6 +471,12 @@ def test_slow_worker_processes_pending_high(
     # Verify ES and Qdrant were called
     mock_es.index_document.assert_called_once()
     mock_qdrant.upsert_chunks.assert_called_once()
+    with migrated_engine.begin() as connection:
+        user_group_id = AuthRepository(connection).ensure_group("users")
+    indexed_doc = mock_es.index_document.call_args.args[1]
+    assert indexed_doc["allowed_group_ids"] == [str(user_group_id)]
+    qdrant_chunks = mock_qdrant.upsert_chunks.call_args.args[0]
+    assert qdrant_chunks[0]["group_id"] == [str(user_group_id)]
 
 
 def test_slow_worker_failure_sets_failed(

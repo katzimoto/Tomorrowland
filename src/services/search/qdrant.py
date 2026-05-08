@@ -40,7 +40,7 @@ class QdrantSearchClient:
         Each chunk dict must contain:
         - chunk_id: str
         - doc_id: str
-        - group_id: str
+        - group_id: str | list[str]
         - chunk_index: int
         - text: str
         - vector: list[float]

@@ -40,6 +40,8 @@ def _setup_admin(engine: Engine) -> None:
 def _create_folder_source(engine: Engine, folder: Path) -> str:
     source_id = uuid4()
     with engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        admin_group_id = auth_repo.ensure_group("admins")
         connection.execute(
             sa.text(
                 """
@@ -49,6 +51,7 @@ def _create_folder_source(engine: Engine, folder: Path) -> str:
             ),
             {"id": source_id.hex, "path": str(folder)},
         )
+        auth_repo.grant_source_to_group(source_id, admin_group_id)
     return source_id.hex
 
 
@@ -109,6 +112,12 @@ def test_sync_now_indexes_document(
     # Verify ES and Qdrant were called
     mock_es.index_document.assert_called_once()
     mock_qdrant.upsert_chunks.assert_called_once()
+    with migrated_engine.begin() as connection:
+        admin_group_id = AuthRepository(connection).ensure_group("admins")
+    indexed_doc = mock_es.index_document.call_args.args[1]
+    assert indexed_doc["allowed_group_ids"] == [str(admin_group_id)]
+    qdrant_chunks = mock_qdrant.upsert_chunks.call_args.args[0]
+    assert qdrant_chunks[0]["group_id"] == [str(admin_group_id)]
 
 
 def test_sync_now_skips_duplicate(

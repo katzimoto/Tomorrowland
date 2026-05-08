@@ -75,6 +75,9 @@ class PipelineWorker:
 
         # 3. Chunk
         chunks = chunk_text(translated)
+        allowed_group_ids = [
+            str(group_id) for group_id in self._doc_repo.source_group_ids(doc.source_id)
+        ]
 
         # 4. Encode + build Qdrant points
         qdrant_chunks: list[dict[str, Any]] = []
@@ -84,7 +87,7 @@ class PipelineWorker:
                 {
                     "chunk_id": f"{doc_id}-{idx}",
                     "doc_id": str(doc_id),
-                    "group_id": "default",
+                    "group_id": allowed_group_ids,
                     "chunk_index": idx,
                     "text": chunk_text_content,
                     "vector": vector,
@@ -101,7 +104,7 @@ class PipelineWorker:
                 "summary": "",
                 "tags": [],
                 "metadata": doc.metadata,
-                "allowed_group_ids": ["default"],
+                "allowed_group_ids": allowed_group_ids,
             },
         )
 

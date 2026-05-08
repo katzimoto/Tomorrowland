@@ -153,6 +153,21 @@ class DocumentRepository:
         ).mappings()
         return [self._row_to_model(row) for row in rows]
 
+    def source_group_ids(self, source_id: UUID) -> list[UUID]:
+        """Return group IDs granted access to an ingestion source."""
+        rows = self._connection.execute(
+            sa.text(
+                """
+                SELECT group_id
+                FROM source_permissions
+                WHERE source_id = :source_id
+                ORDER BY group_id
+                """
+            ),
+            {"source_id": db_uuid(source_id)},
+        ).scalars()
+        return [to_uuid(row) for row in rows]
+
     def _get_row_by_id(self, doc_id: UUID) -> RowMapping | None:
         return (
             self._connection.execute(
