@@ -12,6 +12,7 @@ Implement user-facing intelligence workflows.
 - Document comment APIs and UI.
 - Annotation APIs and UI.
 - Subscriptions and notifications.
+- Alert matching (deferred from Phase 06 — requires subscriptions table).
 - Related documents.
 - Expertise map.
 
