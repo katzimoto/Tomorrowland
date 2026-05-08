@@ -365,10 +365,12 @@ def create_app(
     @app.get("/me/activity")
     def me_activity(
         user: Annotated[TokenPayload, Depends(current_user)],
+        skip: int = 0,
+        limit: int = 50,
     ) -> list[dict[str, Any]]:
         with app.state.engine.begin() as connection:
             preview_service = PreviewService(connection)
-            return preview_service.get_user_activity(user.sub)
+            return preview_service.get_user_activity(user.sub, limit=limit, offset=skip)
 
     @app.get("/download/{doc_id}")
     def download(

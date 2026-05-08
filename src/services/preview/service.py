@@ -170,7 +170,12 @@ class PreviewService:
         raw = re.sub(r"<(iframe|object|embed)[^/]*/?>", "", raw, flags=re.IGNORECASE)
         return raw.strip()
 
-    def get_user_activity(self, user_id: UUID, limit: int = 50) -> list[dict[str, Any]]:
+    def get_user_activity(
+        self,
+        user_id: UUID,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
         """Return document view history for *user_id*."""
         rows = self._connection.execute(
             sa.text(
@@ -181,9 +186,14 @@ class PreviewService:
                 WHERE v.user_id = :user_id
                 ORDER BY v.viewed_at DESC
                 LIMIT :limit
+                OFFSET :offset
                 """
             ),
-            {"user_id": db_uuid(user_id), "limit": limit},
+            {
+                "user_id": db_uuid(user_id),
+                "limit": limit,
+                "offset": offset,
+            },
         ).mappings()
 
         return [

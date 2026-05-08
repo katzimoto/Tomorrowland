@@ -260,6 +260,47 @@ def test_preview_archive_lists_filenames(
     assert "file2.txt" in data["snippet"]
 
 
+def test_preview_tar_archive_lists_filenames(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.tar.gz"
+
+    import tarfile
+
+    with tarfile.open(test_file, "w:gz") as tf:
+        import io
+
+        for name, content in [("a.txt", "a"), ("b.txt", "b")]:
+            data = content.encode()
+            info = tarfile.TarInfo(name=name)
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+
+    _source_id, doc_id = _create_source_with_doc(
+        migrated_engine, "users", mime_type="application/gzip", path=str(test_file)
+    )
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.get(f"/preview/{doc_id}", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "a.txt" in data["snippet"]
+    assert "b.txt" in data["snippet"]
+
+
 def test_me_activity_returns_view_history(
     migrated_engine: Engine,
     tmp_path: Path,

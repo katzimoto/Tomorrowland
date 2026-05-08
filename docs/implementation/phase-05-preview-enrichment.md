@@ -30,9 +30,9 @@ Expand document preview support and implement high-quality translation flow.
 
 - **Text / Markdown / CSV / JSON / XML / RTF / Email:** plain text snippet,
   truncated to 2000 characters.
-- **HTML:** sanitized HTML snippet safe for browser rendering. Strips scripts,
-  event handlers, and `javascript:` URLs. Returns first 2000 chars of sanitized
-  output.
+- **HTML:** sanitized plain-text snippet. Tags are stripped by the extractor;
+  a defense-in-depth regex pass also removes scripts, event handlers, and
+  `javascript:` URLs. Returns first 2000 chars.
 - **PDF / DOCX / PPTX / XLSX / ODT:** plain text extraction result, truncated.
 - **Archive (ZIP, TAR):** list of top-level filenames as string preview.
 
