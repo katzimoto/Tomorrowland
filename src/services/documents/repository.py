@@ -103,6 +103,24 @@ class DocumentRepository:
             {"status": status, "id": db_uuid(doc_id)},
         )
 
+    def update_indexed(
+        self,
+        doc_id: UUID,
+        status: DocumentStatus,
+        translation_quality: str | None,
+    ) -> None:
+        """Update document status and translation quality after indexing."""
+        self._connection.execute(
+            sa.text(
+                """
+                UPDATE documents
+                SET status = :status, translation_quality = :quality
+                WHERE id = :id
+                """
+            ),
+            {"status": status, "quality": translation_quality, "id": db_uuid(doc_id)},
+        )
+
     def list_by_source(self, source_id: UUID) -> list[DocumentRow]:
         """List all documents belonging to a source."""
         rows = self._connection.execute(
