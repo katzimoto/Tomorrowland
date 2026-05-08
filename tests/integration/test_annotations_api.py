@@ -287,6 +287,72 @@ def test_cannot_modify_others_annotation(migrated_engine: Engine) -> None:
     assert resp.status_code == 403
 
 
+def test_admin_can_delete_others_annotation(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    admin_token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    # Create a regular user in admins group
+    with migrated_engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        group_id = auth_repo.ensure_group("admins")
+        auth_repo.create_local_user(
+            email="regular@example.com",
+            password_hash=hash_password("secret"),
+            display_name="Regular",
+            is_admin=False,
+            group_names=["admins"],
+        )
+        row = (
+            connection.execute(
+                sa.text("SELECT id FROM users WHERE email = :email"),
+                {"email": "regular@example.com"},
+            )
+            .mappings()
+            .first()
+        )
+    assert row is not None
+    regular_id = UUID(str(row["id"]))
+
+    jwt = JwtService(secret=app.state.settings.jwt_secret)
+    regular_identity = UserIdentity(
+        id=regular_id,
+        email="regular@example.com",
+        display_name="Regular",
+        auth_source="local",
+        is_admin=False,
+        groups=[group_id],
+    )
+    regular_token = jwt.encode(regular_identity)
+
+    # Regular user creates an annotation
+    resp = client.post(
+        f"/documents/{doc_id}/annotations",
+        json={"text": "Regular annotation"},
+        headers={"Authorization": f"Bearer {regular_token}"},
+    )
+    assert resp.status_code == 201
+    annotation_id = resp.json()["id"]
+
+    # Admin deletes it
+    resp = client.delete(
+        f"/annotations/{annotation_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 204
+
+    # Verify it's gone
+    resp = client.get(
+        f"/documents/{doc_id}/annotations",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200
+    assert len(resp.json()["annotations"]) == 0
+
+
 def test_admin_can_see_all_annotations(migrated_engine: Engine) -> None:
     _setup_users(migrated_engine)
     app = create_app(migrated_engine)
@@ -350,6 +416,22 @@ def test_admin_can_see_all_annotations(migrated_engine: Engine) -> None:
     )
     assert resp.status_code == 200
     assert len(resp.json()["annotations"]) == 2
+
+
+def test_empty_text_returns_422(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    resp = client.post(
+        f"/documents/{doc_id}/annotations",
+        json={"text": ""},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
 
 
 def test_update_nonexistent_annotation_returns_404(migrated_engine: Engine) -> None:

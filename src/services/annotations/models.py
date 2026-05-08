@@ -9,14 +9,6 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-class AnnotationPosition(BaseModel):
-    """Position of an annotation within a document."""
-
-    page: int | None = None
-    start_char: int | None = None
-    end_char: int | None = None
-
-
 class Annotation(BaseModel):
     """Row model for the annotations table."""
 
