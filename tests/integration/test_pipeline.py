@@ -120,6 +120,64 @@ def test_sync_now_indexes_document(
     assert qdrant_chunks[0]["group_id"] == [str(admin_group_id)]
 
 
+def test_sync_now_matches_alert_subscriptions(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    _setup_admin(migrated_engine)
+
+    source_folder = tmp_path / "source"
+    source_folder.mkdir()
+    fixture_file = source_folder / "topic.txt"
+    fixture_file.write_text("security update")
+
+    source_id = _create_folder_source(migrated_engine, source_folder)
+
+    with migrated_engine.begin() as connection:
+        admin_id = connection.execute(
+            sa.text("SELECT id FROM users WHERE email = 'admin@example.com'")
+        ).scalar_one()
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO alert_subscriptions (
+                    id, user_id, name, query, similarity_threshold, enabled
+                )
+                VALUES (
+                    :id, :user_id, 'Security', 'security update', 0.9, true
+                )
+                """
+            ),
+            {"id": uuid4().hex, "user_id": admin_id},
+        )
+
+    mock_es = MagicMock(spec=ElasticsearchSearchClient)
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator.translate.return_value = "security update"
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            translator=mock_translator,
+            es_client=mock_es,
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _admin_token(client)
+
+    response = client.post(
+        f"/admin/ingestion/{source_id}/sync-now",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    with migrated_engine.begin() as connection:
+        count = connection.execute(sa.text("SELECT COUNT(*) FROM alert_notifications")).scalar_one()
+    assert count == 1
+
+
 def test_sync_now_skips_duplicate(
     migrated_engine: Engine,
     tmp_path: Path,

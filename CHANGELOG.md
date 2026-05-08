@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Phase 07d: Subscriptions and notifications — `alert_subscriptions` and `alert_notifications` tables, subscription CRUD endpoints, unread notification listing and read marking, `AlertMatcher` with source-permission filtering, ingest-time matching, admin alert trigger, feature flag enforcement, and integration tests.
 - Phase 07c: RAG Q&A — `RagService` retrieves chunks from Qdrant, assembles context, calls Ollama, returns answer + citations; `POST /qa` endpoint with `question` and `top_k`; `feature.rag_qa` enforcement; source-grant-aligned ES/Qdrant indexing; best-effort fallback on Ollama failure; mocked Qdrant tests.
 - Phase 07b: Annotations — `annotations` table, `AnnotationRepository`, `GET|POST /documents/{doc_id}/annotations`, `PUT|DELETE /annotations/{annotation_id}`, private/shared visibility filtering, hard delete with creator/admin permission checks, JSON position support.
 - Phase 07a: Document comments — `document_comments` table, `CommentRepository`, `GET|POST|PATCH|DELETE /documents/{doc_id}/comments`, soft-delete with creator/admin permission checks, pagination and sorting, `feature.document_comments` flag.
@@ -23,5 +24,5 @@ All notable changes to this project will be documented in this file.
 - Phase 00: Planning, repository hygiene, and GitHub Actions bootstrap.
 
 ### Planned
-- Phase 07b–07e: Annotations, RAG Q&A, subscriptions/notifications, related documents + expertise map.
+- Phase 07e: Related documents + expertise map.
 - Phase 08: External integrations (NiFi, Confluence, Jira), old Office extraction, observability.

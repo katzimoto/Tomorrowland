@@ -13,6 +13,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 
+from services.alerts.models import SubscriptionCreateRequest, SubscriptionUpdateRequest
+from services.alerts.repository import AlertRepository
+from services.alerts.service import AlertMatcher
 from services.annotations.models import AnnotationCreateRequest, AnnotationUpdateRequest
 from services.annotations.repository import AnnotationRepository
 from services.auth.jwt import JwtService
@@ -99,6 +102,37 @@ def _audit_log(
             "details": json.dumps(details or {}),
         },
     )
+
+
+def _subscription_response(row: dict[str, Any]) -> dict[str, Any]:
+    """Serialize an alert subscription row."""
+    return {
+        "id": str(to_uuid(row["id"])),
+        "user_id": str(to_uuid(row["user_id"])),
+        "name": row["name"],
+        "query": row["query"],
+        "similarity_threshold": row["similarity_threshold"],
+        "enabled": bool(row["enabled"]),
+        "unread_count": int(row.get("unread_count") or 0),
+        "last_notified": _fmt_dt(row["last_notified"]),
+        "created_at": _fmt_dt(row["created_at"]),
+        "updated_at": _fmt_dt(row["updated_at"]),
+    }
+
+
+def _notification_response(row: dict[str, Any]) -> dict[str, Any]:
+    """Serialize an alert notification row."""
+    return {
+        "id": str(to_uuid(row["id"])),
+        "subscription_id": str(to_uuid(row["subscription_id"])),
+        "subscription_name": row["subscription_name"],
+        "subscription_query": row["subscription_query"],
+        "doc_id": str(to_uuid(row["doc_id"])),
+        "doc_title": row["doc_title"],
+        "similarity": row["similarity"],
+        "read": bool(row["read"]),
+        "created_at": _fmt_dt(row["created_at"]),
+    }
 
 
 class SearchRequest(BaseModel):
@@ -221,6 +255,47 @@ def create_app(
         token = authorization.removeprefix(AUTH_SCHEME)
         return jwt_service().decode(token)
 
+    def require_subscriptions_enabled(connection: sa.Connection) -> None:
+        """Raise 404 when subscriptions are disabled."""
+        if not app.state.settings.feature_subscriptions:
+            raise HTTPException(status_code=404, detail="Subscriptions are disabled")
+        row = (
+            connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = :key"),
+                {"key": "feature.subscriptions"},
+            )
+            .mappings()
+            .first()
+        )
+        if row and not _config_bool(row["value"], default=True):
+            raise HTTPException(status_code=404, detail="Subscriptions are disabled")
+
+    def default_alert_threshold(connection: sa.Connection) -> float:
+        """Read the default alert similarity threshold from runtime config."""
+        row = (
+            connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = :key"),
+                {"key": "alerts.similarity_threshold"},
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            return 0.75
+        return float(row["value"])
+
+    def alerts_check_on_ingest(connection: sa.Connection) -> bool:
+        """Return whether ingest-time alert matching is enabled."""
+        row = (
+            connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = :key"),
+                {"key": "alerts.check_on_ingest"},
+            )
+            .mappings()
+            .first()
+        )
+        return _config_bool(row["value"], default=True) if row else True
+
     @app.post("/auth/login", response_model=LoginResponse)
     def login(request: LoginRequest) -> LoginResponse:
         with repository_context() as repository:
@@ -290,6 +365,15 @@ def create_app(
                 encoder=MockEncoder(),
                 es_client=es_client,
                 qdrant_client=qdrant_client,
+                alert_matcher=(
+                    AlertMatcher(
+                        repository=AlertRepository(connection),
+                        encoder=MockEncoder(),
+                        default_threshold=default_alert_threshold(connection),
+                    )
+                    if alerts_check_on_ingest(connection)
+                    else None
+                ),
             )
 
             results: dict[str, int] = {"indexed": 0, "skipped": 0, "failed": 0}
@@ -751,6 +835,122 @@ def create_app(
                 raise HTTPException(status_code=403, detail="Cannot delete this annotation")
 
             repo.delete(annotation_id)
+
+    @app.get("/subscriptions")
+    def list_subscriptions(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, Any]]:
+        with app.state.engine.begin() as connection:
+            require_subscriptions_enabled(connection)
+            repo = AlertRepository(connection)
+            return [_subscription_response(row) for row in repo.list_subscriptions(user.sub)]
+
+    @app.post("/subscriptions", status_code=201)
+    def create_subscription(
+        request: SubscriptionCreateRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        with app.state.engine.begin() as connection:
+            require_subscriptions_enabled(connection)
+            repo = AlertRepository(connection)
+            row = repo.create_subscription(
+                user_id=user.sub,
+                name=request.name,
+                query=request.query,
+                similarity_threshold=request.similarity_threshold,
+                enabled=request.enabled,
+            )
+            return _subscription_response(row)
+
+    @app.put("/subscriptions/{subscription_id}")
+    def update_subscription(
+        subscription_id: UUID,
+        request: SubscriptionUpdateRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        with app.state.engine.begin() as connection:
+            require_subscriptions_enabled(connection)
+            repo = AlertRepository(connection)
+            subscription = repo.get_subscription(subscription_id)
+            if subscription is None or to_uuid(subscription["user_id"]) != user.sub:
+                raise HTTPException(status_code=404, detail="Subscription not found")
+            updated = repo.update_subscription(
+                subscription_id,
+                name=request.name,
+                query=request.query,
+                similarity_threshold=request.similarity_threshold,
+                enabled=request.enabled,
+            )
+            if updated is None:
+                raise HTTPException(status_code=404, detail="Subscription not found")
+            return _subscription_response(updated)
+
+    @app.delete("/subscriptions/{subscription_id}", status_code=204)
+    def delete_subscription(
+        subscription_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> None:
+        with app.state.engine.begin() as connection:
+            require_subscriptions_enabled(connection)
+            repo = AlertRepository(connection)
+            subscription = repo.get_subscription(subscription_id)
+            if subscription is None or to_uuid(subscription["user_id"]) != user.sub:
+                raise HTTPException(status_code=404, detail="Subscription not found")
+            repo.delete_subscription(subscription_id)
+
+    @app.get("/notifications")
+    def list_notifications(
+        user: Annotated[TokenPayload, Depends(current_user)],
+        unread_only: bool = True,
+    ) -> list[dict[str, Any]]:
+        with app.state.engine.begin() as connection:
+            require_subscriptions_enabled(connection)
+            repo = AlertRepository(connection)
+            return [
+                _notification_response(row)
+                for row in repo.list_notifications(user.sub, unread_only=unread_only)
+            ]
+
+    @app.put("/notifications/{notification_id}/read")
+    def mark_notification_read(
+        notification_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        with app.state.engine.begin() as connection:
+            require_subscriptions_enabled(connection)
+            repo = AlertRepository(connection)
+            notification = repo.get_notification(notification_id)
+            if notification is None or to_uuid(notification["user_id"]) != user.sub:
+                raise HTTPException(status_code=404, detail="Notification not found")
+            updated = repo.mark_notification_read(notification_id)
+            if updated is None:
+                raise HTTPException(status_code=404, detail="Notification not found")
+            return {
+                "id": str(to_uuid(updated["id"])),
+                "read": bool(updated["read"]),
+            }
+
+    @app.post("/admin/alerts/{doc_id}/trigger")
+    def trigger_alert_matching(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            require_subscriptions_enabled(connection)
+            doc_repo = DocumentRepository(connection)
+            doc = doc_repo.get_by_id(doc_id)
+            if doc is None or doc.path is None:
+                raise HTTPException(status_code=404, detail="Document not found")
+
+            content = ExtractorRegistry().extract(Path(doc.path), doc.mime_type)
+            matcher = AlertMatcher(
+                repository=AlertRepository(connection),
+                encoder=MockEncoder(),
+                default_threshold=default_alert_threshold(connection),
+            )
+            created = matcher.match_document(doc, content)
+            return {"doc_id": str(doc_id), "notifications_created": created}
 
     @app.post("/qa")
     def qa(

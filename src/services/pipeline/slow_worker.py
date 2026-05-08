@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from services.alerts.service import AlertMatcher
 from services.chunking.splitter import chunk_text
 from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from services.extraction.registry import ExtractorRegistry
@@ -31,6 +32,7 @@ class SlowWorker:
         es_client: ElasticsearchSearchClient,
         qdrant_client: QdrantSearchClient,
         version_repository: TranslationVersionRepository | None = None,
+        alert_matcher: AlertMatcher | None = None,
     ) -> None:
         self._doc_repo = document_repository
         self._extractor = extractor_registry or ExtractorRegistry()
@@ -39,6 +41,7 @@ class SlowWorker:
         self._es = es_client
         self._qdrant = qdrant_client
         self._version_repo = version_repository
+        self._alert_matcher = alert_matcher
 
     def process_document(self, doc_id: UUID) -> None:
         """Run the enrichment pipeline for a single document.
@@ -169,3 +172,6 @@ class SlowWorker:
         # Index chunks in Qdrant
         if qdrant_chunks:
             self._qdrant.upsert_chunks(qdrant_chunks)
+
+        if self._alert_matcher is not None:
+            self._alert_matcher.match_document(doc, translated)
