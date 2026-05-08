@@ -129,6 +129,30 @@ class DocumentRepository:
         ).mappings()
         return [self._row_to_model(row) for row in rows]
 
+    def update_translation_quality(
+        self,
+        doc_id: UUID,
+        quality: str,
+    ) -> None:
+        """Update the document translation quality."""
+        self._connection.execute(
+            sa.text(
+                """
+                UPDATE documents
+                SET translation_quality = :quality
+                WHERE id = :id
+                """
+            ),
+            {"quality": quality, "id": db_uuid(doc_id)},
+        )
+
+    def list_pending_enrichment(self) -> list[DocumentRow]:
+        """List documents queued for high-quality translation."""
+        rows = self._connection.execute(
+            sa.text("SELECT * FROM documents WHERE translation_quality = 'pending_high'"),
+        ).mappings()
+        return [self._row_to_model(row) for row in rows]
+
     def _get_row_by_id(self, doc_id: UUID) -> RowMapping | None:
         return (
             self._connection.execute(

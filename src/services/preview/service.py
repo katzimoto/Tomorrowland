@@ -81,6 +81,9 @@ class PreviewService:
             {"doc_id": db_uuid(doc_id)},
         ).scalar_one()
 
+        # Auto-enrich: queue for high-quality translation when view threshold is crossed
+        self._maybe_auto_enrich(doc_id, view_count, row["translation_quality"])
+
         snippet = self._generate_snippet(row["path"], row["mime_type"])
 
         return {
@@ -120,6 +123,39 @@ class PreviewService:
 
         # Plain text: truncate
         return text[:SNIPPET_LENGTH]
+
+    def _maybe_auto_enrich(
+        self,
+        doc_id: UUID,
+        view_count: int,
+        current_quality: str | None,
+    ) -> None:
+        """Queue document for enrichment if view threshold is crossed."""
+        if current_quality in ("high", "pending_high"):
+            return
+
+        threshold_row = (
+            self._connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = 'auto_enrich.threshold'"),
+            )
+            .mappings()
+            .first()
+        )
+        threshold = threshold_row["value"] if threshold_row else 5
+        if isinstance(threshold, str):
+            threshold = int(threshold)
+
+        if view_count >= threshold:
+            self._connection.execute(
+                sa.text(
+                    """
+                    UPDATE documents
+                    SET translation_quality = 'pending_high'
+                    WHERE id = :id
+                    """
+                ),
+                {"id": db_uuid(doc_id)},
+            )
 
     @staticmethod
     def _archive_snippet(path: Path) -> str:

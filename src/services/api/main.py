@@ -372,6 +372,48 @@ def create_app(
             preview_service = PreviewService(connection)
             return preview_service.get_user_activity(user.sub, limit=limit, offset=skip)
 
+    @app.post("/documents/{doc_id}/translate")
+    def request_translation(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(doc_id, user, auth_repo)
+
+            doc_repo = DocumentRepository(connection)
+            doc = doc_repo.get_by_id(doc_id)
+            if doc is None:
+                raise HTTPException(status_code=404, detail="Document not found")
+
+            if doc.translation_quality not in ("high", "pending_high"):
+                doc_repo.update_translation_quality(doc_id, "pending_high")
+                doc = doc_repo.get_by_id(doc_id)
+                assert doc is not None
+
+            return {
+                "doc_id": str(doc.id),
+                "translation_quality": doc.translation_quality,
+            }
+
+    @app.get("/admin/enrichment-queue")
+    def enrichment_queue(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, Any]]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            doc_repo = DocumentRepository(connection)
+            pending = doc_repo.list_pending_enrichment()
+            return [
+                {
+                    "doc_id": str(doc.id),
+                    "title": doc.title,
+                    "mime_type": doc.mime_type,
+                    "status": doc.status,
+                }
+                for doc in pending
+            ]
+
     @app.get("/download/{doc_id}")
     def download(
         doc_id: UUID,

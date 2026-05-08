@@ -9,7 +9,8 @@ Expand document preview support and implement high-quality translation flow.
 | Sub-Phase | Focus | PR | Status |
 |---|---|---|---|
 | 05a | Preview service with truncated snippets and per-user view tracking | #10 | ✅ Merged |
-| 05b | Translation enrichment: manual request, auto-enrich threshold, slow worker | #11 | ⏳ Planned |
+| 05b | Translation enrichment: manual request, auto-enrich threshold, slow worker | #12 | ✅ Merged |
+| 05c | Translation versions and selectable preview versions | TBD | ⏳ Planned |
 
 ---
 
