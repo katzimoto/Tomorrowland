@@ -37,6 +37,24 @@ These items must be resolved before implementation reaches the affected phase.
 
 ## Blockers Before Phase 05
 
+- **Preview content shape:** the spec does not define whether preview returns raw
+  text, truncated snippet, or rendered HTML.
+  - **Resolved for Phase 05a:** preview returns a truncated text snippet
+    (first 2000 chars) with MIME-type-aware formatting. A `?full=true` query
+    parameter may be added in a future phase for full raw content.
+- **View tracking granularity:** the spec mentions view counts but does not
+  specify per-user vs global counting or who can see history.
+  - **Resolved for Phase 05a:** track per-user views in `document_views` table.
+    Users see their own view history via `GET /me/activity`. Admins see global
+    activity via `GET /admin/activity` (already implemented in Phase 04).
+- **Auto-enrich trigger:** the spec mentions an auto-enrich threshold but does
+  not define the mechanism.
+  - **Resolved for Phase 05b:** when `document_views` count for a document
+    exceeds `system_config.auto_enrich.threshold`, the document is queued for
+    slow-worker high-quality translation. This fires exactly once per document.
+
+## Blockers Before Phase 07
+
 - **Annotation retention:** delete cascade says annotations are marked
   `doc_deleted: true`, but the annotation schema does not include that column.
 - **Preview positions:** annotation `position` is preview-mode dependent; define

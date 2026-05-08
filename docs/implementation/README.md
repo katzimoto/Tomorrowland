@@ -29,6 +29,7 @@ on its own branch and reviewed before the next phase starts.
 | 05 | `phase-05-preview-enrichment.md` | Preview modes and translation enrichment |
 | 06 | `phase-06-intelligence-layer.md` | Ollama intelligence worker |
 | 07 | `phase-07-rag-ui-features.md` | RAG, annotations, subscriptions, UI |
+| UI | `frontend-ui-plan.md` | Reviewable frontend implementation phases |
 | 08 | `phase-08-integrations-hardening.md` | NiFi, Atlassian, observability, hardening |
 
 ## Review Gate

@@ -23,6 +23,7 @@ from services.documents.repository import DocumentRepository
 from services.extraction.registry import ExtractorRegistry
 from services.permissions.enforcer import assert_doc_access, require_admin
 from services.pipeline.worker import PipelineWorker
+from services.preview.service import PreviewService
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.encoder import MockEncoder
 from services.search.hybrid import merge_results
@@ -103,6 +104,8 @@ class PreviewResponse(BaseModel):
     mime_type: str
     translation_quality: str | None = None
     metadata: dict[str, Any]
+    snippet: str
+    view_count: int
 
 
 class CreateUserRequest(BaseModel):
@@ -344,18 +347,28 @@ def create_app(
             auth_repo = AuthRepository(connection)
             assert_doc_access(doc_id, user, auth_repo)
 
-            doc_repo = DocumentRepository(connection)
-            doc = doc_repo.get_by_id(doc_id)
-            if doc is None:
+            preview_service = PreviewService(connection)
+            result = preview_service.get_preview(doc_id, user.sub)
+            if not result:
                 raise HTTPException(status_code=404, detail="Document not found")
 
             return PreviewResponse(
-                doc_id=str(doc.id),
-                title=doc.title,
-                mime_type=doc.mime_type,
-                translation_quality=doc.translation_quality,
-                metadata=doc.metadata,
+                doc_id=result["doc_id"],
+                title=result["title"],
+                mime_type=result["mime_type"],
+                translation_quality=result["translation_quality"],
+                metadata=result["metadata"],
+                snippet=result["snippet"],
+                view_count=result["view_count"],
             )
+
+    @app.get("/me/activity")
+    def me_activity(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, Any]]:
+        with app.state.engine.begin() as connection:
+            preview_service = PreviewService(connection)
+            return preview_service.get_user_activity(user.sub)
 
     @app.get("/download/{doc_id}")
     def download(
