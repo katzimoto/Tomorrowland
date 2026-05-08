@@ -1,9 +1,10 @@
 import hashlib
+import json
 import mimetypes
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
@@ -43,6 +44,33 @@ def _fmt_dt(value: Any) -> str | None:
     return str(value.isoformat())
 
 
+def _audit_log(
+    connection: sa.Connection,
+    user_id: UUID | None,
+    action: str,
+    resource_type: str,
+    resource_id: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> None:
+    """Write an audit log entry."""
+    connection.execute(
+        sa.text(
+            """
+            INSERT INTO audit_log (id, user_id, action, resource_type, resource_id, details)
+            VALUES (:id, :user_id, :action, :resource_type, :resource_id, :details)
+            """
+        ),
+        {
+            "id": uuid4().hex,
+            "user_id": user_id.hex if user_id else None,
+            "action": action,
+            "resource_type": resource_type,
+            "resource_id": resource_id,
+            "details": json.dumps(details or {}),
+        },
+    )
+
+
 class SearchRequest(BaseModel):
     """Search request body."""
 
@@ -75,6 +103,56 @@ class PreviewResponse(BaseModel):
     mime_type: str
     translation_quality: str | None = None
     metadata: dict[str, Any]
+
+
+class CreateUserRequest(BaseModel):
+    """Admin create user request."""
+
+    email: str
+    password: str
+    display_name: str | None = None
+    is_admin: bool = False
+    group_names: list[str] = Field(default_factory=list)
+
+
+class CreateGroupRequest(BaseModel):
+    """Admin create group request."""
+
+    name: str
+
+
+class CreateSourceRequest(BaseModel):
+    """Admin create source request."""
+
+    name: str
+    type: Literal["folder", "nifi", "confluence", "jira"] = "folder"
+    path: str | None = None
+    source_language: str | None = "en"
+    enabled: bool = True
+
+
+class GrantPermissionRequest(BaseModel):
+    """Admin grant permission request."""
+
+    group_id: str
+
+
+class UpdateConfigRequest(BaseModel):
+    """Admin update config request."""
+
+    value: Any
+
+
+class DlqItem(BaseModel):
+    """DLQ item response."""
+
+    id: str
+    doc_id: str
+    error_message: str
+    retry_count: int
+    status: str
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 def create_app(
@@ -339,18 +417,26 @@ def create_app(
 
     @app.post("/admin/users", status_code=201)
     def admin_create_user(
-        request: dict[str, Any],
+        request: CreateUserRequest,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         require_admin(user)
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
             identity = auth_repo.create_local_user(
-                email=request["email"],
-                password_hash=hash_password(request["password"]),
-                display_name=request.get("display_name"),
-                is_admin=request.get("is_admin", False),
-                group_names=request.get("group_names", []),
+                email=request.email,
+                password_hash=hash_password(request.password),
+                display_name=request.display_name,
+                is_admin=request.is_admin,
+                group_names=request.group_names,
+            )
+            _audit_log(
+                connection,
+                user.sub,
+                "create",
+                "user",
+                str(identity.id),
+                {"email": identity.email},
             )
             return {
                 "id": str(identity.id),
@@ -365,6 +451,8 @@ def create_app(
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> None:
         require_admin(user)
+        if user_id == user.sub:
+            raise HTTPException(status_code=400, detail="Cannot delete yourself")
         with app.state.engine.begin() as connection:
             result = connection.execute(
                 sa.text("DELETE FROM users WHERE id = :id"),
@@ -372,6 +460,7 @@ def create_app(
             )
             if result.rowcount == 0:
                 raise HTTPException(status_code=404, detail="User not found")
+            _audit_log(connection, user.sub, "delete", "user", str(user_id))
 
     @app.get("/admin/groups")
     def admin_list_groups(
@@ -386,14 +475,15 @@ def create_app(
 
     @app.post("/admin/groups", status_code=201)
     def admin_create_group(
-        request: dict[str, Any],
+        request: CreateGroupRequest,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         require_admin(user)
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            group_id = auth_repo.ensure_group(request["name"])
-            return {"id": str(group_id), "name": request["name"]}
+            group_id = auth_repo.ensure_group(request.name)
+            _audit_log(connection, user.sub, "create", "group", str(group_id))
+            return {"id": str(group_id), "name": request.name}
 
     @app.get("/admin/sources")
     def admin_list_sources(
@@ -424,7 +514,7 @@ def create_app(
 
     @app.post("/admin/sources", status_code=201)
     def admin_create_source(
-        request: dict[str, Any],
+        request: CreateSourceRequest,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         require_admin(user)
@@ -439,33 +529,49 @@ def create_app(
                 ),
                 {
                     "id": source_id.hex,
-                    "name": request["name"],
-                    "type": request.get("type", "folder"),
-                    "path": request.get("path"),
-                    "source_language": request.get("source_language", "en"),
-                    "enabled": request.get("enabled", True),
+                    "name": request.name,
+                    "type": request.type,
+                    "path": request.path,
+                    "source_language": request.source_language,
+                    "enabled": request.enabled,
                 },
+            )
+            _audit_log(
+                connection,
+                user.sub,
+                "create",
+                "source",
+                str(source_id),
+                {"name": request.name},
             )
             return {
                 "id": str(source_id),
-                "name": request["name"],
-                "type": request.get("type", "folder"),
-                "path": request.get("path"),
-                "source_language": request.get("source_language", "en"),
-                "enabled": request.get("enabled", True),
+                "name": request.name,
+                "type": request.type,
+                "path": request.path,
+                "source_language": request.source_language,
+                "enabled": request.enabled,
             }
 
     @app.post("/admin/sources/{source_id}/permissions", status_code=201)
     def admin_grant_permission(
         source_id: UUID,
-        request: dict[str, Any],
+        request: GrantPermissionRequest,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         require_admin(user)
-        group_id = UUID(request["group_id"])
+        group_id = UUID(request.group_id)
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
             auth_repo.grant_source_to_group(source_id, group_id)
+            _audit_log(
+                connection,
+                user.sub,
+                "grant",
+                "permission",
+                str(source_id),
+                {"group_id": str(group_id)},
+            )
             return {"source_id": str(source_id), "group_id": str(group_id)}
 
     @app.delete("/admin/sources/{source_id}/permissions/{group_id}", status_code=204)
@@ -484,6 +590,14 @@ def create_app(
                     """
                 ),
                 {"source_id": source_id.hex, "group_id": group_id.hex},
+            )
+            _audit_log(
+                connection,
+                user.sub,
+                "revoke",
+                "permission",
+                str(source_id),
+                {"group_id": str(group_id)},
             )
 
     @app.get("/admin/config")
@@ -507,7 +621,7 @@ def create_app(
     @app.put("/admin/config/{key}")
     def admin_update_config(
         key: str,
-        request: dict[str, Any],
+        request: UpdateConfigRequest,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         require_admin(user)
@@ -522,7 +636,7 @@ def create_app(
                 ),
                 {
                     "key": key,
-                    "value": request["value"],
+                    "value": request.value,
                     "user_id": user.sub.hex,
                 },
             )
@@ -536,10 +650,117 @@ def create_app(
             )
             if row is None:
                 raise HTTPException(status_code=404, detail="Config key not found")
+            _audit_log(
+                connection,
+                user.sub,
+                "update",
+                "system_config",
+                key,
+                {"value": request.value},
+            )
             return {
                 "key": row["key"],
                 "value": row["value"],
                 "updated_at": _fmt_dt(row["updated_at"]),
             }
+
+    @app.post("/admin/config/reset")
+    def admin_reset_config(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        require_admin(user)
+        from shared.feature_flags import SYSTEM_CONFIG_DEFAULTS
+
+        with app.state.engine.begin() as connection:
+            for key, value in SYSTEM_CONFIG_DEFAULTS.items():
+                connection.execute(
+                    sa.text(
+                        """
+                        UPDATE system_config
+                        SET value = :value, updated_at = CURRENT_TIMESTAMP, updated_by = :user_id
+                        WHERE key = :key
+                        """
+                    ),
+                    {"key": key, "value": value, "user_id": user.sub.hex},
+                )
+            _audit_log(connection, user.sub, "reset", "system_config")
+            return {"reset": True, "keys": list(SYSTEM_CONFIG_DEFAULTS.keys())}
+
+    @app.get("/admin/dlq")
+    def admin_list_dlq(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[DlqItem]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            rows = connection.execute(
+                sa.text(
+                    """
+                    SELECT id, doc_id, error_message, retry_count, status, created_at, updated_at
+                    FROM dlq ORDER BY created_at DESC
+                    """
+                )
+            ).mappings()
+            return [
+                DlqItem(
+                    id=str(to_uuid(row["id"])),
+                    doc_id=str(to_uuid(row["doc_id"])),
+                    error_message=row["error_message"],
+                    retry_count=row["retry_count"],
+                    status=row["status"],
+                    created_at=_fmt_dt(row["created_at"]),
+                    updated_at=_fmt_dt(row["updated_at"]),
+                )
+                for row in rows
+            ]
+
+    @app.post("/admin/dlq/{dlq_id}/retry")
+    def admin_retry_dlq(
+        dlq_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            result = connection.execute(
+                sa.text(
+                    """
+                    UPDATE dlq
+                    SET status = 'retried', retry_count = retry_count + 1,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :id AND status = 'pending'
+                    """
+                ),
+                {"id": dlq_id.hex},
+            )
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="DLQ item not found or not pending")
+            _audit_log(connection, user.sub, "retry", "dlq", str(dlq_id))
+            return {"id": str(dlq_id), "status": "retried"}
+
+    @app.get("/admin/activity")
+    def admin_list_activity(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, Any]]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            rows = connection.execute(
+                sa.text(
+                    """
+                    SELECT id, user_id, action, resource_type, resource_id, details, created_at
+                    FROM audit_log ORDER BY created_at DESC LIMIT 100
+                    """
+                )
+            ).mappings()
+            return [
+                {
+                    "id": str(to_uuid(row["id"])),
+                    "user_id": str(to_uuid(row["user_id"])) if row["user_id"] else None,
+                    "action": row["action"],
+                    "resource_type": row["resource_type"],
+                    "resource_id": row["resource_id"],
+                    "details": row["details"],
+                    "created_at": _fmt_dt(row["created_at"]),
+                }
+                for row in rows
+            ]
 
     return app
