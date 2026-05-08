@@ -1,0 +1,43 @@
+#!/bin/sh
+# Pre-commit hook for Neverland
+# Runs fast checks (lint, format, type check) but NOT tests.
+# Tests run in CI on every push and PR.
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Check if we're in the project root
+if [ ! -f "pyproject.toml" ]; then
+    echo "Error: pyproject.toml not found. Are you in the project root?"
+    exit 1
+fi
+
+# Determine Python executable
+if [ -f ".venv/bin/python" ]; then
+    PYTHON=".venv/bin/python"
+elif [ -f ".venv/Scripts/python.exe" ]; then
+    PYTHON=".venv/Scripts/python.exe"
+else
+    echo "Error: Virtual environment not found. Please activate your venv."
+    exit 1
+fi
+
+echo "1/3 Running ruff check with auto-fix..."
+$PYTHON -m ruff check --fix src/ tests/ migrations/
+if [ -n "$(git diff --name-only)" ]; then
+    echo "  ruff fixed some issues. Staging changes..."
+    git add -A
+fi
+
+echo "2/3 Running ruff format with auto-fix..."
+$PYTHON -m ruff format src/ tests/ migrations/
+if [ -n "$(git diff --name-only)" ]; then
+    echo "  ruff formatted some files. Staging changes..."
+    git add -A
+fi
+
+echo "3/3 Running mypy..."
+$PYTHON -m mypy src --strict
+
+echo "All checks passed! (Tests run in CI)"

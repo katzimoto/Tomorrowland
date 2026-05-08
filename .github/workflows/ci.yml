@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - main
+      - developer/**
+      - docs/**
+      - feature/**
+      - fix/**
 
 permissions:
   contents: read
