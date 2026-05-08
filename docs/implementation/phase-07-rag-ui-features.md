@@ -9,16 +9,22 @@ Implement user-facing intelligence workflows.
 - `/qa` endpoint and RAG service.
 - Citation response model.
 - Q&A UI.
+- Document comment APIs and UI.
 - Annotation APIs and UI.
 - Subscriptions and notifications.
 - Related documents.
 - Expertise map.
 
+Detailed document comment plan:
+
+- `docs/implementation/document-comments-plan.md`
+
 ## Validation
 
 - RAG retrieval permission tests.
 - Feature flag enabled/disabled tests.
-- UI workflow tests for Q&A, annotations, subscriptions, and notifications.
+- UI workflow tests for Q&A, comments, annotations, subscriptions, and
+  notifications.
 
 ## Decision Gates
 
@@ -38,4 +44,6 @@ Implement user-facing intelligence workflows.
 
 - Q&A answers cite accessible source chunks only.
 - Feature-flagged routes and UI surfaces hide or disable correctly.
+- Document comments are visible only to users with document access.
+- Comment creators and admins can edit/delete according to policy.
 - Annotation and notification workflows persist and render expected state.

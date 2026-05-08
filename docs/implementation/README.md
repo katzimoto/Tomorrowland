@@ -27,8 +27,10 @@ on its own branch and reviewed before the next phase starts.
 | 03e | `phase-03e-search-apis.md` | Search, preview, and download APIs |
 | 04 | `phase-04-admin-operations.md` | Admin APIs, DLQ, audit, config |
 | 05 | `phase-05-preview-enrichment.md` | Preview modes and translation enrichment |
+| 05c | `translation-versions-plan.md` | Versioned manual translation history |
 | 06 | `phase-06-intelligence-layer.md` | Ollama intelligence worker |
 | 07 | `phase-07-rag-ui-features.md` | RAG, annotations, subscriptions, UI |
+| 07a | `document-comments-plan.md` | Shared document comments |
 | UI | `frontend-ui-plan.md` | Reviewable frontend implementation phases |
 | 08 | `phase-08-integrations-hardening.md` | NiFi, Atlassian, observability, hardening |
 

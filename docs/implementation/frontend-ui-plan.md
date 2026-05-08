@@ -15,6 +15,8 @@ grounded in source documents.
 - `docs/logical-spec.md`
 - `docs/implementation/phase-03e-search-apis.md`
 - `docs/implementation/phase-05-preview-enrichment.md`
+- `docs/implementation/translation-versions-plan.md`
+- `docs/implementation/document-comments-plan.md`
 - `docs/implementation/phase-07-rag-ui-features.md`
 
 ## Chosen Stack
@@ -95,10 +97,10 @@ Classify API usage before each UI phase starts.
 | Search | Available from Phase 03e | Use real API |
 | Preview metadata/basic preview | Phase 03e, expanded in Phase 05 | Use real API and feature-detect preview mode fields |
 | Download | Available from Phase 03e | Use real API |
-| Translation versions/manual request | Phase 05b needs versioned API expansion | Use selector when versions exist; hide request when disabled |
+| Translation versions/manual request | Phase 05c | Use selector when versions exist; hide request when disabled |
 | Q&A | Phase 07 | Use adapter with disabled state before backend exists |
 | Annotations | Phase 07 | Use adapter with disabled state before backend exists |
-| Document comments | Backend API TBD, likely Phase 07 collaboration scope | Hide comments tab or show disabled state before API exists |
+| Document comments | Phase 07a | Hide comments tab or show disabled state before API exists |
 | Saved searches | No backend in current phases | Store locally by user ID in browser storage for MVP |
 | Subscriptions | Phase 07 | Use adapter with disabled state before backend exists |
 | Notifications | Phase 07 | Use adapter with empty state before backend exists |
