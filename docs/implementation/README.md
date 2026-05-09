@@ -40,6 +40,7 @@ on its own branch and reviewed before the next phase starts.
 | 08f-2 | `phase-08f-2-ops-docs.md` | Annotated environment template and production operations docs |
 | 08f-3 | `phase-08f-3-compose-smoke.md` | No-mock Compose smoke test automation |
 | 08f-4 | `phase-08f-4-smoke-bootstrap-helper.md` | Reusable smoke fixture bootstrap helper |
+| 08f-5 | `phase-08f-5-production-audit.md` | Production audit helper for static checks and optional dependency audits |
 | UI | `frontend-ui-plan.md` | Frontend phases folded into Phase 08 |
 | 09 | `phase-09-optional-integrations.md` | NiFi, Atlassian, legacy Office formats |
 

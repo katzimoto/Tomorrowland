@@ -366,6 +366,29 @@ but API calls fail:
    docker compose logs frontend api
    ```
 
+## Production Audit Helper
+
+Run the static production audit helper before the runtime smoke test when you
+want a quick review gate that does not start or mutate Compose services:
+
+```bash
+bash scripts/production-audit.sh
+```
+
+The helper checks pending diff whitespace, verifies that `docker compose config`
+renders, and scans tracked application code for hardcoded secret-like
+assignments outside test files. Dependency audits can require network access, so
+they are opt-in:
+
+```bash
+bash scripts/production-audit.sh --include-dependency-audits
+```
+
+The opt-in mode runs `uv run pip-audit` and `npm --prefix frontend audit`. If a
+review environment lacks Docker, npm, uv, or network access, record the exact
+failed command and environment limitation in the PR notes before continuing with
+the no-mock smoke test.
+
 ## No-Mock Smoke Test
 
 Run the production smoke test from the repository root after reviewing `.env`:

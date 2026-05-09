@@ -18,6 +18,7 @@ exist.
 | 08f-2 | `phase-08f-2-ops-docs.md` | `developer/phase-08f-2-ops-docs` | Annotated environment template and production operations documentation |
 | 08f-3 | `phase-08f-3-compose-smoke.md` | `developer/phase-08f-3-compose-smoke` | No-mock Compose smoke test automation |
 | 08f-4 | `phase-08f-4-smoke-bootstrap-helper.md` | `developer/phase-08f-4-smoke-bootstrap-helper` | Reusable smoke fixture bootstrap helper |
+| 08f-5 | `phase-08f-5-production-audit.md` | `developer/phase-08f-5-production-audit` | Production audit helper for static checks and optional dependency audits |
 
 ## Recommended Dependency Order
 
@@ -28,6 +29,8 @@ exist.
    names, documented reset behavior, and hardened defaults.
 4. Land Phase 08f-4 after validating the smoke script so fixture setup can be
    reused and path-guarded without adding production bootstrap endpoints.
+5. Land Phase 08f-5 last so audit automation reflects the final production
+   hardening checks and accepted smoke-test helper behavior.
 
 Phase 08f-2 may begin before 08f-1 merges if the agent keeps environment names
 in sync with 08f-1 before review. Phase 08f-3 should wait unless the smoke-test
@@ -62,3 +65,9 @@ belongs in the phase plans and operations docs.
 
 Phase 08f-4 captures the reusable smoke bootstrap helper split that keeps
 fixture setup narrow, idempotent, and executable inside the API container.
+
+## Phase 08f-5 Follow-Up
+
+Phase 08f-5 adds a production audit helper for repeatable static checks, Compose
+configuration validation, tracked secret spot checks, and opt-in dependency
+audits before reviewers run the no-mock smoke test.

@@ -5,11 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Phase 08f-5 production audit helper for static production checks, Compose config validation, tracked secret scanning, and opt-in dependency audits.
 - Phase 08f-4 smoke bootstrap helper for idempotent admin/group/source fixture setup and path-guarded deterministic document creation inside the API container.
 - Phase 08f-3 no-mock Compose smoke test script covering startup, fixture setup, authentication, folder-source ingestion, search, preview, download, frontend reachability, and default volume teardown.
 - Phase 08f-2 operations documentation: fully annotated `.env.example` plus expanded production Compose runbook for setup, reset, backup, restore, health checks, and troubleshooting.
 - Phase 08f-1 production defaults: configurable CORS origins wired into FastAPI, Compose defaults pinned to the local frontend origin, and tracked JWT examples use production-change placeholders.
-- Phase 08f production hardening plan split into three reviewable PRs for production defaults, operations documentation, and Compose smoke testing.
+- Phase 08f production hardening plan split into five reviewable PRs for production defaults, operations documentation, Compose smoke testing, smoke bootstrap fixtures, and production audit automation.
 - Confluence and Jira Server/Data Center connectors that validate non-cloud
   Atlassian URLs, expose admin form schemas, poll pages/issues, normalize
   page/issue text, and download attachments for ingestion.

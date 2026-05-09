@@ -68,7 +68,7 @@ command menu, and final visual polish sweep. Can run in parallel with Phase 08d.
 Plan: `docs/implementation/phase-08f-production-smoke.md`
 Prerequisite: None — fully independent of all frontend work.
 
-Phase 08f is split into three reviewable hardening PRs:
+Phase 08f is split into five reviewable hardening PRs:
 
 - 08f-1 production defaults and security guards on branch
   `developer/phase-08f-1-production-defaults`.
@@ -76,10 +76,14 @@ Phase 08f is split into three reviewable hardening PRs:
   `developer/phase-08f-2-ops-docs`.
 - 08f-3 no-mock Compose smoke test on branch
   `developer/phase-08f-3-compose-smoke`.
+- 08f-4 reusable smoke bootstrap helper on branch
+  `developer/phase-08f-4-smoke-bootstrap-helper`.
+- 08f-5 production audit helper on branch
+  `developer/phase-08f-5-production-audit`.
 
-Land 08f-1 first, then 08f-2, then 08f-3 unless the later agent verifies that
-environment variable names and production defaults are already stable. Can start
-at any point after Phase 08b.
+Land 08f-1 first, then 08f-2, 08f-3, 08f-4, and 08f-5 unless the later agent
+verifies that environment variable names, production defaults, and smoke helper
+behavior are already stable. Can start at any point after Phase 08b.
 
 ## Acceptance Criteria
 
