@@ -100,5 +100,5 @@ together to keep document metadata and search indexes consistent.
 ## Phase 08a Limitations
 
 - The frontend is a runtime placeholder; the React UI lands in Phase 08b.
-- The no-mock product smoke test lands in Phase 08d.
+- The no-mock product smoke test lands in Phase 08f-3.
 - Optional NiFi, Atlassian, and old Office support are deferred to Phase 09.

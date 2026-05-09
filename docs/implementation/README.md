@@ -35,7 +35,10 @@ on its own branch and reviewed before the next phase starts.
 | 08c | `phase-08c-search-workspace.md` | Search workspace (UI Phase 01) |
 | 08d | `phase-08d-document-detail.md` | Document preview, Q&A (UI Phase 02–03) |
 | 08e | `phase-08e-collaboration-discovery.md` | Comments, annotations, subscriptions, expertise (UI Phase 04–06) |
-| 08f | `phase-08f-production-smoke.md` | Production smoke test, ops docs, security review |
+| 08f | `phase-08f-production-smoke.md` | Production hardening overview and sub-phase index |
+| 08f-1 | `phase-08f-1-production-defaults.md` | Production defaults, CORS hardening, and security guard audit |
+| 08f-2 | `phase-08f-2-ops-docs.md` | Annotated environment template and production operations docs |
+| 08f-3 | `phase-08f-3-compose-smoke.md` | No-mock Compose smoke test automation |
 | UI | `frontend-ui-plan.md` | Frontend phases folded into Phase 08 |
 | 09 | `phase-09-optional-integrations.md` | NiFi, Atlassian, legacy Office formats |
 

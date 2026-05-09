@@ -63,14 +63,23 @@ committed by the 08d agent.
 Comments, annotations, subscriptions, notifications, history, expertise map,
 command menu, and final visual polish sweep. Can run in parallel with Phase 08d.
 
-## Phase 08f: Production Smoke And Hardening
+## Phase 08f: Production Hardening
 
 Plan: `docs/implementation/phase-08f-production-smoke.md`
-Branch: `developer/phase-08f-production-smoke`
 Prerequisite: None — fully independent of all frontend work.
 
-No-mock Compose smoke test, production operations documentation, and security
-and operational defaults review. Can start at any point after Phase 08b.
+Phase 08f is split into three reviewable hardening PRs:
+
+- 08f-1 production defaults and security guards on branch
+  `developer/phase-08f-1-production-defaults`.
+- 08f-2 production operations documentation on branch
+  `developer/phase-08f-2-ops-docs`.
+- 08f-3 no-mock Compose smoke test on branch
+  `developer/phase-08f-3-compose-smoke`.
+
+Land 08f-1 first, then 08f-2, then 08f-3 unless the later agent verifies that
+environment variable names and production defaults are already stable. Can start
+at any point after Phase 08b.
 
 ## Acceptance Criteria
 

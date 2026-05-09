@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Phase 08f production hardening plan split into three reviewable PRs for production defaults, operations documentation, and Compose smoke testing.
 - Data source connector abstraction — `src/services/connectors/` package with a
   `SourceConnector` protocol, `ConnectorField` for self-describing config schemas,
   `FolderConnector` (extracted from `sync_now`), and `NiFiConnector` stub ready for
