@@ -30,6 +30,7 @@ Located in `implementation/`. Each phase gets one file.
 | 07 | `phase-07-rag-ui-features.md` | Planned |
 | 08 | `phase-08-integrations-hardening.md` | Planned |
 | UI | `frontend-ui-plan.md` | Planned |
+| 10 | `phase-10-observability.md` | Planned |
 
 ## 3. Design Documents
 
@@ -38,6 +39,7 @@ Located in `design/`. UI/UX specs, logo assets, and non-implementation design wo
 | File | Purpose |
 |------|---------|
 | `user-ui-spec.md` | Full UI specification |
+| `metrics-monitoring-spec.md` | Metrics, monitoring, readiness, dashboard, and alert design |
 | `logo-options.md` | Logo candidates and recommendation |
 | `assets/*.svg` | Logo SVG files |
 

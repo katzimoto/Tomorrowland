@@ -43,6 +43,7 @@ on its own branch and reviewed before the next phase starts.
 | 08f-5 | `phase-08f-5-production-audit.md` | Production audit helper for static checks and optional dependency audits |
 | UI | `frontend-ui-plan.md` | Frontend phases folded into Phase 08 |
 | 09 | `phase-09-optional-integrations.md` | NiFi, optional Atlassian hardening, legacy Office formats |
+| 10 | `phase-10-observability.md` | Metrics, monitoring, readiness, dashboards, alerts, and structured logs |
 
 ## Review Gate
 
