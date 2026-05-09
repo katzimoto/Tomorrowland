@@ -1,24 +1,13 @@
-import { createContext, useCallback, useContext, useState } from "react";
+import { useCallback, useState } from "react";
 import { CheckCircle, AlertCircle, Info, X } from "lucide-react";
 import { IconButton } from "./IconButton";
+import { ToastContext, type ToastKind } from "./ToastContext";
 import styles from "./Toast.module.css";
-
-type ToastKind = "success" | "error" | "info";
 
 interface ToastItem {
   id: number;
   kind: ToastKind;
   message: string;
-}
-
-interface ToastContextValue {
-  show: (kind: ToastKind, message: string) => void;
-}
-
-const ToastContext = createContext<ToastContextValue>({ show: () => {} });
-
-export function useToast() {
-  return useContext(ToastContext);
 }
 
 let _nextId = 0;

@@ -477,3 +477,86 @@ def test_non_admin_cannot_access_admin_config(migrated_engine: Engine) -> None:
 
     response = client.get("/admin/config", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 403
+
+
+# Connector types
+
+
+def test_admin_connector_types_returns_folder_and_nifi(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.get("/admin/connector-types", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    types = {item["type"] for item in data}
+    assert "folder" in types
+    assert "nifi" in types
+    # Each type has a non-empty fields list
+    for item in data:
+        assert isinstance(item["fields"], list)
+        assert len(item["fields"]) > 0
+        assert all({"key", "label", "sensitive"} <= set(f.keys()) for f in item["fields"])
+
+
+def test_admin_connector_types_requires_admin(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _user_token(client)
+
+    response = client.get("/admin/connector-types", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 403
+
+
+# Source config persistence
+
+
+def test_admin_create_source_persists_config(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.post(
+        "/admin/sources",
+        json={
+            "name": "NiFi Prod",
+            "type": "nifi",
+            "source_language": "en",
+            "config": {"base_url": "http://nifi:8080", "flow_id": "abc", "api_token": "secret"},
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["type"] == "nifi"
+    assert data["config"]["api_token"] == "secret"
+    assert data["config"]["base_url"] == "http://nifi:8080"
+
+
+def test_admin_list_sources_omits_config(migrated_engine: Engine) -> None:
+    """Config is not returned in the list response (may contain credentials)."""
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    client.post(
+        "/admin/sources",
+        json={"name": "Secure NiFi", "type": "nifi", "config": {"api_token": "secret"}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    response = client.get("/admin/sources", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    for src in response.json():
+        assert "config" not in src

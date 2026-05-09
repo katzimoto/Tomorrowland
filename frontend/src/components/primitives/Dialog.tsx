@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 import { IconButton } from "./IconButton";
 import styles from "./Dialog.module.css";
@@ -13,6 +13,7 @@ interface DialogProps {
 
 export function Dialog({ open, onClose, title, children, width = "480px" }: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     const el = dialogRef.current;
@@ -35,11 +36,11 @@ export function Dialog({ open, onClose, title, children, width = "480px" }: Dial
   if (!open) return null;
 
   return (
-    <dialog ref={dialogRef} className={styles.dialog} style={{ width }} onClick={(e) => {
+    <dialog ref={dialogRef} aria-labelledby={titleId} className={styles.dialog} style={{ width }} onClick={(e) => {
       if (e.target === e.currentTarget) onClose();
     }}>
       <div className={styles.header}>
-        <h2 className={styles.title}>{title}</h2>
+        <h2 id={titleId} className={styles.title}>{title}</h2>
         <IconButton label="Close dialog" size="sm" onClick={onClose}>
           <X size={16} />
         </IconButton>

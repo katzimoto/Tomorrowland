@@ -441,3 +441,75 @@ def test_sync_now_400_for_missing_folder(
 
     assert response.status_code == 400
     assert "does not exist" in response.json()["detail"].lower()
+
+
+def test_sync_now_with_pre_extracted_text(
+    migrated_engine: Engine,
+) -> None:
+    """Connectors that return text_content bypass the file extractor."""
+    _setup_admin(migrated_engine)
+
+    source_id = uuid4()
+    with migrated_engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        admin_group_id = auth_repo.ensure_group("admins")
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO ingestion_sources (id, name, type, config, source_language)
+                VALUES (:id, 'Stub', 'nifi', :config, 'en')
+                """
+            ),
+            {
+                "id": source_id.hex,
+                "config": '{"base_url":"http://nifi","flow_id":"x","api_token":"t"}',
+            },
+        )
+        auth_repo.grant_source_to_group(source_id, admin_group_id)
+
+    # Patch build_connector in main.py's namespace (it was imported directly)
+    from unittest.mock import patch
+
+    from services.connectors.base import ConnectorDocument
+
+    class _StubConnector:
+        def validate(self) -> None:
+            pass
+
+        def fetch_documents(self):  # type: ignore[override]
+            yield ConnectorDocument(
+                external_id="nifi:doc-001",
+                title="NL-001",
+                mime_type="text/plain",
+                sha256=None,
+                source_language="en",
+                text_content="Stub document body from NiFi.",
+            )
+
+    mock_es = MagicMock(spec=ElasticsearchSearchClient)
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator.translate.return_value = "Stub document body from NiFi."
+
+    with patch("services.api.main.build_connector", return_value=_StubConnector()):
+        client = TestClient(
+            create_app(
+                migrated_engine,
+                Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+                translator=mock_translator,
+                es_client=mock_es,
+                qdrant_client=mock_qdrant,
+            )
+        )
+        token = _admin_token(client)
+        response = client.post(
+            f"/admin/ingestion/{source_id}/sync-now",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["indexed"] == 1
+
+    mock_es.index_document.assert_called_once()
+    indexed_doc = mock_es.index_document.call_args.args[1]
+    assert "NiFi" in indexed_doc["content_english"]

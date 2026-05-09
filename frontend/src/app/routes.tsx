@@ -1,6 +1,7 @@
 import { createRouter, createRoute, createRootRoute, redirect } from "@tanstack/react-router";
 import { authStorage } from "@/api/auth";
 import { LoginPage } from "@/features/auth/LoginPage";
+import { AdminSourcesPage } from "@/features/admin/AdminSourcesPage";
 import { AppLayout } from "./AppLayout";
 import { PlaceholderPage } from "./PlaceholderPage";
 
@@ -70,7 +71,7 @@ const settingsRoute = createRoute({
 const adminRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/admin",
-  component: () => <PlaceholderPage title="Admin" />,
+  component: AdminSourcesPage,
 });
 
 const routeTree = rootRoute.addChildren([

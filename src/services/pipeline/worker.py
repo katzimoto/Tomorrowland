@@ -44,15 +44,19 @@ class PipelineWorker:
         self._intelligence = intelligence_worker
         self._alert_matcher = alert_matcher
 
-    def process_document(self, doc_id: UUID) -> None:
+    def process_document(self, doc_id: UUID, pre_extracted_text: str | None = None) -> None:
         """Run the full pipeline for a single document.
+
+        When *pre_extracted_text* is supplied it is used directly, bypassing
+        the file extractor. This is required for connectors that fetch content
+        over a network API rather than from a local file path.
 
         On success the document status is set to ``"indexed"``. On any
         unhandled exception the status is set to ``"failed"`` and the
         exception is re-raised after logging.
         """
         try:
-            self._run(doc_id)
+            self._run(doc_id, pre_extracted_text=pre_extracted_text)
         except Exception:
             logger.exception(
                 "Pipeline failed for doc_id=%s correlation=%s",
@@ -62,15 +66,19 @@ class PipelineWorker:
             self._doc_repo.update_status(doc_id, "failed")
             raise
 
-    def _run(self, doc_id: UUID) -> None:
+    def _run(self, doc_id: UUID, pre_extracted_text: str | None = None) -> None:
         doc = self._doc_repo.get_by_id(doc_id)
         if doc is None:
             raise ValueError(f"Document {doc_id} not found")
-        if doc.path is None:
-            raise ValueError(f"Document {doc_id} has no path")
 
-        # 1. Extract
-        text = self._extractor.extract(Path(doc.path), doc.mime_type)
+        # 1. Extract — use pre-extracted text when available (API sources),
+        #    otherwise read from the local file path (folder sources).
+        if pre_extracted_text is not None:
+            text = pre_extracted_text
+        elif doc.path is not None:
+            text = self._extractor.extract(Path(doc.path), doc.mime_type)
+        else:
+            raise ValueError(f"Document {doc_id} has neither a file path nor pre_extracted_text")
 
         # 2. Translate (falls back to original text on failure)
         translated = self._translator.translate(text, source_lang=doc.source_language)

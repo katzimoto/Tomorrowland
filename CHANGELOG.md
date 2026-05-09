@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Data source connector abstraction — `src/services/connectors/` package with a
+  `SourceConnector` protocol, `ConnectorField` for self-describing config schemas,
+  `FolderConnector` (extracted from `sync_now`), and `NiFiConnector` stub ready for
+  implementation. Adding a new source type now requires one class and one registry entry.
+- `GET /admin/connector-types` endpoint returning each connector's field schema
+  (label, key, sensitive flag) so the UI can render the correct form dynamically.
+- `POST /admin/sources` now accepts and persists a `config` dict for per-source
+  credentials and settings (e.g. API tokens, base URLs).
+- `PipelineWorker.process_document` accepts optional `pre_extracted_text`, enabling
+  API/network connectors that deliver text directly rather than file paths.
+- Admin Sources page (`/admin`) — React feature using the Phase 08b design system:
+  sources table, Add Source dialog with a form that adapts to the selected connector
+  type (sensitive fields masked), and inline Sync result display.
 - Agent efficiency guidance: canonical uppercase `AGENTS.md` plus `frontend/AGENTS.md` with scoped commands, token-saving workflow, and common mistake checklists.
 - Phase 08b: Frontend foundation — React 19 + TypeScript + Vite scaffold with
   TanStack Router and Query, React Hook Form + Zod auth form, design-token CSS
@@ -35,6 +48,12 @@ All notable changes to this project will be documented in this file.
 - Phase 02: Authentication, JWT, LDAP boundary, and permission enforcement.
 - Phase 01: Foundation schema, shared contracts, service skeletons, and tests.
 - Phase 00: Planning, repository hygiene, and GitHub Actions bootstrap.
+
+### Fixed
+- `services/health.py` now uses `typing_extensions.TypedDict` for Python 3.11
+  compatibility (Pydantic 2 rejected `typing.TypedDict` on Python < 3.12).
+- Frontend admin sources integration now passes lint/build checks with type-only
+  imports, matching primitive props, and a Fast Refresh-safe toast context split.
 
 ### Planned
 - Phase 08: Productization, UI, and production Compose.
