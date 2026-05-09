@@ -1,6 +1,7 @@
 import { createRouter, createRoute, createRootRoute, redirect } from "@tanstack/react-router";
 import { authStorage } from "@/api/auth";
 import { LoginPage } from "@/features/auth/LoginPage";
+import { SearchPage } from "@/features/search/SearchPage";
 import { AppLayout } from "./AppLayout";
 import { PlaceholderPage } from "./PlaceholderPage";
 
@@ -28,13 +29,23 @@ const appRoute = createRoute({
 const indexRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/",
-  beforeLoad: () => { throw redirect({ to: "/search" }); },
+  beforeLoad: () => { throw redirect({ to: "/search", search: { q: "", mode: "hybrid" } }); },
 });
 
 const searchRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/search",
-  component: () => <PlaceholderPage title="Search" />,
+  component: SearchPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === "string" ? search.q : "",
+    mode: typeof search.mode === "string" ? search.mode : "hybrid",
+  }),
+});
+
+const docRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/doc/$docId",
+  component: () => <PlaceholderPage title="Document" />,
 });
 
 const qaRoute = createRoute({
@@ -78,6 +89,7 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     indexRoute,
     searchRoute,
+    docRoute,
     qaRoute,
     subscriptionsRoute,
     notificationsRoute,
