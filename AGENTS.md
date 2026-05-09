@@ -44,6 +44,158 @@ Branch validation (2026-05-09): local refs contain only the current `work` branc
 Phase 10a merge commit; no additional unmerged `developer/*` mission branches were present
 beyond the externally reported in-progress Phase 08 missions marked above.
 
+## Multi-agent orchestration
+
+Neverland may be worked on by Codex, Claude Code, and human reviewers. This file plus the
+single relevant phase plan are the source of truth for repository work. GitHub Issues and
+PRs are coordination objects; they do not override the mission queue or phase plans unless
+the user explicitly says so.
+
+### Agent role split
+
+- **Claude Code** is preferred for planning, architecture review, issue decomposition,
+  security/edge-case analysis, API consistency checks, and reviewer reports.
+- **Codex** is preferred for scoped implementation, mechanical refactors, test generation,
+  lint/type/build fixes, CI repair, and small targeted patches.
+- **Human reviewers** own priority changes, merge decisions, risky migrations, and any
+  change to canonical requirements.
+
+Any agent may create or edit GitHub Issues when doing so clarifies scope, dependencies,
+acceptance criteria, or follow-up work. Issue edits must be factual and concise.
+
+### Mission ownership rules
+
+- One branch has one active owner at a time: Codex, Claude, or a human.
+- Do not edit another agent's in-progress branch unless an issue or PR comment explicitly
+  transfers ownership.
+- If a mission is already marked **In progress**, do not claim it unless the current owner
+  hands it off.
+- If working from a GitHub Issue, reference the issue number in the branch, commits, PR,
+  reviewer report, and final handoff.
+- If no GitHub Issue exists, the mission queue row and phase plan are sufficient authority.
+
+### GitHub Issue workflow
+
+Use issues to decompose large work, track dependencies, or coordinate Codex/Claude handoffs.
+For new issues, prefer this compact structure:
+
+```md
+# Mission: <short title>
+
+## Objective
+One clear deliverable.
+
+## Context
+Relevant files, phase plan, constraints, and prior decisions.
+
+## Allowed Changes
+Directories/files the agent may edit.
+
+## Forbidden Changes
+Protected files/modules, especially `spec.md` and `spec-v4.pdf` unless explicitly allowed.
+
+## Acceptance Criteria
+- [ ] Targeted tests pass
+- [ ] Lint/type checks relevant to touched code pass
+- [ ] `CHANGELOG.md` updated for user-visible code, schema, config, or workflow changes
+- [ ] PR references the mission issue or phase plan
+
+## Risks / Notes
+Known edge cases, migrations, compatibility concerns, or follow-up work.
+```
+
+Recommended labels when issues are used:
+
+```txt
+agent:codex
+agent:claude
+status:planning
+status:implementation
+status:review
+status:blocked
+risk:high
+risk:low
+```
+
+### Branch and PR coordination
+
+Prefer the branch listed in the mission queue. For issue-only work without a listed branch,
+use:
+
+```txt
+mission/<issue-number>-<short-name>
+```
+
+PRs must stay scoped to one phase, one mission, or one named subtask. PR descriptions should
+include:
+
+```md
+## Mission
+Closes #<issue> or references `<phase-plan>.md`.
+
+## Changes
+- ...
+
+## Tests
+- ...
+
+## Risks
+- ...
+
+## Notes for Reviewers
+- ...
+```
+
+### Review routing
+
+- Ask **Claude** to review architecture, API consistency, security boundaries, migrations,
+  edge cases, and whether the implementation matches the phase plan.
+- Ask **Codex** to review implementation correctness, test coverage, lint/type failures,
+  regressions, and CI failures.
+- Reviewer reports belong in `review/<pr-number>.md` and should remain concise: blockers,
+  warnings, suggestions, coverage/checks, and verdict.
+
+Useful review prompts:
+
+```txt
+@claude review this PR against AGENTS.md, the phase plan, architecture consistency, and edge cases.
+@codex review this PR for correctness, tests, typing, lint, regressions, and CI failures.
+```
+
+### Required agent handoff
+
+Every agent run that changes files must end with this handoff in the PR or issue:
+
+```md
+## Agent Handoff
+
+### Completed
+- ...
+
+### Remaining
+- ...
+
+### Tests Executed
+- ...
+
+### Risks
+- ...
+
+### Suggested Next Steps
+- ...
+```
+
+### Conflict policy
+
+When instructions conflict, follow this priority order:
+
+1. Explicit user instruction in the current task.
+2. Safety and data-protection requirements.
+3. This `AGENTS.md` file.
+4. The relevant phase plan in `docs/implementation/`.
+5. Existing code patterns and tests.
+6. General agent preferences.
+
 ## Token-efficient workflow
 
 1. Start with `git status --short` and inspect only files relevant to the task.
