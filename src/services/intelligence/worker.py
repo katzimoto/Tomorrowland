@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 from uuid import UUID
 
@@ -10,6 +11,7 @@ from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.repository import IntelligenceRepository
 from services.search.elastic import ElasticsearchSearchClient
 from shared.correlation import get_correlation_id
+from shared.metrics import current_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,8 @@ class IntelligenceWorker:
             return
 
         for task in tasks:
+            metrics = current_metrics()
+            start = time.perf_counter()
             try:
                 if task == "summarize":
                     self._summarize(doc_id, content)
@@ -55,7 +59,17 @@ class IntelligenceWorker:
                     self._extract_entities(doc_id, content)
                 elif task == "auto_tag":
                     self._auto_tag(doc_id, content)
+                if metrics is not None:
+                    metrics.intelligence_tasks_total.labels(task, "success").inc()
+                    metrics.intelligence_task_duration_seconds.labels(task).observe(
+                        time.perf_counter() - start
+                    )
             except Exception:
+                if metrics is not None:
+                    metrics.intelligence_tasks_total.labels(task, "failure").inc()
+                    metrics.intelligence_task_duration_seconds.labels(task).observe(
+                        time.perf_counter() - start
+                    )
                 logger.exception(
                     "Intelligence task %s failed for doc_id=%s correlation=%s",
                     task,

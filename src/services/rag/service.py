@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 from uuid import UUID
 
@@ -11,6 +12,7 @@ from services.documents.repository import DocumentRepository
 from services.intelligence.ollama_client import OllamaClient
 from services.search.encoder import MockEncoder
 from services.search.qdrant import QdrantSearchClient
+from shared.metrics import current_metrics
 
 from .models import AnswerResponse, Citation
 
@@ -55,10 +57,23 @@ class RagService:
         Returns:
             An AnswerResponse with the generated answer and citations.
         """
+        metrics = current_metrics()
+        request_start = time.perf_counter()
         # 1. Retrieve relevant chunks
+        phase_start = time.perf_counter()
         chunks = self._retrieve_chunks(question, group_ids, top_k)
+        if metrics is not None:
+            metrics.rag_duration_seconds.labels("retrieval").observe(
+                time.perf_counter() - phase_start
+            )
 
         if not chunks:
+            if metrics is not None:
+                metrics.rag_requests_total.labels("success").inc()
+                metrics.rag_citations_count.observe(0)
+                metrics.rag_duration_seconds.labels("total").observe(
+                    time.perf_counter() - request_start
+                )
             return AnswerResponse(
                 question=question,
                 answer=(
@@ -69,10 +84,16 @@ class RagService:
             )
 
         # 2. Assemble context
+        phase_start = time.perf_counter()
         context = self._assemble_context(chunks)
+        if metrics is not None:
+            metrics.rag_duration_seconds.labels("assembly").observe(
+                time.perf_counter() - phase_start
+            )
 
         # 3. Generate answer
         prompt = self._build_prompt(question, context)
+        phase_start = time.perf_counter()
         try:
             answer_text = self._ollama.generate(prompt)
         except Exception:
@@ -80,6 +101,10 @@ class RagService:
             answer_text = (
                 "I encountered an issue generating an answer. "
                 "Here are the relevant passages I found:\n\n" + context
+            )
+        if metrics is not None:
+            metrics.rag_duration_seconds.labels("generation").observe(
+                time.perf_counter() - phase_start
             )
 
         # 4. Build citations
@@ -93,6 +118,12 @@ class RagService:
             for c in chunks
         ]
 
+        if metrics is not None:
+            metrics.rag_requests_total.labels("success").inc()
+            metrics.rag_citations_count.observe(len(citations))
+            metrics.rag_duration_seconds.labels("total").observe(
+                time.perf_counter() - request_start
+            )
         return AnswerResponse(
             question=question,
             answer=answer_text,

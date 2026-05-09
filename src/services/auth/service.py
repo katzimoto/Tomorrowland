@@ -7,6 +7,7 @@ from services.auth.ldap import LdapAuthenticator
 from services.auth.models import LoginResponse, UserResponse
 from services.auth.passwords import verify_password
 from services.auth.repository import AuthRepository
+from shared.metrics import MetricsRegistry, safe_label_value
 
 
 class AuthService:
@@ -18,11 +19,13 @@ class AuthService:
         jwt_service: JwtService,
         auth_provider: str,
         ldap_authenticator: LdapAuthenticator | None = None,
+        metrics: MetricsRegistry | None = None,
     ) -> None:
         self._repository = repository
         self._jwt_service = jwt_service
         self._auth_provider = auth_provider
         self._ldap_authenticator = ldap_authenticator
+        self._metrics = metrics
 
     def authenticate(self, email: str, password: str) -> LoginResponse:
         """Authenticate credentials and return a bearer token."""
@@ -38,9 +41,17 @@ class AuthService:
                 user = self._repository.get_user_by_email(email)
 
         if user is None:
+            if self._metrics is not None:
+                self._metrics.auth_login_attempts_total.labels(
+                    safe_label_value(self._auth_provider), "failure"
+                ).inc()
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         self._repository.touch_last_login(user.id)
+        if self._metrics is not None:
+            self._metrics.auth_login_attempts_total.labels(
+                safe_label_value(self._auth_provider), "success"
+            ).inc()
         return LoginResponse(
             access_token=self._jwt_service.encode(user),
             user=UserResponse.from_identity(user),

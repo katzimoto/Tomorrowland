@@ -6,11 +6,15 @@ from fastapi import HTTPException
 
 from services.auth.models import TokenPayload, UserIdentity
 from services.auth.repository import AuthRepository
+from shared.metrics import current_metrics
 
 
 def require_admin(user: TokenPayload | UserIdentity) -> None:
     """Raise 403 unless the user has admin privileges."""
     if not user.is_admin:
+        metrics = current_metrics()
+        if metrics is not None:
+            metrics.authz_denials_total.labels("admin", "access").inc()
         raise HTTPException(status_code=403, detail="Admin privileges required")
 
 
@@ -24,6 +28,9 @@ def assert_source_access(
 ) -> None:
     """Raise 403 unless the user can access a source through source grants."""
     if not repository.user_can_access_source(user, source_id):  # type: ignore[arg-type]
+        metrics = current_metrics()
+        if metrics is not None:
+            metrics.authz_denials_total.labels("source", "read").inc()
         raise HTTPException(status_code=403, detail="Source access denied")
 
 

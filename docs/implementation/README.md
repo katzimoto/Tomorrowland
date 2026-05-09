@@ -54,9 +54,9 @@ queue first.
 | 09c | `phase-09c-atlassian-hardening.md` | Optional Atlassian permission sync and redirect hardening | Conditional |
 | 10 | `phase-10-observability.md` | Phase 10 overview and sub-phase index | Planned |
 | 10a | `phase-10a-metrics-foundation.md` | Prometheus `/metrics`, HTTP middleware, request-ID | Done ✅ |
-| 10b | `phase-10b-domain-metrics.md` | Instrument auth, pipeline, search, RAG, collaboration | **Next** |
+| 10b | `phase-10b-domain-metrics.md` | Instrument auth, pipeline, search, RAG, collaboration | Done ✅ |
 | 10c | `phase-10c-admin-readiness.md` | Admin readiness endpoint with dependency probes | **Next** |
-| 10d | `phase-10d-monitoring-compose.md` | Optional Prometheus + Grafana Compose profile | Blocked by 10b |
+| 10d | `phase-10d-monitoring-compose.md` | Optional Prometheus + Grafana Compose profile | **Next** |
 | 10e | `phase-10e-structured-logs.md` | JSON structured logs and OpenTelemetry hooks | **Next** |
 | 10f | `phase-10f-worker-observability.md` | Worker heartbeats and consumer lag | Deferred |
 

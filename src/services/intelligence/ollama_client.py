@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
 import httpx
+
+from shared.metrics import current_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +51,22 @@ class OllamaClient:
             len(prompt),
         )
 
-        response = httpx.post(url, json=payload, timeout=DEFAULT_TIMEOUT)
-        response.raise_for_status()
-        data = response.json()
+        metrics = current_metrics()
+        start = time.perf_counter()
+        try:
+            response = httpx.post(url, json=payload, timeout=DEFAULT_TIMEOUT)
+            response.raise_for_status()
+            data = response.json()
+        except Exception:
+            if metrics is not None:
+                metrics.ollama_requests_total.labels("generate", "failure").inc()
+                metrics.ollama_duration_seconds.labels("generate").observe(
+                    time.perf_counter() - start
+                )
+            raise
+        if metrics is not None:
+            metrics.ollama_requests_total.labels("generate", "success").inc()
+            metrics.ollama_duration_seconds.labels("generate").observe(time.perf_counter() - start)
         return str(data.get("response", ""))
 
     @staticmethod

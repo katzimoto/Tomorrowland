@@ -9,6 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.engine import Connection
 
 from shared.db import db_uuid
+from shared.metrics import current_metrics
 
 
 class AlertRepository:
@@ -209,7 +210,11 @@ class AlertRepository:
                 ),
                 {"id": db_uuid(subscription_id)},
             )
-        return bool(result.rowcount)
+        created = bool(result.rowcount)
+        metrics = current_metrics()
+        if metrics is not None:
+            metrics.notifications_total.labels("create", "success" if created else "skipped").inc()
+        return created
 
     def list_notifications(self, user_id: UUID, unread_only: bool = True) -> list[dict[str, Any]]:
         """List notifications for a user."""

@@ -49,9 +49,9 @@ plus per-feature sub-plans.
 | 09c | `phase-09c-atlassian-hardening.md` | Planned (conditional) |
 | 10 | `phase-10-observability.md` | Planned (index) |
 | 10a | `phase-10a-metrics-foundation.md` | Done |
-| 10b | `phase-10b-domain-metrics.md` | Planned |
+| 10b | `phase-10b-domain-metrics.md` | Done |
 | 10c | `phase-10c-admin-readiness.md` | Planned |
-| 10d | `phase-10d-monitoring-compose.md` | Planned |
+| 10d | `phase-10d-monitoring-compose.md` | Planned (unblocked) |
 | 10e | `phase-10e-structured-logs.md` | Planned |
 | 10f | `phase-10f-worker-observability.md` | Deferred |
 

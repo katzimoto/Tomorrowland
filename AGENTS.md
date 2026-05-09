@@ -31,11 +31,11 @@ branches simultaneously.
 | 2 | Metrics foundation | `phase-10a-metrics-foundation.md` | `developer/phase-10a-metrics-foundation` | Done |
 | 3 | Legacy Office extraction | `phase-09b-legacy-office-extraction.md` | `developer/phase-09b-legacy-office-extraction` | **Next** (parallel-safe) |
 | 4 | UI: document detail + Q&A | `phase-08d-document-detail.md` | `developer/phase-08d-document-detail` | **In progress** |
-| 5 | Domain metrics | `phase-10b-domain-metrics.md` | `developer/phase-10b-domain-metrics` | **Next** |
+| 5 | Domain metrics | `phase-10b-domain-metrics.md` | `developer/phase-10b-domain-metrics` | Done |
 | 6 | Admin readiness endpoint | `phase-10c-admin-readiness.md` | `developer/phase-10c-admin-readiness` | **Next** (parallel-safe) |
 | 7 | UI: collaboration + discovery | `phase-08e-collaboration-discovery.md` | `developer/phase-08e-collaboration-discovery` | **In progress** |
 | 8 | Structured logs + tracing | `phase-10e-structured-logs.md` | `developer/phase-10e-structured-logs` | **Next** (parallel-safe) |
-| 9 | Monitoring Compose profile | `phase-10d-monitoring-compose.md` | `developer/phase-10d-monitoring-compose` | Blocked by #5 |
+| 9 | Monitoring Compose profile | `phase-10d-monitoring-compose.md` | `developer/phase-10d-monitoring-compose` | **Next** |
 | 10 | NiFi + Kafka integration | `phase-09a-nifi-integration.md` | `developer/phase-09a-nifi-integration` | **Next** (parallel-safe) |
 | 11 | Atlassian hardening | `phase-09c-atlassian-hardening.md` | `developer/phase-09c-atlassian-hardening` | Conditional |
 | 12 | Worker observability | `phase-10f-worker-observability.md` | `developer/phase-10f-worker-observability` | Deferred |

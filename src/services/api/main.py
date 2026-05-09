@@ -51,7 +51,16 @@ from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
 from shared.db import to_uuid
-from shared.metrics import MetricsRegistry, route_template_for_request, status_class
+from shared.metrics import (
+    MetricsRegistry,
+    current_metrics,
+    mime_family,
+    reset_current_metrics,
+    route_template_for_request,
+    safe_label_value,
+    set_current_metrics,
+    status_class,
+)
 from shared.request_context import reset_request_id, set_request_id
 
 AUTH_SCHEME = "Bearer "
@@ -106,6 +115,11 @@ def _audit_log(
     details: dict[str, Any] | None = None,
 ) -> None:
     """Write an audit log entry."""
+    metrics = current_metrics()
+    if metrics is not None:
+        metrics.admin_actions_total.labels(
+            safe_label_value(action), safe_label_value(resource_type)
+        ).inc()
     connection.execute(
         sa.text(
             """
@@ -288,6 +302,7 @@ def create_app(
         """Attach request IDs and record low-cardinality HTTP metrics."""
         request_id = request.headers.get("x-request-id") or str(uuid4())
         token = set_request_id(request_id)
+        metrics_token = set_current_metrics(request.app.state.metrics)
         start = time.perf_counter()
         route = "__unknown__"
         try:
@@ -316,6 +331,7 @@ def create_app(
                 headers={"X-Request-ID": request_id},
             )
         finally:
+            reset_current_metrics(metrics_token)
             reset_request_id(token)
 
     def require_subscriptions_enabled(connection: sa.Connection) -> None:
@@ -411,6 +427,7 @@ def create_app(
                 jwt_service=jwt_service(),
                 auth_provider=app.state.settings.auth_provider,
                 ldap_authenticator=app.state.ldap_authenticator,
+                metrics=app.state.metrics,
             )
             return service.authenticate(request.email, request.password)
 
@@ -420,6 +437,14 @@ def create_app(
 
     @app.get("/metrics")
     def metrics() -> Response:
+        try:
+            with app.state.engine.begin() as connection:
+                pending = connection.execute(
+                    sa.text("SELECT COUNT(*) FROM dlq WHERE status = 'pending'")
+                ).scalar_one_or_none()
+        except sa.exc.SQLAlchemyError:
+            pending = 0
+        app.state.metrics.dlq_pending.set(float(pending or 0))
         return Response(
             content=generate_latest(app.state.metrics.registry),
             media_type=CONTENT_TYPE_LATEST,
@@ -490,12 +515,17 @@ def create_app(
                     if alerts_check_on_ingest(connection)
                     else None
                 ),
+                metrics=app.state.metrics,
             )
 
             source_language = source_row.get("source_language")
             results: dict[str, int] = {"indexed": 0, "skipped": 0, "failed": 0}
 
+            connector_type = str(source_row["type"])
             for item in connector.fetch_documents():
+                app.state.metrics.ingestion_documents_total.labels(
+                    safe_label_value(connector_type), "discovered"
+                ).inc()
                 doc = doc_repo.create(
                     source_id=source_id,
                     external_id=item.external_id,
@@ -508,14 +538,27 @@ def create_app(
                 )
                 if doc is None:
                     results["skipped"] += 1
+                    app.state.metrics.ingestion_documents_total.labels(
+                        safe_label_value(connector_type), "skipped"
+                    ).inc()
                     continue
 
                 try:
                     worker.process_document(doc.id, pre_extracted_text=item.text_content)
                     results["indexed"] += 1
+                    app.state.metrics.ingestion_documents_total.labels(
+                        safe_label_value(connector_type), "success"
+                    ).inc()
                 except Exception:
                     results["failed"] += 1
+                    app.state.metrics.ingestion_documents_total.labels(
+                        safe_label_value(connector_type), "failure"
+                    ).inc()
 
+            sync_outcome = "failure" if results["failed"] else "success"
+            app.state.metrics.ingestion_syncs_total.labels(
+                safe_label_value(connector_type), sync_outcome
+            ).inc()
             return results
 
     @app.post("/search", response_model=SearchResponse)
@@ -523,8 +566,14 @@ def create_app(
         request: SearchRequest,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> SearchResponse:
+        metrics_start = time.perf_counter()
         group_ids = [str(g) for g in user.groups]
         if not group_ids:
+            app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
+            app.state.metrics.search_results_count.labels("hybrid").observe(0)
+            app.state.metrics.search_duration_seconds.labels("hybrid").observe(
+                time.perf_counter() - metrics_start
+            )
             return SearchResponse(results=[], total=0)
 
         es_client = app.state.es_client or ElasticsearchSearchClient(
@@ -535,9 +584,17 @@ def create_app(
         )
         encoder = MockEncoder()
 
+        backend_start = time.perf_counter()
         bm25_results = es_client.search(request.query, group_ids=group_ids, size=50)
+        app.state.metrics.search_backend_duration_seconds.labels("elasticsearch", "search").observe(
+            time.perf_counter() - backend_start
+        )
         query_vector = encoder.encode(request.query)
+        backend_start = time.perf_counter()
         vector_results = qdrant_client.search(vector=query_vector, group_ids=group_ids, limit=50)
+        app.state.metrics.search_backend_duration_seconds.labels("qdrant", "search").observe(
+            time.perf_counter() - backend_start
+        )
 
         # TODO: read weights from system_config in Phase 04
         merged = merge_results(
@@ -551,6 +608,11 @@ def create_app(
         end = start + request.page_size
         page = merged[start:end]
 
+        app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
+        app.state.metrics.search_results_count.labels("hybrid").observe(len(merged))
+        app.state.metrics.search_duration_seconds.labels("hybrid").observe(
+            time.perf_counter() - metrics_start
+        )
         return SearchResponse(
             results=[
                 SearchResultItem(
@@ -579,8 +641,12 @@ def create_app(
                 doc_id, user.sub, translation_version_id=translation_version_id
             )
             if not result:
+                app.state.metrics.preview_requests_total.labels("unknown", "failure").inc()
                 raise HTTPException(status_code=404, detail="Document not found")
 
+            app.state.metrics.preview_requests_total.labels(
+                mime_family(result["mime_type"]), "success"
+            ).inc()
             return PreviewResponse(
                 doc_id=result["doc_id"],
                 title=result["title"],
@@ -826,6 +892,7 @@ def create_app(
 
             repo = CommentRepository(connection)
             comment = repo.create(doc_id, user.sub, request.body)
+            app.state.metrics.comments_total.labels("create", "success").inc()
             return {
                 "id": str(to_uuid(comment["id"])),
                 "doc_id": str(to_uuid(comment["doc_id"])),
@@ -853,6 +920,7 @@ def create_app(
                 raise HTTPException(status_code=403, detail="Cannot edit this comment")
 
             repo.update(comment_id, request.body, edited_by_id=user.sub)
+            app.state.metrics.comments_total.labels("update", "success").inc()
             updated = repo.get_by_id(comment_id)
             if updated is None:
                 raise HTTPException(status_code=404, detail="Comment not found")
@@ -886,6 +954,7 @@ def create_app(
                 raise HTTPException(status_code=403, detail="Cannot delete this comment")
 
             repo.soft_delete(comment_id, deleted_by_id=user.sub)
+            app.state.metrics.comments_total.labels("delete", "success").inc()
 
     @app.get("/documents/{doc_id}/annotations")
     def list_annotations(
@@ -934,6 +1003,8 @@ def create_app(
                 position=request.position,
                 is_private=request.is_private,
             )
+            visibility = "private" if request.is_private else "shared"
+            app.state.metrics.annotations_total.labels("create", visibility, "success").inc()
             return {
                 "id": str(to_uuid(annotation["id"])),
                 "doc_id": str(to_uuid(annotation["doc_id"])),
@@ -971,6 +1042,8 @@ def create_app(
                 position=request.position,
                 is_private=request.is_private,
             )
+            visibility = "private" if request.is_private else "shared"
+            app.state.metrics.annotations_total.labels("update", visibility, "success").inc()
             updated = repo.get_by_id(annotation_id)
             if updated is None:
                 raise HTTPException(status_code=404, detail="Annotation not found")
@@ -1004,7 +1077,9 @@ def create_app(
             if not repo.can_modify(annotation_id, user.sub, user.is_admin):
                 raise HTTPException(status_code=403, detail="Cannot delete this annotation")
 
+            visibility = "private" if annotation["is_private"] else "shared"
             repo.delete(annotation_id)
+            app.state.metrics.annotations_total.labels("delete", visibility, "success").inc()
 
     @app.get("/subscriptions")
     def list_subscriptions(
@@ -1030,6 +1105,7 @@ def create_app(
                 similarity_threshold=request.similarity_threshold,
                 enabled=request.enabled,
             )
+            app.state.metrics.subscriptions_total.labels("create", "success").inc()
             return _subscription_response(row)
 
     @app.put("/subscriptions/{subscription_id}")
@@ -1053,6 +1129,7 @@ def create_app(
             )
             if updated is None:
                 raise HTTPException(status_code=404, detail="Subscription not found")
+            app.state.metrics.subscriptions_total.labels("update", "success").inc()
             return _subscription_response(updated)
 
     @app.delete("/subscriptions/{subscription_id}", status_code=204)
@@ -1067,6 +1144,7 @@ def create_app(
             if subscription is None or to_uuid(subscription["user_id"]) != user.sub:
                 raise HTTPException(status_code=404, detail="Subscription not found")
             repo.delete_subscription(subscription_id)
+            app.state.metrics.subscriptions_total.labels("delete", "success").inc()
 
     @app.get("/notifications")
     def list_notifications(
@@ -1095,6 +1173,7 @@ def create_app(
             updated = repo.mark_notification_read(notification_id)
             if updated is None:
                 raise HTTPException(status_code=404, detail="Notification not found")
+            app.state.metrics.notifications_total.labels("read", "success").inc()
             return {
                 "id": str(to_uuid(updated["id"])),
                 "read": bool(updated["read"]),
@@ -1263,12 +1342,15 @@ def create_app(
             doc_repo = DocumentRepository(connection)
             doc = doc_repo.get_by_id(doc_id)
             if doc is None or doc.path is None:
+                app.state.metrics.download_requests_total.labels("failure").inc()
                 raise HTTPException(status_code=404, detail="Document not found")
 
         files_root = app.state.settings.files_root.resolve()
         target = Path(doc.path).resolve()
         if not target.is_relative_to(files_root):
+            app.state.metrics.download_requests_total.labels("failure").inc()
             raise HTTPException(status_code=400, detail="Invalid file path")
+        app.state.metrics.download_requests_total.labels("success").inc()
 
         def file_iterator() -> Iterator[bytes]:
             with target.open("rb") as f:

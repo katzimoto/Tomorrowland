@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Phase 10b domain metrics: Prometheus counters, gauges, and histograms for authentication, authorization, admin actions, ingestion, pipeline stages, search, translation, intelligence, Ollama, RAG, preview, downloads, comments, annotations, subscriptions, and notifications.
 - Phase 10a metrics foundation: per-app Prometheus registry, `/metrics` endpoint, default process/GC metrics, `neverland_build_info`, HTTP request counters/histograms, exception metrics, route-template-safe labels, and `X-Request-ID` propagation.
 - Phase 08c: Main product UI — search workspace (SearchPage with URL-synced `?q=&mode=` params,
   keyboard `/` shortcut, skeleton loading, mode toggle, filter panel, result rows with MIME icon
