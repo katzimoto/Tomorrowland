@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     elastic_url: str = "http://elasticsearch:9200"
     qdrant_url: str = "http://qdrant:6333"
     files_root: Path = Path("/data")
-    jwt_secret: str = "changeme"
+    jwt_secret: str = "change-me-in-production"
+    cors_origins: str = "http://localhost:8080"
 
     libretranslate_url: str = "http://libretranslate:5000"
 
@@ -42,6 +43,11 @@ class Settings(BaseSettings):
     feature_auto_tagging: bool = True
     auto_enrich_threshold: int = Field(default=5, ge=0)
     ingest_mode: Literal["hybrid", "watch", "poll"] = "hybrid"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """Return configured CORS origins from a comma-separated setting."""
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 def get_settings() -> Settings:

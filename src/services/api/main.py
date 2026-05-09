@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import Engine
@@ -238,6 +239,13 @@ def create_app(
     app = FastAPI(title="Neverland API")
     app.state.engine = engine
     app.state.settings = settings or Settings()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=app.state.settings.cors_origin_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.state.ldap_authenticator = ldap_authenticator
     app.state.translator = translator
     app.state.es_client = es_client

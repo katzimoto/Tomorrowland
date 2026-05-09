@@ -29,3 +29,23 @@ def test_env_example_matches_settings_and_feature_defaults() -> None:
     assert expected_keys <= env_keys
     assert set(ENV_FEATURE_TO_CONFIG_KEY) <= env_keys
     assert set(ENV_FEATURE_TO_CONFIG_KEY.values()) <= set(SYSTEM_CONFIG_DEFAULTS)
+
+
+def test_cors_origins_default_to_frontend_origin() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.cors_origin_list == ["http://localhost:8080"]
+
+
+def test_cors_origins_parse_comma_separated_values() -> None:
+    settings = Settings(
+        cors_origins=" http://localhost:8080,https://neverland.example ,, ", _env_file=None
+    )
+
+    assert settings.cors_origin_list == ["http://localhost:8080", "https://neverland.example"]
+
+
+def test_cors_origins_empty_values_are_ignored() -> None:
+    settings = Settings(cors_origins=" , ,, ", _env_file=None)
+
+    assert settings.cors_origin_list == []

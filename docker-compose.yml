@@ -5,7 +5,8 @@ x-app-environment: &app-environment
   ELASTIC_URL: ${ELASTIC_URL:-http://elasticsearch:9200}
   QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
   FILES_ROOT: ${FILES_ROOT:-/data}
-  JWT_SECRET: ${JWT_SECRET:-changeme}
+  JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
   LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-http://libretranslate:5000}
   OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
   OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
