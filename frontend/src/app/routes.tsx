@@ -1,6 +1,12 @@
 import { createRouter, createRoute, createRootRoute, redirect } from "@tanstack/react-router";
 import { authStorage } from "@/api/auth";
 import { LoginPage } from "@/features/auth/LoginPage";
+import { SearchPage } from "@/features/search/SearchPage";
+import { DocumentPage } from "@/features/documents/DocumentPage";
+import { QAPage } from "@/features/qa/QAPage";
+import { SubscriptionsPage } from "@/features/subscriptions/SubscriptionsPage";
+import { NotificationsPage } from "@/features/notifications/NotificationsPage";
+import { HistoryPage } from "@/features/history/HistoryPage";
 import { AdminSourcesPage } from "@/features/admin/AdminSourcesPage";
 import { AppLayout } from "./AppLayout";
 import { PlaceholderPage } from "./PlaceholderPage";
@@ -29,37 +35,47 @@ const appRoute = createRoute({
 const indexRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/",
-  beforeLoad: () => { throw redirect({ to: "/search" }); },
+  beforeLoad: () => { throw redirect({ to: "/search", search: { q: "", mode: "hybrid" } }); },
 });
 
 const searchRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/search",
-  component: () => <PlaceholderPage title="Search" />,
+  component: SearchPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === "string" ? search.q : "",
+    mode: typeof search.mode === "string" ? search.mode : "hybrid",
+  }),
+});
+
+const docRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/doc/$docId",
+  component: DocumentPage,
 });
 
 const qaRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/qa",
-  component: () => <PlaceholderPage title="Q&A" />,
+  component: QAPage,
 });
 
 const subscriptionsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/subscriptions",
-  component: () => <PlaceholderPage title="Subscriptions" />,
+  component: SubscriptionsPage,
 });
 
 const notificationsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/notifications",
-  component: () => <PlaceholderPage title="Notifications" />,
+  component: NotificationsPage,
 });
 
 const historyRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/history",
-  component: () => <PlaceholderPage title="History" />,
+  component: HistoryPage,
 });
 
 const settingsRoute = createRoute({
@@ -79,6 +95,7 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     indexRoute,
     searchRoute,
+    docRoute,
     qaRoute,
     subscriptionsRoute,
     notificationsRoute,

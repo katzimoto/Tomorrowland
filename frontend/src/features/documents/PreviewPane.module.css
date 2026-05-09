@@ -1,0 +1,19 @@
+.htmlContent {
+  padding: var(--space-4);
+  font-size: var(--font-size-body);
+  line-height: 1.6;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.textContent {
+  padding: var(--space-4);
+  font-size: var(--font-size-meta);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  height: 100%;
+  font-family: var(--font-family-mono, monospace);
+  color: var(--color-text-secondary);
+}

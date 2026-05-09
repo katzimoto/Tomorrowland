@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Phase 08c: Main product UI — search workspace (SearchPage with URL-synced `?q=&mode=` params,
+  keyboard `/` shortcut, skeleton loading, mode toggle, filter panel, result rows with MIME icon
+  and "Why" tooltip), document preview page (split-pane PreviewPane + DetailsPanel with Summary,
+  Entities, Tags, Related, Annotations, and Comments tabs, full CRUD for comments and annotations,
+  XSS-safe HTML sanitization), Q&A page with answer block and citation links, Subscriptions page
+  (create/edit dialog with threshold slider, toggle, delete with confirmation), Notifications page
+  (mark-read on click, unread accent), History page (recent views list), live unread count in
+  NavRail badge, and frontend CI job (lint + typecheck + test + build).
 - Split GitHub Actions into focused backend, frontend, docs, container, and security workflows with path filters, dependency caches, concurrency cancellation, BuildKit caching, and release CD for version tags.
 - Metrics and monitoring design plus Phase 10 observability plan covering
   Prometheus metrics, admin readiness, structured logs, dashboards, alerts, and
