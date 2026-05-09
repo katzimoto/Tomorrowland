@@ -27,13 +27,13 @@ branches simultaneously.
 
 | # | Mission | Plan | Branch | Status |
 |---|---|---|---|---|
-| 1 | UI: search workspace | `phase-08c-search-workspace.md` | `developer/phase-08c-search-workspace` | Done |
+| 1 | UI: search workspace | `phase-08c-search-workspace.md` | `developer/phase-08c-search-workspace` | **In progress** |
 | 2 | Metrics foundation | `phase-10a-metrics-foundation.md` | `developer/phase-10a-metrics-foundation` | Done |
 | 3 | Legacy Office extraction | `phase-09b-legacy-office-extraction.md` | `developer/phase-09b-legacy-office-extraction` | **Next** (parallel-safe) |
-| 4 | UI: document detail + Q&A | `phase-08d-document-detail.md` | `developer/phase-08d-document-detail` | Done |
+| 4 | UI: document detail + Q&A | `phase-08d-document-detail.md` | `developer/phase-08d-document-detail` | **In progress** |
 | 5 | Domain metrics | `phase-10b-domain-metrics.md` | `developer/phase-10b-domain-metrics` | **Next** |
 | 6 | Admin readiness endpoint | `phase-10c-admin-readiness.md` | `developer/phase-10c-admin-readiness` | **Next** (parallel-safe) |
-| 7 | UI: collaboration + discovery | `phase-08e-collaboration-discovery.md` | `developer/phase-08e-collaboration-discovery` | Done |
+| 7 | UI: collaboration + discovery | `phase-08e-collaboration-discovery.md` | `developer/phase-08e-collaboration-discovery` | **In progress** |
 | 8 | Structured logs + tracing | `phase-10e-structured-logs.md` | `developer/phase-10e-structured-logs` | **Next** (parallel-safe) |
 | 9 | Monitoring Compose profile | `phase-10d-monitoring-compose.md` | `developer/phase-10d-monitoring-compose` | Blocked by #5 |
 | 10 | NiFi + Kafka integration | `phase-09a-nifi-integration.md` | `developer/phase-09a-nifi-integration` | **Next** (parallel-safe) |
@@ -41,8 +41,8 @@ branches simultaneously.
 | 12 | Worker observability | `phase-10f-worker-observability.md` | `developer/phase-10f-worker-observability` | Deferred |
 
 Branch validation (2026-05-09): local refs contain only the current `work` branch at the
-Phase 10a merge commit; no unmerged `developer/*` mission branches are present, so no
-branch needs to be marked **In progress** from the available local refs.
+Phase 10a merge commit; no additional unmerged `developer/*` mission branches were present
+beyond the externally reported in-progress Phase 08 missions marked above.
 
 ## Token-efficient workflow
 
