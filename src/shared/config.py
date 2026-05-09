@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: Literal["dev", "test", "prod"] = "dev"
+    app_version: str = "0.1.0"
+    build_commit: str = "unknown"
 
     postgres_url: str = "postgresql+psycopg://postgres:changeme@postgres:5432/app"
     kafka_broker: str = "kafka:9092"

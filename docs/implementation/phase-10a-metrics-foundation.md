@@ -12,7 +12,7 @@ metric table, §Process And Runtime metric table.
 
 Branch: `developer/phase-10a-metrics-foundation`
 
-Status: Planned (follows Phase 08f production hardening).
+Status: Done.
 
 ## Current Baseline
 

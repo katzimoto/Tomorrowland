@@ -67,6 +67,30 @@ On a clean volume, Compose waits for PostgreSQL, runs the `migrate` job, waits
 for Elasticsearch, Qdrant, LibreTranslate, and Ollama health checks, then starts
 the API and frontend.
 
+## Metrics Scraping
+
+The API exposes Prometheus-format metrics at `GET /metrics`. In production-style
+Compose, prefer scraping it over the private Compose network rather than
+publishing it through an internet-facing proxy:
+
+```yaml
+scrape_configs:
+  - job_name: neverland-api
+    static_configs:
+      - targets: ["api:8000"]
+    metrics_path: /metrics
+```
+
+If operators expose `/metrics` outside the internal network, protect it with a
+reverse-proxy allowlist or equivalent network control. Metric labels are kept
+low-cardinality and must not include user IDs, document IDs, filenames, query
+text, source names, group names, exception messages, or file contents.
+
+The endpoint includes default Python GC and process metrics, `neverland_build_info`,
+HTTP request totals, request-duration histograms, and exception totals. The API
+also accepts `X-Request-ID` from trusted callers, generates one when absent, and
+echoes it on responses for support correlation.
+
 ## Startup, Shutdown, And Logs
 
 Validate Compose without starting services:

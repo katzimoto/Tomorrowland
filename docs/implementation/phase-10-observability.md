@@ -13,7 +13,7 @@ own branch, in dependency order.
 
 | Sub-Phase | Plan | Purpose | Status |
 |---|---|---|---|
-| 10a | `phase-10a-metrics-foundation.md` | Prometheus `/metrics`, HTTP middleware, request-ID | Planned |
+| 10a | `phase-10a-metrics-foundation.md` | Prometheus `/metrics`, HTTP middleware, request-ID | Done |
 | 10b | `phase-10b-domain-metrics.md` | Instrument auth, pipeline, search, RAG, collaboration | Planned (needs 10a) |
 | 10c | `phase-10c-admin-readiness.md` | Admin readiness endpoint with dependency probes | Planned (needs 10a) |
 | 10d | `phase-10d-monitoring-compose.md` | Optional Prometheus + Grafana Compose profile | Planned (needs 10a, 10b) |

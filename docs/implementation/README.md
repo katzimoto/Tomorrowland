@@ -53,7 +53,7 @@ queue first.
 | 09b | `phase-09b-legacy-office-extraction.md` | `.doc`, `.xls`, `.ppt` binary extraction | **Next** (parallel-safe) |
 | 09c | `phase-09c-atlassian-hardening.md` | Optional Atlassian permission sync and redirect hardening | Conditional |
 | 10 | `phase-10-observability.md` | Phase 10 overview and sub-phase index | Planned |
-| 10a | `phase-10a-metrics-foundation.md` | Prometheus `/metrics`, HTTP middleware, request-ID | **Next** (parallel-safe) |
+| 10a | `phase-10a-metrics-foundation.md` | Prometheus `/metrics`, HTTP middleware, request-ID | Done ✅ |
 | 10b | `phase-10b-domain-metrics.md` | Instrument auth, pipeline, search, RAG, collaboration | Blocked by 10a |
 | 10c | `phase-10c-admin-readiness.md` | Admin readiness endpoint with dependency probes | Blocked by 10a |
 | 10d | `phase-10d-monitoring-compose.md` | Optional Prometheus + Grafana Compose profile | Blocked by 10b |

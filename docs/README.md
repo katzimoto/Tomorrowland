@@ -48,7 +48,7 @@ plus per-feature sub-plans.
 | 09b | `phase-09b-legacy-office-extraction.md` | Planned |
 | 09c | `phase-09c-atlassian-hardening.md` | Planned (conditional) |
 | 10 | `phase-10-observability.md` | Planned (index) |
-| 10a | `phase-10a-metrics-foundation.md` | Planned |
+| 10a | `phase-10a-metrics-foundation.md` | Done |
 | 10b | `phase-10b-domain-metrics.md` | Planned |
 | 10c | `phase-10c-admin-readiness.md` | Planned |
 | 10d | `phase-10d-monitoring-compose.md` | Planned |
