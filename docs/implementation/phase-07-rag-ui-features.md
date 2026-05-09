@@ -68,3 +68,21 @@ Subscriptions and notifications are implemented as a backend-only slice:
   `alerts.check_on_ingest` is enabled.
 - `POST /admin/alerts/{doc_id}/trigger` lets admins match one indexed document
   on demand.
+
+## Phase 07e Backend Slice
+
+Related documents and the expertise map are implemented as a backend-only slice:
+
+- `GET /documents/{doc_id}/related` returns permission-filtered related
+  documents for a source document.
+- Related documents use existing Qdrant chunk vectors and the authenticated
+  user's group IDs, exclude the source document, deduplicate by `doc_id`, and
+  respect `system_config.search.related_docs_limit`.
+- `GET /expertise?topic=<query>` returns neutral user evidence for a topic.
+- Expertise scoring uses weighted, transparent signals from views, comments,
+  shared annotations, and enabled subscriptions on topic-matching accessible
+  documents.
+- Expertise evidence includes only accessible document metadata and aggregate
+  counts. Private annotation text and comment text are never returned.
+- `feature.related_docs` and `feature.expertise_map` are enforced from both
+  runtime settings and `system_config`.

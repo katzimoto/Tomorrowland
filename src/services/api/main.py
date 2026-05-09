@@ -8,7 +8,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import Engine
@@ -36,6 +36,8 @@ from services.pipeline.worker import PipelineWorker
 from services.preview.service import PreviewService
 from services.rag.models import QuestionRequest
 from services.rag.service import RagService
+from services.related.repository import RelatedRepository
+from services.related.service import RelatedService
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.encoder import MockEncoder
 from services.search.hybrid import merge_results
@@ -269,6 +271,50 @@ def create_app(
         )
         if row and not _config_bool(row["value"], default=True):
             raise HTTPException(status_code=404, detail="Subscriptions are disabled")
+
+    def require_related_docs_enabled(connection: sa.Connection) -> None:
+        """Raise 404 when related documents are disabled."""
+        if not app.state.settings.feature_related_docs:
+            raise HTTPException(status_code=404, detail="Related documents are disabled")
+        row = (
+            connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = :key"),
+                {"key": "feature.related_docs"},
+            )
+            .mappings()
+            .first()
+        )
+        if row and not _config_bool(row["value"], default=True):
+            raise HTTPException(status_code=404, detail="Related documents are disabled")
+
+    def require_expertise_enabled(connection: sa.Connection) -> None:
+        """Raise 404 when expertise map is disabled."""
+        if not app.state.settings.feature_expertise_map:
+            raise HTTPException(status_code=404, detail="Expertise map is disabled")
+        row = (
+            connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = :key"),
+                {"key": "feature.expertise_map"},
+            )
+            .mappings()
+            .first()
+        )
+        if row and not _config_bool(row["value"], default=True):
+            raise HTTPException(status_code=404, detail="Expertise map is disabled")
+
+    def related_docs_limit(connection: sa.Connection) -> int:
+        """Read related document limit from runtime config."""
+        row = (
+            connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = :key"),
+                {"key": "search.related_docs_limit"},
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            return 5
+        return int(row["value"])
 
     def default_alert_threshold(connection: sa.Connection) -> float:
         """Read the default alert similarity threshold from runtime config."""
@@ -606,6 +652,65 @@ def create_app(
             intelligence_repo = IntelligenceRepository(connection)
             tags = intelligence_repo.get_tags(doc_id)
             return {"doc_id": str(doc_id), "tags": tags}
+
+    @app.get("/documents/{doc_id}/related")
+    def related_documents(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        with app.state.engine.begin() as connection:
+            require_related_docs_enabled(connection)
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(doc_id, user, auth_repo)
+
+            doc_repo = DocumentRepository(connection)
+            doc = doc_repo.get_by_id(doc_id)
+            if doc is None:
+                raise HTTPException(status_code=404, detail="Document not found")
+
+            group_ids = [str(group_id) for group_id in user.groups]
+            if not group_ids:
+                return {"doc_id": str(doc_id), "related": []}
+
+            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+                url=app.state.settings.qdrant_url
+            )
+            service = RelatedService(
+                repository=RelatedRepository(connection),
+                qdrant_client=qdrant_client,
+                encoder=MockEncoder(),
+            )
+            return {
+                "doc_id": str(doc_id),
+                "related": service.related_documents(
+                    doc=doc,
+                    group_ids=group_ids,
+                    limit=related_docs_limit(connection),
+                ),
+            }
+
+    @app.get("/expertise")
+    def expertise(
+        user: Annotated[TokenPayload, Depends(current_user)],
+        topic: Annotated[str, Query(min_length=1)],
+    ) -> list[dict[str, Any]]:
+        topic = topic.strip()
+        if not topic:
+            raise HTTPException(status_code=422, detail="Topic must not be empty")
+        with app.state.engine.begin() as connection:
+            require_expertise_enabled(connection)
+            group_ids = [str(group_id) for group_id in user.groups]
+            if not group_ids:
+                return []
+            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+                url=app.state.settings.qdrant_url
+            )
+            service = RelatedService(
+                repository=RelatedRepository(connection),
+                qdrant_client=qdrant_client,
+                encoder=MockEncoder(),
+            )
+            return service.expertise(topic=topic, group_ids=group_ids)
 
     @app.get("/documents/{doc_id}/comments")
     def list_comments(

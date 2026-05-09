@@ -281,13 +281,14 @@ Phase 07 execution order (sequential, one PR per sub-phase, stop for review afte
 1. **07a** — Document comments API + backend (PR #16, merged)
 2. **07b** — Annotations API + backend (PR #17, merged)
 3. **07c** — RAG Q&A endpoint + service (PR #18, merged)
-4. **07d** — Subscriptions, notifications, alert matching (in development)
-5. **07e** — Related documents + expertise map
+4. **07d** — Subscriptions, notifications, alert matching (PR #19, merged)
+5. **07e** — Related documents + expertise map (in development)
 
 Key decisions locked in for Phase 07:
 - Alert matching trigger: Both ingest-time + admin trigger
 - RAG chunk source: Qdrant payloads only (Option A)
 - Expertise map: Views + annotations + comments + subscriptions
+- Related documents source: Qdrant chunk vectors, permission-filtered by user groups
 
 ---
 
