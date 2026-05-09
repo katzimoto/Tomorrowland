@@ -187,8 +187,8 @@ def my_function(param: str) -> int:
 pip-audit
 
 # Secret scan (runs in CI)
-grep -RInE '(JWT_SECRET|PASSWORD|API_TOKEN|PRIVATE_KEY)=([^c]|c[^h]|ch[^a]|cha[^n]|chan[^g]|chang[^e]|change[^m]|changem[^e])' \
-  --exclude-dir=.git --exclude=.env.example .
+rg -n --hidden --glob '!.git/' --glob '!.env.example' \
+  '(JWT_SECRET|PASSWORD|API_TOKEN|PRIVATE_KEY)=([^c]|c[^h]|ch[^a]|cha[^n]|chan[^g]|chang[^e]|change[^m]|changem[^e])' .
 ```
 
 ---
@@ -316,7 +316,9 @@ And on every pull request.
 | Total per PR (Reviewer) | 8 000 |
 
 **Strategies:**
-- Load only the diff (`git diff origin/main...HEAD`), never the full repo.
+- Start from `AGENTS.md`; use the scoped `frontend/AGENTS.md` when editing the UI.
+- Load only the relevant diff (`git diff -- <path>` or `git diff origin/main...HEAD -- <path>`), never the full repo.
+- Use `rg` and `rg --files` for discovery instead of recursive file dumps.
 - Summarise long files to their public API surface.
 - Chunk large features into multiple smaller PRs.
 - Prefer structured output over verbose prose.

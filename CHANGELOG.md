@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Agent efficiency guidance: canonical uppercase `AGENTS.md` plus `frontend/AGENTS.md` with scoped commands, token-saving workflow, and common mistake checklists.
 - Phase 08b: Frontend foundation — React 19 + TypeScript + Vite scaffold with
   TanStack Router and Query, React Hook Form + Zod auth form, design-token CSS
   system, primitive component library (Button, IconButton, TextInput,
