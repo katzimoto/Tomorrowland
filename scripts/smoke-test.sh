@@ -61,7 +61,6 @@ SMOKE_FIXTURE_NAME="${SMOKE_FIXTURE_NAME:-neverland-smoke-document.txt}"
 SMOKE_TIMEOUT_SECONDS="${SMOKE_TIMEOUT_SECONDS:-300}"
 SMOKE_POLL_SECONDS="${SMOKE_POLL_SECONDS:-5}"
 SMOKE_QUERY="${SMOKE_QUERY:-neverland-smoke-unique-token}"
-SMOKE_FIXTURE_PATH="${SMOKE_FIXTURE_DIR%/}/${SMOKE_FIXTURE_NAME}"
 
 TMP_DIR="$(mktemp -d)"
 STARTED_STACK=0
@@ -177,72 +176,21 @@ fi
 log_step "Waiting for API health"
 wait_for_url "API" "${API_URL}/health"
 
-log_step "Seeding smoke admin and group inside the API container"
-docker compose exec -T \
+log_step "Bootstrapping smoke admin, source, grant, and fixture document"
+BOOTSTRAP_RESULT="$(docker compose exec -T \
   -e SMOKE_ADMIN_EMAIL="$SMOKE_ADMIN_EMAIL" \
   -e SMOKE_ADMIN_PASSWORD="$SMOKE_ADMIN_PASSWORD" \
   -e SMOKE_GROUP_NAME="$SMOKE_GROUP_NAME" \
-  api python - <<'PY'
-from __future__ import annotations
-
-import os
-
-import sqlalchemy as sa
-
-from services.auth.passwords import hash_password
-from services.auth.repository import AuthRepository
-from shared.config import Settings
-from shared.db import db_uuid
-
-settings = Settings()
-engine = sa.create_engine(settings.postgres_url)
-email = os.environ["SMOKE_ADMIN_EMAIL"]
-password = os.environ["SMOKE_ADMIN_PASSWORD"]
-group_name = os.environ["SMOKE_GROUP_NAME"]
-
-with engine.begin() as connection:
-    repo = AuthRepository(connection)
-    repo.ensure_group(group_name)
-    existing = repo.get_user_by_email(email)
-    if existing is None:
-        repo.create_local_user(
-            email=email,
-            password_hash=hash_password(password),
-            display_name="Smoke Admin",
-            is_admin=True,
-            group_names=[group_name],
-        )
-    else:
-        connection.execute(
-            sa.text(
-                """
-                UPDATE users
-                SET display_name = :display_name,
-                    auth_source = 'local',
-                    password_hash = :password_hash,
-                    is_admin = true
-                WHERE id = :id
-                """
-            ),
-            {
-                "display_name": "Smoke Admin",
-                "password_hash": hash_password(password),
-                "id": db_uuid(existing.id),
-            },
-        )
-        repo.set_user_groups(existing.id, [group_name])
-PY
-
-log_step "Writing deterministic fixture document in the Compose files volume"
-docker compose exec -T \
+  -e SMOKE_SOURCE_NAME="$SMOKE_SOURCE_NAME" \
   -e SMOKE_FIXTURE_DIR="$SMOKE_FIXTURE_DIR" \
-  -e SMOKE_FIXTURE_PATH="$SMOKE_FIXTURE_PATH" \
+  -e SMOKE_FIXTURE_NAME="$SMOKE_FIXTURE_NAME" \
   -e SMOKE_QUERY="$SMOKE_QUERY" \
-  api sh -c 'mkdir -p "$SMOKE_FIXTURE_DIR" && cat > "$SMOKE_FIXTURE_PATH"' <<EOF_FIXTURE
-Neverland smoke fixture.
-This deterministic document verifies ingestion, search, preview, and download.
-Unique query token: ${SMOKE_QUERY}.
-EOF_FIXTURE
+  api python -m services.ops.smoke_bootstrap)"
+SOURCE_ID="$(printf '%s' "$BOOTSTRAP_RESULT" | json_get 'data["source_id"]')"
+if [[ -z "$SOURCE_ID" ]]; then
+  echo "Smoke bootstrap did not return a source ID." >&2
+  exit 1
+fi
 
 log_step "Logging in as smoke admin"
 LOGIN_BODY="$(SMOKE_ADMIN_EMAIL="$SMOKE_ADMIN_EMAIL" SMOKE_ADMIN_PASSWORD="$SMOKE_ADMIN_PASSWORD" python -c 'import json, os; print(json.dumps({"email": os.environ["SMOKE_ADMIN_EMAIL"], "password": os.environ["SMOKE_ADMIN_PASSWORD"]}))')"
@@ -250,31 +198,6 @@ AUTH_TOKEN="$(curl -fsS -X POST -H 'Content-Type: application/json' --data "$LOG
 if [[ -z "$AUTH_TOKEN" ]]; then
   echo "Login succeeded but no access token was returned." >&2
   exit 1
-fi
-
-log_step "Creating or reusing smoke group"
-GROUP_ID="$(curl_json GET "${API_URL}/admin/groups" | python -c 'import json, sys; name=sys.argv[1]; data=json.load(sys.stdin); print(next((group["id"] for group in data if group.get("name") == name), ""))' "$SMOKE_GROUP_NAME")"
-if [[ -z "$GROUP_ID" ]]; then
-  GROUP_BODY="$(SMOKE_GROUP_NAME="$SMOKE_GROUP_NAME" python -c 'import json, os; print(json.dumps({"name": os.environ["SMOKE_GROUP_NAME"]}))')"
-  GROUP_ID="$(curl_json POST "${API_URL}/admin/groups" "$GROUP_BODY" | json_get 'data["id"]')"
-fi
-
-log_step "Creating or reusing smoke folder source"
-SOURCE_ID="$(curl_json GET "${API_URL}/admin/sources" | python -c 'import json, sys; name=sys.argv[1]; data=json.load(sys.stdin); print(next((source["id"] for source in data if source.get("name") == name), ""))' "$SMOKE_SOURCE_NAME")"
-if [[ -z "$SOURCE_ID" ]]; then
-  SOURCE_BODY="$(SMOKE_SOURCE_NAME="$SMOKE_SOURCE_NAME" SMOKE_FIXTURE_DIR="$SMOKE_FIXTURE_DIR" python -c 'import json, os; print(json.dumps({"name": os.environ["SMOKE_SOURCE_NAME"], "type": "folder", "path": os.environ["SMOKE_FIXTURE_DIR"], "source_language": "en", "enabled": True, "config": {}}))')"
-  SOURCE_ID="$(curl_json POST "${API_URL}/admin/sources" "$SOURCE_BODY" | json_get 'data["id"]')"
-fi
-
-log_step "Granting smoke group access to the source"
-GRANT_BODY="$(GROUP_ID="$GROUP_ID" python -c 'import json, os; print(json.dumps({"group_id": os.environ["GROUP_ID"]}))')"
-GRANT_STATUS="$(curl -sS -o "$TMP_DIR/grant.json" -w '%{http_code}' -X POST \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer ${AUTH_TOKEN}" \
-  --data "$GRANT_BODY" \
-  "${API_URL}/admin/sources/${SOURCE_ID}/permissions")"
-if [[ "$GRANT_STATUS" != 2* ]]; then
-  echo "Permission grant returned HTTP ${GRANT_STATUS}; continuing because an existing grant may already be present." >&2
 fi
 
 log_step "Triggering synchronous ingestion"
