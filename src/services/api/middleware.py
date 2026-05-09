@@ -10,7 +10,7 @@ from starlette.responses import Response
 from starlette.routing import Match
 from starlette.types import ASGIApp
 
-from shared.metrics import _status_class, normalize_route
+from shared.metrics import normalize_route, status_class
 
 REQUEST_ID_HEADER = "X-Request-ID"
 
@@ -64,7 +64,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             self._exceptions_total.labels(route=route, error_type=error_type).inc()
             raise
         duration = time.perf_counter() - start
-        status_cls = _status_class(response.status_code)
+        status_cls = status_class(response.status_code)
         self._requests_total.labels(method=method, route=route, status_class=status_cls).inc()
         self._request_duration_seconds.labels(method=method, route=route).observe(duration)
         return response

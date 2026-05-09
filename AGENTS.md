@@ -27,7 +27,7 @@ branches simultaneously.
 
 | # | Mission | Plan | Branch | Status |
 |---|---|---|---|---|
-| 1 | UI: search workspace | `phase-08c-search-workspace.md` | `developer/phase-08c-search-workspace` | Done ✅ |
+| 1 | UI: search workspace | `phase-08c-search-workspace.md` | `developer/phase-08c-search-workspace` | **Next** |
 | 2 | Metrics foundation | `phase-10a-metrics-foundation.md` | `developer/phase-10a-metrics-foundation` | PR open |
 | 3 | Legacy Office extraction | `phase-09b-legacy-office-extraction.md` | `developer/phase-09b-legacy-office-extraction` | **Next** (parallel-safe) |
 | 4 | UI: document detail + Q&A | `phase-08d-document-detail.md` | `developer/phase-08d-document-detail` | Blocked by #1 |

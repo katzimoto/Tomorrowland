@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, generate_latest
 
 from services.api.middleware import MetricsMiddleware, RequestIdMiddleware
-from shared.metrics import _status_class, make_metrics, normalize_route
+from shared.metrics import make_metrics, normalize_route, status_class
 
 
 def _make_app(registry: CollectorRegistry | None = None) -> FastAPI:
@@ -65,30 +65,30 @@ def test_normalize_route_handles_raw_id_segment() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _status_class helper
+# status_class helper
 # ---------------------------------------------------------------------------
 
 
 def test_status_class_2xx() -> None:
-    assert _status_class(200) == "2xx"
-    assert _status_class(201) == "2xx"
-    assert _status_class(204) == "2xx"
+    assert status_class(200) == "2xx"
+    assert status_class(201) == "2xx"
+    assert status_class(204) == "2xx"
 
 
 def test_status_class_4xx() -> None:
-    assert _status_class(400) == "4xx"
-    assert _status_class(401) == "4xx"
-    assert _status_class(404) == "4xx"
+    assert status_class(400) == "4xx"
+    assert status_class(401) == "4xx"
+    assert status_class(404) == "4xx"
 
 
 def test_status_class_5xx() -> None:
-    assert _status_class(500) == "5xx"
-    assert _status_class(503) == "5xx"
+    assert status_class(500) == "5xx"
+    assert status_class(503) == "5xx"
 
 
 def test_status_class_other() -> None:
-    assert _status_class(301) == "other"
-    assert _status_class(102) == "other"
+    assert status_class(301) == "other"
+    assert status_class(102) == "other"
 
 
 # ---------------------------------------------------------------------------
