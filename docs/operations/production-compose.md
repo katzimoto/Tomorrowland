@@ -366,6 +366,29 @@ but API calls fail:
    docker compose logs frontend api
    ```
 
+## No-Mock Smoke Test
+
+Run the production smoke test from the repository root after reviewing `.env`:
+
+```bash
+bash scripts/smoke-test.sh
+```
+
+By default the script builds and starts the stack, creates a deterministic
+folder-source fixture under the Compose `/data` volume, verifies login, source
+permissions, synchronous ingestion, search, preview, download, and frontend
+reachability, then tears the stack down with volumes. For debugging an existing
+stack, use:
+
+```bash
+bash scripts/smoke-test.sh --use-running --keep-running
+```
+
+The script accepts environment overrides for local ports, smoke credentials,
+fixture names, and polling timeouts; run `bash scripts/smoke-test.sh --help` for
+the full list. It does not print tokens or authorization headers, and on failure
+it prints the `docker compose logs` command to inspect service output.
+
 ### Placeholder secrets and stale `.env` files
 
 Tracked examples intentionally use placeholder secrets. If `docker compose config`
@@ -376,7 +399,5 @@ the repository root and that the variable names match `.env.example` exactly.
 
 - Long-running worker containers are not present yet; ingestion and intelligence
   work are synchronous or API-triggered in the current runtime.
-- The no-mock product smoke test is planned for Phase 08f-3 and is not included
-  in this documentation phase.
 - Optional NiFi, Atlassian, and legacy Office support remain deferred to Phase
   09.
