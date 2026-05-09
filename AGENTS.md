@@ -30,10 +30,10 @@ branches simultaneously.
 | 1 | UI: search workspace | `phase-08c-search-workspace.md` | `developer/phase-08c-search-workspace` | Done |
 | 2 | Metrics foundation | `phase-10a-metrics-foundation.md` | `developer/phase-10a-metrics-foundation` | **Next** (parallel-safe) |
 | 3 | Legacy Office extraction | `phase-09b-legacy-office-extraction.md` | `developer/phase-09b-legacy-office-extraction` | **Next** (parallel-safe) |
-| 4 | UI: document detail + Q&A | `phase-08d-document-detail.md` | `developer/phase-08d-document-detail` | **In progress** |
+| 4 | UI: document detail + Q&A | `phase-08d-document-detail.md` | `developer/phase-08d-document-detail` | Done |
 | 5 | Domain metrics | `phase-10b-domain-metrics.md` | `developer/phase-10b-domain-metrics` | Blocked by #2 |
 | 6 | Admin readiness endpoint | `phase-10c-admin-readiness.md` | `developer/phase-10c-admin-readiness` | Blocked by #2 |
-| 7 | UI: collaboration + discovery | `phase-08e-collaboration-discovery.md` | `developer/phase-08e-collaboration-discovery` | Blocked by #4 |
+| 7 | UI: collaboration + discovery | `phase-08e-collaboration-discovery.md` | `developer/phase-08e-collaboration-discovery` | **Next** |
 | 8 | Structured logs + tracing | `phase-10e-structured-logs.md` | `developer/phase-10e-structured-logs` | Blocked by #2 |
 | 9 | Monitoring Compose profile | `phase-10d-monitoring-compose.md` | `developer/phase-10d-monitoring-compose` | Blocked by #5 |
 | 10 | NiFi + Kafka integration | `phase-09a-nifi-integration.md` | `developer/phase-09a-nifi-integration` | **Next** (parallel-safe) |
