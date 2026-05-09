@@ -17,14 +17,17 @@ exist.
 | 08f-1 | `phase-08f-1-production-defaults.md` | `developer/phase-08f-1-production-defaults` | Production defaults, CORS hardening, and security guard audit |
 | 08f-2 | `phase-08f-2-ops-docs.md` | `developer/phase-08f-2-ops-docs` | Annotated environment template and production operations documentation |
 | 08f-3 | `phase-08f-3-compose-smoke.md` | `developer/phase-08f-3-compose-smoke` | No-mock Compose smoke test automation |
+| 08f-4 | `phase-08f-4-smoke-bootstrap-helper.md` | `developer/phase-08f-4-smoke-bootstrap-helper` | Reusable smoke fixture bootstrap helper |
 
 ## Recommended Dependency Order
 
 1. Land Phase 08f-1 first so configuration names and secure defaults are stable.
 2. Land Phase 08f-2 second so documentation reflects the final production
    configuration surface.
-3. Land Phase 08f-3 last so the smoke script can rely on stable environment
+3. Land Phase 08f-3 so the smoke script can rely on stable environment
    names, documented reset behavior, and hardened defaults.
+4. Land Phase 08f-4 after validating the smoke script so fixture setup can be
+   reused and path-guarded without adding production bootstrap endpoints.
 
 Phase 08f-2 may begin before 08f-1 merges if the agent keeps environment names
 in sync with 08f-1 before review. Phase 08f-3 should wait unless the smoke-test
@@ -55,8 +58,7 @@ placeholders and rotate any secret that was exposed.
 Do not edit `spec.md` or `spec-v4.pdf` for this work; implementation guidance
 belongs in the phase plans and operations docs.
 
-## Optional Future Split
+## Phase 08f-4 Follow-Up
 
-If Phase 08f-3 reveals that test fixture creation requires a reusable admin or
-bootstrap helper, split that helper into an optional Phase 08f-4 planning PR
-instead of expanding the smoke-test PR beyond reviewable size.
+Phase 08f-4 captures the reusable smoke bootstrap helper split that keeps
+fixture setup narrow, idempotent, and executable inside the API container.

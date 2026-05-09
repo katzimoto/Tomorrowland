@@ -374,11 +374,11 @@ Run the production smoke test from the repository root after reviewing `.env`:
 bash scripts/smoke-test.sh
 ```
 
-By default the script builds and starts the stack, creates a deterministic
-folder-source fixture under the Compose `/data` volume, verifies login, source
-permissions, synchronous ingestion, search, preview, download, and frontend
-reachability, then tears the stack down with volumes. For debugging an existing
-stack, use:
+By default the script builds and starts the stack, runs the API-container
+smoke bootstrap helper to create an idempotent admin/group/source fixture and a
+deterministic document under the Compose `/data` volume, verifies login,
+synchronous ingestion, search, preview, download, and frontend reachability,
+then tears the stack down with volumes. For debugging an existing stack, use:
 
 ```bash
 bash scripts/smoke-test.sh --use-running --keep-running
