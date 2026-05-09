@@ -1,0 +1,19 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-chip);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-meta);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.neutral { background: #e9ecef; color: var(--color-text-secondary); }
+.source { background: #dbeafe; color: var(--color-badge-source); }
+.tag { background: #d1fae5; color: var(--color-badge-tag); }
+.translation { background: #fef3c7; color: var(--color-badge-translation); }
+.success { background: #ccfbf1; color: var(--color-success); }
+.warning { background: #fef3c7; color: var(--color-warning); }
+.danger { background: #fee2e2; color: var(--color-danger); }

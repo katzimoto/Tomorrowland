@@ -1,0 +1,66 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  padding: var(--page-padding-mobile);
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  padding: var(--space-8);
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  /* Left-align all content — reads like an internal tool, not a consumer app */
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.mark {
+  /* Logo stays centered relative to itself; content around it is left-aligned */
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-panel);
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 20px;
+}
+
+.heading {
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-section-title);
+  line-height: var(--line-height-section-title);
+  color: var(--color-text-primary);
+  /* Intentionally left-aligned */
+}
+
+.alert {
+  width: 100%;
+  padding: var(--space-3);
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-panel);
+  color: var(--color-warning);
+  font-size: var(--font-size-body);
+}
+
+.form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rootError {
+  color: var(--color-danger);
+  font-size: var(--font-size-body);
+}

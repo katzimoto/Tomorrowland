@@ -1,0 +1,43 @@
+import { api } from "./client";
+
+export interface CurrentUser {
+  user_id: string;
+  email: string;
+  display_name: string;
+  is_admin: boolean;
+  groups: string[];
+}
+
+interface LoginResponse {
+  access_token: string;
+  token_type: string;
+}
+
+export const authStorage = {
+  setToken(token: string) {
+    sessionStorage.setItem("neverland_token", token);
+  },
+  clearToken() {
+    sessionStorage.removeItem("neverland_token");
+  },
+  hasToken(): boolean {
+    return !!sessionStorage.getItem("neverland_token");
+  },
+};
+
+export async function login(email: string, password: string): Promise<void> {
+  const res = await api.post<LoginResponse>("/auth/login", { email, password });
+  authStorage.setToken(res.access_token);
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await api.post<void>("/auth/logout", {});
+  } finally {
+    authStorage.clearToken();
+  }
+}
+
+export function getCurrentUser(): Promise<CurrentUser> {
+  return api.get<CurrentUser>("/auth/me");
+}
