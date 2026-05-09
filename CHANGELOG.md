@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Phase 08b: Frontend foundation — React 19 + TypeScript + Vite scaffold with
+  TanStack Router and Query, React Hook Form + Zod auth form, design-token CSS
+  system, primitive component library (Button, IconButton, TextInput,
+  SearchInput, Badge, Tabs, Dialog, Skeleton, EmptyState, Toast), AppShell with
+  responsive NavRail, API client with 401 session-expiry handling, auth token
+  storage boundary, Login page, Playwright config at four viewports, Vitest +
+  Testing Library unit tests (18 tests), and multi-stage frontend Dockerfile
+  building the React app.
 - Phase 08a: Compose runtime foundation — backend ASGI entrypoint, public health
   endpoint, production-oriented API and frontend containers, migration service,
   Compose runtime wiring, and local production operations guide.
