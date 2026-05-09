@@ -2,6 +2,11 @@ import { createRouter, createRoute, createRootRoute, redirect } from "@tanstack/
 import { authStorage } from "@/api/auth";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { SearchPage } from "@/features/search/SearchPage";
+import { DocumentPage } from "@/features/documents/DocumentPage";
+import { QAPage } from "@/features/qa/QAPage";
+import { SubscriptionsPage } from "@/features/subscriptions/SubscriptionsPage";
+import { NotificationsPage } from "@/features/notifications/NotificationsPage";
+import { HistoryPage } from "@/features/history/HistoryPage";
 import { AppLayout } from "./AppLayout";
 import { PlaceholderPage } from "./PlaceholderPage";
 
@@ -45,31 +50,31 @@ const searchRoute = createRoute({
 const docRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/doc/$docId",
-  component: () => <PlaceholderPage title="Document" />,
+  component: DocumentPage,
 });
 
 const qaRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/qa",
-  component: () => <PlaceholderPage title="Q&A" />,
+  component: QAPage,
 });
 
 const subscriptionsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/subscriptions",
-  component: () => <PlaceholderPage title="Subscriptions" />,
+  component: SubscriptionsPage,
 });
 
 const notificationsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/notifications",
-  component: () => <PlaceholderPage title="Notifications" />,
+  component: NotificationsPage,
 });
 
 const historyRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/history",
-  component: () => <PlaceholderPage title="History" />,
+  component: HistoryPage,
 });
 
 const settingsRoute = createRoute({

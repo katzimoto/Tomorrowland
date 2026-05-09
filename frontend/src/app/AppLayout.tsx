@@ -1,6 +1,7 @@
 import { Outlet } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser } from "@/api/auth";
+import { listNotifications } from "@/api/notifications";
 import { AppShell } from "@/components/layout/AppShell";
 import { Skeleton } from "@/components/primitives/Skeleton";
 import styles from "./AppLayout.module.css";
@@ -10,6 +11,13 @@ export function AppLayout() {
     queryKey: ["current-user"],
     queryFn: getCurrentUser,
     staleTime: 5 * 60_000,
+  });
+
+  const { data: unreadNotifications } = useQuery({
+    queryKey: ["notifications-unread"],
+    queryFn: () => listNotifications(true),
+    staleTime: 60_000,
+    retry: false,
   });
 
   if (isLoading) {
@@ -26,7 +34,7 @@ export function AppLayout() {
   }
 
   return (
-    <AppShell isAdmin={user?.is_admin ?? false} unreadCount={0}>
+    <AppShell isAdmin={user?.is_admin ?? false} unreadCount={unreadNotifications?.length ?? 0}>
       <Outlet />
     </AppShell>
   );
