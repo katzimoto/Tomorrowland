@@ -2,7 +2,11 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Trash2, Pencil } from "lucide-react";
-import { getSummary, getEntities, getTags, getRelated, listComments, createComment, updateComment, deleteComment } from "@/api/documents";
+import {
+  getSummary, getEntities, getTags, getRelated,
+  listComments, createComment, updateComment, deleteComment,
+  listAnnotations, createAnnotation, deleteAnnotation,
+} from "@/api/documents";
 import { Badge } from "@/components/primitives/Badge";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
@@ -15,6 +19,7 @@ const TABS = [
   { id: "entities", label: "Entities" },
   { id: "tags", label: "Tags" },
   { id: "related", label: "Related" },
+  { id: "annotations", label: "Annotations" },
   { id: "comments", label: "Comments" },
 ];
 
@@ -33,6 +38,7 @@ export function DetailsPanel({ docId }: DetailsPanelProps) {
         {activeTab === "entities" && <EntitiesTab docId={docId} />}
         {activeTab === "tags" && <TagsTab docId={docId} />}
         {activeTab === "related" && <RelatedTab docId={docId} />}
+        {activeTab === "annotations" && <AnnotationsTab docId={docId} />}
         {activeTab === "comments" && <CommentsTab docId={docId} />}
       </div>
     </div>
@@ -58,13 +64,14 @@ function SummaryTab({ docId }: { docId: string }) {
 }
 
 function EntitiesTab({ docId }: { docId: string }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["doc-entities", docId],
     queryFn: () => getEntities(docId),
     retry: false,
   });
 
   if (isLoading) return <p className={styles.muted}>Loading…</p>;
+  if (isError) return <EmptyState title="Failed to load entities" body="Could not reach the server." />;
   if (!data?.entities.length) return <EmptyState title="No entities" body="No entities extracted for this document." />;
 
   return (
@@ -81,13 +88,14 @@ function EntitiesTab({ docId }: { docId: string }) {
 }
 
 function TagsTab({ docId }: { docId: string }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["doc-tags", docId],
     queryFn: () => getTags(docId),
     retry: false,
   });
 
   if (isLoading) return <p className={styles.muted}>Loading…</p>;
+  if (isError) return <EmptyState title="Failed to load tags" body="Could not reach the server." />;
   if (!data?.tags.length) return <EmptyState title="No tags" body="No tags assigned to this document." />;
 
   return (
@@ -100,13 +108,14 @@ function TagsTab({ docId }: { docId: string }) {
 }
 
 function RelatedTab({ docId }: { docId: string }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["doc-related", docId],
     queryFn: () => getRelated(docId),
     retry: false,
   });
 
   if (isLoading) return <p className={styles.muted}>Loading…</p>;
+  if (isError) return <EmptyState title="Failed to load related documents" body="Could not reach the server." />;
   if (!data?.related.length) return <EmptyState title="No related documents" body="No related documents found." />;
 
   return (
@@ -120,6 +129,84 @@ function RelatedTab({ docId }: { docId: string }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+const PLACEHOLDER_POSITION = { mode: "text-range" as const, start_char: 0, end_char: 0 };
+
+function AnnotationsTab({ docId }: { docId: string }) {
+  const [newText, setNewText] = useState("");
+  const [isPrivate, setIsPrivate] = useState(true);
+  const { show: showToast } = useToast();
+  const qc = useQueryClient();
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["doc-annotations", docId],
+    queryFn: () => listAnnotations(docId),
+  });
+
+  const invalidate = () => void qc.invalidateQueries({ queryKey: ["doc-annotations", docId] });
+
+  const addMut = useMutation({
+    mutationFn: () => createAnnotation(docId, { text: newText.trim(), position: PLACEHOLDER_POSITION, is_private: isPrivate }),
+    onSuccess: () => { setNewText(""); invalidate(); },
+    onError: () => showToast("error", "Failed to add annotation."),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteAnnotation(id),
+    onSuccess: invalidate,
+    onError: () => showToast("error", "Failed to delete annotation."),
+  });
+
+  const annotations = data?.annotations ?? [];
+
+  return (
+    <div className={styles.commentsSection}>
+      {isLoading && <p className={styles.muted}>Loading…</p>}
+      {isError && <EmptyState title="Failed to load annotations" body="Could not reach the server." />}
+      {!isLoading && !isError && annotations.length === 0 && (
+        <p className={styles.muted}>No annotations yet.</p>
+      )}
+      <ul className={styles.commentList}>
+        {annotations.map((a) => (
+          <li key={a.id} className={styles.comment}>
+            <div className={styles.commentMeta}>
+              <Badge variant={a.is_private ? "neutral" : "source"}>
+                {a.is_private ? "Private" : "Shared"}
+              </Badge>
+              <span className={styles.commentDate}>{new Date(a.created_at).toLocaleDateString()}</span>
+              {a.can_modify && (
+                <button className={styles.iconAction} aria-label="Delete annotation" onClick={() => deleteMut.mutate(a.id)}>
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
+            <p className={styles.commentBody}>{a.text}</p>
+          </li>
+        ))}
+      </ul>
+      <div className={styles.addComment}>
+        <input
+          className={styles.inlineInput}
+          value={newText}
+          onChange={(e) => setNewText(e.target.value)}
+          placeholder="Add an annotation…"
+          aria-label="New annotation"
+        />
+        <label className={styles.visibilityLabel}>
+          <input
+            type="checkbox"
+            checked={isPrivate}
+            onChange={(e) => setIsPrivate(e.target.checked)}
+          />
+          Private
+        </label>
+        <Button size="sm" onClick={() => addMut.mutate()} disabled={!newText.trim() || addMut.isPending}>
+          Add
+        </Button>
+      </div>
+    </div>
   );
 }
 

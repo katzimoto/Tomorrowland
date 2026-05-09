@@ -19,7 +19,7 @@ function mimeShortLabel(mime: string): string {
 
 export function HistoryPage() {
   const navigate = useNavigate();
-  const { data, isLoading } = useQuery({ queryKey: ["history"], queryFn: () => getActivity() });
+  const { data, isLoading, isError } = useQuery({ queryKey: ["history"], queryFn: () => getActivity() });
   const items = data ?? [];
 
   return (
@@ -29,7 +29,8 @@ export function HistoryPage() {
       </header>
       <div className={styles.body}>
         {isLoading && <p className={styles.muted}>Loading…</p>}
-        {!isLoading && items.length === 0 && (
+        {isError && <EmptyState title="Failed to load history" body="Could not reach the server." />}
+        {!isLoading && !isError && items.length === 0 && (
           <EmptyState title="No history" body="Documents you view will appear here." />
         )}
         {items.length > 0 && (

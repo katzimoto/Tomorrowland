@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Phase 08c: Main product UI — search workspace (SearchPage with URL-synced `?q=&mode=` params,
+  keyboard `/` shortcut, skeleton loading, mode toggle, filter panel, result rows with MIME icon
+  and "Why" tooltip), document preview page (split-pane PreviewPane + DetailsPanel with Summary,
+  Entities, Tags, Related, Annotations, and Comments tabs, full CRUD for comments and annotations,
+  XSS-safe HTML sanitization), Q&A page with answer block and citation links, Subscriptions page
+  (create/edit dialog with threshold slider, toggle, delete with confirmation), Notifications page
+  (mark-read on click, unread accent), History page (recent views list), live unread count in
+  NavRail badge, and frontend CI job (lint + typecheck + test + build).
 - Agent efficiency guidance: canonical uppercase `AGENTS.md` plus `frontend/AGENTS.md` with scoped commands, token-saving workflow, and common mistake checklists.
 - Phase 08b: Frontend foundation — React 19 + TypeScript + Vite scaffold with
   TanStack Router and Query, React Hook Form + Zod auth form, design-token CSS

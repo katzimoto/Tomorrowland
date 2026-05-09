@@ -11,7 +11,7 @@ export function NotificationsPage() {
   const { show: showToast } = useToast();
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => listNotifications(false),
   });
@@ -37,7 +37,8 @@ export function NotificationsPage() {
 
       <div className={styles.body}>
         {isLoading && <p className={styles.muted}>Loading…</p>}
-        {!isLoading && notifications.length === 0 && (
+        {isError && <EmptyState title="Failed to load notifications" body="Could not reach the server." />}
+        {!isLoading && !isError && notifications.length === 0 && (
           <EmptyState
             title="No notifications"
             body="You'll be notified here when documents match your subscriptions."

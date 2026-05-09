@@ -1,6 +1,25 @@
 import { api } from "./client";
 import type { RelatedDocument } from "./generated-or-shared-types";
 
+export interface DocAnnotation {
+  id: string;
+  doc_id: string;
+  user_id: string;
+  text: string;
+  note: string | null;
+  position: { mode: "text-range"; start_char: number; end_char: number };
+  is_private: boolean;
+  created_at: string;
+  can_modify: boolean;
+}
+
+export interface AnnotationCreate {
+  text: string;
+  note?: string;
+  position: { mode: "text-range"; start_char: number; end_char: number };
+  is_private: boolean;
+}
+
 export interface DocumentPreview {
   doc_id: string;
   title: string | null;
@@ -83,4 +102,16 @@ export function updateComment(docId: string, commentId: string, body: string): P
 
 export function deleteComment(docId: string, commentId: string): Promise<void> {
   return api.delete(`/documents/${docId}/comments/${commentId}`);
+}
+
+export function listAnnotations(docId: string): Promise<{ annotations: DocAnnotation[] }> {
+  return api.get(`/documents/${docId}/annotations`);
+}
+
+export function createAnnotation(docId: string, data: AnnotationCreate): Promise<DocAnnotation> {
+  return api.post(`/documents/${docId}/annotations`, data);
+}
+
+export function deleteAnnotation(annotationId: string): Promise<void> {
+  return api.delete(`/annotations/${annotationId}`);
 }

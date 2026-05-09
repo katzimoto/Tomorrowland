@@ -50,9 +50,9 @@ export function SearchPage() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  function submitSearch(q: string = inputValue) {
+  function submitSearch(q: string = inputValue, currentMode: SearchMode = mode) {
     setSubmittedQuery(q);
-    void navigate({ to: "/search", search: () => ({ q, mode }) });
+    void navigate({ to: "/search", search: () => ({ q, mode: currentMode }) });
   }
 
   const { data, isLoading, isError } = useQuery({
@@ -101,7 +101,7 @@ export function SearchPage() {
             <button
               key={value}
               className={`${styles.modeBtn} ${mode === value ? styles.modeBtnActive : ""}`}
-              onClick={() => { setMode(value); if (submittedQuery) submitSearch(); }}
+              onClick={() => { setMode(value); if (submittedQuery) submitSearch(inputValue, value); }}
               aria-pressed={mode === value}
             >
               {label}

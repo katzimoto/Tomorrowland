@@ -1,0 +1,73 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
+import { render } from "@/test/render";
+import { DocumentPage } from "./DocumentPage";
+import * as documentsApi from "@/api/documents";
+
+vi.mock("@tanstack/react-router", () => ({
+  useParams: () => ({ docId: "doc-123" }),
+  useNavigate: () => vi.fn(),
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
+}));
+
+vi.mock("@/api/documents");
+
+const mockPreview: documentsApi.DocumentPreview = {
+  doc_id: "doc-123",
+  title: "Vendor Risk Assessment 2024",
+  mime_type: "text/plain",
+  translation_quality: "fast",
+  metadata: {},
+  snippet: "This document covers vendor risk.",
+  view_count: 3,
+};
+
+beforeEach(() => {
+  vi.mocked(documentsApi.getPreview).mockResolvedValue(mockPreview);
+  vi.mocked(documentsApi.getDownloadUrl).mockReturnValue("/api/download/doc-123");
+  vi.mocked(documentsApi.getSummary).mockRejectedValue(new Error("not found"));
+  vi.mocked(documentsApi.getEntities).mockRejectedValue(new Error("not found"));
+  vi.mocked(documentsApi.getTags).mockRejectedValue(new Error("not found"));
+  vi.mocked(documentsApi.getRelated).mockRejectedValue(new Error("not found"));
+  vi.mocked(documentsApi.listComments).mockResolvedValue({ comments: [], total: 0 });
+  vi.mocked(documentsApi.listAnnotations).mockResolvedValue({ annotations: [] });
+});
+
+describe("DocumentPage", () => {
+  it("renders document title after loading", async () => {
+    render(<DocumentPage />);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Vendor Risk Assessment 2024" })).toBeInTheDocument();
+    });
+  });
+
+  it("shows translation quality badge", async () => {
+    render(<DocumentPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Fast translation")).toBeInTheDocument();
+    });
+  });
+
+  it("shows download link with correct href", async () => {
+    render(<DocumentPage />);
+    await waitFor(() => {
+      const link = screen.getByRole("link", { name: /download/i });
+      expect(link).toHaveAttribute("href", "/api/download/doc-123");
+    });
+  });
+
+  it("shows error state when preview fails", async () => {
+    vi.mocked(documentsApi.getPreview).mockRejectedValueOnce(new Error("not found"));
+    render(<DocumentPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Document not found")).toBeInTheDocument();
+    });
+  });
+
+  it("renders preview snippet", async () => {
+    render(<DocumentPage />);
+    await waitFor(() => {
+      expect(screen.getByText("This document covers vendor risk.")).toBeInTheDocument();
+    });
+  });
+});

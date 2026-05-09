@@ -19,7 +19,7 @@ export function SubscriptionsPage() {
   const { show: showToast } = useToast();
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({ queryKey: ["subscriptions"], queryFn: listSubscriptions });
+  const { data, isLoading, isError } = useQuery({ queryKey: ["subscriptions"], queryFn: listSubscriptions });
 
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["subscriptions"] });
 
@@ -59,7 +59,8 @@ export function SubscriptionsPage() {
 
       <div className={styles.body}>
         {isLoading && <p className={styles.muted}>Loading…</p>}
-        {!isLoading && (!data || data.length === 0) && (
+        {isError && <EmptyState title="Failed to load subscriptions" body="Could not reach the server." />}
+        {!isLoading && !isError && (!data || data.length === 0) && (
           <EmptyState
             title="No subscriptions"
             body="Create a subscription to be notified when new documents match a query."
@@ -90,7 +91,7 @@ export function SubscriptionsPage() {
                   </button>
                   <button
                     className={styles.deleteBtn}
-                    onClick={() => deleteMut.mutate(sub.id)}
+                    onClick={() => { if (window.confirm(`Delete subscription "${sub.name}"?`)) deleteMut.mutate(sub.id); }}
                     aria-label="Delete subscription"
                   >
                     <Trash2 size={14} />

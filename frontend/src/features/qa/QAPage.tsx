@@ -10,12 +10,13 @@ import styles from "./QAPage.module.css";
 export function QAPage() {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<QAResponse | null>(null);
+  const [hasError, setHasError] = useState(false);
   const { show: showToast } = useToast();
 
   const mutation = useMutation({
     mutationFn: () => askQuestion(question.trim()),
-    onSuccess: (data) => setResult(data),
-    onError: () => showToast("error", "Q&A request failed. Check that the backend is reachable."),
+    onSuccess: (data) => { setHasError(false); setResult(data); },
+    onError: () => { setHasError(true); showToast("error", "Q&A request failed. Check that the backend is reachable."); },
   });
 
   function handleSubmit(e: React.FormEvent) {
@@ -47,7 +48,14 @@ export function QAPage() {
           </Button>
         </form>
 
-        {!result && !mutation.isPending && (
+        {hasError && !result && (
+          <EmptyState
+            title="Request failed"
+            body="The Q&A service is not reachable. Check the server and try again."
+          />
+        )}
+
+        {!result && !hasError && !mutation.isPending && (
           <EmptyState
             title="Ask anything"
             body="Type a question and press Ask. Answers are grounded in your accessible documents."

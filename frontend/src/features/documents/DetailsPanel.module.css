@@ -79,7 +79,8 @@
 }
 .iconAction:hover { color: var(--color-primary); }
 .commentEditRow { display: flex; gap: var(--space-2); align-items: center; }
-.addComment { display: flex; gap: var(--space-2); align-items: center; padding-top: var(--space-3); border-top: 1px solid var(--color-border); }
+.addComment { display: flex; gap: var(--space-2); align-items: center; padding-top: var(--space-3); border-top: 1px solid var(--color-border); flex-wrap: wrap; }
+.visibilityLabel { display: flex; align-items: center; gap: 4px; font-size: var(--font-size-meta); color: var(--color-text-secondary); cursor: pointer; white-space: nowrap; }
 
 .inlineInput {
   flex: 1;
