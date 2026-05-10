@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { ToastProvider } from "@/components/primitives/Toast";
+import { LanguageProvider } from "@/i18n/LanguageProvider";
 import { router } from "./routes";
 
 const queryClient = new QueryClient({
@@ -14,10 +15,12 @@ const queryClient = new QueryClient({
 
 export function Providers() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <RouterProvider router={router} />
-      </ToastProvider>
-    </QueryClientProvider>
+    <LanguageProvider>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <RouterProvider router={router} />
+        </ToastProvider>
+      </QueryClientProvider>
+    </LanguageProvider>
   );
 }

@@ -4,6 +4,7 @@ import { askQuestion, type QAResponse } from "@/api/qa";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { useToast } from "@/components/primitives/ToastContext";
+import { useT } from "@/i18n/index";
 import { QuestionInput } from "./QuestionInput";
 import { AnswerPanel } from "./AnswerPanel";
 import styles from "./QAPanel.module.css";
@@ -13,6 +14,7 @@ interface QAPanelProps {
 }
 
 export function QAPanel({ returnPath }: QAPanelProps) {
+  const t = useT();
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<QAResponse | null>(null);
   const [hasError, setHasError] = useState(false);
@@ -21,7 +23,7 @@ export function QAPanel({ returnPath }: QAPanelProps) {
   const mutation = useMutation({
     mutationFn: () => askQuestion(question.trim()),
     onSuccess: (data) => { setHasError(false); setResult(data); },
-    onError: () => { setHasError(true); showToast("error", "Q&A request failed. Check that the backend is reachable."); },
+    onError: () => { setHasError(true); showToast("error", t.qa.toastError); },
   });
 
   function handleSubmit() {
@@ -42,21 +44,21 @@ export function QAPanel({ returnPath }: QAPanelProps) {
           disabled={!question.trim() || mutation.isPending}
           loading={mutation.isPending}
         >
-          Ask
+          {t.qa.ask}
         </Button>
       </div>
 
       {hasError && !result && (
         <EmptyState
-          title="Request failed"
-          body="The Q&A service is not reachable. Check the server and try again."
+          title={t.qa.failedTitle}
+          body={t.qa.failedBody}
         />
       )}
 
       {!result && !hasError && !mutation.isPending && (
         <EmptyState
-          title="Ask anything"
-          body="Type a question and press Ask. Answers are grounded in your accessible documents."
+          title={t.qa.emptyTitle}
+          body={t.qa.emptyBody}
         />
       )}
 

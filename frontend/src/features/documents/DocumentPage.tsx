@@ -5,12 +5,14 @@ import { getPreview } from "@/api/documents";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
+import { useT } from "@/i18n/index";
 import { DocumentToolbar } from "./DocumentToolbar";
 import { PreviewPane } from "./PreviewPane";
 import { InsightPane } from "./InsightPane";
 import styles from "./DocumentPage.module.css";
 
 export function DocumentPage() {
+  const t = useT();
   const { docId } = useParams({ from: "/app/doc/$docId" });
   const [selectedVersionId, setSelectedVersionId] = useState<string | undefined>(undefined);
 
@@ -31,11 +33,11 @@ export function DocumentPage() {
     return (
       <div className={styles.page}>
         <EmptyState
-          title="Document not found"
-          body="This document may have been deleted or you may not have access."
+          title={t.document.notFoundTitle}
+          body={t.document.notFoundBody}
           action={
             <Button variant="secondary" onClick={() => void refetch()}>
-              Try again
+              {t.document.tryAgain}
             </Button>
           }
         />

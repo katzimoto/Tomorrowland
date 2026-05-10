@@ -64,3 +64,10 @@
   color: var(--color-danger);
   font-size: var(--font-size-body);
 }
+
+.langRow {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: calc(-1 * var(--space-2));
+}
