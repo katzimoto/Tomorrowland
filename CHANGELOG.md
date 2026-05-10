@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Air-gapped upgrade workflow with read-only preflight checks, fail-closed backup, explicit restore, upgrade orchestration, release manifest safety metadata, and operator documentation that preserves data volumes while loading local images and running migrations.
 - Release artifact and air-gapped Compose deployment path with prebuilt image bundling, offline validation/loading scripts, air-gapped environment template, GitHub Actions workflow, and operator runbook for download-to-first-use installs.
 - Added an admin-only `/admin/readiness` endpoint with cached dependency probes and Prometheus dependency health metrics.
+- Phase 08e UI collaboration and discovery: standalone comments and annotations panels, subscriptions with saved-search conversion, grouped notifications, private history note, neutral expertise map, Cmd/Ctrl+K command menu, and Playwright accessibility smoke coverage.
 - Phase 10b domain metrics: Prometheus counters, gauges, and histograms for authentication, authorization, admin actions, ingestion, pipeline stages, search, translation, intelligence, Ollama, RAG, preview, downloads, comments, annotations, subscriptions, and notifications.
 - Phase 10a metrics foundation: per-app Prometheus registry, `/metrics` endpoint, default process/GC metrics, `neverland_build_info`, HTTP request counters/histograms, exception metrics, route-template-safe labels, and `X-Request-ID` propagation.
 - Phase 08d: Document detail page — MIME-aware PreviewPane (11 typed renderers: Text, HTML with DOMParser XSS sanitization, Table, Archive, Email, Slides, Image, Unsupported, ExtractionFailed, FileMissing, LoadingTimeout), InsightPane tab architecture (Summary, Q&A, Related, Annotations, Comments, Subscriptions), DocumentToolbar (back button, title h1, TrustDisplay quality badge, TranslationVersionSelector, RequestTranslationDialog, download link), QA sub-components (QuestionInput, AnswerPanel, CitationCard, CitationList, QAPanel embeddable), and QAPage refactored to delegate entirely to QAPanel.
@@ -77,7 +78,6 @@ All notable changes to this project will be documented in this file.
 - Phase 01: Foundation schema, shared contracts, service skeletons, and tests.
 - Phase 00: Planning, repository hygiene, and GitHub Actions bootstrap.
 
-
 ### Changed
 - Documentation now reflects that Confluence and Jira Server/Data Center polling
   connectors are implemented; Phase 09 only retains NiFi, legacy Office, Kafka,
@@ -85,6 +85,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Connector metadata from `ConnectorDocument.metadata` is now persisted into `documents.metadata` during admin-triggered syncs.
+- Frontend collaboration/discovery API clients now match backend comments, annotations, and expertise wire formats.
 - `services/health.py` now uses `typing_extensions.TypedDict` for Python 3.11
   compatibility (Pydantic 2 rejected `typing.TypedDict` on Python < 3.12).
 - Frontend admin sources integration now passes lint/build checks with type-only
