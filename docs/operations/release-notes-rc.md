@@ -2,7 +2,7 @@
 
 ## Release identity
 
-- Version/tag: TBD until the RC tag is cut.
+- Version/tag: `1.0-rc1`.
 - Commit SHA: `5685bcc58775e65052bce03c877c1b51855a22a3`.
 - Artifact: TBD from the release workflow.
 - Validation: #91 accepted as **Ready with limitations**.
@@ -125,7 +125,6 @@ Carry-forward validation facts:
 
 Before cutting the RC tag, decide:
 
-- final RC tag name
 - artifact name and checksum after release workflow output
 - whether optional open PRs #104, #97, #98, and #99 are excluded or promoted
 - whether the generated Tomorrowland logo is included now or left as a post-RC nice-to-have
