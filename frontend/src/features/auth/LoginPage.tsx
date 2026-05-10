@@ -8,6 +8,7 @@ import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
 import { LanguageSelector } from "@/components/settings/LanguageSelector";
 import { useT } from "@/i18n/index";
+import { startNamedPerformanceTimer } from "@/lib/performanceTelemetry";
 import styles from "./LoginPage.module.css";
 
 function makeSchema(emailInvalid: string, passwordRequired: string) {
@@ -22,7 +23,10 @@ type FormValues = { email: string; password: string };
 export function LoginPage() {
   const t = useT();
   const navigate = useNavigate();
-  const search = useSearch({ from: "/login" }) as { expired?: string; return?: string };
+  const search = useSearch({ from: "/login" }) as {
+    expired?: string;
+    return?: string;
+  };
 
   const schema = makeSchema(t.auth.emailInvalid, t.auth.passwordRequired);
 
@@ -35,10 +39,12 @@ export function LoginPage() {
 
   async function onSubmit({ email, password }: FormValues) {
     try {
+      startNamedPerformanceTimer("login.shell");
       await login(email, password);
-      const returnTo = typeof search.return === "string" && search.return.startsWith("/")
-        ? search.return
-        : "/search";
+      const returnTo =
+        typeof search.return === "string" && search.return.startsWith("/")
+          ? search.return
+          : "/search";
       await navigate({ to: returnTo });
     } catch (err) {
       const message =
@@ -52,7 +58,9 @@ export function LoginPage() {
   return (
     <div className={styles.page} aria-label={t.auth.signInLabel}>
       <div className={styles.card}>
-        <div className={styles.mark} aria-label="Neverland">N</div>
+        <div className={styles.mark} aria-label="Neverland">
+          N
+        </div>
         <h1 className={styles.heading}>{t.auth.heading}</h1>
 
         {search.expired && (
@@ -61,7 +69,11 @@ export function LoginPage() {
           </p>
         )}
 
-        <form className={styles.form} onSubmit={handleSubmit(onSubmit)} noValidate>
+        <form
+          className={styles.form}
+          onSubmit={handleSubmit(onSubmit)}
+          noValidate
+        >
           <TextInput
             label={t.auth.email}
             type="email"
@@ -84,7 +96,11 @@ export function LoginPage() {
             </p>
           )}
 
-          <Button type="submit" loading={isSubmitting} style={{ width: "100%" }}>
+          <Button
+            type="submit"
+            loading={isSubmitting}
+            style={{ width: "100%" }}
+          >
             {t.auth.signIn}
           </Button>
         </form>

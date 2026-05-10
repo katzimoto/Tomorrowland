@@ -5,6 +5,7 @@ import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { useToast } from "@/components/primitives/ToastContext";
 import { useT } from "@/i18n/index";
+import { measurePerformance } from "@/lib/performanceTelemetry";
 import { QuestionInput } from "./QuestionInput";
 import { AnswerPanel } from "./AnswerPanel";
 import styles from "./QAPanel.module.css";
@@ -21,9 +22,16 @@ export function QAPanel({ returnPath }: QAPanelProps) {
   const { show: showToast } = useToast();
 
   const mutation = useMutation({
-    mutationFn: () => askQuestion(question.trim()),
-    onSuccess: (data) => { setHasError(false); setResult(data); },
-    onError: () => { setHasError(true); showToast("error", t.qa.toastError); },
+    mutationFn: () =>
+      measurePerformance("qa.answer", () => askQuestion(question.trim())),
+    onSuccess: (data) => {
+      setHasError(false);
+      setResult(data);
+    },
+    onError: () => {
+      setHasError(true);
+      showToast("error", t.qa.toastError);
+    },
   });
 
   function handleSubmit() {
@@ -49,17 +57,11 @@ export function QAPanel({ returnPath }: QAPanelProps) {
       </div>
 
       {hasError && !result && (
-        <EmptyState
-          title={t.qa.failedTitle}
-          body={t.qa.failedBody}
-        />
+        <EmptyState title={t.qa.failedTitle} body={t.qa.failedBody} />
       )}
 
       {!result && !hasError && !mutation.isPending && (
-        <EmptyState
-          title={t.qa.emptyTitle}
-          body={t.qa.emptyBody}
-        />
+        <EmptyState title={t.qa.emptyTitle} body={t.qa.emptyBody} />
       )}
 
       {result && <AnswerPanel result={result} returnPath={returnPath} />}

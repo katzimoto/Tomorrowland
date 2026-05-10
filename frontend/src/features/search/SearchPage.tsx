@@ -9,6 +9,11 @@ import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { useToast } from "@/components/primitives/ToastContext";
 import { useT } from "@/i18n/index";
+import {
+  measurePerformance,
+  recordPerformanceEvent,
+  startPerformanceTimer,
+} from "@/lib/performanceTelemetry";
 import { FilterPanel } from "./FilterPanel";
 import { ResultRow } from "./ResultRow";
 import styles from "./SearchPage.module.css";
@@ -33,6 +38,7 @@ export function SearchPage() {
   const [mode, setMode] = useState<SearchMode>(initialMode);
   const [filters, setFilters] = useState<SearchFilters>({});
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const finishFirstResultTimer = useRef<(() => number) | null>(null);
 
   // Keyboard shortcut: "/" focuses search input
   useEffect(() => {
@@ -52,29 +58,72 @@ export function SearchPage() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  function submitSearch(q: string = inputValue, currentMode: SearchMode = mode) {
+  function submitSearch(
+    q: string = inputValue,
+    currentMode: SearchMode = mode,
+  ) {
+    finishFirstResultTimer.current = q.trim() ? startPerformanceTimer() : null;
     setSubmittedQuery(q);
     void navigate({ to: "/search", search: () => ({ q, mode: currentMode }) });
   }
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["search", submittedQuery, mode, filters],
-    queryFn: () => search(submittedQuery, mode, filters, 20),
+    queryFn: () =>
+      measurePerformance("search.request", () =>
+        search(submittedQuery, mode, filters, 20),
+      ),
     enabled: submittedQuery.trim().length > 0,
   });
 
   useEffect(() => {
-    if (isError) showToast("error", t.search.failedToast);
+    if (isError) {
+      if (finishFirstResultTimer.current) {
+        recordPerformanceEvent(
+          "search.firstResult",
+          finishFirstResultTimer.current(),
+          "error",
+        );
+        finishFirstResultTimer.current = null;
+      }
+      showToast("error", t.search.failedToast);
+    }
   }, [isError, showToast, t]);
+
+  useEffect(() => {
+    if (!data || !finishFirstResultTimer.current) return;
+    if (data.results.length > 0) {
+      recordPerformanceEvent(
+        "search.firstResult",
+        finishFirstResultTimer.current(),
+      );
+      finishFirstResultTimer.current = null;
+    }
+  }, [data]);
 
   // Active filter chips
   const activeChips: Array<{ label: string; remove: () => void }> = [];
   (filters.file_type ?? []).forEach((ft) => {
     const label = ft.split("/").pop() ?? ft;
-    activeChips.push({ label, remove: () => setFilters((f) => ({ ...f, file_type: f.file_type?.filter((v) => v !== ft) || undefined })) });
+    activeChips.push({
+      label,
+      remove: () =>
+        setFilters((f) => ({
+          ...f,
+          file_type: f.file_type?.filter((v) => v !== ft) || undefined,
+        })),
+    });
   });
   (filters.translation_quality ?? []).forEach((tq) => {
-    activeChips.push({ label: tq === "fast" ? t.filters.transFast : t.filters.transHigh, remove: () => setFilters((f) => ({ ...f, translation_quality: f.translation_quality?.filter((v) => v !== tq) || undefined })) });
+    activeChips.push({
+      label: tq === "fast" ? t.filters.transFast : t.filters.transHigh,
+      remove: () =>
+        setFilters((f) => ({
+          ...f,
+          translation_quality:
+            f.translation_quality?.filter((v) => v !== tq) || undefined,
+        })),
+    });
   });
 
   const showResults = submittedQuery.trim().length > 0;
@@ -98,12 +147,19 @@ export function SearchPage() {
       </header>
 
       <div className={styles.toolbar}>
-        <div className={styles.modeGroup} role="group" aria-label={t.search.modeGroup}>
+        <div
+          className={styles.modeGroup}
+          role="group"
+          aria-label={t.search.modeGroup}
+        >
           {MODES.map(({ value, label }) => (
             <button
               key={value}
               className={`${styles.modeBtn} ${mode === value ? styles.modeBtnActive : ""}`}
-              onClick={() => { setMode(value); if (submittedQuery) submitSearch(inputValue, value); }}
+              onClick={() => {
+                setMode(value);
+                if (submittedQuery) submitSearch(inputValue, value);
+              }}
               aria-pressed={mode === value}
             >
               {label}
@@ -118,11 +174,18 @@ export function SearchPage() {
       </div>
 
       {activeChips.length > 0 && (
-        <div className={styles.activeFilters} aria-label={t.search.activeFilters}>
+        <div
+          className={styles.activeFilters}
+          aria-label={t.search.activeFilters}
+        >
           {activeChips.map((chip, i) => (
             <span key={i} className={styles.filterChip}>
               {chip.label}
-              <button className={styles.filterChipRemove} onClick={chip.remove} aria-label={t.search.removeFilter(chip.label)}>
+              <button
+                className={styles.filterChipRemove}
+                onClick={chip.remove}
+                aria-label={t.search.removeFilter(chip.label)}
+              >
                 <X size={12} />
               </button>
             </span>
@@ -134,23 +197,35 @@ export function SearchPage() {
         <FilterPanel filters={filters} onChange={setFilters} />
 
         <div className={styles.results}>
-          <div className={styles.resultsList} role="list" aria-label={t.search.resultsLabel} aria-live="polite">
+          <div
+            className={styles.resultsList}
+            role="list"
+            aria-label={t.search.resultsLabel}
+            aria-live="polite"
+          >
             {isLoading && <SkeletonRow count={6} />}
 
             {isError && !isLoading && (
               <EmptyState
                 title={t.search.unavailableTitle}
                 body={t.search.unavailableBody}
-                action={<Button variant="secondary" onClick={() => submitSearch()}>{t.search.retry}</Button>}
+                action={
+                  <Button variant="secondary" onClick={() => submitSearch()}>
+                    {t.search.retry}
+                  </Button>
+                }
               />
             )}
 
-            {!isLoading && !isError && showResults && data?.results.length === 0 && (
-              <EmptyState
-                title={t.search.noResultsTitle}
-                body={t.search.noResultsBody}
-              />
-            )}
+            {!isLoading &&
+              !isError &&
+              showResults &&
+              data?.results.length === 0 && (
+                <EmptyState
+                  title={t.search.noResultsTitle}
+                  body={t.search.noResultsBody}
+                />
+              )}
 
             {!isLoading && !isError && !showResults && (
               <EmptyState
@@ -159,13 +234,20 @@ export function SearchPage() {
               />
             )}
 
-            {!isLoading && !isError && data?.results.map((result) => (
-              <ResultRow
-                key={result.doc_id}
-                result={result}
-                onClick={() => void navigate({ to: "/doc/$docId", params: { docId: result.doc_id } })}
-              />
-            ))}
+            {!isLoading &&
+              !isError &&
+              data?.results.map((result) => (
+                <ResultRow
+                  key={result.doc_id}
+                  result={result}
+                  onClick={() =>
+                    void navigate({
+                      to: "/doc/$docId",
+                      params: { docId: result.doc_id },
+                    })
+                  }
+                />
+              ))}
           </div>
         </div>
       </div>

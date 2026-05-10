@@ -3,12 +3,18 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { render } from "@/test/render";
 import { SearchPage } from "./SearchPage";
 import * as searchApi from "@/api/search";
+import {
+  clearPerformanceTelemetryEvents,
+  getPerformanceTelemetryEvents,
+} from "@/lib/performanceTelemetry";
 
 // Mock TanStack Router hooks
 vi.mock("@tanstack/react-router", () => ({
   useSearch: () => ({ q: "", mode: "hybrid" }),
   useNavigate: () => vi.fn(),
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
 }));
 
 vi.mock("@/api/search");
@@ -33,6 +39,7 @@ const mockResults = [
 ] satisfies searchApi.SearchResult[];
 
 beforeEach(() => {
+  clearPerformanceTelemetryEvents();
   vi.mocked(searchApi.search).mockResolvedValue({
     results: mockResults,
     total: 1,
@@ -51,7 +58,9 @@ describe("SearchPage", () => {
     render(<SearchPage />);
     expect(screen.getByRole("button", { name: "Hybrid" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Keyword" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Semantic" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Semantic" }),
+    ).toBeInTheDocument();
   });
 
   it("shows empty start state before any query", () => {
@@ -61,16 +70,41 @@ describe("SearchPage", () => {
 
   it("shows results after search is submitted", async () => {
     render(<SearchPage />);
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "vendor risk" } });
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => {
-      expect(screen.getByText("Vendor Risk Assessment 2024")).toBeInTheDocument();
+      expect(
+        screen.getByText("Vendor Risk Assessment 2024"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("records privacy-safe search request and first-result timings", async () => {
+    render(<SearchPage />);
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk secret query" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    await waitFor(() => {
+      const events = getPerformanceTelemetryEvents();
+      expect(events.map((event) => event.name)).toEqual(
+        expect.arrayContaining(["search.request", "search.firstResult"]),
+      );
+      const serialized = JSON.stringify(events);
+      expect(serialized).not.toContain("vendor risk secret query");
+      expect(serialized).not.toContain("doc-1");
+      expect(serialized).not.toContain("src-1");
     });
   });
 
   it("shows result count", async () => {
     render(<SearchPage />);
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "vendor risk" } });
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => {
       expect(screen.getByText("1 result")).toBeInTheDocument();
@@ -78,9 +112,15 @@ describe("SearchPage", () => {
   });
 
   it("shows empty state when no results", async () => {
-    vi.mocked(searchApi.search).mockResolvedValueOnce({ results: [], total: 0, query: "zzzzzz" });
+    vi.mocked(searchApi.search).mockResolvedValueOnce({
+      results: [],
+      total: 0,
+      query: "zzzzzz",
+    });
     render(<SearchPage />);
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "zzzzzz" } });
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "zzzzzz" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => {
       expect(screen.getByText("No results found")).toBeInTheDocument();

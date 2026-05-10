@@ -6,6 +6,7 @@ import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { useT } from "@/i18n/index";
+import { measurePerformance } from "@/lib/performanceTelemetry";
 import { DocumentToolbar } from "./DocumentToolbar";
 import { PreviewPane } from "./PreviewPane";
 import { InsightPane } from "./InsightPane";
@@ -14,17 +15,29 @@ import styles from "./DocumentPage.module.css";
 export function DocumentPage() {
   const t = useT();
   const { docId } = useParams({ from: "/app/doc/$docId" });
-  const [selectedVersionId, setSelectedVersionId] = useState<string | undefined>(undefined);
+  const [selectedVersionId, setSelectedVersionId] = useState<
+    string | undefined
+  >(undefined);
 
-  const { data: preview, isLoading, isError, refetch } = useQuery({
+  const {
+    data: preview,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["doc-preview", docId, selectedVersionId],
-    queryFn: () => getPreview(docId, selectedVersionId),
+    queryFn: () =>
+      measurePerformance("preview.load", () =>
+        getPreview(docId, selectedVersionId),
+      ),
   });
 
   if (isLoading) {
     return (
       <div className={styles.page}>
-        <div className={styles.loadingShell}><SkeletonRow count={8} /></div>
+        <div className={styles.loadingShell}>
+          <SkeletonRow count={8} />
+        </div>
       </div>
     );
   }

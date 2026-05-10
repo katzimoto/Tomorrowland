@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Outlet } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser } from "@/api/auth";
@@ -7,11 +8,16 @@ import { CommandMenu } from "@/components/feedback/CommandMenu";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { Skeleton } from "@/components/primitives/Skeleton";
 import { useT } from "@/i18n/index";
+import { finishNamedPerformanceTimer } from "@/lib/performanceTelemetry";
 import styles from "./AppLayout.module.css";
 
 export function AppLayout() {
   const t = useT();
-  const { data: user, isLoading, isError } = useQuery({
+  const {
+    data: user,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["current-user"],
     queryFn: getCurrentUser,
     staleTime: 5 * 60_000,
@@ -24,6 +30,12 @@ export function AppLayout() {
     refetchInterval: 60_000,
     retry: false,
   });
+
+  useEffect(() => {
+    if (user && !isLoading && !isError) {
+      finishNamedPerformanceTimer("login.shell", "login.shell");
+    }
+  }, [isError, isLoading, user]);
 
   if (isLoading) {
     return (
@@ -47,7 +59,10 @@ export function AppLayout() {
   }
 
   return (
-    <AppShell isAdmin={user?.is_admin ?? false} unreadCount={unreadNotifications?.length ?? 0}>
+    <AppShell
+      isAdmin={user?.is_admin ?? false}
+      unreadCount={unreadNotifications?.length ?? 0}
+    >
       <CommandMenu />
       <Outlet />
     </AppShell>

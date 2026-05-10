@@ -12,6 +12,7 @@ import { Badge } from "@/components/primitives/Badge";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { useT } from "@/i18n/index";
+import { measurePerformance } from "@/lib/performanceTelemetry";
 import styles from "./AdminSourcesPage.module.css";
 
 type FormValues = {
@@ -25,7 +26,9 @@ export function AdminSourcesPage() {
   const t = useT();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [syncResults, setSyncResults] = useState<Record<string, SyncResult | string>>({});
+  const [syncResults, setSyncResults] = useState<
+    Record<string, SyncResult | string>
+  >({});
 
   const { data: connectorTypes = [], isLoading: typesLoading } = useQuery({
     queryKey: ["connector-types"],
@@ -61,11 +64,17 @@ export function AdminSourcesPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { type: connectorTypes[0]?.type ?? "folder", source_language: "en", config: {} },
+    defaultValues: {
+      type: connectorTypes[0]?.type ?? "folder",
+      source_language: "en",
+      config: {},
+    },
   });
 
   const selectedType = useWatch({ control, name: "type" });
-  const currentSpec: ConnectorType | undefined = connectorTypes.find((c) => c.type === selectedType);
+  const currentSpec: ConnectorType | undefined = connectorTypes.find(
+    (c) => c.type === selectedType,
+  );
 
   async function onSubmit(values: FormValues) {
     const payload = {
@@ -85,7 +94,9 @@ export function AdminSourcesPage() {
   async function handleSync(sourceId: string) {
     setSyncResults((r) => ({ ...r, [sourceId]: "syncing" }));
     try {
-      const result = await adminApi.syncSource(sourceId);
+      const result = await measurePerformance("sourceSync.action", () =>
+        adminApi.syncSource(sourceId),
+      );
       setSyncResults((r) => ({ ...r, [sourceId]: result }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Sync failed";
@@ -152,12 +163,16 @@ export function AdminSourcesPage() {
                             typeof result === "object" && result.failed > 0
                               ? styles.syncError
                               : typeof result === "string"
-                              ? styles.syncError
-                              : styles.syncOk
+                                ? styles.syncError
+                                : styles.syncOk
                           }`}
                         >
                           {typeof result === "object"
-                            ? t.admin.syncResult(result.indexed, result.skipped, result.failed)
+                            ? t.admin.syncResult(
+                                result.indexed,
+                                result.skipped,
+                                result.failed,
+                              )
                             : result}
                         </p>
                       )}
@@ -170,8 +185,19 @@ export function AdminSourcesPage() {
         </div>
       )}
 
-      <Dialog open={dialogOpen} onClose={() => { setDialogOpen(false); reset(); }} title={t.admin.dialogTitle}>
-        <form onSubmit={handleSubmit(onSubmit)} className={styles.form} noValidate>
+      <Dialog
+        open={dialogOpen}
+        onClose={() => {
+          setDialogOpen(false);
+          reset();
+        }}
+        title={t.admin.dialogTitle}
+      >
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className={styles.form}
+          noValidate
+        >
           <TextInput
             label={t.admin.nameLabel}
             placeholder={t.admin.namePlaceholder}
@@ -180,17 +206,27 @@ export function AdminSourcesPage() {
           />
 
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="src-type">{t.admin.typeLabel}</label>
-            <select id="src-type" className={styles.select} {...register("type")}>
+            <label className={styles.label} htmlFor="src-type">
+              {t.admin.typeLabel}
+            </label>
+            <select
+              id="src-type"
+              className={styles.select}
+              {...register("type")}
+            >
               {connectorTypes.map((c) => (
-                <option key={c.type} value={c.type}>{c.label}</option>
+                <option key={c.type} value={c.type}>
+                  {c.label}
+                </option>
               ))}
             </select>
           </div>
 
           {currentSpec && currentSpec.fields.length > 0 && (
             <div className={styles.configSection}>
-              <p className={styles.configLabel}>{t.admin.settingsLabel(currentSpec.label)}</p>
+              <p className={styles.configLabel}>
+                {t.admin.settingsLabel(currentSpec.label)}
+              </p>
               {currentSpec.fields.map((f) => (
                 <TextInput
                   key={f.key}
@@ -205,8 +241,14 @@ export function AdminSourcesPage() {
           )}
 
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="src-lang">{t.admin.langLabel}</label>
-            <select id="src-lang" className={styles.select} {...register("source_language")}>
+            <label className={styles.label} htmlFor="src-lang">
+              {t.admin.langLabel}
+            </label>
+            <select
+              id="src-lang"
+              className={styles.select}
+              {...register("source_language")}
+            >
               <option value="en">English (en)</option>
               <option value="fr">French (fr)</option>
               <option value="de">German (de)</option>
@@ -226,11 +268,16 @@ export function AdminSourcesPage() {
           )}
 
           <div className={styles.dialogActions}>
-            <Button type="submit" loading={isSubmitting}>{t.admin.saveBtn}</Button>
+            <Button type="submit" loading={isSubmitting}>
+              {t.admin.saveBtn}
+            </Button>
             <Button
               type="button"
               variant="secondary"
-              onClick={() => { setDialogOpen(false); reset(); }}
+              onClick={() => {
+                setDialogOpen(false);
+                reset();
+              }}
             >
               {t.admin.cancelBtn}
             </Button>
