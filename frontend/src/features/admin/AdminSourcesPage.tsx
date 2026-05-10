@@ -11,18 +11,18 @@ import { Dialog } from "@/components/primitives/Dialog";
 import { Badge } from "@/components/primitives/Badge";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
+import { useT } from "@/i18n/index";
 import styles from "./AdminSourcesPage.module.css";
 
-const schema = z.object({
-  name: z.string().min(1, "Name is required"),
-  type: z.string().min(1, "Type is required"),
-  source_language: z.string().min(1),
-  config: z.record(z.string()),
-});
-
-type FormValues = z.infer<typeof schema>;
+type FormValues = {
+  name: string;
+  type: string;
+  source_language: string;
+  config: Record<string, string>;
+};
 
 export function AdminSourcesPage() {
+  const t = useT();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [syncResults, setSyncResults] = useState<Record<string, SyncResult | string>>({});
@@ -44,6 +44,13 @@ export function AdminSourcesPage() {
       setDialogOpen(false);
       reset();
     },
+  });
+
+  const schema = z.object({
+    name: z.string().min(1, t.admin.colName),
+    type: z.string().min(1, t.admin.typeLabel),
+    source_language: z.string().min(1),
+    config: z.record(z.string()),
   });
 
   const {
@@ -89,10 +96,10 @@ export function AdminSourcesPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Sources</h1>
+        <h1 className={styles.title}>{t.admin.title}</h1>
         <Button onClick={() => setDialogOpen(true)} disabled={typesLoading}>
           <Plus size={16} />
-          Add Source
+          {t.admin.addSource}
         </Button>
       </div>
 
@@ -101,19 +108,19 @@ export function AdminSourcesPage() {
       ) : sources.length === 0 ? (
         <EmptyState
           icon={<ServerIcon size={32} />}
-          title="No sources yet"
-          body="Add a source to start ingesting documents."
+          title={t.admin.noSourcesTitle}
+          body={t.admin.noSourcesBody}
         />
       ) : (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Language</th>
-                <th>Enabled</th>
-                <th>Actions</th>
+                <th>{t.admin.colName}</th>
+                <th>{t.admin.colType}</th>
+                <th>{t.admin.colLang}</th>
+                <th>{t.admin.colEnabled}</th>
+                <th>{t.admin.colActions}</th>
               </tr>
             </thead>
             <tbody>
@@ -136,7 +143,7 @@ export function AdminSourcesPage() {
                           loading={result === "syncing"}
                         >
                           <RefreshCw size={13} />
-                          Sync
+                          {t.admin.syncBtn}
                         </Button>
                       </div>
                       {result && result !== "syncing" && (
@@ -150,7 +157,7 @@ export function AdminSourcesPage() {
                           }`}
                         >
                           {typeof result === "object"
-                            ? `Indexed: ${result.indexed}  Skipped: ${result.skipped}  Failed: ${result.failed}`
+                            ? t.admin.syncResult(result.indexed, result.skipped, result.failed)
                             : result}
                         </p>
                       )}
@@ -163,18 +170,17 @@ export function AdminSourcesPage() {
         </div>
       )}
 
-      {/* Add Source dialog */}
-      <Dialog open={dialogOpen} onClose={() => { setDialogOpen(false); reset(); }} title="Add Source">
+      <Dialog open={dialogOpen} onClose={() => { setDialogOpen(false); reset(); }} title={t.admin.dialogTitle}>
         <form onSubmit={handleSubmit(onSubmit)} className={styles.form} noValidate>
           <TextInput
-            label="Name"
-            placeholder="e.g. Legal Documents"
+            label={t.admin.nameLabel}
+            placeholder={t.admin.namePlaceholder}
             error={errors.name?.message}
             {...register("name")}
           />
 
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="src-type">Type</label>
+            <label className={styles.label} htmlFor="src-type">{t.admin.typeLabel}</label>
             <select id="src-type" className={styles.select} {...register("type")}>
               {connectorTypes.map((c) => (
                 <option key={c.type} value={c.type}>{c.label}</option>
@@ -184,7 +190,7 @@ export function AdminSourcesPage() {
 
           {currentSpec && currentSpec.fields.length > 0 && (
             <div className={styles.configSection}>
-              <p className={styles.configLabel}>{currentSpec.label} settings</p>
+              <p className={styles.configLabel}>{t.admin.settingsLabel(currentSpec.label)}</p>
               {currentSpec.fields.map((f) => (
                 <TextInput
                   key={f.key}
@@ -199,7 +205,7 @@ export function AdminSourcesPage() {
           )}
 
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="src-lang">Source language</label>
+            <label className={styles.label} htmlFor="src-lang">{t.admin.langLabel}</label>
             <select id="src-lang" className={styles.select} {...register("source_language")}>
               <option value="en">English (en)</option>
               <option value="fr">French (fr)</option>
@@ -215,18 +221,18 @@ export function AdminSourcesPage() {
             <p className={styles.formError} role="alert">
               {createMutation.error instanceof Error
                 ? createMutation.error.message
-                : "Failed to create source."}
+                : t.admin.createError}
             </p>
           )}
 
           <div className={styles.dialogActions}>
-            <Button type="submit" loading={isSubmitting}>Save Source</Button>
+            <Button type="submit" loading={isSubmitting}>{t.admin.saveBtn}</Button>
             <Button
               type="button"
               variant="secondary"
               onClick={() => { setDialogOpen(false); reset(); }}
             >
-              Cancel
+              {t.admin.cancelBtn}
             </Button>
           </div>
         </form>

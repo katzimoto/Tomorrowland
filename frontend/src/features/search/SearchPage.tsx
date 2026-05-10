@@ -8,20 +8,22 @@ import { Button } from "@/components/primitives/Button";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { useToast } from "@/components/primitives/ToastContext";
+import { useT } from "@/i18n/index";
 import { FilterPanel } from "./FilterPanel";
 import { ResultRow } from "./ResultRow";
 import styles from "./SearchPage.module.css";
 
-const MODES: { value: SearchMode; label: string }[] = [
-  { value: "hybrid", label: "Hybrid" },
-  { value: "keyword", label: "Keyword" },
-  { value: "semantic", label: "Semantic" },
-];
-
 export function SearchPage() {
+  const t = useT();
   const routeSearch = useSearch({ from: "/app/search" });
   const navigate = useNavigate();
   const { show: showToast } = useToast();
+
+  const MODES: { value: SearchMode; label: string }[] = [
+    { value: "hybrid", label: t.search.modeHybrid },
+    { value: "keyword", label: t.search.modeKeyword },
+    { value: "semantic", label: t.search.modeSemantic },
+  ];
 
   const initialQ = typeof routeSearch.q === "string" ? routeSearch.q : "";
   const initialMode = (routeSearch.mode as SearchMode) ?? "hybrid";
@@ -62,8 +64,8 @@ export function SearchPage() {
   });
 
   useEffect(() => {
-    if (isError) showToast("error", "Search failed. Check that the backend is reachable.");
-  }, [isError, showToast]);
+    if (isError) showToast("error", t.search.failedToast);
+  }, [isError, showToast, t]);
 
   // Active filter chips
   const activeChips: Array<{ label: string; remove: () => void }> = [];
@@ -72,7 +74,7 @@ export function SearchPage() {
     activeChips.push({ label, remove: () => setFilters((f) => ({ ...f, file_type: f.file_type?.filter((v) => v !== ft) || undefined })) });
   });
   (filters.translation_quality ?? []).forEach((tq) => {
-    activeChips.push({ label: tq === "fast" ? "Fast translation" : "High quality", remove: () => setFilters((f) => ({ ...f, translation_quality: f.translation_quality?.filter((v) => v !== tq) || undefined })) });
+    activeChips.push({ label: tq === "fast" ? t.filters.transFast : t.filters.transHigh, remove: () => setFilters((f) => ({ ...f, translation_quality: f.translation_quality?.filter((v) => v !== tq) || undefined })) });
   });
 
   const showResults = submittedQuery.trim().length > 0;
@@ -80,7 +82,7 @@ export function SearchPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1 className={styles.title}>Search</h1>
+        <h1 className={styles.title}>{t.search.title}</h1>
         <div className={styles.searchRow}>
           <SearchInput
             value={inputValue}
@@ -90,13 +92,13 @@ export function SearchPage() {
             // Pass ref via a wrapper pattern — SearchInput forwards to input
           />
           <Button onClick={() => submitSearch()} disabled={!inputValue.trim()}>
-            Search
+            {t.search.button}
           </Button>
         </div>
       </header>
 
       <div className={styles.toolbar}>
-        <div className={styles.modeGroup} role="group" aria-label="Search mode">
+        <div className={styles.modeGroup} role="group" aria-label={t.search.modeGroup}>
           {MODES.map(({ value, label }) => (
             <button
               key={value}
@@ -110,17 +112,17 @@ export function SearchPage() {
         </div>
         {data && (
           <span className={styles.resultCount}>
-            {data.total.toLocaleString()} result{data.total !== 1 ? "s" : ""}
+            {t.search.resultCount(data.total)}
           </span>
         )}
       </div>
 
       {activeChips.length > 0 && (
-        <div className={styles.activeFilters} aria-label="Active filters">
+        <div className={styles.activeFilters} aria-label={t.search.activeFilters}>
           {activeChips.map((chip, i) => (
             <span key={i} className={styles.filterChip}>
               {chip.label}
-              <button className={styles.filterChipRemove} onClick={chip.remove} aria-label={`Remove filter: ${chip.label}`}>
+              <button className={styles.filterChipRemove} onClick={chip.remove} aria-label={t.search.removeFilter(chip.label)}>
                 <X size={12} />
               </button>
             </span>
@@ -132,28 +134,28 @@ export function SearchPage() {
         <FilterPanel filters={filters} onChange={setFilters} />
 
         <div className={styles.results}>
-          <div className={styles.resultsList} role="list" aria-label="Search results" aria-live="polite">
+          <div className={styles.resultsList} role="list" aria-label={t.search.resultsLabel} aria-live="polite">
             {isLoading && <SkeletonRow count={6} />}
 
             {isError && !isLoading && (
               <EmptyState
-                title="Search unavailable"
-                body="The search backend is not reachable. Check the server and try again."
-                action={<Button variant="secondary" onClick={() => submitSearch()}>Retry</Button>}
+                title={t.search.unavailableTitle}
+                body={t.search.unavailableBody}
+                action={<Button variant="secondary" onClick={() => submitSearch()}>{t.search.retry}</Button>}
               />
             )}
 
             {!isLoading && !isError && showResults && data?.results.length === 0 && (
               <EmptyState
-                title="No results found"
-                body="No accessible documents match your query. Try different terms or remove filters."
+                title={t.search.noResultsTitle}
+                body={t.search.noResultsBody}
               />
             )}
 
             {!isLoading && !isError && !showResults && (
               <EmptyState
-                title="Start searching"
-                body="Type a query above and press Enter or Search."
+                title={t.search.emptyTitle}
+                body={t.search.emptyBody}
               />
             )}
 

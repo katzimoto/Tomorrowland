@@ -12,6 +12,6 @@ test("opens with ctrl+k and filters destinations", async () => {
   await user.keyboard("{Control>}k{/Control}");
   expect(screen.getByRole("dialog", { name: "Command menu" })).toBeInTheDocument();
   await user.type(screen.getByPlaceholderText("Type a destination…"), "expert");
-  expect(screen.getByRole("button", { name: "Expertise map" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Expertise" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Search" })).not.toBeInTheDocument();
 });

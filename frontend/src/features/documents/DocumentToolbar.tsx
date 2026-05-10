@@ -4,6 +4,7 @@ import { ArrowLeft, Download, Languages } from "lucide-react";
 import { getDownloadUrl } from "@/api/documents";
 import { Button } from "@/components/primitives/Button";
 import type { DocumentPreview } from "@/api/documents";
+import { useT } from "@/i18n/index";
 import { TrustDisplay } from "./TrustDisplay";
 import { TranslationVersionSelector } from "./TranslationVersionSelector";
 import { RequestTranslationDialog } from "./RequestTranslationDialog";
@@ -20,6 +21,7 @@ export function DocumentToolbar({
   selectedVersionId,
   onVersionChange,
 }: DocumentToolbarProps) {
+  const t = useT();
   const navigate = useNavigate();
   const [translationDialogOpen, setTranslationDialogOpen] = useState(false);
 
@@ -30,12 +32,12 @@ export function DocumentToolbar({
   return (
     <>
       <header className={styles.toolbar}>
-        <button className={styles.backBtn} onClick={handleBack} aria-label="Back to search">
+        <button className={styles.backBtn} onClick={handleBack} aria-label={t.document.backToSearch}>
           <ArrowLeft size={18} />
         </button>
 
         <div className={styles.titleGroup}>
-          <h1 className={styles.title}>{preview.title ?? "Untitled document"}</h1>
+          <h1 className={styles.title}>{preview.title ?? t.document.untitled}</h1>
           <TrustDisplay preview={preview} />
         </div>
 
@@ -52,13 +54,13 @@ export function DocumentToolbar({
               onClick={() => setTranslationDialogOpen(true)}
             >
               <Languages size={14} />
-              Request translation
+              {t.document.requestTranslation}
             </Button>
           )}
           <a href={getDownloadUrl(preview.doc_id)} download className={styles.downloadLink}>
             <Button variant="secondary" size="sm">
               <Download size={14} />
-              Download
+              {t.document.download}
             </Button>
           </a>
         </div>

@@ -3,21 +3,23 @@ import { useQuery } from "@tanstack/react-query";
 import { FileText } from "lucide-react";
 import { getActivity } from "@/api/history";
 import { EmptyState } from "@/components/primitives/EmptyState";
+import { useT, type Translations } from "@/i18n/index";
 import styles from "./HistoryPage.module.css";
 
-function mimeShortLabel(mime: string): string {
-  if (mime.startsWith("image/")) return "Image";
-  if (mime === "application/pdf") return "PDF";
-  if (mime.includes("msword") || mime.includes("wordprocessingml")) return "Word";
-  if (mime.includes("excel") || mime.includes("spreadsheet")) return "Excel";
-  if (mime.includes("powerpoint") || mime.includes("presentation")) return "PowerPoint";
-  if (mime === "text/html") return "HTML";
-  if (mime === "text/plain") return "Text";
-  if (mime === "message/rfc822") return "Email";
-  return "File";
+function mimeShortLabel(mime: string, t: Translations): string {
+  if (mime.startsWith("image/")) return t.history.mimeImage;
+  if (mime === "application/pdf") return t.history.mimePdf;
+  if (mime.includes("msword") || mime.includes("wordprocessingml")) return t.history.mimeWord;
+  if (mime.includes("excel") || mime.includes("spreadsheet")) return t.history.mimeExcel;
+  if (mime.includes("powerpoint") || mime.includes("presentation")) return t.history.mimePpt;
+  if (mime === "text/html") return t.history.mimeHtml;
+  if (mime === "text/plain") return t.history.mimeText;
+  if (mime === "message/rfc822") return t.history.mimeEmail;
+  return t.history.mimeFile;
 }
 
 export function HistoryPage() {
+  const t = useT();
   const navigate = useNavigate();
   const { data, isLoading, isError } = useQuery({ queryKey: ["history"], queryFn: () => getActivity() });
   const items = data ?? [];
@@ -25,14 +27,14 @@ export function HistoryPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1 className={styles.title}>History</h1>
-        <p className={styles.privacy}>Activity visible only to you and admins.</p>
+        <h1 className={styles.title}>{t.history.title}</h1>
+        <p className={styles.privacy}>{t.history.privacy}</p>
       </header>
       <div className={styles.body}>
-        {isLoading && <p className={styles.muted}>Loading…</p>}
-        {isError && <EmptyState title="Failed to load history" body="Could not reach the server." />}
+        {isLoading && <p className={styles.muted}>{t.history.loading}</p>}
+        {isError && <EmptyState title={t.history.failedTitle} body={t.history.failedBody} />}
         {!isLoading && !isError && items.length === 0 && (
-          <EmptyState title="No history" body="Documents you view will appear here." />
+          <EmptyState title={t.history.emptyTitle} body={t.history.emptyBody} />
         )}
         {items.length > 0 && (
           <ul className={styles.list}>
@@ -44,8 +46,8 @@ export function HistoryPage() {
                 >
                   <FileText size={16} className={styles.icon} />
                   <div className={styles.rowMain}>
-                    <span className={styles.docTitle}>{item.title || "Untitled document"}</span>
-                    <span className={styles.docMeta}>{mimeShortLabel(item.mime_type)}</span>
+                    <span className={styles.docTitle}>{item.title || t.history.untitled}</span>
+                    <span className={styles.docMeta}>{mimeShortLabel(item.mime_type, t)}</span>
                   </div>
                   {item.viewed_at && (
                     <span className={styles.date}>{new Date(item.viewed_at).toLocaleDateString()}</span>

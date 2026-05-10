@@ -1,19 +1,6 @@
 import type { SearchFilters } from "@/api/search";
+import { useT } from "@/i18n/index";
 import styles from "./FilterPanel.module.css";
-
-const FILE_TYPES = [
-  { value: "application/pdf", label: "PDF" },
-  { value: "application/msword", label: "Office" },
-  { value: "message/rfc822", label: "Email" },
-  { value: "application/zip", label: "Archive" },
-  { value: "text/plain", label: "Text" },
-  { value: "image/", label: "Image" },
-];
-
-const TRANSLATION_OPTS = [
-  { value: "fast", label: "Fast translation" },
-  { value: "high", label: "High quality" },
-];
 
 interface FilterPanelProps {
   filters: SearchFilters;
@@ -21,6 +8,22 @@ interface FilterPanelProps {
 }
 
 export function FilterPanel({ filters, onChange }: FilterPanelProps) {
+  const t = useT();
+
+  const FILE_TYPES = [
+    { value: "application/pdf", label: t.filters.typePdf },
+    { value: "application/msword", label: t.filters.typeOffice },
+    { value: "message/rfc822", label: t.filters.typeEmail },
+    { value: "application/zip", label: t.filters.typeArchive },
+    { value: "text/plain", label: t.filters.typeText },
+    { value: "image/", label: t.filters.typeImage },
+  ];
+
+  const TRANSLATION_OPTS = [
+    { value: "fast", label: t.filters.transFast },
+    { value: "high", label: t.filters.transHigh },
+  ];
+
   const hasAny =
     (filters.file_type?.length ?? 0) > 0 ||
     (filters.translation_quality?.length ?? 0) > 0 ||
@@ -39,13 +42,13 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
   }
 
   return (
-    <aside className={styles.panel} aria-label="Search filters">
+    <aside className={styles.panel} aria-label={t.filters.panel}>
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionLabel}>File type</span>
+          <span className={styles.sectionLabel}>{t.filters.fileType}</span>
           {(filters.file_type?.length ?? 0) > 0 && (
             <button className={styles.clearBtn} onClick={() => onChange({ ...filters, file_type: undefined })}>
-              Clear
+              {t.filters.clear}
             </button>
           )}
         </div>
@@ -65,10 +68,10 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
 
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionLabel}>Translation</span>
+          <span className={styles.sectionLabel}>{t.filters.translation}</span>
           {(filters.translation_quality?.length ?? 0) > 0 && (
             <button className={styles.clearBtn} onClick={() => onChange({ ...filters, translation_quality: undefined })}>
-              Clear
+              {t.filters.clear}
             </button>
           )}
         </div>
@@ -89,7 +92,7 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
       {hasAny && (
         <div className={styles.clearAll}>
           <button className={styles.clearAllBtn} onClick={() => onChange({})}>
-            Clear all filters
+            {t.filters.clearAll}
           </button>
         </div>
       )}

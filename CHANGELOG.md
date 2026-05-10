@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Issue #83: Hebrew and English UI localization — typed in-repo i18n dictionary (`en`/`he`), `LanguageProvider` context, `LanguageSelector` dropdown in the NavRail and login page, full translation coverage across navigation, login, search, filters, document view, Q&A, comments, annotations, subscriptions, notifications, history, expertise, admin, and command menu. Hebrew switches `document.lang` to `he` and `document.dir` to `rtl`. Selection persists in `localStorage`. Dynamic document content (titles, snippets, usernames) is not translated. English remains the default.
 - Refreshed agent coordination docs so Claude, Codex, and human reviewers work from the current issue-based release queue, avoid stale completed missions, and follow tighter context-loading/shared-file conflict guidance.
 - Documented host-mounted SMB/CIFS share ingestion through the existing `folder` connector, including read-only host mounts, read-only `api` bind mounts, source setup, security guidance, air-gapped notes, upgrade path stability, and troubleshooting for Issue #78.
 - Air-gapped upgrade workflow with read-only preflight checks, fail-closed backup, explicit restore, upgrade orchestration, release manifest safety metadata, and operator documentation that preserves data volumes while loading local images and running migrations.

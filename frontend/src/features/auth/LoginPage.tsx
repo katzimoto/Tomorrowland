@@ -6,18 +6,25 @@ import { login } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
+import { LanguageSelector } from "@/components/settings/LanguageSelector";
+import { useT } from "@/i18n/index";
 import styles from "./LoginPage.module.css";
 
-const schema = z.object({
-  email: z.string().email("Enter a valid email"),
-  password: z.string().min(1, "Password is required"),
-});
+function makeSchema(emailInvalid: string, passwordRequired: string) {
+  return z.object({
+    email: z.string().email(emailInvalid),
+    password: z.string().min(1, passwordRequired),
+  });
+}
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = { email: string; password: string };
 
 export function LoginPage() {
+  const t = useT();
   const navigate = useNavigate();
   const search = useSearch({ from: "/login" }) as { expired?: string; return?: string };
+
+  const schema = makeSchema(t.auth.emailInvalid, t.auth.passwordRequired);
 
   const {
     register,
@@ -36,27 +43,27 @@ export function LoginPage() {
     } catch (err) {
       const message =
         err instanceof ApiError && err.status === 401
-          ? "Email or password is incorrect."
-          : "Something went wrong. Try again.";
+          ? t.auth.badCredentials
+          : t.auth.genericError;
       setError("root", { message });
     }
   }
 
   return (
-    <div className={styles.page} aria-label="Sign in">
+    <div className={styles.page} aria-label={t.auth.signInLabel}>
       <div className={styles.card}>
         <div className={styles.mark} aria-label="Neverland">N</div>
-        <h1 className={styles.heading}>Sign in to Neverland</h1>
+        <h1 className={styles.heading}>{t.auth.heading}</h1>
 
         {search.expired && (
           <p className={styles.alert} role="alert">
-            Your session expired. Sign in again.
+            {t.auth.sessionExpired}
           </p>
         )}
 
         <form className={styles.form} onSubmit={handleSubmit(onSubmit)} noValidate>
           <TextInput
-            label="Email"
+            label={t.auth.email}
             type="email"
             autoComplete="email"
             autoFocus
@@ -64,7 +71,7 @@ export function LoginPage() {
             {...register("email")}
           />
           <TextInput
-            label="Password"
+            label={t.auth.password}
             type="password"
             autoComplete="current-password"
             error={errors.password?.message}
@@ -78,9 +85,13 @@ export function LoginPage() {
           )}
 
           <Button type="submit" loading={isSubmitting} style={{ width: "100%" }}>
-            Sign in
+            {t.auth.signIn}
           </Button>
         </form>
+
+        <div className={styles.langRow}>
+          <LanguageSelector />
+        </div>
       </div>
     </div>
   );

@@ -6,9 +6,11 @@ import { AppShell } from "@/components/layout/AppShell";
 import { CommandMenu } from "@/components/feedback/CommandMenu";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { Skeleton } from "@/components/primitives/Skeleton";
+import { useT } from "@/i18n/index";
 import styles from "./AppLayout.module.css";
 
 export function AppLayout() {
+  const t = useT();
   const { data: user, isLoading, isError } = useQuery({
     queryKey: ["current-user"],
     queryFn: getCurrentUser,
@@ -25,7 +27,7 @@ export function AppLayout() {
 
   if (isLoading) {
     return (
-      <div className={styles.loadingShell} aria-label="Loading application">
+      <div className={styles.loadingShell} aria-label={t.app.loadingApp}>
         <Skeleton width={72} height="100vh" />
         <div className={styles.loadingContent}>
           <Skeleton height={32} width="30%" />
@@ -39,7 +41,7 @@ export function AppLayout() {
   if (isError) {
     return (
       <div className={styles.loadingShell}>
-        <EmptyState title="Failed to load" body="Could not connect to the server. Reload the page to try again." />
+        <EmptyState title={t.app.loadFailed} body={t.app.loadFailedBody} />
       </div>
     );
   }
