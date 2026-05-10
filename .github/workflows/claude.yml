@@ -39,8 +39,17 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           trigger_phrase: "@claude"
-          allowed_tools: >- 
-              Bash(gh issue list:*),Bash(gh issue create:*),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh issue close:*),Bash(gh api:*),Bash(gh label list:*),Bash(gh label create:*)
+          allowed_tools: |
+               Bash(gh issue list:*)
+               Bash(gh issue create:*)
+               Bash(gh issue view:*)
+               Bash(gh issue edit:*)
+               Bash(gh issue comment:*)
+               Bash(gh issue close:*)
+               Bash(gh api:*)
+               Bash(gh label list:*)
+               Bash(gh label create:*)
+
           additional_permissions: |
             actions: read
             checks: read
