@@ -1,0 +1,162 @@
+name: Auto Codex from Ready Issues
+
+on:
+  issues:
+    types: [opened, edited, labeled, assigned, reopened]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  request-codex:
+    if: |
+      github.event.issue.state == 'open' &&
+      !contains(join(github.event.issue.labels.*.name, ','), 'status:blocked') &&
+      !contains(join(github.event.issue.labels.*.name, ','), 'status:needs-human') &&
+      !contains(join(github.event.issue.labels.*.name, ','), 'status:review') &&
+      !contains(github.event.issue.body, '<!-- auto-codex-request -->') &&
+      (
+        contains(join(github.event.issue.labels.*.name, ','), 'status:ready-for-codex') ||
+        (
+          contains(join(github.event.issue.labels.*.name, ','), 'agent:codex') &&
+          contains(join(github.event.issue.labels.*.name, ','), 'status:implementation')
+        ) ||
+        contains(github.event.issue.body, 'Ready for Codex?\nYes') ||
+        contains(github.event.issue.body, 'Ready for Codex? Yes')
+      )
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - name: Ensure labels exist
+        run: |
+          gh label create "agent:codex" --repo "$REPO" --description "Ready for or owned by Codex" --color "1d76db" || true
+          gh label create "status:ready-for-codex" --repo "$REPO" --description "Ready for Codex to claim and implement" --color "0e8a16" || true
+          gh label create "status:implementation" --repo "$REPO" --description "Implementation in progress" --color "0e8a16" || true
+          gh label create "status:blocked" --repo "$REPO" --description "Blocked by another issue, PR, or human decision" --color "d93f0b" || true
+          gh label create "status:needs-human" --repo "$REPO" --description "Needs human decision before continuing" --color "b60205" || true
+          gh label create "status:review" --repo "$REPO" --description "Ready for review" --color "fbca04" || true
+
+      - name: Validate issue is ready for Codex
+        run: |
+          body=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json body --jq '.body')
+          labels=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name')
+
+          if echo "$labels" | grep -qx "status:blocked"; then
+            echo "Issue is blocked; skipping Codex request."
+            exit 0
+          fi
+
+          if echo "$labels" | grep -qx "status:needs-human"; then
+            echo "Issue needs human decision; skipping Codex request."
+            exit 0
+          fi
+
+          if ! echo "$body" | grep -q "## Context Budget"; then
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Codex automation skipped: this issue is missing a Context Budget section. Add one before assigning to Codex."
+            exit 0
+          fi
+
+          if ! echo "$body" | grep -q "## Allowed Changes"; then
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Codex automation skipped: this issue is missing an Allowed Changes section."
+            exit 0
+          fi
+
+          if ! echo "$body" | grep -q "## Forbidden Changes"; then
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "Codex automation skipped: this issue is missing a Forbidden Changes section."
+            exit 0
+          fi
+
+      - name: Move issue to implementation
+        run: |
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "agent:codex" --add-label "status:implementation"
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "status:ready-for-codex" || true
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "status:planning" || true
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "status:review" || true
+
+      - name: Request Codex implementation
+        run: |
+          if gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json comments --jq '.comments[].body' | grep -q "<!-- auto-codex-request -->"; then
+            echo "Codex already requested."
+            exit 0
+          fi
+
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "<!-- auto-codex-request -->
+@codex implement this issue only.
+
+Issue selection:
+- Use this issue only: #$ISSUE_NUMBER.
+- Do not select another issue.
+
+Read first:
+1. AGENTS.md
+2. CODEX.md
+3. docs/agents/token-efficiency.md
+4. This GitHub issue body
+5. The issue Context Budget
+6. The single referenced implementation/design plan
+7. One relevant docs/context/*.md file if listed
+
+Rules:
+- Stay strictly inside Allowed Changes.
+- Do not edit Forbidden Changes.
+- Do not read broad unrelated areas.
+- Use rg before opening source files.
+- Preserve existing behavior unless this issue explicitly changes it.
+- Keep the diff minimal.
+- Add or update targeted tests.
+- Update CHANGELOG.md only if the change is user-visible or affects schema/config/workflow.
+- Do not edit spec.md or spec-v4.pdf.
+- Do not merge.
+
+Branch:
+mission/$ISSUE_NUMBER-<short-slug>
+
+Before opening PR:
+- Run targeted tests first.
+- Run relevant lint/type/build checks if available.
+- If blocked, stop and comment with the blocker instead of guessing.
+
+Open a draft PR when done. Add labels: agent:codex, status:review, automerge:eligible unless blocked or risky.
+
+PR body must include:
+
+## Mission
+Closes #$ISSUE_NUMBER
+
+## Changes
+- ...
+
+## Tests
+- ...
+
+## Risks
+- ...
+
+## Agent Handoff
+
+### Completed
+- ...
+
+### Remaining
+- ...
+
+### Tests Executed
+- ...
+
+### Context Loaded
+- ...
+
+### Context Skipped
+- ...
+
+### Token Efficiency Notes
+- Used rg before opening files: yes/no
+- Read more than one plan: yes/no, reason
+- Read broad source areas: yes/no, reason
+
+### Suggested Next Steps
+- ..."
