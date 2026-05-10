@@ -34,7 +34,7 @@ def connector_types() -> list[dict[str, Any]]:
     return [
         {
             "type": key,
-            "label": cls.__name__.replace("Connector", ""),
+            "label": getattr(cls, "label", cls.__name__.replace("Connector", "")),
             "fields": [asdict(f) for f in cls.fields()],
         }
         for key, cls in _REGISTRY.items()

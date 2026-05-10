@@ -32,6 +32,8 @@ class _RemoteFile:
 class SmbConnector:
     """List and download documents from an SMB share using service-account credentials."""
 
+    label = "SMB"
+
     @classmethod
     def fields(cls) -> list[ConnectorField]:
         """Return SMB connector configuration fields."""
@@ -116,16 +118,22 @@ class SmbConnector:
         except Exception as exc:
             raise self._sanitised_error("authenticate", exc) from exc
 
-        for remote_file in self._list_files():
-            if not self._matches_globs(remote_file.remote_path):
-                continue
-            if (
-                remote_file.size is not None
-                and self._max_file_size_bytes is not None
-                and remote_file.size > self._max_file_size_bytes
-            ):
-                continue
-            yield self._download(remote_file)
+        try:
+            for remote_file in self._list_files():
+                if not self._matches_globs(remote_file.remote_path):
+                    continue
+                if (
+                    remote_file.size is not None
+                    and self._max_file_size_bytes is not None
+                    and remote_file.size > self._max_file_size_bytes
+                ):
+                    continue
+                yield self._download(remote_file)
+        finally:
+            try:
+                smbclient.close_session(self._server)
+            except Exception:
+                pass
 
     def _list_files(self) -> Iterator[_RemoteFile]:
         base_unc = self._unc_path(self._base_path)

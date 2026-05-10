@@ -38,6 +38,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # WARNING: This downgrade will fail for existing SMB rows. On SQLite the
+    # batch table rebuild raises a constraint violation; on PostgreSQL the
+    # constraint is created but existing rows silently violate it. Delete all
+    # rows where ingestion_sources.type='smb' or documents.source='smb' before
+    # running this downgrade.
     with op.batch_alter_table("documents") as batch_op:
         batch_op.drop_constraint("ck_documents_source", type_="check")
         batch_op.create_check_constraint(
