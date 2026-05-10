@@ -18,8 +18,9 @@ USER root
 # without runtime network access.
 COPY docker/install-translation-packs.py /tmp/install-translation-packs.py
 # argostranslate is installed in the base image's virtual environment and is
-# not importable by bare python3 running as root; install it system-wide first.
-RUN pip3 install --no-cache-dir "argostranslate>=1.9.1,<2" \
+# not importable by bare python3 running as root; install the same pinned version
+# required by libretranslate==1.6.3 into the interpreter used by this script.
+RUN python3 -m pip install --no-cache-dir "argostranslate==1.9.6" \
     && HOME=/home/libretranslate python3 /tmp/install-translation-packs.py \
     && rm /tmp/install-translation-packs.py \
     && { chown -R libretranslate:libretranslate /home/libretranslate/.local 2>/dev/null || true; }
