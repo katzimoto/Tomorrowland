@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Issue #114: Air-gapped LibreTranslate image build no longer fails with `ModuleNotFoundError: No module named 'argostranslate'`. `docker/libretranslate.Dockerfile` now installs `argostranslate>=1.9.1,<2` into the system Python before running `install-translation-packs.py`, because the `libretranslate/libretranslate:v1.6.3` base image keeps its Python dependencies in a virtual environment that is not on the `python3` path when executing `RUN` commands as root.
+
 ### Added
 - Issue #107: Air-gapped translation language pack for English, Hebrew, Chinese Simplified, Korean, Thai, Arabic, French, Russian, and Spanish, bundled into the Docker artifact with validation. Adds a pinned `neverland/libretranslate:airgap` image with Argos Translate packs pre-installed at build time, `SUPPORTED_TRANSLATION_SOURCE/TARGET_LANGUAGES` env config, a `scripts/validate-translation-languages.sh` validation script, and updated air-gapped deployment and upgrade documentation.
 - Issue #86: Large list and lazy panel performance — paged history loading, paged document comments in the insight pane, deferred hidden document-panel fetch coverage, and memoized high-churn rows for search results, notifications, and admin sources without backend API or route changes.

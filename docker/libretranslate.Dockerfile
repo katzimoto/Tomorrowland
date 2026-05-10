@@ -17,7 +17,10 @@ USER root
 # empty named volume on first container creation, making all models available
 # without runtime network access.
 COPY docker/install-translation-packs.py /tmp/install-translation-packs.py
-RUN HOME=/home/libretranslate python3 /tmp/install-translation-packs.py \
+# argostranslate is installed in the base image's virtual environment and is
+# not importable by bare python3 running as root; install it system-wide first.
+RUN pip3 install --no-cache-dir "argostranslate>=1.9.1,<2" \
+    && HOME=/home/libretranslate python3 /tmp/install-translation-packs.py \
     && rm /tmp/install-translation-packs.py \
     && { chown -R libretranslate:libretranslate /home/libretranslate/.local 2>/dev/null || true; }
 
