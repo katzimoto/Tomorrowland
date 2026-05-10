@@ -1,7 +1,9 @@
 # AGENTS.md — Neverland Agent Guide
 
 Read this first. Keep context small, verify assumptions from files, and prefer the
-narrowest command that proves your change.
+narrowest command that proves your change. For any non-trivial task, also read
+`docs/agents/token-efficiency.md` before expanding context beyond the issue, the
+single relevant plan, or one area context map.
 
 ## Fast orientation
 
@@ -14,6 +16,8 @@ narrowest command that proves your change.
   unless the user explicitly asks.
 - Current implementation history lives in `CHANGELOG.md`; read the latest
   `[Unreleased]` bullets before assuming a phase is missing.
+- Token budget rules live in `docs/agents/token-efficiency.md`; context maps live
+  in `docs/context/`.
 
 ## Mission queue
 
@@ -43,6 +47,32 @@ branches simultaneously.
 Branch validation (2026-05-09): local refs contain only the current `work` branch at the
 Phase 10a merge commit; no additional unmerged `developer/*` mission branches were present
 beyond the externally reported in-progress Phase 08 missions marked above.
+
+## Context routing
+
+Use layered context. Do not load the whole repository by default.
+
+Default context order:
+
+1. This `AGENTS.md` file.
+2. GitHub Issue body, especially `Context Budget`, `Allowed Changes`, and `Forbidden Changes`.
+3. `docs/agents/token-efficiency.md`.
+4. The single implementation/design plan referenced by the issue or mission queue.
+5. One relevant context map from `docs/context/`.
+6. Source and test files located by `rg`.
+
+Available context maps:
+
+| Area | Context map |
+|---|---|
+| Backend API/auth/permissions | `docs/context/backend-api.md` |
+| Frontend/UI | `docs/context/frontend.md` |
+| Search | `docs/context/search.md` |
+| Extraction | `docs/context/extraction.md` |
+
+Use `docs/agents/issue-context-template.md` when creating or refining mission issues.
+Use `docs/agents/context-budget-migration.md` when migrating older issues to include a
+context budget.
 
 ## Multi-agent orchestration
 
@@ -88,6 +118,28 @@ One clear deliverable.
 ## Context
 Relevant files, phase plan, constraints, and prior decisions.
 
+## Context Budget
+
+Read first:
+- `AGENTS.md`
+- `docs/agents/token-efficiency.md`
+- `<single relevant implementation/design plan>`
+- `<single relevant docs/context/*.md>`
+
+Allowed source paths:
+- ...
+
+Allowed test paths:
+- ...
+
+Do not read unless explicitly needed:
+- ...
+
+Do not edit:
+- `spec.md`
+- `spec-v4.pdf`
+- unrelated files outside the mission scope
+
 ## Relationships
 Parent: #<issue> or None
 Blocked by: #<issue-or-pr> or None
@@ -107,6 +159,7 @@ Protected files/modules, especially `spec.md` and `spec-v4.pdf` unless explicitl
 - [ ] Lint/type checks relevant to touched code pass
 - [ ] `CHANGELOG.md` updated for user-visible code, schema, config, or workflow changes
 - [ ] PR references the mission issue or phase plan
+- [ ] Agent handoff includes `Context Loaded`, `Context Skipped`, and `Token Efficiency Notes`
 
 ## Risks / Notes
 Known edge cases, migrations, compatibility concerns, or follow-up work.
@@ -291,6 +344,17 @@ Every agent run that changes files must end with this handoff in the PR or issue
 ### Tests Executed
 - ...
 
+### Context Loaded
+- ...
+
+### Context Skipped
+- ...
+
+### Token Efficiency Notes
+- Used `rg` before opening files: yes/no
+- Read more than one plan: yes/no, reason
+- Read broad source areas: yes/no, reason
+
 ### Risks
 - ...
 
@@ -317,11 +381,13 @@ When instructions conflict, follow this priority order:
    - `CHANGELOG.md` for existing features.
    - `docs/implementation/README.md` for phase index.
    - The single phase plan that matches the task.
+   - One relevant context map from `docs/context/`.
    - `docs/logical-spec.md` only for behavior questions.
-4. Prefer targeted tests first, then broader checks before handoff.
-5. Do not reformat unrelated files or churn generated lockfiles unless the task
+4. Read `docs/agents/token-efficiency.md` for hard limits and context accounting.
+5. Prefer targeted tests first, then broader checks before handoff.
+6. Do not reformat unrelated files or churn generated lockfiles unless the task
    requires dependency changes.
-6. Preserve user changes: if `git status --short` shows unexpected edits, inspect
+7. Preserve user changes: if `git status --short` shows unexpected edits, inspect
    before touching those files.
 
 ## Repo map
