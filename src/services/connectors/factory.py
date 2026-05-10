@@ -12,6 +12,7 @@ from services.connectors.atlassian import ConfluenceConnector, JiraConnector
 from services.connectors.base import SourceConnector
 from services.connectors.folder import FolderConnector
 from services.connectors.nifi import NiFiConnector
+from services.connectors.smb import SmbConnector
 
 # Values are connector classes; typed as Any so mypy doesn't reject classmethod
 # calls and constructor calls on a bare `type` without a known signature.
@@ -20,6 +21,7 @@ _REGISTRY: dict[str, Any] = {
     "nifi": NiFiConnector,
     "confluence": ConfluenceConnector,
     "jira": JiraConnector,
+    "smb": SmbConnector,
 }
 
 

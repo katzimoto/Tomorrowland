@@ -226,7 +226,7 @@ class CreateSourceRequest(BaseModel):
     """Admin create source request."""
 
     name: str
-    type: Literal["folder", "nifi", "confluence", "jira"] = "folder"
+    type: Literal["folder", "nifi", "confluence", "jira", "smb"] = "folder"
     path: str | None = None
     source_language: str | None = "en"
     enabled: bool = True
@@ -547,6 +547,7 @@ def create_app(
                     title=item.title,
                     source_language=item.source_language or source_language,
                     sha256=item.sha256,
+                    metadata=item.metadata,
                 )
                 if doc is None:
                     results["skipped"] += 1

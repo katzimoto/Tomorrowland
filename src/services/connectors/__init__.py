@@ -7,6 +7,7 @@ from services.connectors.base import ConnectorDocument, ConnectorField, SourceCo
 from services.connectors.factory import build_connector, connector_types
 from services.connectors.folder import FolderConnector
 from services.connectors.nifi import NiFiConnector
+from services.connectors.smb import SmbConnector
 
 __all__ = [
     "ConfluenceConnector",
@@ -15,6 +16,7 @@ __all__ = [
     "FolderConnector",
     "JiraConnector",
     "NiFiConnector",
+    "SmbConnector",
     "SourceConnector",
     "build_connector",
     "connector_types",

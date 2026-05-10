@@ -474,5 +474,9 @@ the repository root and that the variable names match `.env.example` exactly.
 - Confluence and Jira Server/Data Center connectors are implemented, but
   Atlassian page/project permission synchronization is not present; access is
   governed by Neverland source grants.
+- The native SMB connector uses `smbprotocol` with service-account
+  username/password authentication and Neverland source grants. It does not
+  mirror NTFS ACLs; Kerberos and DFS support are follow-up limitations. Host
+  mounted SMB/CIFS shares can also be ingested through the folder connector.
 - Legacy Office support for `.doc`, `.xls`, and `.ppt` remains deferred to Phase
   09.
