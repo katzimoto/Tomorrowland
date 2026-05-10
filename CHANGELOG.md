@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Phase 10b domain metrics: Prometheus counters, gauges, and histograms for authentication, authorization, admin actions, ingestion, pipeline stages, search, translation, intelligence, Ollama, RAG, preview, downloads, comments, annotations, subscriptions, and notifications.
 - Phase 10a metrics foundation: per-app Prometheus registry, `/metrics` endpoint, default process/GC metrics, `neverland_build_info`, HTTP request counters/histograms, exception metrics, route-template-safe labels, and `X-Request-ID` propagation.
+- Phase 08d: Document detail page — MIME-aware PreviewPane (11 typed renderers: Text, HTML with DOMParser XSS sanitization, Table, Archive, Email, Slides, Image, Unsupported, ExtractionFailed, FileMissing, LoadingTimeout), InsightPane tab architecture (Summary, Q&A, Related, Annotations, Comments, Subscriptions), DocumentToolbar (back button, title h1, TrustDisplay quality badge, TranslationVersionSelector, RequestTranslationDialog, download link), QA sub-components (QuestionInput, AnswerPanel, CitationCard, CitationList, QAPanel embeddable), and QAPage refactored to delegate entirely to QAPanel.
 - Phase 08c: Main product UI — search workspace (SearchPage with URL-synced `?q=&mode=` params,
   keyboard `/` shortcut, skeleton loading, mode toggle, filter panel, result rows with MIME icon
   and "Why" tooltip), document preview page (split-pane PreviewPane + DetailsPanel with Summary,

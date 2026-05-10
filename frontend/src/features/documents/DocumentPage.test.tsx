@@ -25,6 +25,7 @@ const mockPreview: documentsApi.DocumentPreview = {
 beforeEach(() => {
   vi.mocked(documentsApi.getPreview).mockResolvedValue(mockPreview);
   vi.mocked(documentsApi.getDownloadUrl).mockReturnValue("/api/download/doc-123");
+  vi.mocked(documentsApi.getTranslationVersions).mockResolvedValue([]);
   vi.mocked(documentsApi.getSummary).mockRejectedValue(new Error("not found"));
   vi.mocked(documentsApi.getEntities).mockRejectedValue(new Error("not found"));
   vi.mocked(documentsApi.getTags).mockRejectedValue(new Error("not found"));
@@ -41,10 +42,24 @@ describe("DocumentPage", () => {
     });
   });
 
-  it("shows translation quality badge", async () => {
+  it("shows translation quality via TrustDisplay", async () => {
     render(<DocumentPage />);
     await waitFor(() => {
       expect(screen.getByText("Fast translation")).toBeInTheDocument();
+    });
+  });
+
+  it("shows back to search button", async () => {
+    render(<DocumentPage />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /back to search/i })).toBeInTheDocument();
+    });
+  });
+
+  it("shows request translation button when quality is not high", async () => {
+    render(<DocumentPage />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /request translation/i })).toBeInTheDocument();
     });
   });
 
@@ -64,7 +79,7 @@ describe("DocumentPage", () => {
     });
   });
 
-  it("renders preview snippet", async () => {
+  it("renders preview snippet via TextPreview", async () => {
     render(<DocumentPage />);
     await waitFor(() => {
       expect(screen.getByText("This document covers vendor risk.")).toBeInTheDocument();

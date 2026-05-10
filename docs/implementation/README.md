@@ -39,8 +39,8 @@ queue first.
 | 07a | `phase-07a-document-comments.md` | Shared document comments | Done ✅ |
 | 08 | `phase-08-integrations-hardening.md` | Phase 08 overview and sub-phase index | Done ✅ |
 | 08b | `phase-08b-frontend-ui.md` | Frontend phases (design system through expertise map) | In progress 🔄 |
-| 08c | `phase-08c-search-workspace.md` | Search workspace (UI Phase 01) | In progress 🔄 |
-| 08d | `phase-08d-document-detail.md` | Document preview, Q&A (UI Phase 02–03) | In progress 🔄 |
+| 08c | `phase-08c-search-workspace.md` | Search workspace (UI Phase 01) | Done ✅ |
+| 08d | `phase-08d-document-detail.md` | Document preview, Q&A (UI Phase 02–03) | Done ✅ |
 | 08e | `phase-08e-collaboration-discovery.md` | Comments, annotations, subscriptions, expertise (UI Phase 04–06) | In progress 🔄 |
 | 08f | `phase-08f-production-smoke.md` | Production hardening overview and sub-phase index | Done ✅ |
 | 08f-1 | `phase-08f-1-production-defaults.md` | Production defaults, CORS hardening, and security guard audit | Done ✅ |

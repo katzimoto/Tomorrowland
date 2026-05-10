@@ -60,8 +60,23 @@ export interface CommentListResponse {
   total: number;
 }
 
-export function getPreview(docId: string): Promise<DocumentPreview> {
-  return api.get<DocumentPreview>(`/preview/${docId}`);
+export interface TranslationVersion {
+  version_id: string;
+  version_number: number;
+  label: string;
+  quality: string;
+  status: "pending" | "processing" | "done" | "failed";
+  target_language: string;
+  requested_at: string;
+}
+
+export function getPreview(docId: string, translationVersionId?: string): Promise<DocumentPreview> {
+  const qs = translationVersionId ? `?translation_version_id=${translationVersionId}` : "";
+  return api.get<DocumentPreview>(`/preview/${docId}${qs}`);
+}
+
+export function getTranslationVersions(docId: string): Promise<TranslationVersion[]> {
+  return api.get<TranslationVersion[]>(`/documents/${docId}/translation-versions`);
 }
 
 export function getSummary(docId: string): Promise<DocumentSummary> {
