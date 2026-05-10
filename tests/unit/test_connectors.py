@@ -90,13 +90,12 @@ def test_nifi_connector_fields_has_sensitive_token() -> None:
     assert token_field.sensitive is True
 
 
-def test_nifi_connector_validate_is_noop() -> None:
-    NiFiConnector({}).validate()  # must not raise
+def test_nifi_connector_validate_accepts_event_driven_defaults() -> None:
+    NiFiConnector({}).validate()  # optional event-driven settings only
 
 
-def test_nifi_connector_raises_not_implemented() -> None:
-    with pytest.raises(NotImplementedError):
-        list(NiFiConnector({}).fetch_documents())
+def test_nifi_connector_fetch_documents_is_event_driven_empty_iterator() -> None:
+    assert list(NiFiConnector({}).fetch_documents()) == []
 
 
 # ── Factory ────────────────────────────────────────────────────────────────────

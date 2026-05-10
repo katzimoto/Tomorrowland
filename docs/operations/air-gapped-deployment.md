@@ -314,10 +314,27 @@ path.
 
 ### NiFi
 
-NiFi is currently a registered connector stub. The admin form exposes `base_url`,
-`flow_id`, and `api_token`, but document fetching is not production-ready in the
-current release. Do not depend on NiFi for an air-gapped production rollout until
-a follow-up implementation completes the connector.
+NiFi event ingestion is release-usable for operators that already provide a
+Kafka/Redpanda event flow and an approved way to invoke Neverland
+`NiFiKafkaDrain`. The air-gapped artifact does not add a dedicated long-running
+NiFi worker container and CI does not use live NiFi or Kafka.
+
+Create an enabled `nifi` source and grant it to groups before sending events.
+Events must include `source_id` or `source_key`, `external_id`, `title` or
+`filename`, `mime_type`, and either an `inline_text` payload or a `staged_file`
+payload. Optional fields are `source_language`, lowercase hex `sha256`,
+JSON-object `metadata`, `event_timestamp`, `correlation_id`, and `dlq_id`.
+Staged files must already be present inside the API runtime. `staged_file`
+payloads require `config.staging_root` to be set; events using this strategy
+are rejected when `staging_root` is not configured, and the staged path must
+resolve under that root.
+
+NiFi documents are inserted with the normal `ingestion_sources` linkage and go
+through the standard pipeline. DLQ routing handles malformed events, unknown or
+disabled sources, inaccessible staged files, checksum mismatches, normalization
+failures, and pipeline failures with sanitized reason text. Kafka offsets are
+committed only after successful pipeline processing or successful DLQ routing; a
+failed DLQ write leaves the offset uncommitted for retry.
 
 ## Configure Local Users, Groups, And LDAP
 
@@ -435,6 +452,7 @@ from another unless you are prepared to rebuild indexes.
   approved model bundle separately or load it during a connected staging step
   before moving the volume into the air-gapped environment.
 - Long-running worker containers are not part of the current Compose runtime.
-- NiFi connector fetching is not production-ready.
+- NiFi event ingestion requires operator-provided drain invocation; no
+  long-running worker container or live NiFi/Kafka CI validation is included.
 - Atlassian-native permission synchronization is not present; use Neverland
   source grants and groups.

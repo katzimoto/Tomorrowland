@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Issue #65: NiFi event integration with a typed Kafka event envelope, inline text and staged-file payload normalization, bounded fake-testable Kafka drain, event-level DLQ routing, post-processing/post-DLQ offset commits, source-grant preservation, and deterministic NiFi/Kafka tests without live services.
 - Issue #88: Frontend user performance telemetry — privacy-safe in-memory timing diagnostics for login-to-shell, route navigation, search requests/first results, document preview loads, Q&A answers, and admin source sync actions, with opt-in local console inspection and no third-party analytics.
 - Issue #83: Hebrew and English UI localization — typed in-repo i18n dictionary (`en`/`he`), `LanguageProvider` context, `LanguageSelector` dropdown in the NavRail and login page, full translation coverage across navigation, login, search, filters, document view, Q&A, comments, annotations, subscriptions, notifications, history, expertise, admin, and command menu. Hebrew switches `document.lang` to `he` and `document.dir` to `rtl`. Selection persists in `localStorage`. Dynamic document content (titles, snippets, usernames) is not translated. English remains the default.
 - Refreshed agent coordination docs so Claude, Codex, and human reviewers work from the current issue-based release queue, avoid stale completed missions, and follow tighter context-loading/shared-file conflict guidance.

@@ -4,7 +4,7 @@ import json
 import os
 import time
 from collections.abc import Awaitable, Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 from uuid import UUID, uuid4
@@ -250,7 +250,7 @@ class DlqItem(BaseModel):
     """DLQ item response."""
 
     id: str
-    doc_id: str
+    doc_id: str | None
     error_message: str
     retry_count: int
     status: str
@@ -571,10 +571,8 @@ def create_app(
                         ).inc()
                 finally:
                     if connector_type == "smb" and item.path:
-                        try:
+                        with suppress(OSError):
                             os.unlink(item.path)
-                        except OSError:
-                            pass
 
             sync_outcome = "failure" if results["failed"] else "success"
             app.state.metrics.ingestion_syncs_total.labels(
@@ -1711,7 +1709,7 @@ def create_app(
             return [
                 DlqItem(
                     id=str(to_uuid(row["id"])),
-                    doc_id=str(to_uuid(row["doc_id"])),
+                    doc_id=str(to_uuid(row["doc_id"])) if row["doc_id"] else None,
                     error_message=row["error_message"],
                     retry_count=row["retry_count"],
                     status=row["status"],

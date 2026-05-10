@@ -25,6 +25,14 @@ These items must be resolved before implementation reaches the affected phase.
   - **Resolved for Phase 01:** NiFi may publish normalized `documents.raw`
     events directly. Ingestion publishes the same event type for folder and
     Atlassian sources.
+  - **Updated for Issue #65:** release support uses a Neverland-owned Kafka
+    envelope rather than raw NiFi FlowFiles. The event must identify an enabled
+    `nifi` ingestion source by `source_id` or `source_key`, include
+    `external_id`, `title` or `filename`, `mime_type`, and a supported payload,
+    and is normalized into `documents` before the standard pipeline runs.
+    Kafka offsets are committed only after successful pipeline processing or
+    successful DLQ routing. Event-level DLQ rows may have no document when the
+    event cannot be tied to a valid source/document.
 
 ## Blockers Before Phase 03
 

@@ -564,6 +564,58 @@ review environment lacks Docker, npm, uv, or network access, record the exact
 failed command and environment limitation in the PR notes before continuing with
 the no-mock smoke test.
 
+## NiFi Kafka Event Ingestion
+
+Issue #65 adds a minimal event-driven NiFi path for deployments that already run
+Redpanda/Kafka. CI and deterministic tests use fake consumer/message objects; no
+live NiFi or Kafka service is required by the test suite. The Compose runtime
+still has no dedicated long-running worker container for this path, so operators
+should invoke the bounded drain from an approved operational entrypoint until a
+future worker phase adds supervised runtime wiring.
+
+Create an enabled `nifi` ingestion source before sending events. The source must
+be granted to Neverland groups in the normal admin UI/API; NiFi-ingested
+documents are inserted with `documents.source = 'nifi'` and the source's
+`source_id`, so search, preview, download, and RAG access continue to use the
+existing source-grant model.
+
+Required event fields:
+
+- `source_id` (UUID) or `source_key` (matches `ingestion_sources.name` or
+  `config.source_key`).
+- `external_id` stable within that source. Neverland stores it as
+  `nifi:<external_id>` and skips reprocessing when the same source/external-id
+  already exists.
+- `title` or `filename`.
+- `mime_type`.
+- `payload`.
+
+Optional event fields: `source_language`, lowercase hex `sha256`, JSON-object
+`metadata`, `event_timestamp`, `correlation_id`, and `dlq_id`.
+
+Supported payload strategies:
+
+- `{"type":"inline_text","text":"..."}` for pre-extracted text. The text is
+  passed to the standard pipeline as `pre_extracted_text`; it is never logged.
+- `{"type":"staged_file","path":"/..."}` for local files already staged into
+  the API runtime. The source config **must** contain `staging_root`; events
+  using this strategy are rejected (DLQ-routed) when `staging_root` is not
+  configured. The file path must resolve under `staging_root`. Operators should
+  keep staged paths non-sensitive because paths are persisted on document rows
+  for extraction.
+
+Checksum validation is enforced when `sha256` is present. Malformed JSON,
+invalid envelopes, unknown/disabled/non-NiFi sources, inaccessible staged files,
+checksum mismatches, connector normalization failures, and pipeline failures are
+routed to DLQ with sanitized reason text. Offsets are committed only after
+successful processing or successful DLQ routing; if DLQ routing fails, the offset
+is not committed. Transient consumer infrastructure errors are retried with
+bounded exponential backoff and are not DLQ-routed by default.
+
+Known limitations: no HTTP callback endpoint, no built-in long-running consumer
+container, no live NiFi/Kafka CI validation, and no dedicated monitoring hooks
+beyond existing DLQ/admin surfaces.
+
 ## No-Mock Smoke Test
 
 Run the production smoke test from the repository root after reviewing `.env`:
@@ -597,8 +649,10 @@ the repository root and that the variable names match `.env.example` exactly.
 
 - Long-running worker containers are not present yet; ingestion and intelligence
   work are synchronous or API-triggered in the current runtime.
-- NiFi remains a registered connector stub; event integration is deferred to
-  Phase 09.
+- NiFi event ingestion is release-usable through the bounded Kafka drain in
+  `services.pipeline.kafka_consumer`. This release does not add a long-running
+  worker container; operators wire the drain into an approved scheduler or
+  operational entrypoint and keep live NiFi/Kafka validation outside CI.
 - Confluence and Jira Server/Data Center connectors are implemented, but
   Atlassian page/project permission synchronization is not present; access is
   governed by Neverland source grants.

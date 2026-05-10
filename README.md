@@ -77,10 +77,22 @@ docker compose --env-file .env -f docker-compose.airgap.yml up -d
 ```
 
 See `docs/operations/air-gapped-deployment.md` for the complete
-download-to-first-use guide, including folder, Atlassian, and SMB connector setup, local users/groups, LDAP,
-health checks, backup, restore, and current limitations. For existing offline
+download-to-first-use guide, including folder, Atlassian, SMB, and NiFi
+event-ingestion setup, local users/groups, LDAP, health checks, backup,
+restore, and current limitations. For existing offline
 deployments, follow `docs/operations/air-gapped-upgrade.md` to load a newer
 release, run migrations, and preserve data volumes.
+
+## NiFi Event Ingestion
+
+Neverland includes a release-usable, bounded NiFi Kafka drain for deployments
+that already provide NiFi-produced Kafka events. Events are validated, normalized
+into `nifi` documents tied to `ingestion_sources`, processed by the standard
+pipeline, and routed to DLQ on terminal failures. The repository tests this path
+with fakes only; there is no live NiFi/Kafka CI dependency and no dedicated
+long-running worker container in this phase. See
+`docs/operations/production-compose.md` for the required event envelope, staged
+file requirements, DLQ behavior, offset semantics, and current limitations.
 
 ## Host-Mounted SMB Shares
 

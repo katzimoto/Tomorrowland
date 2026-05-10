@@ -64,7 +64,7 @@ def test_connector_types_includes_smb() -> None:
     types = {item["type"]: item for item in connector_types()}
 
     assert "smb" in types
-    assert types["smb"]["label"] == "Smb"
+    assert types["smb"]["label"] == "SMB"
     assert any(
         field["key"] == "password" and field["sensitive"] for field in types["smb"]["fields"]
     )
