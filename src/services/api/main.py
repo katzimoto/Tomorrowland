@@ -21,6 +21,7 @@ from services.alerts.repository import AlertRepository
 from services.alerts.service import AlertMatcher
 from services.annotations.models import AnnotationCreateRequest, AnnotationUpdateRequest
 from services.annotations.repository import AnnotationRepository
+from services.api.readiness import ReadinessChecker, ReadinessResponse
 from services.auth.jwt import JwtService
 from services.auth.ldap import LdapAuthenticator
 from services.auth.models import LoginRequest, LoginResponse, TokenPayload, UserResponse
@@ -286,6 +287,11 @@ def create_app(
     app.state.es_client = es_client
     app.state.qdrant_client = qdrant_client
     app.state.ollama_client = ollama_client
+    app.state.readiness_checker = ReadinessChecker(
+        engine=app.state.engine,
+        settings=app.state.settings,
+        metrics=app.state.metrics,
+    )
 
     @contextmanager
     def repository_context() -> Iterator[AuthRepository]:
@@ -434,6 +440,12 @@ def create_app(
     @app.get("/health")
     def app_health() -> HealthResponse:
         return health("api")
+
+    @app.get("/admin/readiness", response_model=None)
+    def admin_readiness(user: Annotated[TokenPayload, Depends(current_user)]) -> ReadinessResponse:
+        require_admin(user)
+        readiness: ReadinessResponse = app.state.readiness_checker.check()
+        return readiness
 
     @app.get("/metrics")
     def metrics() -> Response:

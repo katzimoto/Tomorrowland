@@ -162,6 +162,19 @@ class MetricsRegistry:
             "Current pending dead-letter queue records.",
             registry=self.registry,
         )
+        self.dependency_up = Gauge(
+            "neverland_dependency_up",
+            "Dependency readiness probe availability by dependency name.",
+            ("dependency",),
+            registry=self.registry,
+        )
+        self.dependency_latency_seconds = Histogram(
+            "neverland_dependency_latency_seconds",
+            "Dependency readiness probe latency in seconds.",
+            ("dependency", "operation"),
+            buckets=DOMAIN_DURATION_BUCKETS,
+            registry=self.registry,
+        )
         self.search_requests_total = Counter(
             "neverland_search_requests_total",
             "Search requests by mode and outcome.",
