@@ -71,7 +71,8 @@ All notable changes to this project will be documented in this file.
   API/network connectors that deliver text directly rather than file paths.
 - Admin Sources page (`/admin`) — React feature using the Phase 08b design system:
   sources table, Add Source dialog with a form that adapts to the selected connector
-  type (sensitive fields masked), and inline Sync result display.
+  type (sensitive fields masked), inline Sync result display, connection testing,
+  sanitized operator-facing errors, and persisted last sync status/count/time.
 - Agent efficiency guidance: canonical uppercase `AGENTS.md` plus `frontend/AGENTS.md` with scoped commands, token-saving workflow, and common mistake checklists.
 - Phase 08b: Frontend foundation — React 19 + TypeScript + Vite scaffold with
   TanStack Router and Query, React Hook Form + Zod auth form, design-token CSS

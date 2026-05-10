@@ -1,9 +1,9 @@
-import { memo, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, RefreshCw, ServerIcon } from "lucide-react";
+import { CheckCircle2, PlugZap, Plus, RefreshCw, ServerIcon } from "lucide-react";
 import { adminApi, type ConnectorType, type Source, type SyncResult } from "@/api/admin";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
@@ -26,9 +26,8 @@ export function AdminSourcesPage() {
   const t = useT();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [syncResults, setSyncResults] = useState<
-    Record<string, SyncResult | string>
-  >({});
+const [syncResults, setSyncResults] = useState<Record<string, SyncResult | string>>({});
+  const [testResults, setTestResults] = useState<Record<string, string>>({});
 
   const { data: connectorTypes = [], isLoading: typesLoading } = useQuery({
     queryKey: ["connector-types"],
@@ -98,11 +97,52 @@ export function AdminSourcesPage() {
         adminApi.syncSource(sourceId),
       );
       setSyncResults((r) => ({ ...r, [sourceId]: result }));
+      qc.invalidateQueries({ queryKey: ["sources"] });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Sync failed";
       setSyncResults((r) => ({ ...r, [sourceId]: msg }));
     }
   }, []);
+
+
+  async function handleTestConnection(sourceId: string) {
+    setTestResults((r) => ({ ...r, [sourceId]: "testing" }));
+    try {
+      await adminApi.testSource(sourceId);
+      setTestResults((r) => ({ ...r, [sourceId]: t.admin.testConnectionOk }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t.admin.testConnectionError;
+      setTestResults((r) => ({ ...r, [sourceId]: msg }));
+    }
+  }
+
+  function renderSyncSummary(src: Source, result: SyncResult | string | undefined) {
+    if (result === "syncing") return null;
+    const liveResult = typeof result === "object" ? result : undefined;
+    const errorResult = typeof result === "string" ? result : undefined;
+    const indexed = liveResult?.indexed ?? src.last_sync_indexed;
+    const skipped = liveResult?.skipped ?? src.last_sync_skipped;
+    const failed = liveResult?.failed ?? src.last_sync_failed;
+    const status = liveResult?.status ?? src.last_sync_status;
+    const error = errorResult ?? (status === "failed" ? src.last_sync_error : null);
+
+    if (indexed === null && skipped === null && failed === null && !error) {
+      return <span className={styles.mutedMeta}>{t.admin.neverSynced}</span>;
+    }
+
+    return (
+      <div className={styles.syncSummary}>
+        {status && (
+          <Badge variant={status === "failed" ? "danger" : "success"}>
+            {status === "failed" ? t.admin.syncStatusFailed : t.admin.syncStatusSuccess}
+          </Badge>
+        )}
+        <span>{t.admin.syncResult(indexed ?? 0, skipped ?? 0, failed ?? 0)}</span>
+        {src.last_sync_at && <span>{t.admin.lastSynced(formatDateTime(src.last_sync_at))}</span>}
+        {error && <span className={styles.syncError}>{error}</span>}
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>
@@ -131,20 +171,58 @@ export function AdminSourcesPage() {
                 <th>{t.admin.colType}</th>
                 <th>{t.admin.colLang}</th>
                 <th>{t.admin.colEnabled}</th>
+                <th>{t.admin.colLastSync}</th>
                 <th>{t.admin.colActions}</th>
               </tr>
             </thead>
             <tbody>
-              {sources.map((src) => (
-                <SourceRow
-                  key={src.id}
-                  source={src}
-                  result={syncResults[src.id]}
-                  onSync={handleSync}
-                  syncButtonLabel={t.admin.syncBtn}
-                  syncResultLabel={t.admin.syncResult}
-                />
-              ))}
+{sources.map((src) => {
+                const result = syncResults[src.id];
+                const testResult = testResults[src.id];
+                return (
+                  <tr key={src.id}>
+                    <td className={styles.nameCell}>{src.name}</td>
+                    <td>
+                      <Badge variant="neutral">{src.type}</Badge>
+                    </td>
+                    <td>{src.source_language ?? "—"}</td>
+                    <td>{src.enabled ? "✓" : "—"}</td>
+                    <td>{renderSyncSummary(src, result)}</td>
+                    <td>
+                      <div className={styles.actions}>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleTestConnection(src.id)}
+                          loading={testResult === "testing"}
+                        >
+                          <PlugZap size={13} />
+                          {t.admin.testConnectionBtn}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleSync(src.id)}
+                          loading={result === "syncing"}
+                        >
+                          <RefreshCw size={13} />
+                          {t.admin.syncBtn}
+                        </Button>
+                      </div>
+                      {testResult && testResult !== "testing" && (
+                        <p
+                          className={`${styles.syncResult} ${
+                            testResult === t.admin.testConnectionOk ? styles.syncOk : styles.syncError
+                          }`}
+                        >
+                          <CheckCircle2 size={13} />
+                          {testResult}
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -253,60 +331,9 @@ export function AdminSourcesPage() {
   );
 }
 
-
-interface SourceRowProps {
-  source: Source;
-  result?: SyncResult | string;
-  onSync: (sourceId: string) => void;
-  syncButtonLabel: string;
-  syncResultLabel: (indexed: number, skipped: number, failed: number) => string;
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
-
-const SourceRow = memo(function SourceRow({
-  source,
-  result,
-  onSync,
-  syncButtonLabel,
-  syncResultLabel,
-}: SourceRowProps) {
-  const syncResultClass = result && result !== "syncing"
-    ? `${styles.syncResult} ${
-      typeof result === "object" && result.failed > 0
-        ? styles.syncError
-        : typeof result === "string"
-          ? styles.syncError
-          : styles.syncOk
-    }`
-    : undefined;
-
-  return (
-    <tr>
-      <td className={styles.nameCell}>{source.name}</td>
-      <td>
-        <Badge variant="neutral">{source.type}</Badge>
-      </td>
-      <td>{source.source_language ?? "—"}</td>
-      <td>{source.enabled ? "✓" : "—"}</td>
-      <td>
-        <div className={styles.actions}>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => onSync(source.id)}
-            loading={result === "syncing"}
-          >
-            <RefreshCw size={13} />
-            {syncButtonLabel}
-          </Button>
-        </div>
-        {result && result !== "syncing" && syncResultClass && (
-          <p className={syncResultClass}>
-            {typeof result === "object"
-              ? syncResultLabel(result.indexed, result.skipped, result.failed)
-              : result}
-          </p>
-        )}
-      </td>
-    </tr>
-  );
-});

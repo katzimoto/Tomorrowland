@@ -21,7 +21,13 @@ export interface Source {
   path: string | null;
   source_language: string | null;
   enabled: boolean;
-  created_at: string;
+  created_at: string | null;
+  last_sync_status: "success" | "failed" | null;
+  last_sync_indexed: number | null;
+  last_sync_skipped: number | null;
+  last_sync_failed: number | null;
+  last_sync_error: string | null;
+  last_sync_at: string | null;
 }
 
 export interface CreateSourcePayload {
@@ -34,9 +40,15 @@ export interface CreateSourcePayload {
 }
 
 export interface SyncResult {
+  status: "success" | "failed";
   indexed: number;
   skipped: number;
   failed: number;
+}
+
+export interface SourceTestResult {
+  status: "ok";
+  message: string;
 }
 
 export const adminApi = {
@@ -46,4 +58,6 @@ export const adminApi = {
     api.post<Source>("/admin/sources", payload),
   syncSource: (sourceId: string) =>
     api.post<SyncResult>(`/admin/ingestion/${sourceId}/sync-now`, {}),
+  testSource: (sourceId: string) =>
+    api.post<SourceTestResult>(`/admin/sources/${sourceId}/test-connection`, {}),
 };

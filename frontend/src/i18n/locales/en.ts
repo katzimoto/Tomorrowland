@@ -235,8 +235,16 @@ export interface Translations {
     colType: string;
     colLang: string;
     colEnabled: string;
+    colLastSync: string;
     colActions: string;
     syncBtn: string;
+    testConnectionBtn: string;
+    testConnectionOk: string;
+    testConnectionError: string;
+    neverSynced: string;
+    syncStatusSuccess: string;
+    syncStatusFailed: string;
+    lastSynced: (value: string) => string;
     syncResult: (indexed: number, skipped: number, failed: number) => string;
     dialogTitle: string;
     nameLabel: string;
@@ -498,8 +506,16 @@ export const en: Translations = {
     colType: "Type",
     colLang: "Language",
     colEnabled: "Enabled",
+    colLastSync: "Last sync",
     colActions: "Actions",
     syncBtn: "Sync",
+    testConnectionBtn: "Test",
+    testConnectionOk: "Connection settings look valid.",
+    testConnectionError: "Connection test failed.",
+    neverSynced: "Never synced",
+    syncStatusSuccess: "Success",
+    syncStatusFailed: "Failed",
+    lastSynced: (value) => `Last run: ${value}`,
     syncResult: (indexed, skipped, failed) =>
       `Indexed: ${indexed}  Skipped: ${skipped}  Failed: ${failed}`,
     dialogTitle: "Add Source",

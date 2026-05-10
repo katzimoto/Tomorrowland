@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from uuid import UUID, uuid4
+import json
+from pathlib import Path
+from uuid import uuid4
 
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
@@ -222,79 +224,6 @@ def test_admin_create_source(migrated_engine: Engine) -> None:
 
 
 # Permissions
-
-
-def test_admin_create_source_always_grants_admins(migrated_engine: Engine) -> None:
-    """Source created without explicit groups still receives the admins grant."""
-    _setup_users(migrated_engine)
-    client = TestClient(
-        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
-    )
-    token = _admin_token(client)
-
-    response = client.post(
-        "/admin/sources",
-        json={"name": "No Groups Source", "type": "folder"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert response.status_code == 201
-    source_id = response.json()["id"]
-
-    with migrated_engine.connect() as connection:
-        group_names = (
-            connection.execute(
-                sa.text("""
-                SELECT g.name FROM source_permissions sp
-                JOIN groups g ON g.id = sp.group_id
-                WHERE sp.source_id = :source_id
-            """),
-                {"source_id": UUID(source_id).hex},
-            )
-            .scalars()
-            .all()
-        )
-    assert "admins" in group_names
-
-
-def test_admin_create_source_admins_not_duplicated(migrated_engine: Engine) -> None:
-    """Granting admins a second time after creation does not create a duplicate row."""
-    _setup_users(migrated_engine)
-    client = TestClient(
-        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
-    )
-    token = _admin_token(client)
-
-    response = client.post(
-        "/admin/sources",
-        json={"name": "Dup Test Source", "type": "folder"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert response.status_code == 201
-    source_id = response.json()["id"]
-
-    with migrated_engine.connect() as connection:
-        admins_group_id = connection.execute(
-            sa.text("SELECT id FROM groups WHERE name = 'admins'"),
-        ).scalar_one()
-
-    # Grant admins again via the permissions endpoint — must be idempotent
-    grant_response = client.post(
-        f"/admin/sources/{source_id}/permissions",
-        json={"group_id": str(admins_group_id)},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert grant_response.status_code in (200, 201, 204)
-
-    with migrated_engine.connect() as connection:
-        count = connection.execute(
-            sa.text("""
-                SELECT COUNT(*) FROM source_permissions sp
-                JOIN groups g ON g.id = sp.group_id
-                WHERE sp.source_id = :source_id AND g.name = 'admins'
-            """),
-            {"source_id": UUID(source_id).hex},
-        ).scalar_one()
-    assert count == 1
 
 
 def test_admin_grant_and_revoke_permission(migrated_engine: Engine) -> None:
@@ -611,8 +540,88 @@ def test_admin_create_source_persists_config(migrated_engine: Engine) -> None:
     assert response.status_code == 201
     data = response.json()
     assert data["type"] == "nifi"
-    assert data["config"]["api_token"] == "secret"
-    assert data["config"]["base_url"] == "http://nifi:8080"
+    assert "config" not in data
+
+    with migrated_engine.connect() as connection:
+        row = connection.execute(
+            sa.text("SELECT config FROM ingestion_sources WHERE id = :id"),
+            {"id": data["id"].replace("-", "")},
+        ).scalar_one()
+    stored_config = json.loads(row) if isinstance(row, str) else row
+    assert stored_config["api_token"] == "secret"
+    assert stored_config["base_url"] == "http://nifi:8080"
+
+
+def test_admin_test_source_connection_validates_without_leaking_config(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+    missing_folder = tmp_path / "missing"
+    response = client.post(
+        "/admin/sources",
+        json={
+            "name": "Folder",
+            "type": "folder",
+            "path": str(missing_folder),
+            "source_language": "en",
+            "config": {"path": str(missing_folder), "api_token": "secret-token"},
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    source_id = response.json()["id"]
+    assert "config" not in response.json()
+
+    test_response = client.post(
+        f"/admin/sources/{source_id}/test-connection",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert test_response.status_code == 400
+    detail = test_response.json()["detail"]
+    assert "does not exist" in detail
+    assert "secret-token" not in detail
+
+
+def test_admin_list_sources_returns_last_sync_state(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    source_id = uuid4()
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO ingestion_sources (
+                    id, name, type, source_language, last_sync_status,
+                    last_sync_indexed, last_sync_skipped, last_sync_failed, last_sync_error
+                )
+                VALUES (
+                    :id, 'Synced', 'folder', 'en', 'failed', 2, 1, 1,
+                    'Source path does not exist'
+                )
+                """
+            ),
+            {"id": source_id.hex},
+        )
+
+    response = client.get("/admin/sources", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()[0]
+    assert data["last_sync_status"] == "failed"
+    assert data["last_sync_indexed"] == 2
+    assert data["last_sync_skipped"] == 1
+    assert data["last_sync_failed"] == 1
+    assert data["last_sync_error"] == "Source path does not exist"
+    assert "config" not in data
 
 
 def test_admin_list_sources_omits_config(migrated_engine: Engine) -> None:

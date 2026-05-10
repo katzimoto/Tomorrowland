@@ -70,8 +70,25 @@
 }
 
 .syncResult {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font-size: var(--font-size-meta);
   margin-top: var(--space-1);
+}
+
+.syncSummary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.mutedMeta {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
 }
 
 .syncOk { color: var(--color-success); }

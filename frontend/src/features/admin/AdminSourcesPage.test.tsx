@@ -11,20 +11,48 @@ vi.mock("@/api/admin", () => ({
     listSources: vi.fn(),
     createSource: vi.fn(),
     syncSource: vi.fn(),
+    testSource: vi.fn(),
   },
 }));
+
+const sourceDefaults = {
+  path: null,
+  source_language: "en",
+  enabled: true,
+  created_at: "2025-01-01",
+  last_sync_status: null,
+  last_sync_indexed: null,
+  last_sync_skipped: null,
+  last_sync_failed: null,
+  last_sync_error: null,
+  last_sync_at: null,
+} as const;
 
 const mockConnectorTypes = [
   {
     type: "folder",
     label: "Folder",
-    fields: [{ key: "path", label: "Folder path", required: true, sensitive: false, placeholder: "/data" }],
+    fields: [
+      {
+        key: "path",
+        label: "Folder path",
+        required: true,
+        sensitive: false,
+        placeholder: "/data",
+      },
+    ],
   },
   {
     type: "nifi",
     label: "NiFi",
     fields: [
-      { key: "base_url", label: "NiFi base URL", required: true, sensitive: false, placeholder: "http://nifi:8080" },
+      {
+        key: "base_url",
+        label: "NiFi base URL",
+        required: true,
+        sensitive: false,
+        placeholder: "http://nifi:8080",
+      },
       { key: "api_token", label: "API token", required: true, sensitive: true, placeholder: "" },
     ],
   },
@@ -33,6 +61,16 @@ const mockConnectorTypes = [
 beforeEach(() => {
   vi.mocked(adminApi.adminApi.connectorTypes).mockResolvedValue(mockConnectorTypes);
   vi.mocked(adminApi.adminApi.listSources).mockResolvedValue([]);
+  vi.mocked(adminApi.adminApi.testSource).mockResolvedValue({
+    status: "ok",
+    message: "Source configuration is valid.",
+  });
+  vi.mocked(adminApi.adminApi.syncSource).mockResolvedValue({
+    status: "success",
+    indexed: 1,
+    skipped: 0,
+    failed: 0,
+  });
 });
 
 describe("AdminSourcesPage", () => {
@@ -48,17 +86,17 @@ describe("AdminSourcesPage", () => {
 
   it("renders sources table when sources exist", async () => {
     vi.mocked(adminApi.adminApi.listSources).mockResolvedValue([
-      { id: "abc-1", name: "Legal Docs", type: "folder", path: "/data/legal", source_language: "en", enabled: true, created_at: "2025-01-01" },
+      { ...sourceDefaults, id: "abc-1", name: "Legal Docs", type: "folder", path: "/data/legal" },
     ]);
     render(<AdminSourcesPage />);
     expect(await screen.findByText("Legal Docs")).toBeInTheDocument();
     expect(screen.getByText("folder")).toBeInTheDocument();
+    expect(screen.getByText("Never synced")).toBeInTheDocument();
   });
 
   it("opens the Add Source dialog on button click", async () => {
     const user = userEvent.setup();
     render(<AdminSourcesPage />);
-    // Wait for connector types to load so button is enabled
     await screen.findByRole("heading", { name: "Sources" });
     await user.click(screen.getByRole("button", { name: /add source/i }));
     expect(await screen.findByRole("dialog", { name: /add source/i })).toBeInTheDocument();
@@ -80,7 +118,6 @@ describe("AdminSourcesPage", () => {
     await user.click(screen.getByRole("button", { name: /add source/i }));
     await screen.findByRole("dialog");
 
-    // Switch type to nifi
     const typeSelect = screen.getByLabelText(/type/i);
     await user.selectOptions(typeSelect, "nifi");
 
@@ -90,7 +127,11 @@ describe("AdminSourcesPage", () => {
 
   it("calls createSource and closes dialog on valid submit", async () => {
     vi.mocked(adminApi.adminApi.createSource).mockResolvedValue({
-      id: "new-1", name: "My Folder", type: "folder", path: "/tmp", source_language: "en", enabled: true, created_at: "2025-01-01",
+      ...sourceDefaults,
+      id: "new-1",
+      name: "My Folder",
+      type: "folder",
+      path: "/tmp",
     });
     const user = userEvent.setup();
     render(<AdminSourcesPage />);
@@ -108,5 +149,57 @@ describe("AdminSourcesPage", () => {
         expect.anything(),
       );
     });
+  });
+
+  it("renders last sync state and sync result updates", async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminApi.adminApi.listSources).mockResolvedValue([
+      {
+        ...sourceDefaults,
+        id: "abc-1",
+        name: "Legal Docs",
+        type: "folder",
+        last_sync_status: "failed",
+        last_sync_indexed: 2,
+        last_sync_skipped: 1,
+        last_sync_failed: 1,
+        last_sync_error: "Source path does not exist",
+        last_sync_at: "2025-01-01T12:00:00Z",
+      },
+    ]);
+    vi.mocked(adminApi.adminApi.syncSource).mockResolvedValue({
+      status: "success",
+      indexed: 3,
+      skipped: 0,
+      failed: 0,
+    });
+
+    render(<AdminSourcesPage />);
+
+    expect(await screen.findByText("Failed")).toBeInTheDocument();
+    expect(screen.getByText(/Source path does not exist/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^sync$/i }));
+
+    expect(await screen.findByText(/Indexed: 3/i)).toBeInTheDocument();
+    expect(screen.getByText("Success")).toBeInTheDocument();
+  });
+
+  it("shows sanitized connection test errors", async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminApi.adminApi.listSources).mockResolvedValue([
+      { ...sourceDefaults, id: "abc-1", name: "Secure Source", type: "nifi" },
+    ]);
+    vi.mocked(adminApi.adminApi.testSource).mockRejectedValue(
+      new Error("Connector requires api_token [redacted]"),
+    );
+
+    render(<AdminSourcesPage />);
+
+    await screen.findByText("Secure Source");
+    await user.click(screen.getByRole("button", { name: /^test$/i }));
+
+    expect(await screen.findByText(/api_token \[redacted\]/i)).toBeInTheDocument();
+    expect(screen.queryByText(/secret/i)).not.toBeInTheDocument();
   });
 });
