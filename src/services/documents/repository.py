@@ -29,6 +29,7 @@ class DocumentRepository:
         title: str | None = None,
         source_language: str | None = None,
         sha256: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> DocumentRow | None:
         """Create a document row and optionally record SHA256 dedup.
 
@@ -49,14 +50,14 @@ class DocumentRepository:
                 """
                 INSERT INTO documents (
                     id, source_id, external_id, source, path,
-                    mime_type, title, source_language, status
+                    mime_type, title, source_language, status, metadata
                 )
                 VALUES (
                     :id, :source_id, :external_id, :source, :path,
-                    :mime_type, :title, :source_language, 'pending'
+                    :mime_type, :title, :source_language, 'pending', :metadata
                 )
                 """
-            ),
+            ).bindparams(sa.bindparam("metadata", type_=sa.JSON())),
             {
                 "id": db_uuid(doc_id),
                 "source_id": db_uuid(source_id),
@@ -66,6 +67,7 @@ class DocumentRepository:
                 "mime_type": mime_type,
                 "title": title,
                 "source_language": source_language,
+                "metadata": metadata or {},
             },
         )
 

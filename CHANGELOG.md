@@ -76,6 +76,7 @@ All notable changes to this project will be documented in this file.
 - Phase 02: Authentication, JWT, LDAP boundary, and permission enforcement.
 - Phase 01: Foundation schema, shared contracts, service skeletons, and tests.
 - Phase 00: Planning, repository hygiene, and GitHub Actions bootstrap.
+- SMB source connector MVP using `smbprotocol`/`smbclient` service-account username/password authentication, source type registration, migrations for `smb` source/document constraints, and operational docs that call out NTFS ACL, Kerberos, and DFS limitations.
 
 ### Changed
 - Documentation now reflects that Confluence and Jira Server/Data Center polling
@@ -88,6 +89,7 @@ All notable changes to this project will be documented in this file.
   compatibility (Pydantic 2 rejected `typing.TypedDict` on Python < 3.12).
 - Frontend admin sources integration now passes lint/build checks with type-only
   imports, matching primitive props, and a Fast Refresh-safe toast context split.
+- Connector metadata from `ConnectorDocument.metadata` is now persisted into `documents.metadata` during admin-triggered syncs.
 
 ### Planned
 - Phase 08: Productization, UI, and production Compose.

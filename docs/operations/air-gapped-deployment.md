@@ -195,6 +195,31 @@ Confluence and Jira Server/Data Center connectors are implemented, but
 Atlassian-native permission synchronization is not yet included. Use Neverland
 source grants, groups, and permissions to control access to synced documents.
 
+
+### Windows / SMB Share
+
+Add an SMB source with:
+
+- `server`, for example `fileserver.local`.
+- `share`, for example `department`.
+- Optional `base_path`, for example `/legal/contracts`.
+- Optional `domain`, for example `CORP`.
+- `username` and sensitive `password` for a service account.
+- Optional string settings: `recursive` (`true` or `false`), comma-separated
+  `include_globs`, comma-separated `exclude_globs`, and integer
+  `max_file_size_mb`.
+
+The native SMB connector uses the Python `smbprotocol` / `smbclient` stack and
+NTLM/negotiate username-password authentication. Kerberos is not required for the
+MVP and may need additional Linux system packages in a future release. DFS path
+handling is also a follow-up limitation. The connector reads files with the
+configured service account and then applies Neverland source grants for search
+and preview authorization; NTFS ACLs are not mirrored.
+
+Operators that prefer host-level CIFS mounts can still mount the share on the
+Docker host and ingest it with the existing folder connector using the container
+path.
+
 ### NiFi
 
 NiFi is currently a registered connector stub. The admin form exposes `base_url`,

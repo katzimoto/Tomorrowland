@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 DocumentStatus = Literal["pending", "indexed", "deleted", "failed"]
-DocumentSource = Literal["folder", "nifi", "confluence", "jira"]
+DocumentSource = Literal["folder", "nifi", "confluence", "jira", "smb"]
 
 
 class DocumentRow(BaseModel):

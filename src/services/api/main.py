@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
@@ -226,7 +227,7 @@ class CreateSourceRequest(BaseModel):
     """Admin create source request."""
 
     name: str
-    type: Literal["folder", "nifi", "confluence", "jira"] = "folder"
+    type: Literal["folder", "nifi", "confluence", "jira", "smb"] = "folder"
     path: str | None = None
     source_language: str | None = "en"
     enabled: bool = True
@@ -538,34 +539,42 @@ def create_app(
                 app.state.metrics.ingestion_documents_total.labels(
                     safe_label_value(connector_type), "discovered"
                 ).inc()
-                doc = doc_repo.create(
-                    source_id=source_id,
-                    external_id=item.external_id,
-                    source=cast("DocumentSource", source_row["type"]),
-                    mime_type=item.mime_type,
-                    path=item.path,
-                    title=item.title,
-                    source_language=item.source_language or source_language,
-                    sha256=item.sha256,
-                )
-                if doc is None:
-                    results["skipped"] += 1
-                    app.state.metrics.ingestion_documents_total.labels(
-                        safe_label_value(connector_type), "skipped"
-                    ).inc()
-                    continue
-
                 try:
-                    worker.process_document(doc.id, pre_extracted_text=item.text_content)
-                    results["indexed"] += 1
-                    app.state.metrics.ingestion_documents_total.labels(
-                        safe_label_value(connector_type), "success"
-                    ).inc()
-                except Exception:
-                    results["failed"] += 1
-                    app.state.metrics.ingestion_documents_total.labels(
-                        safe_label_value(connector_type), "failure"
-                    ).inc()
+                    doc = doc_repo.create(
+                        source_id=source_id,
+                        external_id=item.external_id,
+                        source=cast("DocumentSource", source_row["type"]),
+                        mime_type=item.mime_type,
+                        path=item.path,
+                        title=item.title,
+                        source_language=item.source_language or source_language,
+                        sha256=item.sha256,
+                        metadata=item.metadata,
+                    )
+                    if doc is None:
+                        results["skipped"] += 1
+                        app.state.metrics.ingestion_documents_total.labels(
+                            safe_label_value(connector_type), "skipped"
+                        ).inc()
+                        continue
+
+                    try:
+                        worker.process_document(doc.id, pre_extracted_text=item.text_content)
+                        results["indexed"] += 1
+                        app.state.metrics.ingestion_documents_total.labels(
+                            safe_label_value(connector_type), "success"
+                        ).inc()
+                    except Exception:
+                        results["failed"] += 1
+                        app.state.metrics.ingestion_documents_total.labels(
+                            safe_label_value(connector_type), "failure"
+                        ).inc()
+                finally:
+                    if connector_type == "smb" and item.path:
+                        try:
+                            os.unlink(item.path)
+                        except OSError:
+                            pass
 
             sync_outcome = "failure" if results["failed"] else "success"
             app.state.metrics.ingestion_syncs_total.labels(
