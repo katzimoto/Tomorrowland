@@ -14,9 +14,30 @@ export const NotificationItem = memo(function NotificationItem({ notification }:
   const queryClient = useQueryClient();
   const read = useMutation({
     mutationFn: () => markRead(notification.id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      void queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+    onMutate: async () => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ["notifications"] }),
+        queryClient.cancelQueries({ queryKey: ["notifications-unread"] }),
+      ]);
+      const previousAll = queryClient.getQueryData<Notification[]>(["notifications"]);
+      const previousUnread = queryClient.getQueryData<Notification[]>(["notifications-unread"]);
+      queryClient.setQueryData<Notification[]>(["notifications"], (current = []) =>
+        current.map((item) => item.id === notification.id ? { ...item, read: true } : item),
+      );
+      queryClient.setQueryData<Notification[]>(["notifications-unread"], (current = []) =>
+        current.filter((item) => item.id !== notification.id),
+      );
+      return { previousAll, previousUnread };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousAll) queryClient.setQueryData(["notifications"], context.previousAll);
+      if (context?.previousUnread) queryClient.setQueryData(["notifications-unread"], context.previousUnread);
+    },
+    onSettled: (_data, error) => {
+      if (!error) {
+        void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        void queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+      }
     },
   });
 

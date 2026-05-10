@@ -8,7 +8,7 @@ import styles from "./NotificationsPage.module.css";
 
 export function NotificationsPage() {
   const t = useT();
-  const { data = [], isLoading, isError } = useQuery({ queryKey: ["notifications"], queryFn: () => listNotifications(false) });
+  const { data = [], isLoading, isError } = useQuery({ queryKey: ["notifications"], queryFn: () => listNotifications(false), staleTime: 60_000 });
   const unread = useMemo(() => data.filter((notification) => !notification.read), [data]);
   const read = useMemo(() => data.filter((notification) => notification.read), [data]);
 

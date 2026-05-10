@@ -17,7 +17,7 @@ interface CommentListProps {
 export function CommentList({ docId, enabled = true }: CommentListProps) {
   const t = useT();
   const userQuery = useQuery({ queryKey: ["current-user"], queryFn: getCurrentUser, enabled });
-  const commentsQuery = useQuery({ queryKey: ["comments", docId], queryFn: () => listComments(docId), enabled });
+  const commentsQuery = useQuery({ queryKey: ["comments", docId], queryFn: () => listComments(docId), enabled, staleTime: 2 * 60_000 });
 
   if (!enabled) return null;
   if (commentsQuery.isLoading) return <SkeletonRow compact count={3} />;

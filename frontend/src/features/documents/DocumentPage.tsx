@@ -30,6 +30,7 @@ export function DocumentPage() {
       measurePerformance("preview.load", () =>
         getPreview(docId, selectedVersionId),
       ),
+    staleTime: 2 * 60_000,
   });
 
   if (isLoading) {

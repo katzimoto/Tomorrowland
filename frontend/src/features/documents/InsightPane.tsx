@@ -6,10 +6,12 @@ import {
   getSummary, getEntities, getTags, getRelated,
   listComments, createComment, updateComment, deleteComment,
   listAnnotations, createAnnotation, deleteAnnotation,
+  type Comment, type CommentListResponse, type DocAnnotation,
 } from "@/api/documents";
 import { Badge } from "@/components/primitives/Badge";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
+import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { Tabs } from "@/components/primitives/Tabs";
 import { useToast } from "@/components/primitives/ToastContext";
 import { useT } from "@/i18n/index";
@@ -58,11 +60,12 @@ function SummaryTab({ docId }: { docId: string }) {
   const t = useT();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["doc-summary", docId],
+    staleTime: 2 * 60_000,
     queryFn: () => getSummary(docId),
     retry: false,
   });
 
-  if (isLoading) return <p className={styles.muted}>{t.insight.summaryLoading}</p>;
+  if (isLoading) return <div className={styles.loadingStack}><SkeletonRow compact count={2} /></div>;
   if (isError) return <EmptyState title={t.insight.summaryFailedTitle} body={t.insight.summaryFailedBody} />;
   if (!data) return <EmptyState title={t.insight.summaryEmptyTitle} body={t.insight.summaryEmptyBody} />;
 
@@ -80,6 +83,7 @@ function EntitiesSection({ docId }: { docId: string }) {
   const t = useT();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["doc-entities", docId],
+    staleTime: 2 * 60_000,
     queryFn: () => getEntities(docId),
     retry: false,
   });
@@ -106,6 +110,7 @@ function TagsSection({ docId }: { docId: string }) {
   const t = useT();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["doc-tags", docId],
+    staleTime: 2 * 60_000,
     queryFn: () => getTags(docId),
     retry: false,
   });
@@ -128,11 +133,12 @@ function RelatedTab({ docId }: { docId: string }) {
   const t = useT();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["doc-related", docId],
+    staleTime: 2 * 60_000,
     queryFn: () => getRelated(docId),
     retry: false,
   });
 
-  if (isLoading) return <p className={styles.muted}>{t.insight.relatedLoading}</p>;
+  if (isLoading) return <div className={styles.loadingStack}><SkeletonRow compact count={3} /></div>;
   if (isError) return <EmptyState title={t.insight.relatedFailedTitle} body={t.insight.relatedFailedBody} />;
   if (!data?.related.length) return <EmptyState title={t.insight.relatedEmptyTitle} body={t.insight.relatedEmptyBody} />;
 
@@ -162,21 +168,56 @@ function AnnotationsTab({ docId }: { docId: string }) {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["doc-annotations", docId],
+    staleTime: 2 * 60_000,
     queryFn: () => listAnnotations(docId),
   });
 
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["doc-annotations", docId] });
 
   const addMut = useMutation({
-    mutationFn: () => createAnnotation(docId, { text: newText.trim(), position: PLACEHOLDER_POSITION, is_private: isPrivate }),
-    onSuccess: () => { setNewText(""); invalidate(); },
-    onError: () => showToast("error", t.insight.annotationAddError),
+    mutationFn: (text: string) => createAnnotation(docId, { text, position: PLACEHOLDER_POSITION, is_private: isPrivate }),
+    onMutate: async (text) => {
+      await qc.cancelQueries({ queryKey: ["doc-annotations", docId] });
+      const previous = qc.getQueryData<{ annotations: DocAnnotation[] }>(["doc-annotations", docId]);
+      const optimistic: DocAnnotation = {
+        id: `optimistic-${Date.now()}`,
+        doc_id: docId,
+        user_id: "current-user",
+        text,
+        note: null,
+        position: PLACEHOLDER_POSITION,
+        is_private: isPrivate,
+        created_at: new Date().toISOString(),
+        can_modify: true,
+      };
+      qc.setQueryData<{ annotations: DocAnnotation[] }>(["doc-annotations", docId], (current) => ({
+        annotations: [...(current?.annotations ?? []), optimistic],
+      }));
+      setNewText("");
+      return { previous };
+    },
+    onError: (_error, _text, context) => {
+      if (context?.previous) qc.setQueryData(["doc-annotations", docId], context.previous);
+      showToast("error", t.insight.annotationAddError);
+    },
+    onSettled: invalidate,
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteAnnotation(id),
-    onSuccess: invalidate,
-    onError: () => showToast("error", t.insight.annotationDeleteError),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ["doc-annotations", docId] });
+      const previous = qc.getQueryData<{ annotations: DocAnnotation[] }>(["doc-annotations", docId]);
+      qc.setQueryData<{ annotations: DocAnnotation[] }>(["doc-annotations", docId], (current) => ({
+        annotations: (current?.annotations ?? []).filter((annotation) => annotation.id !== id),
+      }));
+      return { previous };
+    },
+    onError: (_error, _id, context) => {
+      if (context?.previous) qc.setQueryData(["doc-annotations", docId], context.previous);
+      showToast("error", t.insight.annotationDeleteError);
+    },
+    onSettled: invalidate,
   });
 
   const annotations = data?.annotations ?? [];
@@ -218,7 +259,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
           <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
           {t.insight.annotationPrivateLabel}
         </label>
-        <Button size="sm" onClick={() => addMut.mutate()} disabled={!newText.trim() || addMut.isPending}>
+        <Button size="sm" onClick={() => addMut.mutate(newText.trim())} disabled={!newText.trim() || addMut.isPending}>
           {t.insight.annotationAddBtn}
         </Button>
       </div>
@@ -248,26 +289,80 @@ function CommentsTab({ docId }: { docId: string }) {
       const loaded = allPages.reduce((count, page) => count + page.comments.length, 0);
       return loaded < lastPage.total ? loaded : undefined;
     },
+    staleTime: 2 * 60_000,
   });
 
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["doc-comments", docId] });
 
   const addMut = useMutation({
-    mutationFn: () => createComment(docId, newBody.trim()),
-    onSuccess: () => { setNewBody(""); invalidate(); },
-    onError: () => showToast("error", t.insight.commentPostError),
+    mutationFn: (body: string) => createComment(docId, body),
+    onMutate: async (body) => {
+      await qc.cancelQueries({ queryKey: ["doc-comments", docId] });
+      const previous = qc.getQueryData<CommentListResponse>(["doc-comments", docId]);
+      const optimistic: Comment = {
+        id: `optimistic-${Date.now()}`,
+        doc_id: docId,
+        author_id: "current-user",
+        author_display_name: "Reader",
+        body,
+        created_at: new Date().toISOString(),
+        edited_at: null,
+        deleted_at: null,
+        can_edit: true,
+        can_delete: true,
+      };
+      qc.setQueryData<CommentListResponse>(["doc-comments", docId], (current) => ({
+        comments: [...(current?.comments ?? []), optimistic],
+        total: (current?.total ?? 0) + 1,
+      }));
+      setNewBody("");
+      return { previous };
+    },
+    onError: (_error, _body, context) => {
+      if (context?.previous) qc.setQueryData(["doc-comments", docId], context.previous);
+      showToast("error", t.insight.commentPostError);
+    },
+    onSettled: invalidate,
   });
 
   const editMut = useMutation({
-    mutationFn: () => updateComment(docId, editId!, editBody.trim()),
-    onSuccess: () => { setEditId(null); invalidate(); },
-    onError: () => showToast("error", t.insight.commentUpdateError),
+    mutationFn: (body: string) => updateComment(docId, editId!, body),
+    onMutate: async (body) => {
+      await qc.cancelQueries({ queryKey: ["doc-comments", docId] });
+      const previous = qc.getQueryData<CommentListResponse>(["doc-comments", docId]);
+      const editingId = editId;
+      qc.setQueryData<CommentListResponse>(["doc-comments", docId], (current) => ({
+        comments: (current?.comments ?? []).map((comment) => comment.id === editingId
+          ? { ...comment, body, edited_at: new Date().toISOString() }
+          : comment),
+        total: current?.total ?? 0,
+      }));
+      setEditId(null);
+      return { previous };
+    },
+    onError: (_error, _body, context) => {
+      if (context?.previous) qc.setQueryData(["doc-comments", docId], context.previous);
+      showToast("error", t.insight.commentUpdateError);
+    },
+    onSettled: invalidate,
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteComment(docId, id),
-    onSuccess: invalidate,
-    onError: () => showToast("error", t.insight.commentDeleteError),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ["doc-comments", docId] });
+      const previous = qc.getQueryData<CommentListResponse>(["doc-comments", docId]);
+      qc.setQueryData<CommentListResponse>(["doc-comments", docId], (current) => ({
+        comments: (current?.comments ?? []).filter((comment) => comment.id !== id),
+        total: Math.max((current?.total ?? 1) - 1, 0),
+      }));
+      return { previous };
+    },
+    onError: (_error, _id, context) => {
+      if (context?.previous) qc.setQueryData(["doc-comments", docId], context.previous);
+      showToast("error", t.insight.commentDeleteError);
+    },
+    onSettled: invalidate,
   });
 
   const activeComments = useMemo(
@@ -285,7 +380,7 @@ function CommentsTab({ docId }: { docId: string }) {
             {editId === c.id ? (
               <div className={styles.commentEditRow}>
                 <input className={styles.inlineInput} value={editBody} onChange={(e) => setEditBody(e.target.value)} aria-label={t.insight.commentEditLabel} />
-                <Button size="sm" onClick={() => editMut.mutate()} disabled={!editBody.trim() || editMut.isPending}>{t.insight.commentSaveBtn}</Button>
+                <Button size="sm" onClick={() => editMut.mutate(editBody.trim())} disabled={!editBody.trim() || editMut.isPending}>{t.insight.commentSaveBtn}</Button>
                 <Button size="sm" variant="secondary" onClick={() => setEditId(null)}>{t.insight.commentCancelBtn}</Button>
               </div>
             ) : (
@@ -328,7 +423,7 @@ function CommentsTab({ docId }: { docId: string }) {
           placeholder={t.insight.commentAddPlaceholder}
           aria-label={t.insight.commentNewLabel}
         />
-        <Button size="sm" onClick={() => addMut.mutate()} disabled={!newBody.trim() || addMut.isPending}>{t.insight.commentPostBtn}</Button>
+        <Button size="sm" onClick={() => addMut.mutate(newBody.trim())} disabled={!newBody.trim() || addMut.isPending}>{t.insight.commentPostBtn}</Button>
       </div>
     </div>
   );

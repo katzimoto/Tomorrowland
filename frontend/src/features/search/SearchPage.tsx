@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { search, type SearchFilters, type SearchMode } from "@/api/search";
+import { getPreview } from "@/api/documents";
 import { SearchInput } from "@/components/primitives/SearchInput";
 import { Button } from "@/components/primitives/Button";
 import { Dialog } from "@/components/primitives/Dialog";
@@ -25,6 +26,7 @@ export function SearchPage() {
   const routeSearch = useSearch({ from: "/app/search" });
   const navigate = useNavigate();
   const { show: showToast } = useToast();
+  const queryClient = useQueryClient();
 
   const MODES: { value: SearchMode; label: string }[] = [
     { value: "hybrid", label: t.search.modeHybrid },
@@ -69,14 +71,24 @@ export function SearchPage() {
     void navigate({ to: "/search", search: () => ({ q, mode: currentMode }) });
   }
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isFetching, isError } = useQuery({
     queryKey: ["search", submittedQuery, mode, filters],
     queryFn: () =>
       measurePerformance("search.request", () =>
         search(submittedQuery, mode, filters, 20),
       ),
     enabled: submittedQuery.trim().length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 45_000,
   });
+
+  function prefetchPreview(docId: string) {
+    void queryClient.prefetchQuery({
+      queryKey: ["doc-preview", docId, undefined],
+      queryFn: () => getPreview(docId),
+      staleTime: 2 * 60_000,
+    });
+  }
 
   useEffect(() => {
     if (isError) {
@@ -193,11 +205,11 @@ export function SearchPage() {
         <h1 className={styles.title}>{t.search.title}</h1>
         <div className={styles.searchRow}>
           <SearchInput
+            ref={searchInputRef}
             value={inputValue}
             onChange={setInputValue}
             onSubmit={() => submitSearch()}
             autoFocus
-            ref={searchInputRef}
           />
           <Button onClick={() => submitSearch()} disabled={!inputValue.trim()}>
             {t.search.button}
@@ -254,6 +266,7 @@ export function SearchPage() {
             role="listbox"
             aria-label={t.search.resultsLabel}
             aria-live="polite"
+            aria-busy={isFetching}
             aria-activedescendant={resultOptionId(selectedResult?.doc_id)}
             aria-describedby="search-keyboard-help"
             tabIndex={0}
@@ -263,6 +276,7 @@ export function SearchPage() {
               {t.search.keyboardHelp}
             </p>
             {isLoading && <SkeletonRow count={6} />}
+            {isFetching && !isLoading && <div className={styles.refreshing} role="status">Updating results…</div>}
 
             {isError && !isLoading && (
               <EmptyState
@@ -293,6 +307,7 @@ export function SearchPage() {
                 onSelect={() => setSelectedIndex(index)}
                 onPreview={() => setPreviewResult(result)}
                 onClick={() => openResult(result)}
+                onPrefetch={() => prefetchPreview(result.doc_id)}
               />
             ))}
           </div>
