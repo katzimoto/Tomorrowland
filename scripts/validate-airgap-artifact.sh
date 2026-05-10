@@ -5,23 +5,34 @@ log() { printf '[validate-airgap-artifact] %s\n' "$*"; }
 fail() { printf '[validate-airgap-artifact] ERROR: %s\n' "$*" >&2; exit 1; }
 usage() {
   cat <<'USAGE'
-Usage: scripts/validate-airgap-artifact.sh [--load-images] [artifact-directory]
+Usage: scripts/validate-airgap-artifact.sh [--load-images] [--model-bundle <path>] [artifact-directory]
 
 Validate an extracted Neverland air-gapped release artifact.
 Checks required files, checksums, compose rendering, forbidden build steps, and
 that every image referenced by docker-compose.airgap.yml exists in the offline
 Docker image bundle. With --load-images, also docker-loads the bundle and verifies
 image presence in the local Docker daemon.
+
+If --model-bundle is provided, NEVERLAND_OLLAMA_MODEL_BUNDLE is set, or a
+neverland-ollama-bundle-*.tar.gz archive is found next to the artifact, this
+script validates the model bundle manifest and checksums. If no model bundle is
+present, validation warns but does not fail the base platform artifact.
 USAGE
 }
 
 load_images=0
+model_bundle="${NEVERLAND_OLLAMA_MODEL_BUNDLE:-}"
 artifact_dir="$(pwd)"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --load-images)
       load_images=1
       shift
+      ;;
+    --model-bundle)
+      model_bundle="${2:-}"
+      [[ -n "$model_bundle" ]] || fail "--model-bundle requires a path"
+      shift 2
       ;;
     -h|--help)
       usage
@@ -37,6 +48,7 @@ done
 command -v docker >/dev/null 2>&1 || fail "docker with the Compose plugin is required"
 command -v tar >/dev/null 2>&1 || fail "tar is required"
 command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required"
+command -v python3 >/dev/null 2>&1 || fail "python3 is required"
 
 required_files=(
   "docker-compose.yml"
@@ -45,6 +57,8 @@ required_files=(
   "images/neverland-images.tar"
   "scripts/load-airgap-images.sh"
   "scripts/validate-airgap-artifact.sh"
+  "scripts/load-ollama-model-bundle.sh"
+  "scripts/validate-ollama-model.sh"
   "scripts/validate-translation-languages.sh"
   "scripts/preflight-upgrade-check.sh"
   "scripts/backup-airgap-data.sh"
@@ -57,7 +71,12 @@ required_files=(
   "checksums.txt"
 )
 
+if [[ -n "$model_bundle" ]]; then
+  [[ -f "$model_bundle" ]] || fail "model bundle archive not found: $model_bundle"
+  model_bundle="$(cd "$(dirname "$model_bundle")" && pwd)/$(basename "$model_bundle")"
+fi
 [[ -d "$artifact_dir" ]] || fail "artifact directory not found: $artifact_dir"
+artifact_dir="$(cd "$artifact_dir" && pwd)"
 cd "$artifact_dir"
 
 for file in "${required_files[@]}"; do
@@ -81,6 +100,71 @@ if grep -Eiq '(password|secret|token|private[_-]?key)[[:space:]]*=[[:space:]]*([
   fi
 fi
 log "Packaged environment template contains no obvious non-placeholder secrets"
+
+
+validate_model_bundle() {
+  local bundle_path="$1"
+  [[ -f "$bundle_path" ]] || fail "model bundle archive not found: $bundle_path"
+
+  local checksum_path="${bundle_path}.sha256"
+  if [[ -f "$checksum_path" ]]; then
+    log "Validating model bundle outer checksum: $checksum_path"
+    (cd "$(dirname "$bundle_path")" && sha256sum -c "$(basename "$checksum_path")" >/dev/null)
+  else
+    log "WARNING: model bundle checksum file is missing: $checksum_path"
+  fi
+
+  local bundle_tmp
+  bundle_tmp="$(mktemp -d)"
+  tar -xzf "$bundle_path" -C "$bundle_tmp"
+  mapfile -t bundle_roots < <(find "$bundle_tmp" -mindepth 1 -maxdepth 1 -type d | sort)
+  [[ "${#bundle_roots[@]}" -eq 1 ]] || fail "model bundle must contain exactly one top-level directory"
+  local bundle_root="${bundle_roots[0]}"
+
+  [[ -f "$bundle_root/model-manifest.json" ]] || fail "model bundle is missing model-manifest.json"
+  [[ -f "$bundle_root/checksums.txt" ]] || fail "model bundle is missing checksums.txt"
+  [[ -d "$bundle_root/models" ]] || fail "model bundle is missing models/"
+
+  (cd "$bundle_root" && sha256sum -c checksums.txt >/dev/null)
+
+  python3 - "$bundle_root/model-manifest.json" <<'PY_VALIDATE_MODEL_MANIFEST'
+from __future__ import annotations
+import json
+import sys
+from pathlib import Path
+manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+required = [
+    "bundle_version",
+    "neverland_release",
+    "created_at",
+    "requested_model",
+    "resolved_model",
+    "resolved_digest",
+    "ollama_runtime_image",
+    "ollama_runtime_version",
+    "expected_env",
+    "model_source",
+    "license",
+    "files",
+]
+missing = [key for key in required if key not in manifest or manifest[key] in (None, "")]
+license_data = manifest.get("license", {})
+license_required = ["name", "source_url", "attribution", "verification_status"]
+missing_license = [f"license.{key}" for key in license_required if key not in license_data]
+if manifest.get("resolved_digest") == "unknown":
+    missing.append("resolved_digest(non-unknown)")
+if license_data.get("verification_status") not in {"verified", "operator_required"}:
+    missing_license.append("license.verification_status(valid)")
+if not isinstance(manifest.get("files"), list) or not manifest["files"]:
+    missing.append("files(non-empty)")
+if missing or missing_license:
+    for key in missing + missing_license:
+        print(f"missing or invalid model manifest field: {key}", file=sys.stderr)
+    sys.exit(1)
+PY_VALIDATE_MODEL_MANIFEST
+  rm -rf "$bundle_tmp"
+  log "Ollama model bundle validation passed: $bundle_path"
+}
 
 tmp_dir="$(mktemp -d)"
 cleanup() { rm -rf "$tmp_dir"; }
@@ -123,6 +207,20 @@ while IFS= read -r image; do
 done < "$tmp_dir/compose-images.txt"
 [[ "$missing" -eq 0 ]] || fail "one or more compose images are missing from images/neverland-images.tar"
 log "Every compose image is present in the offline image bundle"
+
+if [[ -z "$model_bundle" ]]; then
+  search_parent="$(cd "$artifact_dir/.." && pwd)"
+  mapfile -t found_bundles < <(find "$artifact_dir" "$search_parent" -maxdepth 1 -type f -name 'neverland-ollama-bundle-*.tar.gz' 2>/dev/null | sort -u)
+  if [[ "${#found_bundles[@]}" -gt 0 ]]; then
+    model_bundle="${found_bundles[0]}"
+  fi
+fi
+
+if [[ -n "$model_bundle" ]]; then
+  validate_model_bundle "$model_bundle"
+else
+  log "WARNING: no Ollama model bundle found; base platform artifact remains valid, but local Q&A/RAG is degraded until a model bundle is loaded"
+fi
 
 if [[ "$load_images" -eq 1 ]]; then
   log "Loading image bundle into local Docker daemon for verification"

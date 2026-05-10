@@ -192,6 +192,8 @@ if [[ -n "$artifact_dir" && -d "$artifact_dir" ]]; then
     "images/neverland-images.tar"
     "scripts/load-airgap-images.sh"
     "scripts/validate-airgap-artifact.sh"
+    "scripts/load-ollama-model-bundle.sh"
+    "scripts/validate-ollama-model.sh"
     "checksums.txt"
     "release-manifest.json"
   )
