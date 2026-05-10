@@ -8,6 +8,7 @@ import {
   Bookmark,
   Settings,
   Shield,
+  Network,
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/subscriptions", label: "Subscriptions", icon: <Bookmark size={20} /> },
   { to: "/notifications", label: "Notifications", icon: <Bell size={20} /> },
   { to: "/history", label: "History", icon: <History size={20} /> },
+  { to: "/expertise", label: "Expertise", icon: <Network size={20} /> },
 ];
 
 const ADMIN_ITEM: NavItem = {

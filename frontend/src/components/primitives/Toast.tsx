@@ -28,7 +28,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ show }}>
       {children}
-      <div className={styles.region} aria-live="polite" aria-label="Notifications">
+      <div className={styles.region} role="region" aria-live="polite" aria-label="Notifications">
         {toasts.map((toast) => (
           <div key={toast.id} className={`${styles.toast} ${styles[toast.kind]}`} role="status">
             <span className={styles.icon} aria-hidden>

@@ -26,6 +26,7 @@ export function HistoryPage() {
     <div className={styles.page}>
       <header className={styles.header}>
         <h1 className={styles.title}>History</h1>
+        <p className={styles.privacy}>Activity visible only to you and admins.</p>
       </header>
       <div className={styles.body}>
         {isLoading && <p className={styles.muted}>Loading…</p>}

@@ -60,3 +60,4 @@
   .header { padding: var(--space-4) var(--page-padding-mobile); }
   .body { padding: var(--space-4) var(--page-padding-mobile); }
 }
+.privacy{margin:.25rem 0 0;color:var(--color-text-muted);font-size:var(--font-size-meta)}

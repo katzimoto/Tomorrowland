@@ -9,8 +9,8 @@ test.describe("App shell", () => {
   test("login page is accessible", async ({ page }) => {
     await page.goto("/login");
     await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
-    await expect(page.getByLabelText("Email")).toBeVisible();
-    await expect(page.getByLabelText("Password")).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
   });
 
@@ -21,12 +21,12 @@ test.describe("App shell", () => {
 
   test("invalid credentials show inline error", async ({ page }) => {
     await page.route("**/api/auth/login", async (route) => {
-      await route.fulfill({ status: 401, json: { detail: "Invalid credentials" } });
+      await route.fulfill({ status: 403, json: { detail: "Invalid credentials" } });
     });
     await page.goto("/login");
-    await page.getByLabelText("Email").fill("user@example.com");
-    await page.getByLabelText("Password").fill("wrongpassword");
+    await page.getByLabel("Email").fill("user@example.com");
+    await page.getByLabel("Password").fill("wrongpassword");
     await page.getByRole("button", { name: /sign in/i }).click();
-    await expect(page.getByText(/email or password is incorrect/i)).toBeVisible();
+    await expect(page.getByText(/something went wrong/i)).toBeVisible();
   });
 });

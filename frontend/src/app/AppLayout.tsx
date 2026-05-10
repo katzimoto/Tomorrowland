@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser } from "@/api/auth";
 import { listNotifications } from "@/api/notifications";
 import { AppShell } from "@/components/layout/AppShell";
+import { CommandMenu } from "@/components/feedback/CommandMenu";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { Skeleton } from "@/components/primitives/Skeleton";
 import styles from "./AppLayout.module.css";
@@ -18,6 +19,7 @@ export function AppLayout() {
     queryKey: ["notifications-unread"],
     queryFn: () => listNotifications(true),
     staleTime: 60_000,
+    refetchInterval: 60_000,
     retry: false,
   });
 
@@ -44,6 +46,7 @@ export function AppLayout() {
 
   return (
     <AppShell isAdmin={user?.is_admin ?? false} unreadCount={unreadNotifications?.length ?? 0}>
+      <CommandMenu />
       <Outlet />
     </AppShell>
   );

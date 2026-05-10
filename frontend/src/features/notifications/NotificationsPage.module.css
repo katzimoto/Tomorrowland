@@ -55,3 +55,4 @@
   .header { padding: var(--space-4) var(--page-padding-mobile); }
   .body { padding: var(--space-4) var(--page-padding-mobile); }
 }
+.groupTitle{font-size:1rem;margin:var(--space-4) 0 var(--space-2)}

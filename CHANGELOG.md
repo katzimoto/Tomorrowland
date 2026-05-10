@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Phase 08e UI collaboration and discovery: standalone comments and annotations panels, subscriptions with saved-search conversion, grouped notifications, private history note, neutral expertise map, Cmd/Ctrl+K command menu, and Playwright accessibility smoke coverage.
 - Phase 10b domain metrics: Prometheus counters, gauges, and histograms for authentication, authorization, admin actions, ingestion, pipeline stages, search, translation, intelligence, Ollama, RAG, preview, downloads, comments, annotations, subscriptions, and notifications.
 - Phase 10a metrics foundation: per-app Prometheus registry, `/metrics` endpoint, default process/GC metrics, `neverland_build_info`, HTTP request counters/histograms, exception metrics, route-template-safe labels, and `X-Request-ID` propagation.
 - Phase 08d: Document detail page — MIME-aware PreviewPane (11 typed renderers: Text, HTML with DOMParser XSS sanitization, Table, Archive, Email, Slides, Image, Unsupported, ExtractionFailed, FileMissing, LoadingTimeout), InsightPane tab architecture (Summary, Q&A, Related, Annotations, Comments, Subscriptions), DocumentToolbar (back button, title h1, TrustDisplay quality badge, TranslationVersionSelector, RequestTranslationDialog, download link), QA sub-components (QuestionInput, AnswerPanel, CitationCard, CitationList, QAPanel embeddable), and QAPage refactored to delegate entirely to QAPanel.
