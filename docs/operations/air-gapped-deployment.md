@@ -20,6 +20,8 @@ neverland-release-<version>/
   scripts/
     load-airgap-images.sh
     validate-airgap-artifact.sh
+    load-ollama-model-bundle.sh
+    validate-ollama-model.sh
     preflight-upgrade-check.sh
     backup-airgap-data.sh
     restore-airgap-data.sh
@@ -54,8 +56,18 @@ build from source.
    sha256sum -c neverland-release-<version>.tar.gz.sha256
    ```
 
-4. Copy the verified `.tar.gz` file to the air-gapped host using approved
-   removable media or an approved transfer gateway.
+4. For RC2 and later, also download the default Ollama model bundle release
+   asset and checksum, for example
+   `neverland-ollama-bundle-mistral-<version>.tar.gz` and
+   `neverland-ollama-bundle-mistral-<version>.tar.gz.sha256`.
+5. Verify the model bundle checksum before transfer:
+
+   ```bash
+   sha256sum -c neverland-ollama-bundle-mistral-<version>.tar.gz.sha256
+   ```
+
+6. Copy the verified platform archive and model bundle archive to the air-gapped
+   host using approved removable media or an approved transfer gateway.
 
 ## Host Prerequisites
 
@@ -90,10 +102,23 @@ sha256sum -c checksums.txt
 bash scripts/validate-airgap-artifact.sh .
 ```
 
-The validation script fails if required files are missing, checksums do not
-match, Compose cannot render the air-gapped file, a `build:` step appears in the
-air-gapped Compose path, or a referenced image is not present in
-`images/neverland-images.tar`.
+If the model bundle is in the same directory as the extracted artifact, or if you
+pass it explicitly, validation also checks its outer checksum when present,
+`model-manifest.json`, `checksums.txt`, model identity fields, and license/source
+metadata fields:
+
+```bash
+bash scripts/validate-airgap-artifact.sh \
+  --model-bundle ../neverland-ollama-bundle-mistral-<version>.tar.gz \
+  .
+```
+
+The validation script fails if required platform files are missing, checksums do
+not match, Compose cannot render the air-gapped file, a `build:` step appears in
+the air-gapped Compose path, or a referenced image is not present in
+`images/neverland-images.tar`. A missing Ollama model bundle is a warning only:
+the base platform artifact remains valid, but Q&A/RAG/local intelligence is
+degraded until the configured model is loaded.
 
 ## Load Images
 
@@ -114,6 +139,79 @@ You can also inspect the required image list:
 ```bash
 docker compose --env-file .env.airgap.example -f docker-compose.airgap.yml config --images
 ```
+
+## Ollama Model Bundle
+
+The RC2 release ships with a default Ollama model bundle as a separate release
+asset. Operators should transfer and load this bundle for offline Q&A/RAG support.
+The main platform can still start without the model, but the default RC2 release
+package includes the model bundle artifact and validation path.
+
+The bundle is separate from `neverland-release-<version>.tar.gz` because model
+weights are large, may require customer-specific approval, and may be replaced
+independently from the application images. The default bundle follows this naming
+pattern:
+
+```text
+neverland-ollama-bundle-mistral-<version>.tar.gz
+neverland-ollama-bundle-mistral-<version>.tar.gz.sha256
+```
+
+Each bundle contains a `models/` directory in Ollama's storage layout,
+`model-manifest.json`, `checksums.txt`, and `README-ollama-bundle.md`. The
+manifest records the requested model, resolved model/tag, resolved digest,
+Ollama runtime image/version, blob paths and SHA-256 checksums, model source, and
+license/source/attribution fields. If the manifest license status is
+`operator_required`, a release manager or operator must verify redistribution and
+source metadata before publishing or deploying the bundle.
+
+Load the bundle after images are loaded and before relying on Q&A/RAG:
+
+```bash
+bash scripts/load-ollama-model-bundle.sh \
+  --bundle ../neverland-ollama-bundle-mistral-<version>.tar.gz \
+  --compose-file docker-compose.airgap.yml \
+  --env-file .env
+```
+
+The load script extracts the bundle, verifies inner checksums, copies `models/`
+into the Compose `ollama_data` volume, and restarts only the `ollama` service if
+needed. It is non-destructive by default and does not run `docker compose down -v`.
+
+Validate that the configured model is available offline:
+
+```bash
+OLLAMA_URL=http://localhost:11434 \
+OLLAMA_MODEL=mistral \
+bash scripts/validate-ollama-model.sh
+```
+
+For an end-to-end local generation check, run:
+
+```bash
+OLLAMA_URL=http://localhost:11434 \
+OLLAMA_MODEL=mistral \
+bash scripts/validate-ollama-model.sh --smoke-test
+```
+
+The validation script checks `/api/tags` and never attempts to pull or download a
+model. In `--smoke-test` mode it sends a tiny local generation request and
+requires a non-empty response.
+
+If the model is absent, platform startup, login, ingestion, search,
+preview/download, permissions, and translation can still work. Features that call
+Ollama, including Q&A/RAG and summaries routed through the local model, should be
+treated as degraded until the model is loaded.
+
+To replace the default model, build or obtain an approved bundle for the
+replacement model, set `OLLAMA_MODEL` in `.env` to match the bundle manifest, load
+it with `scripts/load-ollama-model-bundle.sh`, and run
+`scripts/validate-ollama-model.sh`. Keep the previous bundle and volume backup
+until the replacement has passed validation.
+
+Reserve disk for both the compressed bundle and expanded Ollama blobs. The
+`mistral` bundle can require multiple gigabytes, and replacement models may be
+larger.
 
 ## Configure Environment
 
@@ -524,10 +622,11 @@ bundle. See `Host Prerequisites` above for overall disk guidance.
 
 ## Current Limitations
 
-- The default artifact does not include pre-downloaded Ollama model weights.
-  If the configured model is not already present in `ollama_data`, transfer an
-  approved model bundle separately or load it during a connected staging step
-  before moving the volume into the air-gapped environment.
+- Ollama model weights remain a separate release asset rather than being embedded
+  in the platform archive. The default RC2 release distribution includes the
+  platform artifact plus the default `mistral` model bundle, but operators may
+  omit or replace the bundle; local Q&A/RAG features are degraded until a matching
+  model is loaded into `ollama_data`.
 - Long-running worker containers are not part of the current Compose runtime.
 - NiFi event ingestion requires operator-provided drain invocation; no
   long-running worker container or live NiFi/Kafka CI validation is included.

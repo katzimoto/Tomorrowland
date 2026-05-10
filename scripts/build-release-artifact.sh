@@ -70,6 +70,8 @@ required_files=(
   ".env.airgap.example"
   "scripts/load-airgap-images.sh"
   "scripts/validate-airgap-artifact.sh"
+  "scripts/load-ollama-model-bundle.sh"
+  "scripts/validate-ollama-model.sh"
   "scripts/validate-translation-languages.sh"
   "scripts/preflight-upgrade-check.sh"
   "scripts/backup-airgap-data.sh"
@@ -129,6 +131,8 @@ sed \
   .env.airgap.example > "$release_dir/.env.airgap.example"
 cp scripts/load-airgap-images.sh "$release_dir/scripts/load-airgap-images.sh"
 cp scripts/validate-airgap-artifact.sh "$release_dir/scripts/validate-airgap-artifact.sh"
+cp scripts/load-ollama-model-bundle.sh "$release_dir/scripts/load-ollama-model-bundle.sh"
+cp scripts/validate-ollama-model.sh "$release_dir/scripts/validate-ollama-model.sh"
 cp scripts/validate-translation-languages.sh "$release_dir/scripts/validate-translation-languages.sh"
 cp scripts/preflight-upgrade-check.sh "$release_dir/scripts/preflight-upgrade-check.sh"
 cp scripts/backup-airgap-data.sh "$release_dir/scripts/backup-airgap-data.sh"
@@ -174,6 +178,9 @@ MANIFEST
   printf 'docker compose --env-file .env -f docker-compose.airgap.yml up -d\n'
   printf '\nUpgrade existing deployment from that deployment directory:\n'
   printf '../%s/scripts/upgrade-airgap.sh --artifact-dir ../%s\n' "$release_name" "$release_name"
+  printf '\nRC2 default model bundle (separate release asset):\n'
+  printf 'neverland-ollama-bundle-mistral-%s.tar.gz\n' "$safe_version"
+  printf 'Load with scripts/load-ollama-model-bundle.sh, then validate with scripts/validate-ollama-model.sh.\n'
 } > "$release_dir/README-airgap.txt"
 
 (
@@ -185,6 +192,8 @@ MANIFEST
     images/neverland-images.tar \
     scripts/load-airgap-images.sh \
     scripts/validate-airgap-artifact.sh \
+    scripts/load-ollama-model-bundle.sh \
+    scripts/validate-ollama-model.sh \
     scripts/validate-translation-languages.sh \
     scripts/preflight-upgrade-check.sh \
     scripts/backup-airgap-data.sh \

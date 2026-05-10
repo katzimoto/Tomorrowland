@@ -2,9 +2,9 @@
 
 ## Release identity
 
-- Version/tag: `1.0-rc1`.
+- Version/tag: `1.0-rc2`.
 - Commit SHA: `5685bcc58775e65052bce03c877c1b51855a22a3`.
-- Artifact: TBD from the release workflow.
+- Artifacts: platform archive plus default Ollama model bundle from the release workflow or release-manager build.
 - Validation: #91 accepted as **Ready with limitations**.
 - Branding: technical identifiers still use `neverland`; Tomorrowland visible branding/logo remains optional unless #103/#104 are merged before tagging.
 
@@ -20,10 +20,11 @@ This RC includes:
 - Large list and lazy panel performance improvements from #86.
 - Optional monitoring Compose profile from #64. Prometheus/Grafana are opt-in and not started by default.
 - Air-gapped translation language pack from #107 using `neverland/libretranslate:airgap`.
+- Default Ollama model bundle delivery path from #115, shipped as a separate release asset for offline Q&A/RAG support.
 
 ## Air-gapped install and upgrade
 
-After the release artifact is copied to the target environment, the target host should not need internet access to start the packaged stack. Images are loaded locally from the artifact.
+After the release artifacts are copied to the target environment, the target host should not need internet access to start the packaged stack. Images are loaded locally from the platform artifact. The RC2 release ships with a default Ollama model bundle as a separate release asset. Operators should transfer and load this bundle for offline Q&A/RAG support. The main platform can still start without the model, but the default RC2 release package includes the model bundle artifact and validation path.
 
 Upgrade notes:
 
@@ -32,8 +33,10 @@ Upgrade notes:
 - Run preflight before upgrade.
 - Create a backup before upgrade.
 - Load images from the local artifact bundle.
+- Verify and load `neverland-ollama-bundle-mistral-<version>.tar.gz` when offline Q&A/RAG/local intelligence is required.
 - Run migrations through the documented upgrade flow.
 - Validate health/readiness after startup.
+- Validate Ollama model availability with `scripts/validate-ollama-model.sh`; use `--smoke-test` for a tiny local generation check.
 
 Warning: never run `docker compose down -v` during upgrade.
 
@@ -42,6 +45,30 @@ Relevant guides:
 - `docs/operations/air-gapped-deployment.md`
 - `docs/operations/air-gapped-upgrade.md`
 - `docs/operations/production-compose.md`
+
+
+## RC2 Ollama model bundle
+
+Default RC2 release distribution means two release assets by default:
+
+- `neverland-release-<version>.tar.gz` and `.sha256` for the platform, runtime
+  images, Compose files, scripts, and docs.
+- `neverland-ollama-bundle-mistral-<version>.tar.gz` and `.sha256` for the
+  default `OLLAMA_MODEL=mistral` model weights.
+
+The model bundle remains separate from the platform artifact to keep platform
+updates smaller and to allow customer-approved replacement models. The bundle
+contains Ollama `models/` storage, `model-manifest.json`, `checksums.txt`, and a
+bundle README. Release managers must review the manifest fields for requested and
+resolved model identity, digest, runtime image/version, blob checksums, model
+source, and license/source/attribution metadata. If license verification is
+marked `operator_required`, approval is still a release/operator step and the
+release should not imply verified redistribution rights.
+
+Missing model bundle behavior is degraded rather than fatal: platform startup,
+login, ingestion, search, preview/download, permissions, and translation can
+still work, while Q&A/RAG/summaries that call Ollama may fail until the bundle is
+loaded and validated.
 
 ## Supported translation languages
 
@@ -100,6 +127,7 @@ Carry-forward validation facts:
 
 - #91 is **Ready with limitations**; final artifact validation should still be performed on a Docker-enabled build host and representative target host.
 - The bundled translation image/model pack should be verified in a connected build environment and then validated against a running service with `scripts/validate-translation-languages.sh`.
+- The default Ollama model bundle should be built on a connected release host with `OLLAMA_MODEL=mistral bash scripts/build-ollama-model-bundle.sh 1.0-rc2`, checksum-verified, and validated after loading with `scripts/validate-ollama-model.sh --smoke-test`.
 - Chinese Traditional (`zt`) is not supported in this RC.
 - Direct non-English translation pairs may pivot through English, which can reduce translation quality.
 - Translation worker architecture remains a follow-up area tracked by #110.
@@ -125,7 +153,7 @@ Carry-forward validation facts:
 
 Before cutting the RC tag, decide:
 
-- artifact name and checksum after release workflow output
+- platform artifact name/checksum and model bundle artifact name/checksum after release workflow output
 - whether optional open PRs #104, #97, #98, and #99 are excluded or promoted
 - whether the generated Tomorrowland logo is included now or left as a post-RC nice-to-have
 - final approval to cut the RC tag

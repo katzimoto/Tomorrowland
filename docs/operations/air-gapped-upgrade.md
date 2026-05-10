@@ -23,7 +23,9 @@ replace, delete, or recreate data volumes by default.**
   - the new image bundle,
   - a PostgreSQL dump,
   - a files volume archive,
-  - optional storage-level snapshots of Elasticsearch and Qdrant volumes.
+  - optional storage-level snapshots of Elasticsearch and Qdrant volumes,
+  - the compressed Ollama model bundle and expanded model blobs when replacing
+    the configured model.
 - A maintenance window. Database migrations run before the upgraded API starts.
 
 Do not perform the upgrade from inside a fresh artifact directory unless that is
@@ -72,6 +74,63 @@ at build time. When upgrading to a new release artifact:
   ```
 
 The scripts do not intentionally delete or recreate these volumes.
+
+## Ollama model bundle upgrade notes
+
+RC2 releases ship the default Ollama model as a separate release asset from the
+platform artifact. Reload the model bundle when any of these are true:
+
+- the deployment has no existing `ollama_data` model for the configured
+  `OLLAMA_MODEL`,
+- release notes instruct operators to use a new default model/digest,
+- the operator changes `OLLAMA_MODEL` in `.env`, or
+- the operator's model approval process requires replacing the existing bundle.
+
+If the existing model is already approved and the configured model name has not
+changed, you can verify it instead of reloading:
+
+```bash
+OLLAMA_URL=http://localhost:${OLLAMA_PORT:-11434} \
+OLLAMA_MODEL=${OLLAMA_MODEL:-mistral} \
+bash scripts/validate-ollama-model.sh
+```
+
+To replace or upgrade the model safely:
+
+1. Verify the transferred bundle checksum on the air-gapped host:
+
+   ```bash
+   sha256sum -c neverland-ollama-bundle-mistral-<version>.tar.gz.sha256
+   ```
+
+2. Review `model-manifest.json` after extracting or by validating the bundle;
+   confirm requested/resolved model, digest, runtime image/version, file
+   checksums, and license/source/attribution metadata.
+3. Set `OLLAMA_MODEL` in `.env` to the model recorded in the bundle manifest.
+4. Load the bundle into the existing deployment volume:
+
+   ```bash
+   bash ../neverland-release-<version>/scripts/load-ollama-model-bundle.sh \
+     --bundle ../neverland-ollama-bundle-mistral-<version>.tar.gz \
+     --compose-file docker-compose.airgap.yml \
+     --env-file .env
+   ```
+
+5. Validate availability, and optionally run a smoke test:
+
+   ```bash
+   OLLAMA_URL=http://localhost:${OLLAMA_PORT:-11434} \
+   OLLAMA_MODEL=${OLLAMA_MODEL:-mistral} \
+   bash ../neverland-release-<version>/scripts/validate-ollama-model.sh --smoke-test
+   ```
+
+The load script is intentionally non-destructive: it merges bundled `models/`
+files into `ollama_data`, stops/restarts only the Ollama service when needed, and
+never runs `docker compose down -v`. Do not delete or recreate `ollama_data`
+casually; it may contain an operator-approved model, locally cached blobs, or a
+previous working model needed for rollback. If you must remove obsolete model
+blobs later, do so only after backing up the volume and confirming the new model
+passes validation.
 
 ## What the backup script captures
 
@@ -254,7 +313,9 @@ Complete this checklist before declaring the upgrade successful:
 - Existing source connectors are visible.
 - At least one existing document can be searched.
 - At least one existing document can be previewed.
-- Q&A route responds if enabled.
+- Ollama model validation passes when Q&A/RAG/local intelligence is expected:
+  `OLLAMA_MODEL=${OLLAMA_MODEL:-mistral} bash scripts/validate-ollama-model.sh`.
+- Q&A route responds if enabled and the configured Ollama model is loaded.
 - Comments and annotations remain visible if present.
 - Subscriptions and notifications remain visible if present.
 - PostgreSQL is not unexpectedly empty.
@@ -312,6 +373,7 @@ directory for those volumes.
 | Checksum failure | Stop. Re-copy or re-download the artifact from the connected environment. |
 | Compose config contains `build:` | Stop. Use the air-gapped Compose file from the release artifact; do not build on the target host. |
 | Image missing after load | Stop. The artifact image bundle is incomplete or failed to load. |
+| Ollama model missing | Continue only if local Q&A/RAG degradation is acceptable; otherwise load the matching model bundle and run `scripts/validate-ollama-model.sh`. |
 | PostgreSQL dump fails | Stop. Do not upgrade without a successful database backup. |
 | Files archive fails | Stop. Do not upgrade without a successful files backup or equivalent storage snapshot. |
 | Migration fails | Stop. Do not start the upgraded API/frontend; restore from backup or investigate migration logs. |
