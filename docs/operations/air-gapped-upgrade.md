@@ -188,6 +188,9 @@ Run preflight from the existing deployment directory:
 ../tomorrowland-release-<version>/scripts/preflight-upgrade-check.sh --artifact-dir ../tomorrowland-release-<version>
 ```
 
+The `tomorrowland-airgap.sh upgrade` command also runs preflight automatically
+as the first step (see Upgrade command below).
+
 The preflight check is read-only. It validates the deployment directory, `.env`,
 Compose files, Docker Engine, Docker Compose plugin, current service state,
 current image tags, expected persistent volume names, configured folder-source
@@ -228,15 +231,30 @@ The upgrade orchestrator loads images automatically, but you can load them
 manually when validating an artifact:
 
 ```bash
-bash ../tomorrowland-release-<version>/scripts/load-airgap-images.sh ../tomorrowland-release-<version>
+cd ../tomorrowland-release-<version>
+./scripts/tomorrowland-airgap.sh load-images
 ```
 
-This uses only `images/tomorrowland-images.tar` from the release artifact. It does
-not pull from the internet and does not build images on the target host.
+This auto-detects split image parts beside the release directory or the legacy
+embedded `images/tomorrowland-images.tar`. It does not pull from the internet
+and does not build images on the target host. To specify a custom location for
+image parts:
+
+```bash
+./scripts/tomorrowland-airgap.sh load-images --image-parts-dir /media/usb/images
+```
 
 ## Upgrade command
 
-From the existing deployment directory:
+The primary upgrade command uses the wrapper script. Run from the **existing
+deployment directory** (not the new artifact directory):
+
+```bash
+../tomorrowland-release-<version>/scripts/tomorrowland-airgap.sh upgrade \
+  --artifact-dir ../tomorrowland-release-<version>
+```
+
+Or equivalently using the lower-level orchestrator directly:
 
 ```bash
 ../tomorrowland-release-<version>/scripts/upgrade-airgap.sh --artifact-dir ../tomorrowland-release-<version>
@@ -261,7 +279,8 @@ Use `--skip-backup` only when you have already created and verified an equivalen
 backup outside this script:
 
 ```bash
-../tomorrowland-release-<version>/scripts/upgrade-airgap.sh --artifact-dir ../tomorrowland-release-<version> --skip-backup
+../tomorrowland-release-<version>/scripts/tomorrowland-airgap.sh upgrade \
+  --artifact-dir ../tomorrowland-release-<version> --skip-backup
 ```
 
 ## Migration behavior

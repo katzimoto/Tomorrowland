@@ -124,7 +124,7 @@ done
 
 log "installing new Compose files and upgrade helper scripts from artifact without touching .env"
 mkdir -p scripts
-for helper in load-airgap-images.sh validate-airgap-artifact.sh load-ollama-model-bundle.sh validate-ollama-model.sh preflight-upgrade-check.sh backup-airgap-data.sh restore-airgap-data.sh upgrade-airgap.sh; do
+for helper in tomorrowland-airgap.sh load-airgap-images.sh validate-airgap-artifact.sh load-ollama-model-bundle.sh validate-ollama-model.sh preflight-upgrade-check.sh backup-airgap-data.sh restore-airgap-data.sh upgrade-airgap.sh; do
   [[ -f "$artifact_dir/scripts/$helper" ]] && cp "$artifact_dir/scripts/$helper" "scripts/$helper"
 done
 chmod +x scripts/*.sh

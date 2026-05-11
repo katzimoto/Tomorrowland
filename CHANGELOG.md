@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Simplified air-gapped release artifact operator flow. Adds `scripts/tomorrowland-airgap.sh`, a single operator-facing wrapper that supports `validate`, `validate --load-images`, `load-images`, `up`, `status`, `down`, `backup`, `upgrade`, and `help`. The wrapper auto-detects split image parts beside the platform archive (no manual reassembly), delegates to existing lower-level scripts, and hides internal plumbing from operators. The main platform archive remains small and excludes the Docker image tar in split mode; image parts are distributed beside it. Updated `build-release-artifact.sh`, `validate-airgap-artifact.sh`, and `upgrade-airgap.sh` to include the wrapper in the archive, require it in validation, and copy it on upgrade. Updated operator docs to a short copy-pasteable happy-path command sequence. Missing Ollama model bundle remains degraded-only, not a platform startup blocker.
+
 ### Fixed
 - Issue #114: Air-gapped LibreTranslate image build no longer fails with `ModuleNotFoundError: No module named 'argostranslate'`. `docker/libretranslate.Dockerfile` now installs pinned `argostranslate==1.9.6` into the system Python before running `install-translation-packs.py`, because the `libretranslate/libretranslate:v1.6.3` base image keeps its Python dependencies in a virtual environment that is not on the `python3` path when executing `RUN` commands as root.
 

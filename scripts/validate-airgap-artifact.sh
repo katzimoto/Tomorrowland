@@ -64,6 +64,7 @@ required_files=(
   "docker-compose.yml"
   "docker-compose.airgap.yml"
   ".env.airgap.example"
+  "scripts/tomorrowland-airgap.sh"
   "scripts/load-airgap-images.sh"
   "scripts/validate-airgap-artifact.sh"
   "scripts/load-ollama-model-bundle.sh"

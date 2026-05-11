@@ -75,6 +75,7 @@ required_files=(
   "docker-compose.yml"
   "docker-compose.airgap.yml"
   ".env.airgap.example"
+  "scripts/tomorrowland-airgap.sh"
   "scripts/load-airgap-images.sh"
   "scripts/validate-airgap-artifact.sh"
   "scripts/load-ollama-model-bundle.sh"
@@ -194,6 +195,7 @@ sed \
   -e "s|^TOMORROWLAND_BACKEND_IMAGE=.*|TOMORROWLAND_BACKEND_IMAGE=${backend_airgap_image}|" \
   -e "s|^TOMORROWLAND_FRONTEND_IMAGE=.*|TOMORROWLAND_FRONTEND_IMAGE=${frontend_airgap_image}|" \
   .env.airgap.example > "$release_dir/.env.airgap.example"
+cp scripts/tomorrowland-airgap.sh "$release_dir/scripts/tomorrowland-airgap.sh"
 cp scripts/load-airgap-images.sh "$release_dir/scripts/load-airgap-images.sh"
 cp scripts/validate-airgap-artifact.sh "$release_dir/scripts/validate-airgap-artifact.sh"
 cp scripts/load-ollama-model-bundle.sh "$release_dir/scripts/load-ollama-model-bundle.sh"
@@ -245,23 +247,36 @@ MANIFEST
 
 {
   printf 'Tomorrowland release artifact %s\n\n' "$version"
-  printf 'Images included in the offline Docker image bundle:\n'
-  printf -- '- %s\n' "${all_images[@]}"
+  printf 'Quick start (run from this directory after copying and editing .env):\n\n'
+  printf '  cp .env.airgap.example .env\n'
+  printf '  nano .env\n'
+  printf '  ./scripts/tomorrowland-airgap.sh validate --load-images\n'
+  printf '  ./scripts/tomorrowland-airgap.sh up\n'
   printf '\nImage bundle layout:\n'
   if [[ "$image_bundle_mode" == "split" ]]; then
-    printf 'The Docker image tar is distributed as split assets beside this archive:\n'
+    printf 'The Docker image bundle is distributed as split assets beside this archive.\n'
+    printf 'Verify and load them with the wrapper (no manual reassembly needed):\n'
+    printf '  sha256sum -c tomorrowland-images-%s.tar.parts.sha256\n' "$safe_version"
+    printf '  ./scripts/tomorrowland-airgap.sh load-images\n'
+    printf '\nSplit part files (required, beside the platform archive):\n'
     printf '  %s000, %s001, ...\n' "$image_parts_prefix" "$image_parts_prefix"
     printf '  tomorrowland-images-%s.tar.parts.sha256\n' "$safe_version"
   else
-    printf '  images/tomorrowland-images.tar\n'
+    printf '  images/tomorrowland-images.tar (embedded in this archive)\n'
+    printf '  ./scripts/tomorrowland-airgap.sh load-images\n'
   fi
-  printf '\nStart command:\n'
-  printf 'docker compose --env-file .env -f docker-compose.airgap.yml up -d\n'
-  printf '\nUpgrade existing deployment from that deployment directory:\n'
-  printf '../%s/scripts/upgrade-airgap.sh --artifact-dir ../%s\n' "$release_name" "$release_name"
-  printf '\nRC2 default model bundle (separate release asset):\n'
+  printf '\nImages included in the offline Docker image bundle:\n'
+  printf -- '- %s\n' "${all_images[@]}"
+  printf '\nUpgrade existing deployment (run from the existing deployment directory):\n'
+  printf '  ./scripts/tomorrowland-airgap.sh upgrade --artifact-dir ../%s\n' "$release_name"
+  printf '\nOther wrapper commands: validate, status, down, backup, help\n'
+  printf '\nRC2 default model bundle (separate optional release asset):\n'
   printf 'tomorrowland-ollama-bundle-mistral-%s.tar.gz\n' "$safe_version"
-  printf 'Load with scripts/load-ollama-model-bundle.sh, then validate with scripts/validate-ollama-model.sh.\n'
+  printf 'Missing model bundle is a warning only; platform starts without it but\n'
+  printf 'offline Q&A/RAG/local intelligence is degraded until a model is loaded.\n'
+  printf 'Load with: scripts/load-ollama-model-bundle.sh\n'
+  printf 'Validate with: scripts/validate-ollama-model.sh\n'
+  printf '\nNever run: docker compose down -v  (deletes persistent data volumes)\n'
 } > "$release_dir/README-airgap.txt"
 
 checksum_inputs=(
@@ -269,6 +284,7 @@ checksum_inputs=(
   docker-compose.airgap.yml
   .env.airgap.example
   images/README-images.txt
+  scripts/tomorrowland-airgap.sh
   scripts/load-airgap-images.sh
   scripts/validate-airgap-artifact.sh
   scripts/load-ollama-model-bundle.sh
