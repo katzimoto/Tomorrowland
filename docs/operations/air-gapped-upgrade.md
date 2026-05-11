@@ -77,8 +77,8 @@ The scripts do not intentionally delete or recreate these volumes.
 
 ## Ollama model bundle upgrade notes
 
-RC2 releases ship the default Ollama model as a separate release asset from the
-platform artifact. Reload the model bundle when any of these are true:
+Ollama model bundles are optional release assets separate from the platform
+archive. Reload the model bundle when any of these are true:
 
 - the deployment has no existing `ollama_data` model for the configured
   `OLLAMA_MODEL`,
@@ -401,8 +401,9 @@ directory for those volumes.
 ## Compatibility notes between versions
 
 - Upgrade only with release artifacts that include `release-manifest.json`,
-  `docker-compose.airgap.yml`, `images/tomorrowland-images.tar`, checksums, and the
-  upgrade scripts.
+  `docker-compose.airgap.yml`, checksums, upgrade scripts, and either split
+  `tomorrowland-images-<version>.tar.part-*` files or the legacy embedded
+  `images/tomorrowland-images.tar`.
 - Review `release-manifest.json` before upgrade. Confirm the expected release
   version, commit SHA, Compose files, minimum Docker and Compose versions,
   migration expectation, persistent volumes, and backup/restore script version.

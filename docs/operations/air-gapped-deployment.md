@@ -56,6 +56,7 @@ nano .env   # replace every change-me-* placeholder
 
 # Start the stack
 ./scripts/tomorrowland-airgap.sh up
+./scripts/tomorrowland-airgap.sh status
 ```
 
 ## Artifact layout
@@ -198,6 +199,7 @@ Run validation and image loading together using the wrapper:
 ```
 
 This command:
+
 - validates the platform archive structure after extraction
 - verifies `docker-compose.airgap.yml` has no `build:` stanzas
 - verifies all required scripts, docs, and environment files are present
@@ -260,10 +262,11 @@ in `.env`.
 
 ## Ollama model bundle
 
-The RC2 release ships with a default Ollama model bundle as a separate release
-asset. Operators should transfer and load this bundle for offline Q&A/RAG
-support. The main platform can still start without the model, but the default
-RC2 release package includes the model bundle artifact and validation path.
+Some releases may ship an Ollama model bundle as a separate optional release
+asset. Operators should transfer and load an approved bundle when offline
+Q&A/RAG/local intelligence is required. The main platform can start without the
+model bundle; treat those model-backed features as degraded until a bundle is
+loaded and validated.
 
 The bundle is separate from the platform archive because model weights are
 large, may require customer-specific approval, and may be replaced
@@ -530,8 +533,9 @@ After the stack is healthy:
 ## Upgrade existing deployments
 
 For an existing air-gapped deployment, do not reinstall from scratch and do not
-recreate volumes. Follow `docs/air-gapped-upgrade.md` from the release artifact.
-The upgrade flow preserves `.env`, backs up PostgreSQL and files, loads images
+recreate volumes. Follow `docs/operations/air-gapped-upgrade.md` in the repository, or
+`docs/air-gapped-upgrade.md` inside an extracted release artifact. The upgrade
+flow preserves `.env`, backs up PostgreSQL and files, loads images
 from the local artifact, runs migrations, and warns against
 `docker compose down -v`.
 
@@ -542,7 +546,9 @@ Primary upgrade command (run from the existing deployment directory):
   --artifact-dir ../tomorrowland-release-<version>
 ```
 
-See `docs/operations/air-gapped-upgrade.md` for the full upgrade procedure.
+See `docs/operations/air-gapped-upgrade.md` in the repository, or
+`docs/air-gapped-upgrade.md` inside an extracted release artifact, for the full
+upgrade procedure.
 
 ## Stop, backup, and restore
 
@@ -567,7 +573,8 @@ Back up `postgres_data`, `files_data`, `elasticsearch_data`, and `qdrant_data`
 together while the stack is stopped, or from a storage snapshot that captures
 them at the same point in time. Keep a logical PostgreSQL dump with volume
 backups when possible. For upgrades, prefer `scripts/backup-airgap-data.sh` and
-`scripts/restore-airgap-data.sh`; see `docs/air-gapped-upgrade.md`.
+`scripts/restore-airgap-data.sh`; see `docs/operations/air-gapped-upgrade.md` in the repository or
+`docs/air-gapped-upgrade.md` inside an extracted release artifact.
 
 Restore all consistency-sensitive volumes from the same backup set. Do not mix a
 PostgreSQL backup from one point in time with Elasticsearch or Qdrant indexes
@@ -651,10 +658,9 @@ or marked unavailable by the application.
 ## Current limitations
 
 - Ollama model weights remain a separate release asset rather than being
-  embedded in the platform archive. The default RC2 release distribution
-  includes the platform artifact plus the default `mistral` model bundle, but
-  operators may omit or replace the bundle; local Q&A/RAG features are degraded
-  until a matching model is loaded into `ollama_data`.
+  embedded in the platform archive. Model bundles are optional add-on artifacts. Operators may omit or replace the
+  default `mistral` bundle; local Q&A/RAG features are degraded until a matching
+  model is loaded into `ollama_data`.
 - Long-running worker containers are not part of the current Compose runtime.
 - NiFi event ingestion requires operator-provided drain invocation; no
   long-running worker container or live NiFi/Kafka CI validation is included.

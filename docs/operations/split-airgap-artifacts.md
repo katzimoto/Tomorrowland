@@ -51,13 +51,13 @@ Then extract and validate:
 ```bash
 tar xzf tomorrowland-release-<version>.tar.gz
 cd tomorrowland-release-<version>
-bash scripts/validate-airgap-artifact.sh --load-images .
+./scripts/tomorrowland-airgap.sh validate --load-images
 ```
 
-The validation script automatically looks for split image parts in the parent directory. Use `--image-parts-dir <dir>` if the parts are somewhere else:
+The wrapper automatically looks for split image parts in the parent directory. Use `--image-parts-dir <dir>` if the parts are somewhere else:
 
 ```bash
-bash scripts/validate-airgap-artifact.sh --load-images --image-parts-dir /path/to/parts .
+./scripts/tomorrowland-airgap.sh validate --load-images --image-parts-dir /path/to/parts
 ```
 
 ## Load images
@@ -70,13 +70,13 @@ The loader supports both layouts:
 To load images from the default layout:
 
 ```bash
-bash scripts/load-airgap-images.sh .
+./scripts/tomorrowland-airgap.sh load-images
 ```
 
 To load image parts from another directory:
 
 ```bash
-bash scripts/load-airgap-images.sh --image-parts-dir /path/to/parts .
+./scripts/tomorrowland-airgap.sh load-images --image-parts-dir /path/to/parts
 ```
 
 For split assets, the loader streams the ordered parts into `docker load`. It does not require runtime internet access and it does not run Docker builds on the air-gapped host.
