@@ -122,7 +122,8 @@ def test_domain_metrics_increment_success_paths_with_low_cardinality_labels() ->
 
     assert 'tomorrowland_auth_login_attempts_total{outcome="success",provider="local"} 1.0' in text
     assert (
-        'tomorrowland_ingestion_documents_total{connector_type="folder",outcome="success"} 1.0' in text
+        'tomorrowland_ingestion_documents_total{connector_type="folder",outcome="success"} 1.0'
+        in text
     )
     assert 'tomorrowland_pipeline_chunks_total{outcome="success"} 3.0' in text
     assert "tomorrowland_dlq_pending 2.0" in text
