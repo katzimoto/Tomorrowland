@@ -1,103 +1,177 @@
-# tomorrowland
+# Tomorrowland
 
 Tomorrowland is a local-first knowledge intelligence system for private document
-corpora. The canonical product spec is `spec-v4.pdf`.
+corpora. It indexes files and enterprise sources into a private search workspace
+with previews, permissions, translation, collaboration, and optional local
+LLM-powered intelligence. It is designed to run without runtime internet access
+when installed from the air-gapped release artifacts.
 
-## How To Run
+Canonical requirements live in `spec.md` and `spec-v4.pdf`; operational guidance
+lives under `docs/`.
 
-Tomorrowland includes a production-style Docker Compose runtime. It starts the API,
-frontend container, migration job, and required infrastructure as separate
-services.
+## What it is
 
-1. Copy the environment template:
+- A private document discovery platform for local and air-gapped environments.
+- A Docker Compose application with FastAPI, React, PostgreSQL, Elasticsearch,
+  Qdrant, Kafka-compatible event plumbing, LibreTranslate, and optional Ollama.
+- A release artifact workflow that separates a small platform archive from large
+  split Docker image parts and optional model bundles.
 
-   ```bash
-   cp .env.example .env
-   ```
+## Key capabilities
 
-2. Edit `.env` before using real data. At minimum, change:
+- Hybrid keyword/vector search with permission filtering.
+- Document preview, safe download paths, comments, annotations, subscriptions,
+  related documents, and expertise evidence.
+- Local users/groups with LDAP integration boundaries.
+- Translation through a bundled LibreTranslate image for supported languages.
+- Optional local Q&A/RAG and intelligence features when an approved Ollama model
+  bundle is loaded.
+- Admin source management for supported connectors.
 
-   - `POSTGRES_PASSWORD`
-   - `POSTGRES_URL` so it uses the same password
-   - `JWT_SECRET`
+## Quick start
 
-3. Start the local product:
+Run this from the repository root for a connected development or evaluation
+machine:
 
-   ```bash
-   docker compose up --build
-   ```
+```bash
+cp .env.example .env
+# Edit .env: set POSTGRES_PASSWORD, POSTGRES_URL, JWT_SECRET, and any local ports.
+docker compose up --build
+```
 
-4. Open the runtime:
+Open:
 
-   - Frontend: `http://localhost:8080`
-   - API health: `http://localhost:8000/health`
-   - Frontend health: `http://localhost:8080/health`
+- Frontend: <http://localhost:8080>
+- API health: <http://localhost:8000/health>
+- Frontend health: <http://localhost:8080/health>
 
-Useful commands:
+Useful non-destructive commands:
 
 ```bash
 docker compose config
 docker compose run --rm migrate
 docker compose logs -f api frontend migrate
 docker compose down
-# Destructive reset only; never use during upgrades because it deletes volumes.
-docker compose down -v
 ```
 
-See `docs/operations/production-compose.md` for the full operations guide,
-including service layout, annotated environment variables, reset behavior,
-backup and restore guidance, health checks, troubleshooting, and current
-limitations.
+> **Never use `docker compose down -v` for upgrades.** The `-v` flag deletes
+> persistent product data volumes.
 
-## Air-Gapped Release Artifact
+See [`docs/operations/production-compose.md`](docs/operations/production-compose.md)
+for production-style Compose operations.
 
-Tomorrowland also publishes a versioned release archive for offline Compose
-deployments. The archive includes prebuilt first-party images, required
-third-party runtime images, an air-gapped Compose file with no build steps, an
-operator `.env` template, validation/loading scripts, checksums, and deployment
-documentation.
+## Air-gapped deployment
 
-Connected release operator flow:
+Use the air-gapped release when the target host cannot reach the internet at
+runtime. The preferred operator entrypoint is:
 
 ```bash
-# Download tomorrowland-release-<version>.tar.gz and its .sha256 from GitHub
+./scripts/tomorrowland-airgap.sh
+```
+
+Required release files:
+
+```text
+tomorrowland-release-<version>.tar.gz              platform archive
+tomorrowland-release-<version>.tar.gz.sha256
+tomorrowland-images-<version>.tar.part-*           split Docker image parts
+tomorrowland-images-<version>.tar.parts.sha256
+```
+
+Optional release files:
+
+```text
+tomorrowland-ollama-bundle-<model>-<version>.tar.gz
+tomorrowland-ollama-bundle-<model>-<version>.tar.gz.sha256
+```
+
+Run this from the directory containing the downloaded release files:
+
+```bash
 sha256sum -c tomorrowland-release-<version>.tar.gz.sha256
-```
+sha256sum -c tomorrowland-images-<version>.tar.parts.sha256
 
-Air-gapped host flow:
-
-```bash
 tar xzf tomorrowland-release-<version>.tar.gz
 cd tomorrowland-release-<version>
-bash scripts/validate-airgap-artifact.sh .
-bash scripts/load-airgap-images.sh .
+
 cp .env.airgap.example .env
-# edit .env secrets, ports, storage paths, LDAP, and connector mount settings
-docker compose --env-file .env -f docker-compose.airgap.yml up -d
+nano .env
+
+./scripts/tomorrowland-airgap.sh validate --load-images
+./scripts/tomorrowland-airgap.sh up
+./scripts/tomorrowland-airgap.sh status
 ```
 
-See `docs/operations/air-gapped-deployment.md` for the complete
-download-to-first-use guide, including folder, Atlassian, SMB, and NiFi
-event-ingestion setup, local users/groups, LDAP, health checks, backup,
-restore, and current limitations. For existing offline
-deployments, follow `docs/operations/air-gapped-upgrade.md` to load a newer
-release, run migrations, and preserve data volumes.
+For the complete offline install guide, read
+[`README-airgap.md`](README-airgap.md) first, then
+[`docs/operations/air-gapped-deployment.md`](docs/operations/air-gapped-deployment.md).
 
-## NiFi Event Ingestion
+## Upgrade without data loss
 
-Tomorrowland includes a release-usable, bounded NiFi Kafka drain for deployments
-that already provide NiFi-produced Kafka events. Events are validated, normalized
-into `nifi` documents tied to `ingestion_sources`, processed by the standard
-pipeline, and routed to DLQ on terminal failures. The repository tests this path
-with fakes only; there is no live NiFi/Kafka CI dependency and no dedicated
-long-running worker container in this phase. See
-`docs/operations/production-compose.md` for the required event envelope, staged
-file requirements, DLQ behavior, offset semantics, and current limitations.
+Air-gapped upgrades preserve `.env` and persistent Docker volumes. Always back up
+first, load images from local artifacts only, run the documented migration path,
+and validate after startup.
 
-## Host-Mounted SMB Shares
+Run this from the existing deployment directory, not from the new artifact:
 
-Operators who already mount Windows/SMB shares on the Docker host can expose the
-mounted path to Tomorrowland as a read-only bind mount and ingest it with the
-existing `folder` connector. See `docs/operations/production-compose.md` for the
-host-mounted SMB guide, including CIFS mount examples, read-only service-account
-guidance, the container path to use in the `folder` source, and upgrade notes.
+```bash
+./scripts/tomorrowland-airgap.sh upgrade \
+  --artifact-dir ../tomorrowland-release-<version>
+```
+
+Read [`docs/operations/air-gapped-upgrade.md`](docs/operations/air-gapped-upgrade.md)
+before upgrading.
+
+## Supported connectors
+
+Current operator-facing source paths include:
+
+- Folder sources from host-mounted paths.
+- Host-mounted SMB/CIFS shares exposed as read-only folder sources.
+- Confluence Server/Data Center polling sources.
+- Jira Server/Data Center polling sources.
+- NiFi-produced Kafka event ingestion for deployments that already provide the
+  event stream and staged files.
+
+Some connector hardening remains intentionally optional or deferred, including
+native NTFS ACL sync and optional Atlassian permission hardening.
+
+## Release artifacts
+
+Terminology used across the docs:
+
+| Term | Meaning |
+| --- | --- |
+| Platform archive | Small `tomorrowland-release-<version>.tar.gz` archive containing Compose files, env templates, docs, scripts, manifests, and checksums. |
+| Image parts | Required `tomorrowland-images-<version>.tar.part-*` files. The wrapper streams them into Docker; operators do not manually concatenate them. |
+| Optional model bundle | Optional `tomorrowland-ollama-bundle-<model>-<version>.tar.gz` with Ollama model weights. Needed for offline Q&A/RAG/local intelligence, not for platform startup. |
+| Legacy names | Earlier `neverland-*` release asset names may appear in historical notes only. `tomorrowland-*` is canonical for new operator-facing examples. |
+
+Future OCR or additional model packs should remain optional add-on artifacts
+unless release notes explicitly say otherwise.
+
+## Development setup
+
+- Backend: Python 3.11+, FastAPI, SQLAlchemy, PostgreSQL, Elasticsearch, Qdrant.
+- Frontend: React 19, TypeScript, Vite in `frontend/`.
+- Start with [`docs/development/local-dev.md`](docs/development/local-dev.md).
+- Test commands are summarized in [`docs/development/testing.md`](docs/development/testing.md).
+
+## Documentation index
+
+Start with [`docs/README.md`](docs/README.md), which routes by audience:
+
+- Operators: deployment, upgrade, production Compose, release notes.
+- Developers: local development, testing, architecture overview.
+- Agents: issue-first context loading, token efficiency, and handoff templates.
+
+## Security and data-safety notes
+
+- Keep real secrets out of release artifacts, docs, screenshots, and source
+  control. `.env.airgap.example` contains placeholders only.
+- Preserve `.env`, named volumes, and host-mounted source paths across upgrades.
+- Do not assume runtime internet exists in air-gapped mode; validate that images
+  and optional model bundles are already loaded locally.
+- Use source grants and groups for Tomorrowland authorization. Host-mounted SMB
+  service accounts control what files are visible to ingestion, not per-user UI
+  access after ingestion.
