@@ -12,7 +12,7 @@ export const LANGUAGES: { value: Language; label: string }[] = [
   { value: "he", label: "עברית" },
 ];
 
-const STORAGE_KEY = "neverland_lang";
+const STORAGE_KEY = "tomorrowland_lang";
 
 export function getInitialLanguage(): Language {
   try {
