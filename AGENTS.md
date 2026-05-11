@@ -174,42 +174,59 @@ For release blockers, include:
 After merge, move/recreate the release tag and rerun the Release Artifact workflow.
 ```
 
-## Current release queue
+## Current release and work queue
 
-Work from GitHub Issues first. Pick the highest-priority open issue whose
-relationships do not block implementation. If an issue has a planning request for
-Claude, do not implement until the plan is posted or the user explicitly says to
-proceed.
+Work from GitHub Issues first. Live issue and PR state overrides this table. Before
+starting work, check open PRs and recent merges so agents do not reclaim completed
+or superseded work.
 
-### Release-critical path
+### Active coordination and release blockers
 
-| Priority | Issue | Owner fit | Status note |
+| Priority | Issue / PR | Owner fit | Status note |
 |---|---|---|---|
-| 1 | #83 Hebrew and English UI Localization | Claude implementation, Codex fixups | Release-target UI requirement. |
-| 2 | #75 Air-Gapped Upgrade Without Data Loss | Claude plan, Codex implementation, Claude review | Safety-sensitive; wait for plan before implementation. |
-| 3 | #65 NiFi Event Integration and Kafka Consumer Wiring | Claude plan, Codex implementation | Release-target connector work; no live NiFi/Kafka in CI. |
-| 4 | #79 NTFS ACL Permission Sync for SMB Sources | Claude security plan/review, narrow Codex implementation | Security-sensitive; disabled by default and fail-closed. |
-| 5 | #84 Frontend Perceived Performance Polish | Claude or Codex | Parallel-safe frontend polish. |
-| 6 | #85 Search Workflow Keyboard and Quick Preview | Claude or Codex | Parallel-safe frontend workflow polish. |
-| 7 | #86 Large List and Lazy Panel Performance | Claude or Codex | Parallel-safe frontend rendering polish. |
-| 8 | #87 Admin Source Sync Usability Polish | Claude or Codex | May touch frontend and small admin API paths. |
-| 9 | #88 Frontend User Performance Telemetry | Claude or Codex | Privacy-safe local timing instrumentation. |
-| 10 | #89 Agent Docs and Release Queue Efficiency Refresh | Claude or human | Docs-only coordination cleanup. |
+| 1 | #114 Release: Cut 1.0-rc1 and publish air-gapped artifact | Human release owner, Codex/Claude only for targeted fixes | Keep open until assets, checksums, validation result, and final release URL are posted. Do not close based on build-script readiness alone. |
+| 2 | #134 Current State Polish and Integration Sweep | Codex or Claude docs/coordination | Docs-only queue/status sweep. Do not implement feature work in this pass. |
+| 3 | #133 Cyber-style blue bicycle Tomorrowland logo | Codex implementation or Claude UX review | Scoped branding asset replacement only. Do not redesign the app shell or navigation. |
+| 4 | #87 / PR #99 Admin Source Sync Usability Polish | Codex implementation, Claude review if API/migration changes remain | PR #99 is useful but conflict-prone; rebase or split from current `main` before review. |
+| 5 | #84 Frontend Perceived Performance Polish | Claude or Codex | Parallel-safe frontend polish. Keep separate from logo, admin-source polish, and release/docs cleanup. |
+| 6 | #85 Search Workflow Keyboard and Quick Preview | Claude or Codex | Parallel-safe frontend workflow polish. Do not change backend search/ranking/permissions. |
+| 7 | #79 NTFS ACL Permission Sync for SMB Sources | Claude security plan/review, narrow Codex implementation | Security-sensitive and still conservative by default. Do not start from stale PR #100 without a fresh security review and rebase. |
 
-### Optional or deferred before release candidate
+### Planning / next-release candidates
+
+| Issue | Status guidance |
+|---|---|
+| #120 Offline OCR with Fast and Slow Extraction Tiers | Epic for a later release. Start with #121 planning before production code. |
+| #121 OCR Engine and Air-Gapped Packaging Plan | Planning-only; no product code. |
+| #123 OCR Fast-Path Candidate Detection | Can follow #121 or be designed in parallel, but must not pull in the OCR engine. |
+| #124 OCR Slow Worker and Re-Index Flow | Depends on #121 and #123. |
+| #125 OCR Operator Docs and Air-Gapped Validation | Depends on the engine/package plan. |
+| #110 Improve Translation Worker Architecture | Post-RC hardening; keep separate from translation-engine replacement. |
+| #118 Evaluate Replacing Argos with a Higher-Quality Offline Translation Engine | Planning/research first; do not change the production default before review. |
+| #111 Evaluate SQLModel for Bounded Backend Models | Architecture decision/pilot only; do not rewrite existing repositories broadly. |
+
+### Optional or deferred work
 
 | Issue | Status guidance |
 |---|---|
 | #63 Structured Logs and Tracing Hooks | Useful ops polish; not a release blocker unless requested. |
-| #64 Optional Monitoring Compose Profile | Enterprise polish; can follow release candidate. |
-| #58 Legacy Office Format Extraction | Do before release only if `.doc`, `.xls`, `.ppt` corpora are required. |
+| #58 Legacy Office Format Extraction | Do before a release only if `.doc`, `.xls`, `.ppt` corpora are required. |
 | #66 Optional Atlassian Permission Hardening | Decision-gated; may close with no code if not required now. |
 | #67 Worker Observability | Deferred until long-running worker entrypoints exist. |
 
-### Recently completed release-hygiene work
+### Recently completed or superseded work
 
 Do not reclaim these unless a new regression issue is opened:
 
+- #83 Hebrew and English UI Localization — done.
+- #75 Air-Gapped Upgrade Without Data Loss — implemented through the current air-gapped upgrade/operator flow.
+- #65 NiFi Event Integration and Kafka Consumer Wiring — done via #102.
+- #86 Large List and Lazy Panel Performance — done via #106.
+- #88 Frontend User Performance Telemetry — done.
+- #103 Product Branding Rename — completed by #129; PR #104 should be closed or reduced to any unique leftover after verification.
+- #127 Split Air-Gapped Release Artifact into Image Bundle Parts — implemented by #128 and simplified by #131/#132.
+- #64 Optional Monitoring Compose Profile — done via #105.
+- #89 Agent Docs and Release Queue Efficiency Refresh — superseded by #130 and #134.
 - #60 Admin readiness endpoint — done.
 - #61 UI collaboration and discovery — done via #81; #72 was superseded.
 - #77 SMB Source Connector MVP — done via #80.
