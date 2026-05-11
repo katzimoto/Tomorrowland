@@ -11,8 +11,11 @@ Build first-party Neverland images, pull third-party runtime images, save an
 offline Docker image bundle, and package a versioned air-gapped release archive.
 
 Environment:
-  RELEASE_DIST_DIR   Output directory for release folders and archives (default: dist)
-  SKIP_DOCKER_BUILD  Set to 1 to skip docker build/pull/save for static packaging tests
+  RELEASE_DIST_DIR     Output directory for release folders and archives (default: dist)
+  SKIP_DOCKER_BUILD    Set to 1 to skip docker build/pull/save for static packaging tests
+  SPLIT_IMAGE_BUNDLE   Set to 0 to embed images/neverland-images.tar in the archive.
+                       Defaults to 1 so GitHub Release assets stay under per-file limits.
+  IMAGE_PART_SIZE      Split size passed to split -b (default: 1900m)
 USAGE
 }
 
@@ -40,6 +43,10 @@ dist_dir="${RELEASE_DIST_DIR:-dist}"
 release_name="neverland-release-${safe_version}"
 release_dir="${dist_dir}/${release_name}"
 archive_path="${dist_dir}/${release_name}.tar.gz"
+split_image_bundle="${SPLIT_IMAGE_BUNDLE:-1}"
+image_part_size="${IMAGE_PART_SIZE:-1900m}"
+image_parts_prefix="neverland-images-${safe_version}.tar.part-"
+image_parts_sha="${dist_dir}/neverland-images-${safe_version}.tar.parts.sha256"
 
 backend_version_image="neverland/backend:${safe_version}"
 frontend_version_image="neverland/frontend:${safe_version}"
@@ -80,13 +87,27 @@ required_files=(
   "docs/operations/air-gapped-deployment.md"
   "docs/operations/air-gapped-upgrade.md"
   "docs/operations/production-compose.md"
+  "docs/operations/split-airgap-artifacts.md"
 )
 for file in "${required_files[@]}"; do
   [[ -f "$file" ]] || fail "required packaging input is missing: $file"
 done
 
-rm -rf "$release_dir" "$archive_path"
-mkdir -p "$release_dir/images" "$release_dir/scripts" "$release_dir/docs"
+rm -rf "$release_dir" "$archive_path" "${archive_path}.sha256" "${dist_dir}/${image_parts_prefix}"* "$image_parts_sha"
+mkdir -p "$release_dir/images" "$release_dir/scripts" "$release_dir/docs" "$dist_dir"
+
+image_bundle_mode="embedded"
+image_bundle_path="images/neverland-images.tar"
+tmp_image_tar=""
+if [[ "$split_image_bundle" == "1" ]]; then
+  image_bundle_mode="split"
+  image_bundle_path="../${image_parts_prefix}*"
+  tmp_image_tar="$(mktemp "${TMPDIR:-/tmp}/neverland-images-${safe_version}.XXXXXX.tar")"
+  cleanup_tmp_image_tar() { rm -f "$tmp_image_tar"; }
+  trap cleanup_tmp_image_tar EXIT
+else
+  tmp_image_tar="$release_dir/images/neverland-images.tar"
+fi
 
 if [[ "${SKIP_DOCKER_BUILD:-0}" != "1" ]]; then
   command -v docker >/dev/null 2>&1 || fail "docker is required unless SKIP_DOCKER_BUILD=1"
@@ -116,10 +137,54 @@ if [[ "${SKIP_DOCKER_BUILD:-0}" != "1" ]]; then
   done
 
   log "Saving offline image bundle"
-  docker save -o "$release_dir/images/neverland-images.tar" "${all_images[@]}"
+  docker save -o "$tmp_image_tar" "${all_images[@]}"
 else
   log "SKIP_DOCKER_BUILD=1 set; writing placeholder image bundle for static packaging only"
-  printf 'placeholder; not a docker image bundle\n' > "$release_dir/images/neverland-images.tar"
+  printf 'placeholder; not a docker image bundle\n' > "$tmp_image_tar"
+fi
+
+if [[ "$image_bundle_mode" == "split" ]]; then
+  command -v split >/dev/null 2>&1 || fail "split is required when SPLIT_IMAGE_BUNDLE=1"
+  log "Splitting offline image bundle into ${image_part_size} parts"
+  split -b "$image_part_size" -d -a 3 "$tmp_image_tar" "${dist_dir}/${image_parts_prefix}"
+  if ! compgen -G "${dist_dir}/${image_parts_prefix}*" >/dev/null; then
+    fail "split image bundle produced no parts"
+  fi
+  (
+    cd "$dist_dir"
+    sha256sum "${image_parts_prefix}"* > "$(basename "$image_parts_sha")"
+  )
+  cat > "$release_dir/images/README-images.txt" <<README
+The Docker image bundle for this release is distributed as split release assets.
+
+Expected files beside the extracted release archive:
+
+  ${image_parts_prefix}000
+  ${image_parts_prefix}001
+  ...
+  neverland-images-${safe_version}.tar.parts.sha256
+
+Verify the parts before transfer or loading:
+
+  sha256sum -c neverland-images-${safe_version}.tar.parts.sha256
+
+Load the images from the extracted release directory:
+
+  bash scripts/load-airgap-images.sh .
+
+The loader streams the ordered parts into docker load and does not require
+runtime internet access.
+README
+else
+  cat > "$release_dir/images/README-images.txt" <<README
+The Docker image bundle is embedded at:
+
+  images/neverland-images.tar
+
+Load it from the extracted release directory:
+
+  bash scripts/load-airgap-images.sh .
+README
 fi
 
 cp docker-compose.yml "$release_dir/docker-compose.yml"
@@ -142,6 +207,7 @@ chmod +x "$release_dir/scripts/"*.sh
 cp docs/operations/air-gapped-deployment.md "$release_dir/docs/air-gapped-deployment.md"
 cp docs/operations/air-gapped-upgrade.md "$release_dir/docs/air-gapped-upgrade.md"
 cp docs/operations/production-compose.md "$release_dir/docs/production-compose.md"
+cp docs/operations/split-airgap-artifacts.md "$release_dir/docs/split-airgap-artifacts.md"
 
 git_commit="unknown"
 if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -158,6 +224,13 @@ $(printf '    "%s"' "${all_images[0]}")
 $(for image in "${all_images[@]:1}"; do printf ',\n    "%s"' "$image"; done)
 
   ],
+  "image_bundle": {
+    "mode": "$image_bundle_mode",
+    "path": "$image_bundle_path",
+    "split_prefix": "${image_parts_prefix}",
+    "split_checksum_file": "../neverland-images-${safe_version}.tar.parts.sha256",
+    "part_size": "$image_part_size"
+  },
   "compose_files": ["docker-compose.yml", "docker-compose.airgap.yml"],
   "minimum_docker_version": "24.0",
   "minimum_compose_version": "2.20",
@@ -172,8 +245,16 @@ MANIFEST
 
 {
   printf 'Neverland release artifact %s\n\n' "$version"
-  printf 'Images included in images/neverland-images.tar:\n'
+  printf 'Images included in the offline Docker image bundle:\n'
   printf -- '- %s\n' "${all_images[@]}"
+  printf '\nImage bundle layout:\n'
+  if [[ "$image_bundle_mode" == "split" ]]; then
+    printf 'The Docker image tar is distributed as split assets beside this archive:\n'
+    printf '  %s000, %s001, ...\n' "$image_parts_prefix" "$image_parts_prefix"
+    printf '  neverland-images-%s.tar.parts.sha256\n' "$safe_version"
+  else
+    printf '  images/neverland-images.tar\n'
+  fi
   printf '\nStart command:\n'
   printf 'docker compose --env-file .env -f docker-compose.airgap.yml up -d\n'
   printf '\nUpgrade existing deployment from that deployment directory:\n'
@@ -183,31 +264,36 @@ MANIFEST
   printf 'Load with scripts/load-ollama-model-bundle.sh, then validate with scripts/validate-ollama-model.sh.\n'
 } > "$release_dir/README-airgap.txt"
 
+checksum_inputs=(
+  docker-compose.yml
+  docker-compose.airgap.yml
+  .env.airgap.example
+  images/README-images.txt
+  scripts/load-airgap-images.sh
+  scripts/validate-airgap-artifact.sh
+  scripts/load-ollama-model-bundle.sh
+  scripts/validate-ollama-model.sh
+  scripts/validate-translation-languages.sh
+  scripts/preflight-upgrade-check.sh
+  scripts/backup-airgap-data.sh
+  scripts/restore-airgap-data.sh
+  scripts/upgrade-airgap.sh
+  docs/air-gapped-deployment.md
+  docs/air-gapped-upgrade.md
+  docs/production-compose.md
+  docs/split-airgap-artifacts.md
+  release-manifest.json
+  README-airgap.txt
+)
+if [[ "$image_bundle_mode" == "embedded" ]]; then
+  checksum_inputs+=(images/neverland-images.tar)
+fi
 (
   cd "$release_dir"
-  sha256sum \
-    docker-compose.yml \
-    docker-compose.airgap.yml \
-    .env.airgap.example \
-    images/neverland-images.tar \
-    scripts/load-airgap-images.sh \
-    scripts/validate-airgap-artifact.sh \
-    scripts/load-ollama-model-bundle.sh \
-    scripts/validate-ollama-model.sh \
-    scripts/validate-translation-languages.sh \
-    scripts/preflight-upgrade-check.sh \
-    scripts/backup-airgap-data.sh \
-    scripts/restore-airgap-data.sh \
-    scripts/upgrade-airgap.sh \
-    docs/air-gapped-deployment.md \
-    docs/air-gapped-upgrade.md \
-    docs/production-compose.md \
-    release-manifest.json \
-    README-airgap.txt > checksums.txt
+  sha256sum "${checksum_inputs[@]}" > checksums.txt
 )
 
 log "Creating archive: $archive_path"
-mkdir -p "$dist_dir"
 tar -C "$dist_dir" -czf "$archive_path" "$release_name"
 (
   cd "$dist_dir"
@@ -216,3 +302,7 @@ tar -C "$dist_dir" -czf "$archive_path" "$release_name"
 
 log "Release artifact created: $archive_path"
 log "Archive checksum: ${archive_path}.sha256"
+if [[ "$image_bundle_mode" == "split" ]]; then
+  log "Image bundle parts: ${dist_dir}/${image_parts_prefix}*"
+  log "Image bundle part checksums: $image_parts_sha"
+fi

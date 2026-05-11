@@ -5,13 +5,17 @@ log() { printf '[validate-airgap-artifact] %s\n' "$*"; }
 fail() { printf '[validate-airgap-artifact] ERROR: %s\n' "$*" >&2; exit 1; }
 usage() {
   cat <<'USAGE'
-Usage: scripts/validate-airgap-artifact.sh [--load-images] [--model-bundle <path>] [artifact-directory]
+Usage: scripts/validate-airgap-artifact.sh [--load-images] [--image-parts-dir DIR] [--model-bundle PATH] [artifact-directory]
 
 Validate an extracted Neverland air-gapped release artifact.
 Checks required files, checksums, compose rendering, forbidden build steps, and
 that every image referenced by docker-compose.airgap.yml exists in the offline
 Docker image bundle. With --load-images, also docker-loads the bundle and verifies
 image presence in the local Docker daemon.
+
+The image bundle can be either:
+  - images/neverland-images.tar inside the artifact directory; or
+  - split parts named neverland-images-<version>.tar.part-* beside the artifact.
 
 If --model-bundle is provided, NEVERLAND_OLLAMA_MODEL_BUNDLE is set, or a
 neverland-ollama-bundle-*.tar.gz archive is found next to the artifact, this
@@ -22,12 +26,18 @@ USAGE
 
 load_images=0
 model_bundle="${NEVERLAND_OLLAMA_MODEL_BUNDLE:-}"
+image_parts_dir=""
 artifact_dir="$(pwd)"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --load-images)
       load_images=1
       shift
+      ;;
+    --image-parts-dir)
+      [[ $# -ge 2 ]] || fail "--image-parts-dir requires a directory"
+      image_parts_dir="$2"
+      shift 2
       ;;
     --model-bundle)
       model_bundle="${2:-}"
@@ -54,7 +64,6 @@ required_files=(
   "docker-compose.yml"
   "docker-compose.airgap.yml"
   ".env.airgap.example"
-  "images/neverland-images.tar"
   "scripts/load-airgap-images.sh"
   "scripts/validate-airgap-artifact.sh"
   "scripts/load-ollama-model-bundle.sh"
@@ -66,8 +75,9 @@ required_files=(
   "scripts/upgrade-airgap.sh"
   "docs/air-gapped-deployment.md"
   "docs/air-gapped-upgrade.md"
-  "release-manifest.json"
   "docs/production-compose.md"
+  "docs/split-airgap-artifacts.md"
+  "release-manifest.json"
   "checksums.txt"
 )
 
@@ -77,11 +87,18 @@ if [[ -n "$model_bundle" ]]; then
 fi
 [[ -d "$artifact_dir" ]] || fail "artifact directory not found: $artifact_dir"
 artifact_dir="$(cd "$artifact_dir" && pwd)"
+if [[ -n "$image_parts_dir" ]]; then
+  [[ -d "$image_parts_dir" ]] || fail "image parts directory not found: $image_parts_dir"
+  image_parts_dir="$(cd "$image_parts_dir" && pwd)"
+fi
 cd "$artifact_dir"
 
 for file in "${required_files[@]}"; do
   [[ -f "$file" ]] || fail "required file is missing: $file"
 done
+if [[ ! -f "images/neverland-images.tar" && ! -f "images/README-images.txt" ]]; then
+  fail "required file is missing: images/README-images.txt or images/neverland-images.tar"
+fi
 log "Required files are present"
 
 sha256sum -c checksums.txt
@@ -92,6 +109,9 @@ for key in release_version git_commit created_at images compose_files minimum_do
     fail "release-manifest.json is missing required key: $key"
   fi
 done
+if ! grep -Eq '"image_bundle"[[:space:]]*:' release-manifest.json; then
+  log "WARNING: release-manifest.json has no image_bundle metadata; assuming legacy embedded image bundle"
+fi
 log "Release manifest includes required upgrade safety keys"
 
 if grep -Eiq '(password|secret|token|private[_-]?key)[[:space:]]*=[[:space:]]*([^#[:space:]]+)' .env.airgap.example; then
@@ -100,7 +120,6 @@ if grep -Eiq '(password|secret|token|private[_-]?key)[[:space:]]*=[[:space:]]*([
   fi
 fi
 log "Packaged environment template contains no obvious non-placeholder secrets"
-
 
 validate_model_bundle() {
   local bundle_path="$1"
@@ -188,10 +207,58 @@ if [[ ! -s "$tmp_dir/compose-images.txt" ]]; then
   fail "compose image list is empty"
 fi
 
-if ! tar -tf images/neverland-images.tar >/dev/null; then
-  fail "image bundle is not a readable tar archive: images/neverland-images.tar"
+resolve_split_parts() {
+  local candidate_dir
+  local -a dirs=()
+  if [[ -n "$image_parts_dir" ]]; then
+    dirs+=("$image_parts_dir")
+  fi
+  dirs+=("$(dirname "$artifact_dir")" "$artifact_dir")
+
+  for candidate_dir in "${dirs[@]}"; do
+    [[ -d "$candidate_dir" ]] || continue
+    mapfile -t split_parts < <(find "$candidate_dir" -maxdepth 1 -type f -name 'neverland-images-*.tar.part-*' | sort)
+    if [[ ${#split_parts[@]} -gt 0 ]]; then
+      split_parts_dir="$candidate_dir"
+      return 0
+    fi
+  done
+  return 1
+}
+
+split_parts=()
+split_parts_dir=""
+image_tar_for_validation=""
+if [[ -f "images/neverland-images.tar" ]]; then
+  image_tar_for_validation="$artifact_dir/images/neverland-images.tar"
+  log "Using embedded image bundle: images/neverland-images.tar"
+elif resolve_split_parts; then
+  log "Using split image bundle from $split_parts_dir"
+  parts_checksum="$(find "$split_parts_dir" -maxdepth 1 -type f -name 'neverland-images-*.tar.parts.sha256' | sort | head -n 1 || true)"
+  [[ -n "$parts_checksum" ]] || fail "split image parts found but neverland-images-*.tar.parts.sha256 is missing"
+  log "Validating split image part checksums with $(basename "$parts_checksum")"
+  (cd "$split_parts_dir" && sha256sum -c "$(basename "$parts_checksum")")
+
+  expected_index=0
+  for part in "${split_parts[@]}"; do
+    suffix="${part##*.tar.part-}"
+    expected_suffix="$(printf '%03d' "$expected_index")"
+    [[ "$suffix" == "$expected_suffix" ]] || fail "split image parts are not contiguous: expected suffix $expected_suffix but found $suffix in $part"
+    expected_index=$((expected_index + 1))
+  done
+  log "Split image parts are contiguous (${#split_parts[@]} part(s))"
+
+  image_tar_for_validation="$tmp_dir/neverland-images.tar"
+  log "Reconstructing split image bundle for metadata validation"
+  cat "${split_parts[@]}" > "$image_tar_for_validation"
+else
+  fail "image bundle not found. Expected images/neverland-images.tar or split parts neverland-images-*.tar.part-* beside the artifact"
 fi
-if ! tar -xOf images/neverland-images.tar manifest.json > "$tmp_dir/manifest.json"; then
+
+if ! tar -tf "$image_tar_for_validation" >/dev/null; then
+  fail "image bundle is not a readable tar archive: $image_tar_for_validation"
+fi
+if ! tar -xOf "$image_tar_for_validation" manifest.json > "$tmp_dir/manifest.json"; then
   fail "image bundle does not contain Docker manifest.json"
 fi
 
@@ -205,7 +272,7 @@ while IFS= read -r image; do
     missing=1
   fi
 done < "$tmp_dir/compose-images.txt"
-[[ "$missing" -eq 0 ]] || fail "one or more compose images are missing from images/neverland-images.tar"
+[[ "$missing" -eq 0 ]] || fail "one or more compose images are missing from the offline image bundle"
 log "Every compose image is present in the offline image bundle"
 
 if [[ -z "$model_bundle" ]]; then
@@ -224,7 +291,7 @@ fi
 
 if [[ "$load_images" -eq 1 ]]; then
   log "Loading image bundle into local Docker daemon for verification"
-  docker load -i images/neverland-images.tar
+  docker load -i "$image_tar_for_validation"
   while IFS= read -r image; do
     [[ -n "$image" ]] || continue
     docker image inspect "$image" >/dev/null || fail "loaded Docker daemon is missing image: $image"

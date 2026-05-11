@@ -57,10 +57,10 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "safe_version=${version//\//-}" >> "$GITHUB_OUTPUT"
 
-      - name: Build release archive with offline images
-        run: bash scripts/build-release-artifact.sh "${{ steps.version.outputs.version }}"
+      - name: Build release archive with split offline image assets
+        run: SPLIT_IMAGE_BUNDLE=1 IMAGE_PART_SIZE=1900m bash scripts/build-release-artifact.sh "${{ steps.version.outputs.version }}"
 
-      - name: Validate packaged artifact metadata and image bundle
+      - name: Validate packaged artifact metadata and split image bundle
         run: bash scripts/validate-airgap-artifact.sh --load-images "dist/neverland-release-${{ steps.version.outputs.safe_version }}"
 
       - name: Prove air-gapped compose image references are bundled
@@ -73,6 +73,21 @@ jobs:
             echo "Forbidden build step found in docker-compose.airgap.yml" >&2
             exit 1
           fi
+          found_parts=0
+          for part in dist/neverland-images-${{ steps.version.outputs.safe_version }}.tar.part-*; do
+            [ -f "$part" ] || continue
+            found_parts=1
+            size_bytes="$(wc -c < "$part")"
+            max_bytes=$((2 * 1024 * 1024 * 1024))
+            if [ "$size_bytes" -ge "$max_bytes" ]; then
+              echo "Split image part is too large for GitHub Release assets: $part ($size_bytes bytes)" >&2
+              exit 1
+            fi
+          done
+          if [ "$found_parts" -ne 1 ]; then
+            echo "No split image parts found" >&2
+            exit 1
+          fi
 
       - name: Upload release archive artifact
         uses: actions/upload-artifact@v6
@@ -81,6 +96,8 @@ jobs:
           path: |
             dist/neverland-release-${{ steps.version.outputs.safe_version }}.tar.gz
             dist/neverland-release-${{ steps.version.outputs.safe_version }}.tar.gz.sha256
+            dist/neverland-images-${{ steps.version.outputs.safe_version }}.tar.part-*
+            dist/neverland-images-${{ steps.version.outputs.safe_version }}.tar.parts.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -93,6 +110,8 @@ jobs:
           files: |
             dist/neverland-release-${{ steps.version.outputs.safe_version }}.tar.gz
             dist/neverland-release-${{ steps.version.outputs.safe_version }}.tar.gz.sha256
+            dist/neverland-images-${{ steps.version.outputs.safe_version }}.tar.part-*
+            dist/neverland-images-${{ steps.version.outputs.safe_version }}.tar.parts.sha256
 
 
   build-ollama-model-bundle:
