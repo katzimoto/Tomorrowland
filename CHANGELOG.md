@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Issue #133: Replaced the "N" letter mark with a new dark cyberpunk bicycle logo. The new asset (`frontend/public/tomorrowland-logo-cyber-bike.svg`) features a neon cyan bicycle on a deep navy background with scanline and HUD-bracket accents. Updated the nav rail, login page, and favicon to use the new logo. Added a reusable `TomorrowlandLogo` component at `frontend/src/components/brand/TomorrowlandLogo.tsx`.
+
 ### Added
 - Polished README and operator documentation for the simplified Tomorrowland air-gapped release artifact flow, split image parts, optional model bundles, and safe upgrade instructions.
 - Simplified air-gapped release artifact operator flow. Adds `scripts/tomorrowland-airgap.sh`, a single operator-facing wrapper that supports `validate`, `validate --load-images`, `load-images`, `up`, `status`, `down`, `backup`, `upgrade`, and `help`. The wrapper auto-detects split image parts beside the platform archive (no manual reassembly), delegates to existing lower-level scripts, and hides internal plumbing from operators. The main platform archive remains small and excludes the Docker image tar in split mode; image parts are distributed beside it. Updated `build-release-artifact.sh`, `validate-airgap-artifact.sh`, and `upgrade-airgap.sh` to include the wrapper in the archive, require it in validation, and copy it on upgrade. Updated operator docs to a short copy-pasteable happy-path command sequence. Missing Ollama model bundle remains degraded-only, not a platform startup blocker.

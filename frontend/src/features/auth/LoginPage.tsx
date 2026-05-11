@@ -9,6 +9,7 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { LanguageSelector } from "@/components/settings/LanguageSelector";
 import { useT } from "@/i18n/index";
 import { startNamedPerformanceTimer } from "@/lib/performanceTelemetry";
+import { TomorrowlandLogo } from "@/components/brand/TomorrowlandLogo";
 import styles from "./LoginPage.module.css";
 
 function makeSchema(emailInvalid: string, passwordRequired: string) {
@@ -58,9 +59,7 @@ export function LoginPage() {
   return (
     <div className={styles.page} aria-label={t.auth.signInLabel}>
       <div className={styles.card}>
-        <div className={styles.mark} aria-label="Tomorrowland">
-          N
-        </div>
+        <TomorrowlandLogo size={40} className={styles.mark} />
         <h1 className={styles.heading}>{t.auth.heading}</h1>
 
         {search.expired && (

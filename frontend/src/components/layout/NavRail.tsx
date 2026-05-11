@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useT } from "@/i18n/index";
 import { LanguageSelector } from "@/components/settings/LanguageSelector";
+import { TomorrowlandLogo } from "@/components/brand/TomorrowlandLogo";
 import styles from "./NavRail.module.css";
 
 type NavKey = "search" | "qa" | "subscriptions" | "notifications" | "history" | "expertise" | "admin";
@@ -72,7 +73,7 @@ export function NavRail({ isAdmin, unreadCount = 0 }: NavRailProps) {
       aria-label={t.nav.primary}
     >
       <div className={styles.top}>
-        <div className={styles.mark} aria-label="Tomorrowland">N</div>
+        <TomorrowlandLogo size={32} className={styles.mark} />
         <button
           className={styles.toggle}
           onClick={() => setExpanded((e) => !e)}

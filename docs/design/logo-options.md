@@ -26,8 +26,20 @@ RAG evidence. This is the most literal document-intelligence direction.
 Best fit when the product should feel calmer and more institutional. It is less
 technical, with a gateway metaphor for entering governed knowledge.
 
+## Option D: Cyber Bike ✅ Active
+
+![Tomorrowland logo — Cyber Bike](assets/tomorrowland-logo-cyber-bike.svg)
+
+Dark cyberpunk-inspired mark with a neon cyan/blue bicycle on a deep navy
+background. The bicycle is the primary visual element, rendered with a glowing
+HUD aesthetic, scanline overlay, and corner bracket accents. Asset:
+`frontend/public/tomorrowland-logo-cyber-bike.svg` (also served at
+`/tomorrowland-logo-cyber-bike.svg` in the app).
+
+This is the current active product logo used in the nav rail, login page, and
+as the app favicon.
+
 ## Recommendation
 
-Option A is the strongest default for the current product direction. It reads
-well at navigation-rail size, connects directly to search, and avoids making
-the brand feel like a generic document repository.
+Option D (Cyber Bike) is the active product logo as of the branding update for
+Issue #133. Options A–C are retained for historical reference.

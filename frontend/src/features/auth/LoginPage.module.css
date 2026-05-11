@@ -22,17 +22,11 @@
 }
 
 .mark {
-  /* Logo stays centered relative to itself; content around it is left-aligned */
   width: 40px;
   height: 40px;
   border-radius: var(--radius-panel);
-  background: var(--color-primary);
-  color: var(--color-primary-fg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 20px;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .heading {
