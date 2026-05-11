@@ -5,7 +5,7 @@ The canonical references remain `spec.md` and `spec-v4.pdf`.
 
 ## Purpose
 
-Neverland is a local-first knowledge intelligence system for private document
+Tomorrowland is a local-first knowledge intelligence system for private document
 corpora. It provides permission-filtered semantic and full-text search, local
 RAG Q&A, translation, previews, annotations, alerts, expertise mapping, related
 document surfacing, and admin-configurable operation.

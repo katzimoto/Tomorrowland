@@ -2,7 +2,7 @@
 
 ## Goal
 
-Implement local-first metrics and monitoring for Neverland using the design in
+Implement local-first metrics and monitoring for Tomorrowland using the design in
 `docs/design/metrics-monitoring-spec.md`, while preserving the current production Compose
 behavior and the minimal public health endpoint.
 

@@ -51,7 +51,7 @@ describe("LanguageProvider", () => {
       </LanguageProvider>,
     );
     expect(screen.getByTestId("lang").textContent).toBe("en");
-    expect(screen.getByTestId("heading").textContent).toBe("Sign in to Neverland");
+    expect(screen.getByTestId("heading").textContent).toBe("Sign in to Tomorrowland");
   });
 
   test("sets lang=en and dir=ltr on mount with default", () => {
@@ -96,7 +96,7 @@ describe("LanguageProvider", () => {
       </LanguageProvider>,
     );
     fireEvent.click(screen.getByText("switch-he"));
-    expect(screen.getByTestId("heading").textContent).toBe("התחברות ל-Neverland");
+    expect(screen.getByTestId("heading").textContent).toBe("התחברות ל-Tomorrowland");
   });
 
   test("persists language choice to localStorage", () => {
@@ -106,11 +106,11 @@ describe("LanguageProvider", () => {
       </LanguageProvider>,
     );
     fireEvent.click(screen.getByText("switch-he"));
-    expect(storageMock.getItem("neverland_lang")).toBe("he");
+    expect(storageMock.getItem("tomorrowland_lang")).toBe("he");
   });
 
   test("reads persisted language from localStorage on mount", () => {
-    storageMock.setItem("neverland_lang", "he");
+    storageMock.setItem("tomorrowland_lang", "he");
     render(
       <LanguageProvider>
         <LangDisplay />

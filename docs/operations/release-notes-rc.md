@@ -1,4 +1,4 @@
-# Neverland Release Candidate Notes
+# Tomorrowland Release Candidate Notes
 
 ## Release identity
 
@@ -6,7 +6,7 @@
 - Commit SHA: `5685bcc58775e65052bce03c877c1b51855a22a3`.
 - Artifacts: platform archive plus default Ollama model bundle from the release workflow or release-manager build.
 - Validation: #91 accepted as **Ready with limitations**.
-- Branding: technical identifiers still use `neverland`; Tomorrowland visible branding/logo remains optional unless #103/#104 are merged before tagging.
+- Branding: technical identifiers still use `tomorrowland`; Tomorrowland visible branding/logo remains optional unless #103/#104 are merged before tagging.
 
 ## Included capabilities
 
@@ -19,7 +19,7 @@ This RC includes:
 - Privacy-safe local frontend performance telemetry from #88.
 - Large list and lazy panel performance improvements from #86.
 - Optional monitoring Compose profile from #64. Prometheus/Grafana are opt-in and not started by default.
-- Air-gapped translation language pack from #107 using `neverland/libretranslate:airgap`.
+- Air-gapped translation language pack from #107 using `tomorrowland/libretranslate:airgap`.
 - Default Ollama model bundle delivery path from #115, shipped as a separate release asset for offline Q&A/RAG support.
 
 ## Air-gapped install and upgrade
@@ -33,7 +33,7 @@ Upgrade notes:
 - Run preflight before upgrade.
 - Create a backup before upgrade.
 - Load images from the local artifact bundle.
-- Verify and load `neverland-ollama-bundle-mistral-<version>.tar.gz` when offline Q&A/RAG/local intelligence is required.
+- Verify and load `tomorrowland-ollama-bundle-mistral-<version>.tar.gz` when offline Q&A/RAG/local intelligence is required.
 - Run migrations through the documented upgrade flow.
 - Validate health/readiness after startup.
 - Validate Ollama model availability with `scripts/validate-ollama-model.sh`; use `--smoke-test` for a tiny local generation check.
@@ -51,9 +51,9 @@ Relevant guides:
 
 Default RC2 release distribution means two release assets by default:
 
-- `neverland-release-<version>.tar.gz` and `.sha256` for the platform, runtime
+- `tomorrowland-release-<version>.tar.gz` and `.sha256` for the platform, runtime
   images, Compose files, scripts, and docs.
-- `neverland-ollama-bundle-mistral-<version>.tar.gz` and `.sha256` for the
+- `tomorrowland-ollama-bundle-mistral-<version>.tar.gz` and `.sha256` for the
   default `OLLAMA_MODEL=mistral` model weights.
 
 The model bundle remains separate from the platform artifact to keep platform

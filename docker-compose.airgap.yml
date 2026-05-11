@@ -31,7 +31,7 @@ x-app-environment: &app-environment
 
 services:
   migrate:
-    image: ${NEVERLAND_BACKEND_IMAGE:-neverland/backend:airgap}
+    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
     command: ["alembic", "upgrade", "head"]
     environment: *app-environment
     depends_on:
@@ -39,10 +39,10 @@ services:
         condition: service_healthy
     volumes:
       - files_data:/data
-      - ${NEVERLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${NEVERLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
+      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
 
   api:
-    image: ${NEVERLAND_BACKEND_IMAGE:-neverland/backend:airgap}
+    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
     restart: unless-stopped
     environment: *app-environment
     ports:
@@ -68,10 +68,10 @@ services:
       driver: json-file
     volumes:
       - files_data:/data
-      - ${NEVERLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${NEVERLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
+      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
 
   frontend:
-    image: ${NEVERLAND_FRONTEND_IMAGE:-neverland/frontend:airgap}
+    image: ${TOMORROWLAND_FRONTEND_IMAGE:-tomorrowland/frontend:airgap}
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-8080}:8080"
@@ -173,7 +173,7 @@ services:
       - qdrant_data:/qdrant/storage
 
   libretranslate:
-    image: ${NEVERLAND_LIBRETRANSLATE_IMAGE:-neverland/libretranslate:airgap}
+    image: ${TOMORROWLAND_LIBRETRANSLATE_IMAGE:-tomorrowland/libretranslate:airgap}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${LIBRETRANSLATE_PORT:-5000}:5000"

@@ -47,7 +47,7 @@ closed with a note in `docs/review/spec-gaps.md`.
 ### Option A: Page/Project Permission Synchronization
 
 - Add a background sync job that reads Confluence space permissions or Jira project
-  permissions via the API and maps them to user/group grants in Neverland.
+  permissions via the API and maps them to user/group grants in Tomorrowland.
 - Scope: Confluence space-level restrictions and Jira project-level access first; page-level
   ACL sync is a later extension.
 - Must not override admin-configured source-grant denials.

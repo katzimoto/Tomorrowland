@@ -7,7 +7,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/load-ollama-model-bundle.sh --bundle <path> --compose-file <path> --env-file <path> [--project-name <name>]
 
-Load a Neverland Ollama model bundle into the Compose ollama_data volume.
+Load a Tomorrowland Ollama model bundle into the Compose ollama_data volume.
 This script is non-destructive: it does not run docker compose down -v and it
 copies bundle model files into the target volume without deleting existing models.
 USAGE

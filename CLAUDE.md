@@ -1,4 +1,4 @@
-# CLAUDE.md — Neverland Claude Code Entry Point
+# CLAUDE.md — Tomorrowland Claude Code Entry Point
 
 Claude Code must treat `AGENTS.md` as the primary repository instruction file.
 

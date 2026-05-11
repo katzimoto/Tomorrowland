@@ -23,7 +23,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/restore-airgap-data.sh --backup-dir DIR --confirm-restore [--compose-file FILE ...]
 
-Restore operator configuration, PostgreSQL, and the Neverland files volume from
+Restore operator configuration, PostgreSQL, and the Tomorrowland files volume from
 a backup created by scripts/backup-airgap-data.sh. This is intentionally
 conservative and requires --confirm-restore because database and files-volume
 restore actions replace current runtime state with backup contents.

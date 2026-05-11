@@ -2,7 +2,7 @@
 
 ## Goal
 
-Provide an observability design for Neverland that matches the current local-first
+Provide an observability design for Tomorrowland that matches the current local-first
 architecture while leaving room for later dedicated workers and larger
 multi-host deployments. The design covers health checks, metrics, structured
 logs, traces, dashboards, and alerting without changing the canonical product
@@ -167,7 +167,7 @@ labels.
 
 | Metric | Type | Labels | Description |
 | --- | --- | --- | --- |
-| `neverland_build_info` | gauge | `version`, `commit`, `environment` | Static build/runtime metadata with value `1`. |
+| `tomorrowland_build_info` | gauge | `version`, `commit`, `environment` | Static build/runtime metadata with value `1`. |
 | `process_*` | default | none | Standard process metrics from the Prometheus client. |
 | `python_gc_*` | default | none | Standard Python GC metrics. |
 
@@ -175,11 +175,11 @@ labels.
 
 | Metric | Type | Labels | Description |
 | --- | --- | --- | --- |
-| `neverland_http_requests_total` | counter | `method`, `route`, `status_class` | API requests by normalized route. |
-| `neverland_http_request_duration_seconds` | histogram | `method`, `route` | API latency by route. |
-| `neverland_http_request_size_bytes` | histogram | `method`, `route` | Optional request body size buckets. |
-| `neverland_http_response_size_bytes` | histogram | `method`, `route` | Optional response body size buckets. |
-| `neverland_http_exceptions_total` | counter | `route`, `error_type` | Unhandled exceptions by route template and exception class. |
+| `tomorrowland_http_requests_total` | counter | `method`, `route`, `status_class` | API requests by normalized route. |
+| `tomorrowland_http_request_duration_seconds` | histogram | `method`, `route` | API latency by route. |
+| `tomorrowland_http_request_size_bytes` | histogram | `method`, `route` | Optional request body size buckets. |
+| `tomorrowland_http_response_size_bytes` | histogram | `method`, `route` | Optional response body size buckets. |
+| `tomorrowland_http_exceptions_total` | counter | `route`, `error_type` | Unhandled exceptions by route template and exception class. |
 
 Recommended latency buckets: `0.005`, `0.01`, `0.025`, `0.05`, `0.1`, `0.25`,
 `0.5`, `1`, `2.5`, `5`, `10`, `30`.
@@ -188,68 +188,68 @@ Recommended latency buckets: `0.005`, `0.01`, `0.025`, `0.05`, `0.1`, `0.25`,
 
 | Metric | Type | Labels | Description |
 | --- | --- | --- | --- |
-| `neverland_auth_login_attempts_total` | counter | `provider`, `outcome` | Login attempts by configured provider and result. |
-| `neverland_authz_denials_total` | counter | `resource_type`, `action` | Permission denials without identity labels. |
-| `neverland_admin_actions_total` | counter | `action`, `resource_type` | Admin actions already written to audit log. |
+| `tomorrowland_auth_login_attempts_total` | counter | `provider`, `outcome` | Login attempts by configured provider and result. |
+| `tomorrowland_authz_denials_total` | counter | `resource_type`, `action` | Permission denials without identity labels. |
+| `tomorrowland_admin_actions_total` | counter | `action`, `resource_type` | Admin actions already written to audit log. |
 
 ### Ingestion And Pipeline
 
 | Metric | Type | Labels | Description |
 | --- | --- | --- | --- |
-| `neverland_ingestion_syncs_total` | counter | `connector_type`, `outcome` | Source sync attempts. |
-| `neverland_ingestion_documents_total` | counter | `connector_type`, `outcome` | Documents discovered or accepted for processing. |
-| `neverland_pipeline_documents_total` | counter | `stage`, `outcome` | Document processing by stage. |
-| `neverland_pipeline_stage_duration_seconds` | histogram | `stage` | Stage latency for extraction, translation, chunking, indexing, etc. |
-| `neverland_pipeline_document_bytes` | histogram | `connector_type` | Original file sizes. |
-| `neverland_pipeline_chunks_total` | counter | `outcome` | Chunks created or failed. |
-| `neverland_dlq_records_total` | counter | `reason`, `source` | Records sent to the DLQ. |
-| `neverland_dlq_pending` | gauge | none | Current pending DLQ records from PostgreSQL. |
+| `tomorrowland_ingestion_syncs_total` | counter | `connector_type`, `outcome` | Source sync attempts. |
+| `tomorrowland_ingestion_documents_total` | counter | `connector_type`, `outcome` | Documents discovered or accepted for processing. |
+| `tomorrowland_pipeline_documents_total` | counter | `stage`, `outcome` | Document processing by stage. |
+| `tomorrowland_pipeline_stage_duration_seconds` | histogram | `stage` | Stage latency for extraction, translation, chunking, indexing, etc. |
+| `tomorrowland_pipeline_document_bytes` | histogram | `connector_type` | Original file sizes. |
+| `tomorrowland_pipeline_chunks_total` | counter | `outcome` | Chunks created or failed. |
+| `tomorrowland_dlq_records_total` | counter | `reason`, `source` | Records sent to the DLQ. |
+| `tomorrowland_dlq_pending` | gauge | none | Current pending DLQ records from PostgreSQL. |
 
 ### Search And Retrieval
 
 | Metric | Type | Labels | Description |
 | --- | --- | --- | --- |
-| `neverland_search_requests_total` | counter | `mode`, `outcome` | Search requests by BM25, vector, or hybrid mode. |
-| `neverland_search_duration_seconds` | histogram | `mode` | End-to-end search latency. |
-| `neverland_search_backend_duration_seconds` | histogram | `backend`, `operation` | Elasticsearch and Qdrant call latency. |
-| `neverland_search_results_count` | histogram | `mode` | Result count distribution. |
-| `neverland_search_permission_filtered_total` | counter | `mode` | Results filtered out by permission checks, if available without high cost. |
-| `neverland_search_index_documents` | gauge | `backend` | Approximate indexed document/vector count from Elasticsearch and Qdrant. |
+| `tomorrowland_search_requests_total` | counter | `mode`, `outcome` | Search requests by BM25, vector, or hybrid mode. |
+| `tomorrowland_search_duration_seconds` | histogram | `mode` | End-to-end search latency. |
+| `tomorrowland_search_backend_duration_seconds` | histogram | `backend`, `operation` | Elasticsearch and Qdrant call latency. |
+| `tomorrowland_search_results_count` | histogram | `mode` | Result count distribution. |
+| `tomorrowland_search_permission_filtered_total` | counter | `mode` | Results filtered out by permission checks, if available without high cost. |
+| `tomorrowland_search_index_documents` | gauge | `backend` | Approximate indexed document/vector count from Elasticsearch and Qdrant. |
 
 ### Translation, Intelligence, And RAG
 
 | Metric | Type | Labels | Description |
 | --- | --- | --- | --- |
-| `neverland_translation_requests_total` | counter | `kind`, `outcome` | Detection, auto-enrich, and manual translation attempts. |
-| `neverland_translation_duration_seconds` | histogram | `kind` | Translation latency. |
-| `neverland_translation_characters_total` | counter | `kind` | Characters submitted for translation. |
-| `neverland_intelligence_tasks_total` | counter | `task`, `outcome` | Summarization, entity extraction, and auto-tag tasks. |
-| `neverland_intelligence_task_duration_seconds` | histogram | `task` | Intelligence task latency. |
-| `neverland_ollama_requests_total` | counter | `operation`, `outcome` | Ollama calls by operation. |
-| `neverland_ollama_duration_seconds` | histogram | `operation` | Ollama request latency. |
-| `neverland_rag_requests_total` | counter | `outcome` | Q&A requests. |
-| `neverland_rag_duration_seconds` | histogram | `phase` | Retrieval, prompt assembly, and generation latency. |
-| `neverland_rag_citations_count` | histogram | none | Citation count distribution. |
+| `tomorrowland_translation_requests_total` | counter | `kind`, `outcome` | Detection, auto-enrich, and manual translation attempts. |
+| `tomorrowland_translation_duration_seconds` | histogram | `kind` | Translation latency. |
+| `tomorrowland_translation_characters_total` | counter | `kind` | Characters submitted for translation. |
+| `tomorrowland_intelligence_tasks_total` | counter | `task`, `outcome` | Summarization, entity extraction, and auto-tag tasks. |
+| `tomorrowland_intelligence_task_duration_seconds` | histogram | `task` | Intelligence task latency. |
+| `tomorrowland_ollama_requests_total` | counter | `operation`, `outcome` | Ollama calls by operation. |
+| `tomorrowland_ollama_duration_seconds` | histogram | `operation` | Ollama request latency. |
+| `tomorrowland_rag_requests_total` | counter | `outcome` | Q&A requests. |
+| `tomorrowland_rag_duration_seconds` | histogram | `phase` | Retrieval, prompt assembly, and generation latency. |
+| `tomorrowland_rag_citations_count` | histogram | none | Citation count distribution. |
 
 ### Collaboration And Activity
 
 | Metric | Type | Labels | Description |
 | --- | --- | --- | --- |
-| `neverland_preview_requests_total` | counter | `mime_family`, `outcome` | Preview requests by coarse MIME family. |
-| `neverland_download_requests_total` | counter | `outcome` | Safe download attempts. |
-| `neverland_comments_total` | counter | `action`, `outcome` | Comment create/update/delete operations. |
-| `neverland_annotations_total` | counter | `action`, `visibility`, `outcome` | Annotation operations. |
-| `neverland_subscriptions_total` | counter | `action`, `outcome` | Subscription CRUD actions. |
-| `neverland_notifications_total` | counter | `event`, `outcome` | Notification creation/read events. |
+| `tomorrowland_preview_requests_total` | counter | `mime_family`, `outcome` | Preview requests by coarse MIME family. |
+| `tomorrowland_download_requests_total` | counter | `outcome` | Safe download attempts. |
+| `tomorrowland_comments_total` | counter | `action`, `outcome` | Comment create/update/delete operations. |
+| `tomorrowland_annotations_total` | counter | `action`, `visibility`, `outcome` | Annotation operations. |
+| `tomorrowland_subscriptions_total` | counter | `action`, `outcome` | Subscription CRUD actions. |
+| `tomorrowland_notifications_total` | counter | `event`, `outcome` | Notification creation/read events. |
 
 ### Dependency And Queue Health
 
 | Metric | Type | Labels | Description |
 | --- | --- | --- | --- |
-| `neverland_dependency_up` | gauge | `dependency` | `1` when a dependency readiness probe succeeds, else `0`. |
-| `neverland_dependency_latency_seconds` | histogram | `dependency`, `operation` | Dependency probe or call latency. |
-| `neverland_kafka_consumer_lag` | gauge | `topic`, `consumer_group` | Future worker consumer lag once consumers exist. |
-| `neverland_worker_heartbeat_timestamp_seconds` | gauge | `worker` | Future long-running worker heartbeat. |
+| `tomorrowland_dependency_up` | gauge | `dependency` | `1` when a dependency readiness probe succeeds, else `0`. |
+| `tomorrowland_dependency_latency_seconds` | histogram | `dependency`, `operation` | Dependency probe or call latency. |
+| `tomorrowland_kafka_consumer_lag` | gauge | `topic`, `consumer_group` | Future worker consumer lag once consumers exist. |
+| `tomorrowland_worker_heartbeat_timestamp_seconds` | gauge | `worker` | Future long-running worker heartbeat. |
 
 ## Dashboards
 
@@ -300,7 +300,7 @@ Initial alert rules should prefer sustained conditions:
 | Alert | Severity | Condition | Suggested Duration |
 | --- | --- | --- | --- |
 | API down | Critical | Prometheus cannot scrape API or `/health` fails. | 2 minutes |
-| PostgreSQL unavailable | Critical | `neverland_dependency_up{dependency="postgres"} == 0`. | 2 minutes |
+| PostgreSQL unavailable | Critical | `tomorrowland_dependency_up{dependency="postgres"} == 0`. | 2 minutes |
 | Search unavailable | Critical | Elasticsearch or Qdrant dependency down. | 5 minutes |
 | High API error rate | Warning | 5xx rate exceeds 2% of requests. | 10 minutes |
 | Search SLO breach | Warning | p95 search latency exceeds 300 ms. | 15 minutes |

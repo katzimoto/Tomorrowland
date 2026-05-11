@@ -22,7 +22,7 @@ def test_cors_allows_configured_origin() -> None:
         Settings(
             auth_provider="local",
             jwt_secret="x" * 32,
-            cors_origins="https://neverland.example",
+            cors_origins="https://tomorrowland.example",
         ),
     )
     client = TestClient(app)
@@ -30,13 +30,13 @@ def test_cors_allows_configured_origin() -> None:
     response = client.options(
         "/health",
         headers={
-            "Origin": "https://neverland.example",
+            "Origin": "https://tomorrowland.example",
             "Access-Control-Request-Method": "GET",
         },
     )
 
     assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == "https://neverland.example"
+    assert response.headers["access-control-allow-origin"] == "https://tomorrowland.example"
 
 
 def test_cors_rejects_unconfigured_origin() -> None:
@@ -46,7 +46,7 @@ def test_cors_rejects_unconfigured_origin() -> None:
         Settings(
             auth_provider="local",
             jwt_secret="x" * 32,
-            cors_origins="https://neverland.example",
+            cors_origins="https://tomorrowland.example",
         ),
     )
     client = TestClient(app)

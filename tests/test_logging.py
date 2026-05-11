@@ -11,7 +11,7 @@ from shared.logging import JsonFormatter, configure_json_logging, log_extra
 
 def test_json_formatter_includes_correlation_id() -> None:
     set_correlation_id("test-correlation")
-    record = logging.LogRecord("neverland", logging.INFO, __file__, 1, "hello", (), None)
+    record = logging.LogRecord("tomorrowland", logging.INFO, __file__, 1, "hello", (), None)
 
     payload = json.loads(JsonFormatter().format(record))
 
@@ -34,8 +34,8 @@ def test_formatter_includes_exception_info() -> None:
         raise ValueError("bad")
     except ValueError:
         exc_info = sys.exc_info()
-        record = logging.getLogger("neverland").makeRecord(
-            "neverland",
+        record = logging.getLogger("tomorrowland").makeRecord(
+            "tomorrowland",
             logging.ERROR,
             __file__,
             1,

@@ -16,11 +16,11 @@ Environment overrides:
   API_URL                 Default: http://localhost:${API_PORT:-8000}
   FRONTEND_URL            Default: http://localhost:${FRONTEND_PORT:-8080}
   SMOKE_ADMIN_EMAIL       Default: smoke-admin@example.com
-  SMOKE_ADMIN_PASSWORD    Default: neverland-smoke-password
+  SMOKE_ADMIN_PASSWORD    Default: tomorrowland-smoke-password
   SMOKE_GROUP_NAME        Default: smoke-operators
   SMOKE_SOURCE_NAME       Default: smoke-folder-source
   SMOKE_FIXTURE_DIR       Default: /data/smoke-fixtures
-  SMOKE_FIXTURE_NAME      Default: neverland-smoke-document.txt
+  SMOKE_FIXTURE_NAME      Default: tomorrowland-smoke-document.txt
   SMOKE_TIMEOUT_SECONDS   Default: 300
   SMOKE_POLL_SECONDS      Default: 5
 USAGE
@@ -53,14 +53,14 @@ FRONTEND_PORT="${FRONTEND_PORT:-8080}"
 API_URL="${API_URL:-http://localhost:${API_PORT}}"
 FRONTEND_URL="${FRONTEND_URL:-http://localhost:${FRONTEND_PORT}}"
 SMOKE_ADMIN_EMAIL="${SMOKE_ADMIN_EMAIL:-smoke-admin@example.com}"
-SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-neverland-smoke-password}"
+SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-tomorrowland-smoke-password}"
 SMOKE_GROUP_NAME="${SMOKE_GROUP_NAME:-smoke-operators}"
 SMOKE_SOURCE_NAME="${SMOKE_SOURCE_NAME:-smoke-folder-source}"
 SMOKE_FIXTURE_DIR="${SMOKE_FIXTURE_DIR:-/data/smoke-fixtures}"
-SMOKE_FIXTURE_NAME="${SMOKE_FIXTURE_NAME:-neverland-smoke-document.txt}"
+SMOKE_FIXTURE_NAME="${SMOKE_FIXTURE_NAME:-tomorrowland-smoke-document.txt}"
 SMOKE_TIMEOUT_SECONDS="${SMOKE_TIMEOUT_SECONDS:-300}"
 SMOKE_POLL_SECONDS="${SMOKE_POLL_SECONDS:-5}"
-SMOKE_QUERY="${SMOKE_QUERY:-neverland-smoke-unique-token}"
+SMOKE_QUERY="${SMOKE_QUERY:-tomorrowland-smoke-unique-token}"
 
 TMP_DIR="$(mktemp -d)"
 STARTED_STACK=0

@@ -152,7 +152,7 @@ jobs:
           set -euo pipefail
           npm ci
           npm run build
-          tar -czf ../dist/neverland-frontend.tar.gz dist
+          tar -czf ../dist/tomorrowland-frontend.tar.gz dist
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2

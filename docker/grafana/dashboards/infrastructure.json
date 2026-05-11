@@ -33,15 +33,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "up{job=\"neverland-api\"}",
+          "expr": "up{job=\"tomorrowland-api\"}",
           "legendFormat": "api",
           "refId": "A"
         }
@@ -77,15 +77,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "neverland_dependency_up",
+          "expr": "tomorrowland_dependency_up",
           "legendFormat": "{{dependency}}",
           "refId": "A"
         }
@@ -117,15 +117,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, dependency, operation) (rate(neverland_dependency_latency_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, dependency, operation) (rate(tomorrowland_dependency_latency_seconds_bucket[5m])))",
           "legendFormat": "{{dependency}} {{operation}}",
           "refId": "A"
         }
@@ -159,15 +159,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "rate(process_cpu_seconds_total{job=\"neverland-api\"}[5m])",
+          "expr": "rate(process_cpu_seconds_total{job=\"tomorrowland-api\"}[5m])",
           "legendFormat": "api",
           "refId": "A"
         }
@@ -199,15 +199,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "process_resident_memory_bytes{job=\"neverland-api\"}",
+          "expr": "process_resident_memory_bytes{job=\"tomorrowland-api\"}",
           "legendFormat": "api",
           "refId": "A"
         }
@@ -241,15 +241,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "sum by (generation) (rate(python_gc_collections_total{job=\"neverland-api\"}[5m]))",
+          "expr": "sum by (generation) (rate(python_gc_collections_total{job=\"tomorrowland-api\"}[5m]))",
           "legendFormat": "generation {{generation}}",
           "refId": "A"
         }
@@ -281,14 +281,14 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "PostgreSQL, Elasticsearch, Qdrant, LibreTranslate, Ollama, Kafka, and disk panels use `neverland_dependency_*` and process metrics only. Add dedicated exporters in a follow-up for host disk, database, shard, collection, and broker internals."
+        "content": "PostgreSQL, Elasticsearch, Qdrant, LibreTranslate, Ollama, Kafka, and disk panels use `tomorrowland_dependency_*` and process metrics only. Add dedicated exporters in a follow-up for host disk, database, shard, collection, and broker internals."
       }
     }
   ],
   "refresh": "30s",
   "schemaVersion": 39,
   "tags": [
-    "neverland",
+    "tomorrowland",
     "provisioned"
   ],
   "templating": {
@@ -300,8 +300,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Neverland Infrastructure",
-  "uid": "neverland-infrastructure",
+  "title": "Tomorrowland Infrastructure",
+  "uid": "tomorrowland-infrastructure",
   "version": 1,
   "weekStart": ""
 }

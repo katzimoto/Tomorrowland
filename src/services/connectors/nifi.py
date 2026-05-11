@@ -131,7 +131,7 @@ class NiFiConnector:
                 key="staging_root",
                 label="Staged file root",
                 required=False,
-                placeholder="/var/lib/neverland/nifi-staging",
+                placeholder="/var/lib/tomorrowland/nifi-staging",
             ),
             ConnectorField(
                 key="api_token",

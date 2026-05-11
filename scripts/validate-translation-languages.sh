@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Validate that a running LibreTranslate service supports all required
-# air-gapped translation language pairs for Neverland.
+# air-gapped translation language pairs for Tomorrowland.
 #
 # Usage:
 #   LIBRETRANSLATE_URL=http://localhost:5000 bash scripts/validate-translation-languages.sh

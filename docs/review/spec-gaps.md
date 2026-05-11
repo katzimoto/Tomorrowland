@@ -25,7 +25,7 @@ These items must be resolved before implementation reaches the affected phase.
   - **Resolved for Phase 01:** NiFi may publish normalized `documents.raw`
     events directly. Ingestion publishes the same event type for folder and
     Atlassian sources.
-  - **Updated for Issue #65:** release support uses a Neverland-owned Kafka
+  - **Updated for Issue #65:** release support uses a Tomorrowland-owned Kafka
     envelope rather than raw NiFi FlowFiles. The event must identify an enabled
     `nifi` ingestion source by `source_id` or `source_key`, include
     `external_id`, `title` or `filename`, `mime_type`, and a supported payload,
@@ -71,7 +71,7 @@ These items must be resolved before implementation reaches the affected phase.
 ## Blockers Before Phase 09
 
 - **Atlassian permissions:** resolved for the implemented Confluence/Jira
-  Server/Data Center connectors by using Neverland's source-grant access model.
+  Server/Data Center connectors by using Tomorrowland's source-grant access model.
   Page/project permission synchronization remains an optional hardening feature,
   not a blocker for the shipped polling connectors.
 - **Atlassian URL validation:** resolved for the implemented connector baseline:

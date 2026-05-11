@@ -1,6 +1,6 @@
 # Air-Gapped Compose Deployment
 
-This guide describes the release artifact path for installing Neverland on a
+This guide describes the release artifact path for installing Tomorrowland on a
 host that cannot reach the internet. The artifact contains the Compose files,
 operator templates, validation scripts, documentation, checksums, and a Docker
 image bundle with every first-party and third-party runtime image needed by the
@@ -8,15 +8,15 @@ default Compose deployment.
 
 ## Artifact Layout
 
-A release archive is named `neverland-release-<version>.tar.gz` and extracts to:
+A release archive is named `tomorrowland-release-<version>.tar.gz` and extracts to:
 
 ```text
-neverland-release-<version>/
+tomorrowland-release-<version>/
   docker-compose.yml
   docker-compose.airgap.yml
   .env.airgap.example
   images/
-    neverland-images.tar
+    tomorrowland-images.tar
   scripts/
     load-airgap-images.sh
     validate-airgap-artifact.sh
@@ -49,21 +49,21 @@ build from source.
    - the `release-artifact` GitHub Actions workflow artifact for a manually
      triggered run; or
    - the GitHub Release assets for a `v*` tag when a tagged release is created.
-2. Download the matching `neverland-release-<version>.tar.gz.sha256` file.
+2. Download the matching `tomorrowland-release-<version>.tar.gz.sha256` file.
 3. Verify the archive checksum before transfer:
 
    ```bash
-   sha256sum -c neverland-release-<version>.tar.gz.sha256
+   sha256sum -c tomorrowland-release-<version>.tar.gz.sha256
    ```
 
 4. For RC2 and later, also download the default Ollama model bundle release
    asset and checksum, for example
-   `neverland-ollama-bundle-mistral-<version>.tar.gz` and
-   `neverland-ollama-bundle-mistral-<version>.tar.gz.sha256`.
+   `tomorrowland-ollama-bundle-mistral-<version>.tar.gz` and
+   `tomorrowland-ollama-bundle-mistral-<version>.tar.gz.sha256`.
 5. Verify the model bundle checksum before transfer:
 
    ```bash
-   sha256sum -c neverland-ollama-bundle-mistral-<version>.tar.gz.sha256
+   sha256sum -c tomorrowland-ollama-bundle-mistral-<version>.tar.gz.sha256
    ```
 
 6. Copy the verified platform archive and model bundle archive to the air-gapped
@@ -96,8 +96,8 @@ docker compose version
 Extract the archive and validate the packaged files:
 
 ```bash
-tar xzf neverland-release-<version>.tar.gz
-cd neverland-release-<version>
+tar xzf tomorrowland-release-<version>.tar.gz
+cd tomorrowland-release-<version>
 sha256sum -c checksums.txt
 bash scripts/validate-airgap-artifact.sh .
 ```
@@ -109,14 +109,14 @@ metadata fields:
 
 ```bash
 bash scripts/validate-airgap-artifact.sh \
-  --model-bundle ../neverland-ollama-bundle-mistral-<version>.tar.gz \
+  --model-bundle ../tomorrowland-ollama-bundle-mistral-<version>.tar.gz \
   .
 ```
 
 The validation script fails if required platform files are missing, checksums do
 not match, Compose cannot render the air-gapped file, a `build:` step appears in
 the air-gapped Compose path, or a referenced image is not present in
-`images/neverland-images.tar`. A missing Ollama model bundle is a warning only:
+`images/tomorrowland-images.tar`. A missing Ollama model bundle is a warning only:
 the base platform artifact remains valid, but Q&A/RAG/local intelligence is
 degraded until the configured model is loaded.
 
@@ -147,14 +147,14 @@ asset. Operators should transfer and load this bundle for offline Q&A/RAG suppor
 The main platform can still start without the model, but the default RC2 release
 package includes the model bundle artifact and validation path.
 
-The bundle is separate from `neverland-release-<version>.tar.gz` because model
+The bundle is separate from `tomorrowland-release-<version>.tar.gz` because model
 weights are large, may require customer-specific approval, and may be replaced
 independently from the application images. The default bundle follows this naming
 pattern:
 
 ```text
-neverland-ollama-bundle-mistral-<version>.tar.gz
-neverland-ollama-bundle-mistral-<version>.tar.gz.sha256
+tomorrowland-ollama-bundle-mistral-<version>.tar.gz
+tomorrowland-ollama-bundle-mistral-<version>.tar.gz.sha256
 ```
 
 Each bundle contains a `models/` directory in Ollama's storage layout,
@@ -169,7 +169,7 @@ Load the bundle after images are loaded and before relying on Q&A/RAG:
 
 ```bash
 bash scripts/load-ollama-model-bundle.sh \
-  --bundle ../neverland-ollama-bundle-mistral-<version>.tar.gz \
+  --bundle ../tomorrowland-ollama-bundle-mistral-<version>.tar.gz \
   --compose-file docker-compose.airgap.yml \
   --env-file .env
 ```
@@ -231,7 +231,7 @@ Edit `.env` before starting the product. At minimum:
 - Confirm `FILES_ROOT=/data` unless you intentionally change the container
   storage path.
 - Set `CORS_ORIGINS` to the exact browser origin, such as
-  `http://neverland.example.local:8080`; do not use a wildcard.
+  `http://tomorrowland.example.local:8080`; do not use a wildcard.
 - Set `API_PORT` and `FRONTEND_PORT` for the host ports operators should reach.
 - Leave the direct API and infrastructure ports bound to localhost unless a
   maintenance workflow explicitly requires host access. Put any public access
@@ -243,7 +243,7 @@ release archive or commit them to source control.
 ## Configure Source Connectors
 
 Source definitions are created after login from the admin UI or admin API. Store
-connector credentials in the Neverland source configuration, not in the release
+connector credentials in the Tomorrowland source configuration, not in the release
 artifact.
 
 ### Folder Connector
@@ -252,8 +252,8 @@ The air-gapped compose file mounts a host folder into the API and migration
 containers:
 
 ```env
-NEVERLAND_FOLDER_SOURCE_HOST_PATH=./operator-data/folder-source
-NEVERLAND_FOLDER_SOURCE_CONTAINER_PATH=/sources/folder
+TOMORROWLAND_FOLDER_SOURCE_HOST_PATH=./operator-data/folder-source
+TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH=/sources/folder
 ```
 
 Create the host directory and copy source documents into it:
@@ -262,7 +262,7 @@ Create the host directory and copy source documents into it:
 mkdir -p operator-data/folder-source
 ```
 
-When adding a folder source in Neverland, use the container path from `.env`, for
+When adding a folder source in Tomorrowland, use the container path from `.env`, for
 example `/sources/folder`. Do not use the host path in the source definition;
 the API runs inside the container.
 
@@ -270,28 +270,28 @@ the API runs inside the container.
 ### Host-Mounted SMB Shares
 
 For Windows or Samba file shares, the recommended interim deployment path is to
-mount the SMB/CIFS share on the Docker host and expose it to Neverland as a
+mount the SMB/CIFS share on the Docker host and expose it to Tomorrowland as a
 read-only `folder` source. Use this path when operators already manage SMB
 mounts at the OS level, SMB credentials should remain on the host instead of in
-Neverland source configuration, a read-only ingestion path is sufficient, or the
+Tomorrowland source configuration, a read-only ingestion path is sufficient, or the
 native SMB connector tracked in #77 is unavailable or not preferred. This path is
 independent from #77 and does not mirror NTFS ACLs; optional NTFS ACL sync is
 tracked separately in #79.
 
 On the air-gapped host, install CIFS tooling such as `cifs-utils` from approved
 offline packages, then create and verify the host mount before starting
-Neverland:
+Tomorrowland:
 
 ```bash
-sudo mkdir -p /mnt/neverland-smb/legal
-sudo mount -t cifs //fileserver/department /mnt/neverland-smb/legal \
-  -o credentials=/etc/neverland/smb-legal.credentials,ro,vers=3.0,iocharset=utf8
+sudo mkdir -p /mnt/tomorrowland-smb/legal
+sudo mount -t cifs //fileserver/department /mnt/tomorrowland-smb/legal \
+  -o credentials=/etc/tomorrowland/smb-legal.credentials,ro,vers=3.0,iocharset=utf8
 ```
 
 Example credential file format, with placeholders only:
 
 ```ini
-username=neverland-reader
+username=tomorrowland-reader
 password=REPLACE_WITH_SECRET
 domain=CORP
 ```
@@ -300,21 +300,21 @@ Secure the host credential file and keep real SMB secrets out of the release
 artifact, `.env`, Compose files, Git, docs, and screenshots:
 
 ```bash
-sudo chown root:root /etc/neverland/smb-legal.credentials
-sudo chmod 600 /etc/neverland/smb-legal.credentials
+sudo chown root:root /etc/tomorrowland/smb-legal.credentials
+sudo chmod 600 /etc/tomorrowland/smb-legal.credentials
 ```
 
 Optional `/etc/fstab` entry:
 
 ```fstab
-//fileserver/department /mnt/neverland-smb/legal cifs credentials=/etc/neverland/smb-legal.credentials,ro,vers=3.0,iocharset=utf8,nofail 0 0
+//fileserver/department /mnt/tomorrowland-smb/legal cifs credentials=/etc/tomorrowland/smb-legal.credentials,ro,vers=3.0,iocharset=utf8,nofail 0 0
 ```
 
 Verify the mount before starting or upgrading the stack:
 
 ```bash
-mount | grep /mnt/neverland-smb/legal
-ls -la /mnt/neverland-smb/legal
+mount | grep /mnt/tomorrowland-smb/legal
+ls -la /mnt/tomorrowland-smb/legal
 ```
 
 Add a read-only bind mount to the `api` service in a local Compose override,
@@ -324,25 +324,25 @@ using a stable container path such as `/data/smb/<source-name>`:
 services:
   api:
     volumes:
-      - /mnt/neverland-smb/legal:/data/smb/legal:ro
+      - /mnt/tomorrowland-smb/legal:/data/smb/legal:ro
 ```
 
 The host source path must exist before `docker compose up`. Keep the host mount
 path and container path stable across upgrades; the SMB mount is external host
-state and is not packaged inside Neverland release artifacts.
+state and is not packaged inside Tomorrowland release artifacts.
 
-Create the Neverland source with:
+Create the Tomorrowland source with:
 
 ```text
 Source type: folder
 Path: /data/smb/legal
 ```
 
-The `folder` connector sees the mounted SMB share as local files. The Neverland
-source path must be the container path, not `/mnt/neverland-smb/legal` on the
-host. Neverland source permissions control which groups can search and preview
+The `folder` connector sees the mounted SMB share as local files. The Tomorrowland
+source path must be the container path, not `/mnt/tomorrowland-smb/legal` on the
+host. Tomorrowland source permissions control which groups can search and preview
 indexed documents, while the SMB service account controls which files are visible
-to the mount. Do not rely on Windows ACLs for per-user Neverland authorization
+to the mount. Do not rely on Windows ACLs for per-user Tomorrowland authorization
 after ingestion.
 
 Troubleshooting notes:
@@ -354,7 +354,7 @@ Troubleshooting notes:
 - If permission is denied, confirm the SMB service account, host mount
   permissions, and root-owned credential file permissions.
 - If the mount disappears after reboot, validate `/etc/fstab` or the equivalent
-  systemd mount before starting Neverland.
+  systemd mount before starting Tomorrowland.
 - If scans are slow, narrow the mounted subtree or source scope and check network
   and SMB server performance.
 
@@ -382,7 +382,7 @@ Add a Jira source with:
 - Optional `project_key`, `jql`, or `updated_since` to limit sync scope.
 
 Confluence and Jira Server/Data Center connectors are implemented, but
-Atlassian-native permission synchronization is not yet included. Use Neverland
+Atlassian-native permission synchronization is not yet included. Use Tomorrowland
 source grants, groups, and permissions to control access to synced documents.
 
 
@@ -403,7 +403,7 @@ The native SMB connector uses the Python `smbprotocol` / `smbclient` stack and
 NTLM/negotiate username-password authentication. Kerberos is not required for the
 MVP and may need additional Linux system packages in a future release. DFS path
 handling is also a follow-up limitation. The connector reads files with the
-configured service account and then applies Neverland source grants for search
+configured service account and then applies Tomorrowland source grants for search
 and preview authorization; NTFS ACLs are not mirrored.
 
 Operators that prefer host-level CIFS mounts can still mount the share on the
@@ -413,7 +413,7 @@ path.
 ### NiFi
 
 NiFi event ingestion is release-usable for operators that already provide a
-Kafka/Redpanda event flow and an approved way to invoke Neverland
+Kafka/Redpanda event flow and an approved way to invoke Tomorrowland
 `NiFiKafkaDrain`. The air-gapped artifact does not add a dedicated long-running
 NiFi worker container and CI does not use live NiFi or Kafka.
 
@@ -461,11 +461,11 @@ LDAP_BIND_PASSWORD=change-me-ldap-bind-password
 ```
 
 LDAP users authenticate against the configured directory. Group behavior depends
-on the current Neverland auth boundary and configured/admin-created Neverland
+on the current Tomorrowland auth boundary and configured/admin-created Tomorrowland
 groups; verify expected membership and access with a non-admin test account
 before loading sensitive corpora.
 
-## Start Neverland
+## Start Tomorrowland
 
 Render the final Compose configuration:
 
@@ -545,7 +545,7 @@ from another unless you are prepared to rebuild indexes.
 
 ## Translation Language Support
 
-The release artifact includes a pinned LibreTranslate image (`neverland/libretranslate:airgap`)
+The release artifact includes a pinned LibreTranslate image (`tomorrowland/libretranslate:airgap`)
 with Argos Translate language packs pre-installed at image build time. The air-gapped
 target host does not download translation models at startup.
 
@@ -599,7 +599,7 @@ To add a language in a future release:
    `SUPPORTED_TRANSLATION_TARGET_LANGUAGES` in both env example files.
 2. Add the required `(lang, "en")` and `("en", lang)` pairs to `REQUIRED_PAIRS`
    in `docker/install-translation-packs.py`.
-3. Rebuild the `neverland/libretranslate:airgap` image in a connected environment.
+3. Rebuild the `tomorrowland/libretranslate:airgap` image in a connected environment.
 4. Bundle the new image into the next release artifact.
 5. Update the language matrix in this document.
 
@@ -615,7 +615,7 @@ because it appears in document metadata.
 ### Artifact size impact
 
 Each Argos Translate language pair adds approximately 50–300 MB to the
-`neverland/libretranslate:airgap` image. The bundled image for the required
+`tomorrowland/libretranslate:airgap` image. The bundled image for the required
 language set is approximately 3–5 GB larger than the base `libretranslate:v1.6.3`
 image. Operators should reserve additional disk space for the expanded image
 bundle. See `Host Prerequisites` above for overall disk guidance.
@@ -630,7 +630,7 @@ bundle. See `Host Prerequisites` above for overall disk guidance.
 - Long-running worker containers are not part of the current Compose runtime.
 - NiFi event ingestion requires operator-provided drain invocation; no
   long-running worker container or live NiFi/Kafka CI validation is included.
-- Atlassian-native permission synchronization is not present; use Neverland
+- Atlassian-native permission synchronization is not present; use Tomorrowland
   source grants and groups.
 - Direct non-English translation pairs are not installed; non-English-to-non-English
   translation uses an English pivot via LibreTranslate's built-in routing.

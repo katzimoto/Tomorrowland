@@ -12,15 +12,15 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/preflight-upgrade-check.sh [--artifact-dir DIR] [--compose-file FILE ...]
 
-Read-only preflight for upgrading an existing Neverland air-gapped deployment.
+Read-only preflight for upgrading an existing Tomorrowland air-gapped deployment.
 Run from the current deployment directory. The script validates the current
 .env and Compose path, checks Docker/Compose availability, verifies a new
 release artifact, confirms checksums when present, rejects required build steps,
 and proves every air-gapped Compose image is bundled or already present locally.
 
 Options:
-  --artifact-dir DIR       Extracted neverland-release-<version> directory.
-                           Defaults to $NEVERLAND_RELEASE_ARTIFACT or ../neverland-release-*.
+  --artifact-dir DIR       Extracted tomorrowland-release-<version> directory.
+                           Defaults to $TOMORROWLAND_RELEASE_ARTIFACT or ../tomorrowland-release-*.
   --compose-file FILE      Current deployment Compose file. May be repeated.
                            Defaults to $COMPOSE_FILE, docker-compose.airgap.yml,
                            or docker-compose.yml in the deployment directory.
@@ -32,7 +32,7 @@ USAGE
 }
 
 failures=0
-artifact_dir="${NEVERLAND_RELEASE_ARTIFACT:-}"
+artifact_dir="${TOMORROWLAND_RELEASE_ARTIFACT:-}"
 compose_files=()
 
 while [[ $# -gt 0 ]]; do
@@ -70,7 +70,7 @@ fi
 
 if [[ -z "$artifact_dir" ]]; then
   shopt -s nullglob
-  candidates=(../neverland-release-* ./neverland-release-*)
+  candidates=(../tomorrowland-release-* ./tomorrowland-release-*)
   shopt -u nullglob
   if [[ ${#candidates[@]} -eq 1 && -d "${candidates[0]}" ]]; then
     artifact_dir="${candidates[0]}"
@@ -98,19 +98,19 @@ done
 
 if command -v docker >/dev/null 2>&1; then
   pass "docker CLI is installed"
-  if docker version --format '{{.Server.Version}}' >/tmp/neverland-docker-version.$$ 2>/tmp/neverland-docker-version-err.$$; then
-    pass "Docker Engine is available: $(cat /tmp/neverland-docker-version.$$)"
+  if docker version --format '{{.Server.Version}}' >/tmp/tomorrowland-docker-version.$$ 2>/tmp/tomorrowland-docker-version-err.$$; then
+    pass "Docker Engine is available: $(cat /tmp/tomorrowland-docker-version.$$)"
   else
-    fail_msg "Docker Engine is not available: $(cat /tmp/neverland-docker-version-err.$$)"
+    fail_msg "Docker Engine is not available: $(cat /tmp/tomorrowland-docker-version-err.$$)"
   fi
-  rm -f /tmp/neverland-docker-version.$$ /tmp/neverland-docker-version-err.$$
+  rm -f /tmp/tomorrowland-docker-version.$$ /tmp/tomorrowland-docker-version-err.$$
 
-  if docker compose version >/tmp/neverland-compose-version.$$ 2>/tmp/neverland-compose-version-err.$$; then
-    pass "Docker Compose plugin is available: $(cat /tmp/neverland-compose-version.$$)"
+  if docker compose version >/tmp/tomorrowland-compose-version.$$ 2>/tmp/tomorrowland-compose-version-err.$$; then
+    pass "Docker Compose plugin is available: $(cat /tmp/tomorrowland-compose-version.$$)"
   else
-    fail_msg "Docker Compose plugin is not available: $(cat /tmp/neverland-compose-version-err.$$)"
+    fail_msg "Docker Compose plugin is not available: $(cat /tmp/tomorrowland-compose-version-err.$$)"
   fi
-  rm -f /tmp/neverland-compose-version.$$ /tmp/neverland-compose-version-err.$$
+  rm -f /tmp/tomorrowland-compose-version.$$ /tmp/tomorrowland-compose-version-err.$$
 else
   fail_msg "docker CLI is not installed"
 fi
@@ -121,13 +121,13 @@ for file in "${compose_files[@]}"; do
 done
 
 if command -v docker >/dev/null 2>&1 && [[ ${#compose_files[@]} -gt 0 && -f .env ]]; then
-  if "${compose_cmd[@]}" ps --format 'table {{.Name}}\t{{.Service}}\t{{.State}}\t{{.Image}}' >/tmp/neverland-compose-ps.$$ 2>/tmp/neverland-compose-ps-err.$$; then
+  if "${compose_cmd[@]}" ps --format 'table {{.Name}}\t{{.Service}}\t{{.State}}\t{{.Image}}' >/tmp/tomorrowland-compose-ps.$$ 2>/tmp/tomorrowland-compose-ps-err.$$; then
     info "current service state:"
-    sed 's/^/[preflight-upgrade-check]   /' /tmp/neverland-compose-ps.$$
+    sed 's/^/[preflight-upgrade-check]   /' /tmp/tomorrowland-compose-ps.$$
   else
-    warn "could not query current service state: $(cat /tmp/neverland-compose-ps-err.$$)"
+    warn "could not query current service state: $(cat /tmp/tomorrowland-compose-ps-err.$$)"
   fi
-  rm -f /tmp/neverland-compose-ps.$$ /tmp/neverland-compose-ps-err.$$
+  rm -f /tmp/tomorrowland-compose-ps.$$ /tmp/tomorrowland-compose-ps-err.$$
 
   if [[ -f release-manifest.json ]]; then
     current_version="$(awk -F'"' '/"release_version"[[:space:]]*:/ {print $4; exit}' release-manifest.json)"
@@ -137,17 +137,17 @@ if command -v docker >/dev/null 2>&1 && [[ ${#compose_files[@]} -gt 0 && -f .env
     [[ -n "$current_version" ]] && info "current APP_VERSION from .env: $current_version"
   fi
 
-  if "${compose_cmd[@]}" config --images >/tmp/neverland-current-images.$$ 2>/tmp/neverland-current-images-err.$$; then
+  if "${compose_cmd[@]}" config --images >/tmp/tomorrowland-current-images.$$ 2>/tmp/tomorrowland-current-images-err.$$; then
     info "current image references:"
-    sed 's/^/[preflight-upgrade-check]   /' /tmp/neverland-current-images.$$
+    sed 's/^/[preflight-upgrade-check]   /' /tmp/tomorrowland-current-images.$$
   else
-    warn "could not render current image references: $(cat /tmp/neverland-current-images-err.$$)"
+    warn "could not render current image references: $(cat /tmp/tomorrowland-current-images-err.$$)"
   fi
-  rm -f /tmp/neverland-current-images.$$ /tmp/neverland-current-images-err.$$
+  rm -f /tmp/tomorrowland-current-images.$$ /tmp/tomorrowland-current-images-err.$$
 
-  if "${compose_cmd[@]}" config --volumes >/tmp/neverland-current-volumes.$$ 2>/tmp/neverland-current-volumes-err.$$; then
+  if "${compose_cmd[@]}" config --volumes >/tmp/tomorrowland-current-volumes.$$ 2>/tmp/tomorrowland-current-volumes-err.$$; then
     info "current expected named volumes:"
-    sed 's/^/[preflight-upgrade-check]   /' /tmp/neverland-current-volumes.$$
+    sed 's/^/[preflight-upgrade-check]   /' /tmp/tomorrowland-current-volumes.$$
     project_name="$(awk -F= '$1 == "COMPOSE_PROJECT_NAME" {print $2; exit}' .env)"
     project_name="${project_name:-$(basename "$(pwd)")}"
     while IFS= read -r volume; do
@@ -159,13 +159,13 @@ if command -v docker >/dev/null 2>&1 && [[ ${#compose_files[@]} -gt 0 && -f .env
       else
         warn "persistent volume not found yet: ${project_name}_${volume} (or $volume); verify project name before upgrade"
       fi
-    done < /tmp/neverland-current-volumes.$$
+    done < /tmp/tomorrowland-current-volumes.$$
   else
-    warn "could not render current volume references: $(cat /tmp/neverland-current-volumes-err.$$)"
+    warn "could not render current volume references: $(cat /tmp/tomorrowland-current-volumes-err.$$)"
   fi
-  rm -f /tmp/neverland-current-volumes.$$ /tmp/neverland-current-volumes-err.$$
+  rm -f /tmp/tomorrowland-current-volumes.$$ /tmp/tomorrowland-current-volumes-err.$$
 
-  folder_path="$(awk -F= '$1 == "NEVERLAND_FOLDER_SOURCE_HOST_PATH" {print $2; exit}' .env)"
+  folder_path="$(awk -F= '$1 == "TOMORROWLAND_FOLDER_SOURCE_HOST_PATH" {print $2; exit}' .env)"
   if [[ -n "$folder_path" ]]; then
     if [[ -e "$folder_path" ]]; then
       pass "folder source host path exists: $folder_path"
@@ -189,7 +189,7 @@ if [[ -n "$artifact_dir" && -d "$artifact_dir" ]]; then
   required_artifact_files=(
     "docker-compose.airgap.yml"
     ".env.airgap.example"
-    "images/neverland-images.tar"
+    "images/tomorrowland-images.tar"
     "scripts/load-airgap-images.sh"
     "scripts/validate-airgap-artifact.sh"
     "scripts/load-ollama-model-bundle.sh"
@@ -206,12 +206,12 @@ if [[ -n "$artifact_dir" && -d "$artifact_dir" ]]; then
   done
 
   if [[ -f "${artifact_dir}/checksums.txt" ]]; then
-    if (cd "$artifact_dir" && sha256sum -c checksums.txt >/tmp/neverland-checksums.$$ 2>/tmp/neverland-checksums-err.$$); then
+    if (cd "$artifact_dir" && sha256sum -c checksums.txt >/tmp/tomorrowland-checksums.$$ 2>/tmp/tomorrowland-checksums-err.$$); then
       pass "artifact checksums are valid"
     else
-      fail_msg "artifact checksums failed: $(cat /tmp/neverland-checksums-err.$$)"
+      fail_msg "artifact checksums failed: $(cat /tmp/tomorrowland-checksums-err.$$)"
     fi
-    rm -f /tmp/neverland-checksums.$$ /tmp/neverland-checksums-err.$$
+    rm -f /tmp/tomorrowland-checksums.$$ /tmp/tomorrowland-checksums-err.$$
   fi
 
   if [[ -f "${artifact_dir}/release-manifest.json" ]]; then
@@ -244,7 +244,7 @@ if [[ -n "$artifact_dir" && -d "$artifact_dir" ]]; then
 
     if docker compose --env-file "${artifact_dir}/.env.airgap.example" -f "${artifact_dir}/docker-compose.airgap.yml" config --images > "$tmp_dir/images.txt" 2>"$tmp_dir/images.err"; then
       pass "artifact image list rendered"
-      if [[ -f "${artifact_dir}/images/neverland-images.tar" ]] && tar -xOf "${artifact_dir}/images/neverland-images.tar" manifest.json > "$tmp_dir/docker-manifest.json" 2>/dev/null; then
+      if [[ -f "${artifact_dir}/images/tomorrowland-images.tar" ]] && tar -xOf "${artifact_dir}/images/tomorrowland-images.tar" manifest.json > "$tmp_dir/docker-manifest.json" 2>/dev/null; then
         bundled_missing=0
         while IFS= read -r image; do
           [[ -n "$image" ]] || continue

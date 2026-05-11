@@ -154,11 +154,11 @@ def test_admin_readiness_updates_dependency_metrics(migrated_engine: Engine) -> 
         sample.name: sample
         for metric in app.state.metrics.registry.collect()
         for sample in metric.samples
-        if sample.name == "neverland_dependency_up"
+        if sample.name == "tomorrowland_dependency_up"
         and sample.labels.get("dependency") == "libretranslate"
     }
 
-    assert samples["neverland_dependency_up"].value == 0
+    assert samples["tomorrowland_dependency_up"].value == 0
 
 
 def test_admin_readiness_route_requires_admin(migrated_engine: Engine) -> None:

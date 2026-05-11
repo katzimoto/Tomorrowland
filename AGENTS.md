@@ -1,4 +1,4 @@
-# AGENTS.md — Neverland Agent Guide
+# AGENTS.md — Tomorrowland Agent Guide
 
 Read this first. Keep context small, verify assumptions from files, and prefer the
 narrowest command that proves your change. For any non-trivial task, also read
@@ -7,7 +7,7 @@ single relevant plan, or one area context map.
 
 ## Fast orientation
 
-- Neverland is a local-first knowledge intelligence system for private document
+- Tomorrowland is a local-first knowledge intelligence system for private document
   corpora.
 - Backend: Python 3.11+ / FastAPI / SQLAlchemy / PostgreSQL / Elasticsearch /
   Qdrant / LibreTranslate.
@@ -91,7 +91,7 @@ service names, commands, paths, or API behavior.
 
 ## Multi-agent orchestration
 
-Neverland may be worked on by Codex, Claude Code, and human reviewers. GitHub
+Tomorrowland may be worked on by Codex, Claude Code, and human reviewers. GitHub
 Issues and PRs are the coordination objects for current work. This file provides
 routing rules; it should not be treated as a stale static project plan.
 

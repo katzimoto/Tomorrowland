@@ -46,38 +46,38 @@ def test_domain_metric_catalog_collectors_are_registered() -> None:
     names = set(metric_names(metrics.registry))
 
     expected = {
-        "neverland_auth_login_attempts_total",
-        "neverland_authz_denials_total",
-        "neverland_admin_actions_total",
-        "neverland_ingestion_syncs_total",
-        "neverland_ingestion_documents_total",
-        "neverland_pipeline_documents_total",
-        "neverland_pipeline_stage_duration_seconds_bucket",
-        "neverland_pipeline_document_bytes_bucket",
-        "neverland_pipeline_chunks_total",
-        "neverland_dlq_records_total",
-        "neverland_dlq_pending",
-        "neverland_search_requests_total",
-        "neverland_search_duration_seconds_bucket",
-        "neverland_search_backend_duration_seconds_bucket",
-        "neverland_search_results_count_bucket",
-        "neverland_search_index_documents",
-        "neverland_translation_requests_total",
-        "neverland_translation_duration_seconds_bucket",
-        "neverland_translation_characters_total",
-        "neverland_intelligence_tasks_total",
-        "neverland_intelligence_task_duration_seconds_bucket",
-        "neverland_ollama_requests_total",
-        "neverland_ollama_duration_seconds_bucket",
-        "neverland_rag_requests_total",
-        "neverland_rag_duration_seconds_bucket",
-        "neverland_rag_citations_count_bucket",
-        "neverland_preview_requests_total",
-        "neverland_download_requests_total",
-        "neverland_comments_total",
-        "neverland_annotations_total",
-        "neverland_subscriptions_total",
-        "neverland_notifications_total",
+        "tomorrowland_auth_login_attempts_total",
+        "tomorrowland_authz_denials_total",
+        "tomorrowland_admin_actions_total",
+        "tomorrowland_ingestion_syncs_total",
+        "tomorrowland_ingestion_documents_total",
+        "tomorrowland_pipeline_documents_total",
+        "tomorrowland_pipeline_stage_duration_seconds_bucket",
+        "tomorrowland_pipeline_document_bytes_bucket",
+        "tomorrowland_pipeline_chunks_total",
+        "tomorrowland_dlq_records_total",
+        "tomorrowland_dlq_pending",
+        "tomorrowland_search_requests_total",
+        "tomorrowland_search_duration_seconds_bucket",
+        "tomorrowland_search_backend_duration_seconds_bucket",
+        "tomorrowland_search_results_count_bucket",
+        "tomorrowland_search_index_documents",
+        "tomorrowland_translation_requests_total",
+        "tomorrowland_translation_duration_seconds_bucket",
+        "tomorrowland_translation_characters_total",
+        "tomorrowland_intelligence_tasks_total",
+        "tomorrowland_intelligence_task_duration_seconds_bucket",
+        "tomorrowland_ollama_requests_total",
+        "tomorrowland_ollama_duration_seconds_bucket",
+        "tomorrowland_rag_requests_total",
+        "tomorrowland_rag_duration_seconds_bucket",
+        "tomorrowland_rag_citations_count_bucket",
+        "tomorrowland_preview_requests_total",
+        "tomorrowland_download_requests_total",
+        "tomorrowland_comments_total",
+        "tomorrowland_annotations_total",
+        "tomorrowland_subscriptions_total",
+        "tomorrowland_notifications_total",
     }
     assert expected <= names
 
@@ -120,16 +120,16 @@ def test_domain_metrics_increment_success_paths_with_low_cardinality_labels() ->
 
     text = _metrics_text(metrics)
 
-    assert 'neverland_auth_login_attempts_total{outcome="success",provider="local"} 1.0' in text
+    assert 'tomorrowland_auth_login_attempts_total{outcome="success",provider="local"} 1.0' in text
     assert (
-        'neverland_ingestion_documents_total{connector_type="folder",outcome="success"} 1.0' in text
+        'tomorrowland_ingestion_documents_total{connector_type="folder",outcome="success"} 1.0' in text
     )
-    assert 'neverland_pipeline_chunks_total{outcome="success"} 3.0' in text
-    assert "neverland_dlq_pending 2.0" in text
-    assert 'neverland_search_index_documents{backend="qdrant"} 11.0' in text
-    assert 'neverland_translation_characters_total{kind="manual"} 12.0' in text
+    assert 'tomorrowland_pipeline_chunks_total{outcome="success"} 3.0' in text
+    assert "tomorrowland_dlq_pending 2.0" in text
+    assert 'tomorrowland_search_index_documents{backend="qdrant"} 11.0' in text
+    assert 'tomorrowland_translation_characters_total{kind="manual"} 12.0' in text
     assert (
-        'neverland_annotations_total{action="create",outcome="success",visibility="shared"} 1.0'
+        'tomorrowland_annotations_total{action="create",outcome="success",visibility="shared"} 1.0'
         in text
     )
 
@@ -153,10 +153,10 @@ def test_domain_metrics_increment_failure_outcomes() -> None:
 
     text = _metrics_text(metrics)
 
-    assert 'neverland_auth_login_attempts_total{outcome="failure",provider="local"} 1.0' in text
-    assert 'neverland_pipeline_documents_total{outcome="failure",stage="document"} 1.0' in text
+    assert 'tomorrowland_auth_login_attempts_total{outcome="failure",provider="local"} 1.0' in text
+    assert 'tomorrowland_pipeline_documents_total{outcome="failure",stage="document"} 1.0' in text
     assert (
-        'neverland_annotations_total{action="delete",outcome="failure",visibility="private"} 1.0'
+        'tomorrowland_annotations_total{action="delete",outcome="failure",visibility="private"} 1.0'
         in text
     )
 

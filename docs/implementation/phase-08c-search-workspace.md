@@ -91,7 +91,7 @@ Create `src/features/search/` with:
 - `ResultRow.test.tsx`
 - `SavedSearches.ts` — browser-storage utility. Stores and retrieves saved
   searches in `localStorage` scoped to the current user ID
-  (`neverland_saved_searches_<user_id>`). No backend; local-only per the API
+  (`tomorrowland_saved_searches_<user_id>`). No backend; local-only per the API
   Availability Map.
 - `SavedSearches.test.ts`
 - `SearchPage.test.tsx`

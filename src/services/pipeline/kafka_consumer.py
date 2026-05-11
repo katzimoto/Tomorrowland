@@ -67,7 +67,7 @@ class TransientKafkaError(RuntimeError):
 
 
 class DatabaseDeadLetterSink:
-    """Store sanitized NiFi/Kafka failures in Neverland's DLQ table."""
+    """Store sanitized NiFi/Kafka failures in Tomorrowland's DLQ table."""
 
     def __init__(self, engine: Engine) -> None:
         self._engine = engine

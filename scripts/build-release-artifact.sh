@@ -7,13 +7,13 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/build-release-artifact.sh [version]
 
-Build first-party Neverland images, pull third-party runtime images, save an
+Build first-party Tomorrowland images, pull third-party runtime images, save an
 offline Docker image bundle, and package a versioned air-gapped release archive.
 
 Environment:
   RELEASE_DIST_DIR     Output directory for release folders and archives (default: dist)
   SKIP_DOCKER_BUILD    Set to 1 to skip docker build/pull/save for static packaging tests
-  SPLIT_IMAGE_BUNDLE   Set to 0 to embed images/neverland-images.tar in the archive.
+  SPLIT_IMAGE_BUNDLE   Set to 0 to embed images/tomorrowland-images.tar in the archive.
                        Defaults to 1 so GitHub Release assets stay under per-file limits.
   IMAGE_PART_SIZE      Split size passed to split -b (default: 1900m)
 USAGE
@@ -40,20 +40,20 @@ if [[ -z "$version" ]]; then
 fi
 safe_version="${version//\//-}"
 dist_dir="${RELEASE_DIST_DIR:-dist}"
-release_name="neverland-release-${safe_version}"
+release_name="tomorrowland-release-${safe_version}"
 release_dir="${dist_dir}/${release_name}"
 archive_path="${dist_dir}/${release_name}.tar.gz"
 split_image_bundle="${SPLIT_IMAGE_BUNDLE:-1}"
 image_part_size="${IMAGE_PART_SIZE:-1900m}"
-image_parts_prefix="neverland-images-${safe_version}.tar.part-"
-image_parts_sha="${dist_dir}/neverland-images-${safe_version}.tar.parts.sha256"
+image_parts_prefix="tomorrowland-images-${safe_version}.tar.part-"
+image_parts_sha="${dist_dir}/tomorrowland-images-${safe_version}.tar.parts.sha256"
 
-backend_version_image="neverland/backend:${safe_version}"
-frontend_version_image="neverland/frontend:${safe_version}"
-backend_airgap_image="neverland/backend:airgap"
-frontend_airgap_image="neverland/frontend:airgap"
-libretranslate_version_image="neverland/libretranslate:${safe_version}"
-libretranslate_airgap_image="neverland/libretranslate:airgap"
+backend_version_image="tomorrowland/backend:${safe_version}"
+frontend_version_image="tomorrowland/frontend:${safe_version}"
+backend_airgap_image="tomorrowland/backend:airgap"
+frontend_airgap_image="tomorrowland/frontend:airgap"
+libretranslate_version_image="tomorrowland/libretranslate:${safe_version}"
+libretranslate_airgap_image="tomorrowland/libretranslate:airgap"
 third_party_images=(
   "postgres:16-alpine"
   "redpandadata/redpanda:v24.1.9"
@@ -97,16 +97,16 @@ rm -rf "$release_dir" "$archive_path" "${archive_path}.sha256" "${dist_dir}/${im
 mkdir -p "$release_dir/images" "$release_dir/scripts" "$release_dir/docs" "$dist_dir"
 
 image_bundle_mode="embedded"
-image_bundle_path="images/neverland-images.tar"
+image_bundle_path="images/tomorrowland-images.tar"
 tmp_image_tar=""
 if [[ "$split_image_bundle" == "1" ]]; then
   image_bundle_mode="split"
   image_bundle_path="../${image_parts_prefix}*"
-  tmp_image_tar="$(mktemp "${TMPDIR:-/tmp}/neverland-images-${safe_version}.XXXXXX.tar")"
+  tmp_image_tar="$(mktemp "${TMPDIR:-/tmp}/tomorrowland-images-${safe_version}.XXXXXX.tar")"
   cleanup_tmp_image_tar() { rm -f "$tmp_image_tar"; }
   trap cleanup_tmp_image_tar EXIT
 else
-  tmp_image_tar="$release_dir/images/neverland-images.tar"
+  tmp_image_tar="$release_dir/images/tomorrowland-images.tar"
 fi
 
 if [[ "${SKIP_DOCKER_BUILD:-0}" != "1" ]]; then
@@ -162,11 +162,11 @@ Expected files beside the extracted release archive:
   ${image_parts_prefix}000
   ${image_parts_prefix}001
   ...
-  neverland-images-${safe_version}.tar.parts.sha256
+  tomorrowland-images-${safe_version}.tar.parts.sha256
 
 Verify the parts before transfer or loading:
 
-  sha256sum -c neverland-images-${safe_version}.tar.parts.sha256
+  sha256sum -c tomorrowland-images-${safe_version}.tar.parts.sha256
 
 Load the images from the extracted release directory:
 
@@ -179,7 +179,7 @@ else
   cat > "$release_dir/images/README-images.txt" <<README
 The Docker image bundle is embedded at:
 
-  images/neverland-images.tar
+  images/tomorrowland-images.tar
 
 Load it from the extracted release directory:
 
@@ -191,8 +191,8 @@ cp docker-compose.yml "$release_dir/docker-compose.yml"
 cp docker-compose.airgap.yml "$release_dir/docker-compose.airgap.yml"
 sed \
   -e "s/^APP_VERSION=.*/APP_VERSION=${safe_version}/" \
-  -e "s|^NEVERLAND_BACKEND_IMAGE=.*|NEVERLAND_BACKEND_IMAGE=${backend_airgap_image}|" \
-  -e "s|^NEVERLAND_FRONTEND_IMAGE=.*|NEVERLAND_FRONTEND_IMAGE=${frontend_airgap_image}|" \
+  -e "s|^TOMORROWLAND_BACKEND_IMAGE=.*|TOMORROWLAND_BACKEND_IMAGE=${backend_airgap_image}|" \
+  -e "s|^TOMORROWLAND_FRONTEND_IMAGE=.*|TOMORROWLAND_FRONTEND_IMAGE=${frontend_airgap_image}|" \
   .env.airgap.example > "$release_dir/.env.airgap.example"
 cp scripts/load-airgap-images.sh "$release_dir/scripts/load-airgap-images.sh"
 cp scripts/validate-airgap-artifact.sh "$release_dir/scripts/validate-airgap-artifact.sh"
@@ -228,7 +228,7 @@ $(for image in "${all_images[@]:1}"; do printf ',\n    "%s"' "$image"; done)
     "mode": "$image_bundle_mode",
     "path": "$image_bundle_path",
     "split_prefix": "${image_parts_prefix}",
-    "split_checksum_file": "../neverland-images-${safe_version}.tar.parts.sha256",
+    "split_checksum_file": "../tomorrowland-images-${safe_version}.tar.parts.sha256",
     "part_size": "$image_part_size"
   },
   "compose_files": ["docker-compose.yml", "docker-compose.airgap.yml"],
@@ -237,30 +237,30 @@ $(for image in "${all_images[@]:1}"; do printf ',\n    "%s"' "$image"; done)
   "migrations": {"expected": true, "service": "migrate", "command": "alembic upgrade head"},
   "persistent_data": {
     "volumes": ["files_data", "postgres_data", "kafka_data", "elasticsearch_data", "qdrant_data", "libretranslate_data", "ollama_data"],
-    "paths": ["NEVERLAND_FOLDER_SOURCE_HOST_PATH"]
+    "paths": ["TOMORROWLAND_FOLDER_SOURCE_HOST_PATH"]
   },
   "backup_restore_script_version": "1.0"
 }
 MANIFEST
 
 {
-  printf 'Neverland release artifact %s\n\n' "$version"
+  printf 'Tomorrowland release artifact %s\n\n' "$version"
   printf 'Images included in the offline Docker image bundle:\n'
   printf -- '- %s\n' "${all_images[@]}"
   printf '\nImage bundle layout:\n'
   if [[ "$image_bundle_mode" == "split" ]]; then
     printf 'The Docker image tar is distributed as split assets beside this archive:\n'
     printf '  %s000, %s001, ...\n' "$image_parts_prefix" "$image_parts_prefix"
-    printf '  neverland-images-%s.tar.parts.sha256\n' "$safe_version"
+    printf '  tomorrowland-images-%s.tar.parts.sha256\n' "$safe_version"
   else
-    printf '  images/neverland-images.tar\n'
+    printf '  images/tomorrowland-images.tar\n'
   fi
   printf '\nStart command:\n'
   printf 'docker compose --env-file .env -f docker-compose.airgap.yml up -d\n'
   printf '\nUpgrade existing deployment from that deployment directory:\n'
   printf '../%s/scripts/upgrade-airgap.sh --artifact-dir ../%s\n' "$release_name" "$release_name"
   printf '\nRC2 default model bundle (separate release asset):\n'
-  printf 'neverland-ollama-bundle-mistral-%s.tar.gz\n' "$safe_version"
+  printf 'tomorrowland-ollama-bundle-mistral-%s.tar.gz\n' "$safe_version"
   printf 'Load with scripts/load-ollama-model-bundle.sh, then validate with scripts/validate-ollama-model.sh.\n'
 } > "$release_dir/README-airgap.txt"
 
@@ -286,7 +286,7 @@ checksum_inputs=(
   README-airgap.txt
 )
 if [[ "$image_bundle_mode" == "embedded" ]]; then
-  checksum_inputs+=(images/neverland-images.tar)
+  checksum_inputs+=(images/tomorrowland-images.tar)
 fi
 (
   cd "$release_dir"

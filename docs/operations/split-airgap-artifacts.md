@@ -7,18 +7,18 @@ Large air-gapped releases are distributed as several files so each GitHub Releas
 A split release contains these assets:
 
 ```text
-neverland-release-<version>.tar.gz
-neverland-release-<version>.tar.gz.sha256
-neverland-images-<version>.tar.part-000
-neverland-images-<version>.tar.part-001
-neverland-images-<version>.tar.part-002
+tomorrowland-release-<version>.tar.gz
+tomorrowland-release-<version>.tar.gz.sha256
+tomorrowland-images-<version>.tar.part-000
+tomorrowland-images-<version>.tar.part-001
+tomorrowland-images-<version>.tar.part-002
 ...
-neverland-images-<version>.tar.parts.sha256
+tomorrowland-images-<version>.tar.parts.sha256
 ```
 
-The `neverland-release-<version>.tar.gz` archive is the small platform archive. It contains Compose files, environment templates, scripts, docs, checksums, and release metadata.
+The `tomorrowland-release-<version>.tar.gz` archive is the small platform archive. It contains Compose files, environment templates, scripts, docs, checksums, and release metadata.
 
-The `neverland-images-<version>.tar.part-*` files are the split Docker image bundle. Together, they represent the image archive that is loaded into Docker on the air-gapped host.
+The `tomorrowland-images-<version>.tar.part-*` files are the split Docker image bundle. Together, they represent the image archive that is loaded into Docker on the air-gapped host.
 
 ## Download and transfer
 
@@ -27,8 +27,8 @@ Download every file for the same version. Keep the file names unchanged.
 Verify checksums on the connected workstation before transfer:
 
 ```bash
-sha256sum -c neverland-release-<version>.tar.gz.sha256
-sha256sum -c neverland-images-<version>.tar.parts.sha256
+sha256sum -c tomorrowland-release-<version>.tar.gz.sha256
+sha256sum -c tomorrowland-images-<version>.tar.parts.sha256
 ```
 
 Transfer the verified files to the air-gapped host using the approved transfer process.
@@ -39,18 +39,18 @@ Keep the image parts beside the platform archive:
 
 ```text
 transfer-dir/
-  neverland-release-<version>.tar.gz
-  neverland-release-<version>.tar.gz.sha256
-  neverland-images-<version>.tar.part-000
-  neverland-images-<version>.tar.part-001
-  neverland-images-<version>.tar.parts.sha256
+  tomorrowland-release-<version>.tar.gz
+  tomorrowland-release-<version>.tar.gz.sha256
+  tomorrowland-images-<version>.tar.part-000
+  tomorrowland-images-<version>.tar.part-001
+  tomorrowland-images-<version>.tar.parts.sha256
 ```
 
 Then extract and validate:
 
 ```bash
-tar xzf neverland-release-<version>.tar.gz
-cd neverland-release-<version>
+tar xzf tomorrowland-release-<version>.tar.gz
+cd tomorrowland-release-<version>
 bash scripts/validate-airgap-artifact.sh --load-images .
 ```
 
@@ -64,8 +64,8 @@ bash scripts/validate-airgap-artifact.sh --load-images --image-parts-dir /path/t
 
 The loader supports both layouts:
 
-1. Legacy embedded image tar: `images/neverland-images.tar`
-2. Split image parts: `neverland-images-<version>.tar.part-*`
+1. Legacy embedded image tar: `images/tomorrowland-images.tar`
+2. Split image parts: `tomorrowland-images-<version>.tar.part-*`
 
 To load images from the default layout:
 
@@ -101,8 +101,8 @@ SPLIT_IMAGE_BUNDLE=1 IMAGE_PART_SIZE=1900m bash scripts/build-release-artifact.s
 
 If validation cannot find the image parts, confirm that:
 
-- all `neverland-images-<version>.tar.part-*` files are present;
-- `neverland-images-<version>.tar.parts.sha256` is present;
+- all `tomorrowland-images-<version>.tar.part-*` files are present;
+- `tomorrowland-images-<version>.tar.parts.sha256` is present;
 - the part files are in the parent directory of the extracted release archive, or `--image-parts-dir` points to their directory;
 - the part suffixes are contiguous: `000`, `001`, `002`, and so on.
 

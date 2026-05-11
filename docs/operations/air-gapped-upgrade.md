@@ -1,6 +1,6 @@
 # Air-Gapped Upgrade Without Data Loss
 
-This guide explains how to upgrade an existing air-gapped Neverland deployment
+This guide explains how to upgrade an existing air-gapped Tomorrowland deployment
 with a newer release artifact while preserving operator configuration and
 persistent product data.
 
@@ -13,11 +13,11 @@ replace, delete, or recreate data volumes by default.**
 
 ## Prerequisites
 
-- An existing Neverland air-gapped deployment directory containing `.env` and the
+- An existing Tomorrowland air-gapped deployment directory containing `.env` and the
   active Compose file, usually `docker-compose.airgap.yml`.
 - Docker Engine and Docker Compose plugin already installed on the target host.
   The release manifest declares the minimum expected versions.
-- A newer extracted `neverland-release-<version>/` artifact copied to the
+- A newer extracted `tomorrowland-release-<version>/` artifact copied to the
   air-gapped host.
 - Enough free disk space for:
   - the new image bundle,
@@ -31,7 +31,7 @@ replace, delete, or recreate data volumes by default.**
 Do not perform the upgrade from inside a fresh artifact directory unless that is
 also the long-lived deployment directory that contains the current `.env` and
 volumes. Most operators should run upgrade commands from the existing deployment
-directory and pass `--artifact-dir ../neverland-release-<version>`.
+directory and pass `--artifact-dir ../tomorrowland-release-<version>`.
 
 ## What data is preserved
 
@@ -52,10 +52,10 @@ default. This includes:
 
 ## Translation language pack upgrade notes
 
-The `neverland/libretranslate:airgap` image bundles Argos Translate language packs
+The `tomorrowland/libretranslate:airgap` image bundles Argos Translate language packs
 at build time. When upgrading to a new release artifact:
 
-- The new `neverland/libretranslate:airgap` image in the artifact may include
+- The new `tomorrowland/libretranslate:airgap` image in the artifact may include
   additional or updated language packs compared to the previous release.
 - The `libretranslate_data` named volume persists across upgrades and retains
   packages from the previous image. On first startup after image replacement,
@@ -100,7 +100,7 @@ To replace or upgrade the model safely:
 1. Verify the transferred bundle checksum on the air-gapped host:
 
    ```bash
-   sha256sum -c neverland-ollama-bundle-mistral-<version>.tar.gz.sha256
+   sha256sum -c tomorrowland-ollama-bundle-mistral-<version>.tar.gz.sha256
    ```
 
 2. Review `model-manifest.json` after extracting or by validating the bundle;
@@ -110,8 +110,8 @@ To replace or upgrade the model safely:
 4. Load the bundle into the existing deployment volume:
 
    ```bash
-   bash ../neverland-release-<version>/scripts/load-ollama-model-bundle.sh \
-     --bundle ../neverland-ollama-bundle-mistral-<version>.tar.gz \
+   bash ../tomorrowland-release-<version>/scripts/load-ollama-model-bundle.sh \
+     --bundle ../tomorrowland-ollama-bundle-mistral-<version>.tar.gz \
      --compose-file docker-compose.airgap.yml \
      --env-file .env
    ```
@@ -121,7 +121,7 @@ To replace or upgrade the model safely:
    ```bash
    OLLAMA_URL=http://localhost:${OLLAMA_PORT:-11434} \
    OLLAMA_MODEL=${OLLAMA_MODEL:-mistral} \
-   bash ../neverland-release-<version>/scripts/validate-ollama-model.sh --smoke-test
+   bash ../tomorrowland-release-<version>/scripts/validate-ollama-model.sh --smoke-test
    ```
 
 The load script is intentionally non-destructive: it merges bundled `models/`
@@ -157,14 +157,14 @@ On the connected machine, verify the downloaded archive checksum before moving i
 to the air-gapped host:
 
 ```bash
-sha256sum -c neverland-release-<version>.tar.gz.sha256
+sha256sum -c tomorrowland-release-<version>.tar.gz.sha256
 ```
 
 On the air-gapped host, extract the release artifact near the deployment
 directory:
 
 ```bash
-tar xzf neverland-release-<version>.tar.gz
+tar xzf tomorrowland-release-<version>.tar.gz
 ```
 
 From the existing deployment directory, confirm `.env` still contains the current
@@ -176,7 +176,7 @@ If `checksums.txt` is present in the extracted artifact, the preflight script
 verifies it. You can also verify manually:
 
 ```bash
-cd neverland-release-<version>
+cd tomorrowland-release-<version>
 sha256sum -c checksums.txt
 ```
 
@@ -185,7 +185,7 @@ sha256sum -c checksums.txt
 Run preflight from the existing deployment directory:
 
 ```bash
-../neverland-release-<version>/scripts/preflight-upgrade-check.sh --artifact-dir ../neverland-release-<version>
+../tomorrowland-release-<version>/scripts/preflight-upgrade-check.sh --artifact-dir ../tomorrowland-release-<version>
 ```
 
 The preflight check is read-only. It validates the deployment directory, `.env`,
@@ -204,7 +204,7 @@ Stop and resolve any preflight failure before continuing.
 Create a backup from the existing deployment directory:
 
 ```bash
-../neverland-release-<version>/scripts/backup-airgap-data.sh --output-dir ./backups
+../tomorrowland-release-<version>/scripts/backup-airgap-data.sh --output-dir ./backups
 ```
 
 The backup script fails closed: if PostgreSQL dumping or files archiving fails,
@@ -228,10 +228,10 @@ The upgrade orchestrator loads images automatically, but you can load them
 manually when validating an artifact:
 
 ```bash
-bash ../neverland-release-<version>/scripts/load-airgap-images.sh ../neverland-release-<version>
+bash ../tomorrowland-release-<version>/scripts/load-airgap-images.sh ../tomorrowland-release-<version>
 ```
 
-This uses only `images/neverland-images.tar` from the release artifact. It does
+This uses only `images/tomorrowland-images.tar` from the release artifact. It does
 not pull from the internet and does not build images on the target host.
 
 ## Upgrade command
@@ -239,7 +239,7 @@ not pull from the internet and does not build images on the target host.
 From the existing deployment directory:
 
 ```bash
-../neverland-release-<version>/scripts/upgrade-airgap.sh --artifact-dir ../neverland-release-<version>
+../tomorrowland-release-<version>/scripts/upgrade-airgap.sh --artifact-dir ../tomorrowland-release-<version>
 ```
 
 The orchestrator performs the following steps:
@@ -261,7 +261,7 @@ Use `--skip-backup` only when you have already created and verified an equivalen
 backup outside this script:
 
 ```bash
-../neverland-release-<version>/scripts/upgrade-airgap.sh --artifact-dir ../neverland-release-<version> --skip-backup
+../tomorrowland-release-<version>/scripts/upgrade-airgap.sh --artifact-dir ../tomorrowland-release-<version> --skip-backup
 ```
 
 ## Migration behavior
@@ -280,9 +280,9 @@ from running against a partially migrated database.
 ## Host-mounted SMB shares during upgrades
 
 Host-mounted SMB/CIFS shares are external host state; they are not packaged
-inside Neverland release artifacts and are not recreated by the upgrade scripts.
+inside Tomorrowland release artifacts and are not recreated by the upgrade scripts.
 If an existing deployment uses an SMB share through the `folder` connector, keep
-both the host mount path, such as `/mnt/neverland-smb/legal`, and the container
+both the host mount path, such as `/mnt/tomorrowland-smb/legal`, and the container
 path, such as `/data/smb/legal`, stable across upgrades so existing source
 configuration continues to work.
 
@@ -290,16 +290,16 @@ Before starting the upgraded stack in the #75 upgrade flow, remount or verify th
 SMB share on the host:
 
 ```bash
-mount | grep /mnt/neverland-smb/legal
-ls -la /mnt/neverland-smb/legal
+mount | grep /mnt/tomorrowland-smb/legal
+ls -la /mnt/tomorrowland-smb/legal
 ```
 
 Back up `/etc/fstab` or the equivalent systemd mount configuration and the
-root-owned SMB credential file outside Neverland. Do not store real SMB
+root-owned SMB credential file outside Tomorrowland. Do not store real SMB
 credentials in `.env`, release artifacts, Compose examples, documentation, or
 screenshots. Do not use destructive volume commands to fix SMB mount issues;
 repair the host mount, verify the `api` service bind mount, and then restart the
-stack without deleting Neverland volumes.
+stack without deleting Tomorrowland volumes.
 
 ## Post-upgrade validation checklist
 
@@ -348,7 +348,7 @@ If migration or post-upgrade validation fails:
 3. Restore the backup created before upgrade:
 
    ```bash
-   scripts/restore-airgap-data.sh --backup-dir ./backups/neverland-airgap-backup-<timestamp> --confirm-restore
+   scripts/restore-airgap-data.sh --backup-dir ./backups/tomorrowland-airgap-backup-<timestamp> --confirm-restore
    ```
 
 4. Restore Elasticsearch and Qdrant storage snapshots if you created them.
@@ -382,7 +382,7 @@ directory for those volumes.
 ## Compatibility notes between versions
 
 - Upgrade only with release artifacts that include `release-manifest.json`,
-  `docker-compose.airgap.yml`, `images/neverland-images.tar`, checksums, and the
+  `docker-compose.airgap.yml`, `images/tomorrowland-images.tar`, checksums, and the
   upgrade scripts.
 - Review `release-manifest.json` before upgrade. Confirm the expected release
   version, commit SHA, Compose files, minimum Docker and Compose versions,

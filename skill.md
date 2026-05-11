@@ -1,6 +1,6 @@
-# skill.md — Neverland Project Skills
+# skill.md — Tomorrowland Project Skills
 
-> Shared skill definitions for Developer and Reviewer agents working on Neverland.
+> Shared skill definitions for Developer and Reviewer agents working on Tomorrowland.
 > This is a Python/FastAPI project. All commands and thresholds below are exact.
 
 ---

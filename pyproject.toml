@@ -1,5 +1,5 @@
 [project]
-name = "neverland"
+name = "tomorrowland"
 version = "0.1.0"
 description = "Local semantic search engine foundation"
 requires-python = ">=3.11"

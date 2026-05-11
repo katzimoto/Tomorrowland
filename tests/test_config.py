@@ -39,10 +39,10 @@ def test_cors_origins_default_to_frontend_origin() -> None:
 
 def test_cors_origins_parse_comma_separated_values() -> None:
     settings = Settings(
-        cors_origins=" http://localhost:8080,https://neverland.example ,, ", _env_file=None
+        cors_origins=" http://localhost:8080,https://tomorrowland.example ,, ", _env_file=None
     )
 
-    assert settings.cors_origin_list == ["http://localhost:8080", "https://neverland.example"]
+    assert settings.cors_origin_list == ["http://localhost:8080", "https://tomorrowland.example"]
 
 
 def test_cors_origins_empty_values_are_ignored() -> None:

@@ -7,7 +7,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/build-ollama-model-bundle.sh <version>
 
-Build a Neverland Ollama model bundle on a connected machine.
+Build a Tomorrowland Ollama model bundle on a connected machine.
 
 Environment:
   OLLAMA_MODEL                         Model to pull (default: mistral)
@@ -45,11 +45,11 @@ safe_version="${version//\//-}"
 model_slug="$(printf '%s' "$model" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//; s/-+/-/g')"
 [[ -n "$model_slug" ]] || fail "could not derive shell-safe model slug from OLLAMA_MODEL=$model"
 
-bundle_name="neverland-ollama-bundle-${model_slug}-${safe_version}"
+bundle_name="tomorrowland-ollama-bundle-${model_slug}-${safe_version}"
 bundle_dir="${dist_dir}/${bundle_name}"
 archive_path="${dist_dir}/${bundle_name}.tar.gz"
-volume_name="neverland_ollama_bundle_${model_slug}_${safe_version}_$$"
-container_name="neverland-ollama-bundle-${model_slug}-$$"
+volume_name="tomorrowland_ollama_bundle_${model_slug}_${safe_version}_$$"
+container_name="tomorrowland-ollama-bundle-${model_slug}-$$"
 
 cleanup() {
   docker rm -f "$container_name" >/dev/null 2>&1 || true
@@ -167,7 +167,7 @@ license_data = {
 
 manifest = {
     "bundle_version": "1.0",
-    "neverland_release": version,
+    "tomorrowland_release": version,
     "created_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "requested_model": requested_model,
     "resolved_model": resolved_model,
@@ -181,17 +181,17 @@ manifest = {
 }
 (bundle_dir / "model-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
-readme = f"""# Neverland Ollama model bundle
+readme = f"""# Tomorrowland Ollama model bundle
 
 Bundle: `{bundle_dir.name}`
-Neverland release: `{version}`
+Tomorrowland release: `{version}`
 Requested model: `{requested_model}`
 Resolved model: `{resolved_model}`
 Resolved digest: `{resolved_digest}`
 Ollama runtime image: `{runtime_image}`
 Ollama runtime version: `{runtime_version}`
 
-This bundle contains only the Ollama `models/` directory copied from a temporary Docker volume created for this build. It must not contain Neverland user data, application secrets, or runtime database/search/vector volumes.
+This bundle contains only the Ollama `models/` directory copied from a temporary Docker volume created for this build. It must not contain Tomorrowland user data, application secrets, or runtime database/search/vector volumes.
 
 ## License and source verification
 

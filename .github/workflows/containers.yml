@@ -66,6 +66,6 @@ jobs:
           context: .
           file: ${{ matrix.image.dockerfile }}
           push: false
-          tags: neverland-${{ matrix.image.name }}:ci
+          tags: tomorrowland-${{ matrix.image.name }}:ci
           cache-from: type=gha,scope=${{ matrix.image.name }}
           cache-to: type=gha,scope=${{ matrix.image.name }},mode=max

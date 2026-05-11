@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install the Neverland pre-commit hook
+# Install the Tomorrowland pre-commit hook
 
 set -e
 

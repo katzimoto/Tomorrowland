@@ -1,5 +1,5 @@
 #!/bin/sh
-# Pre-commit hook for Neverland
+# Pre-commit hook for Tomorrowland
 # Runs fast checks (lint, format, type check) but NOT tests.
 # Tests run in CI on every push and PR.
 

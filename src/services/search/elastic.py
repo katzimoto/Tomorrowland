@@ -6,7 +6,7 @@ from elasticsearch import Elasticsearch
 
 from services.search.hybrid import SearchResult
 
-INDEX_NAME = "neverland_documents"
+INDEX_NAME = "tomorrowland_documents"
 
 
 class ElasticsearchSearchClient:

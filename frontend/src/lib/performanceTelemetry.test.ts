@@ -56,12 +56,12 @@ describe("performance telemetry", () => {
     recordPerformanceEvent("qa.answer", 4);
     expect(info).not.toHaveBeenCalled();
 
-    window.neverlandTelemetry?.enableConsole();
+    window.tomorrowlandTelemetry?.enableConsole();
     recordPerformanceEvent("qa.answer", 5);
 
-    expect(window.neverlandTelemetry?.events()).toHaveLength(2);
+    expect(window.tomorrowlandTelemetry?.events()).toHaveLength(2);
     expect(info).toHaveBeenCalledTimes(1);
-    expect(window.neverlandTelemetry?.isConsoleEnabled()).toBe(true);
+    expect(window.tomorrowlandTelemetry?.isConsoleEnabled()).toBe(true);
   });
 
   it("measures named login-to-shell timers without caller payloads", () => {

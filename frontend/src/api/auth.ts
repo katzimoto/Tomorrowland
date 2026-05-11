@@ -15,13 +15,13 @@ interface LoginResponse {
 
 export const authStorage = {
   setToken(token: string) {
-    sessionStorage.setItem("neverland_token", token);
+    sessionStorage.setItem("tomorrowland_token", token);
   },
   clearToken() {
-    sessionStorage.removeItem("neverland_token");
+    sessionStorage.removeItem("tomorrowland_token");
   },
   hasToken(): boolean {
-    return !!sessionStorage.getItem("neverland_token");
+    return !!sessionStorage.getItem("tomorrowland_token");
   },
 };
 

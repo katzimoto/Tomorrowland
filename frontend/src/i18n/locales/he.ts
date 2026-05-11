@@ -21,7 +21,7 @@ export const he: Translations = {
     loadFailedBody: "לא ניתן להתחבר לשרת. נסה לטעון מחדש את הדף.",
   },
   auth: {
-    heading: "התחברות ל-Neverland",
+    heading: "התחברות ל-Tomorrowland",
     sessionExpired: "פג תוקף ההפעלה. התחבר/י מחדש.",
     email: "דוא״ל",
     emailInvalid: "הכנס/י כתובת דוא״ל תקינה",

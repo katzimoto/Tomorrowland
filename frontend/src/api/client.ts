@@ -11,7 +11,7 @@ export class ApiError extends Error {
 }
 
 function getToken(): string | null {
-  return sessionStorage.getItem("neverland_token");
+  return sessionStorage.getItem("tomorrowland_token");
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -26,7 +26,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (res.status === 401) {
     // Clear stale token and redirect to login
-    sessionStorage.removeItem("neverland_token");
+    sessionStorage.removeItem("tomorrowland_token");
     const url = new URL("/login", window.location.href);
     url.searchParams.set("expired", "1");
     window.location.href = url.toString();

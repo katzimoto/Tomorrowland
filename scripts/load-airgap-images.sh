@@ -7,14 +7,14 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/load-airgap-images.sh [--image-parts-dir DIR] [artifact-directory]
 
-Load Neverland offline Docker images from either:
-  - images/neverland-images.tar inside the extracted release archive; or
-  - split image parts named neverland-images-<version>.tar.part-* beside it.
+Load Tomorrowland offline Docker images from either:
+  - images/tomorrowland-images.tar inside the extracted release archive; or
+  - split image parts named tomorrowland-images-<version>.tar.part-* beside it.
 
 Run this on the air-gapped host after extracting the release archive.
 
 Options:
-  --image-parts-dir DIR  Directory containing split neverland-images-*.tar.part-* files.
+  --image-parts-dir DIR  Directory containing split tomorrowland-images-*.tar.part-* files.
                          Defaults to the artifact directory's parent, then artifact dir.
 USAGE
 }
@@ -52,7 +52,7 @@ if [[ -n "$image_parts_dir" ]]; then
   image_parts_dir="$(cd "$image_parts_dir" && pwd)"
 fi
 
-image_tar="${artifact_dir}/images/neverland-images.tar"
+image_tar="${artifact_dir}/images/tomorrowland-images.tar"
 tmp_files=()
 cleanup() {
   if [[ ${#tmp_files[@]} -gt 0 ]]; then
@@ -71,7 +71,7 @@ resolve_split_parts() {
 
   for candidate_dir in "${dirs[@]}"; do
     [[ -d "$candidate_dir" ]] || continue
-    mapfile -t split_parts < <(find "$candidate_dir" -maxdepth 1 -type f -name 'neverland-images-*.tar.part-*' | sort)
+    mapfile -t split_parts < <(find "$candidate_dir" -maxdepth 1 -type f -name 'tomorrowland-images-*.tar.part-*' | sort)
     if [[ ${#split_parts[@]} -gt 0 ]]; then
       split_parts_dir="$candidate_dir"
       return 0
@@ -86,12 +86,12 @@ if [[ -f "$image_tar" ]]; then
   log "Loading Docker images from embedded bundle: $image_tar"
   docker load -i "$image_tar"
 elif resolve_split_parts; then
-  parts_checksum="$(find "$split_parts_dir" -maxdepth 1 -type f -name 'neverland-images-*.tar.parts.sha256' | sort | head -n 1 || true)"
+  parts_checksum="$(find "$split_parts_dir" -maxdepth 1 -type f -name 'tomorrowland-images-*.tar.parts.sha256' | sort | head -n 1 || true)"
   if [[ -n "$parts_checksum" ]]; then
     log "Validating split image part checksums with $(basename "$parts_checksum")"
     (cd "$split_parts_dir" && sha256sum -c "$(basename "$parts_checksum")")
   else
-    log "WARNING: no neverland-images-*.tar.parts.sha256 file found next to split image parts"
+    log "WARNING: no tomorrowland-images-*.tar.parts.sha256 file found next to split image parts"
   fi
 
   log "Loading Docker images from ${#split_parts[@]} split image part(s)"
@@ -100,7 +100,7 @@ elif resolve_split_parts; then
   done
   cat "${split_parts[@]}" | docker load
 else
-  fail "image bundle not found. Expected $image_tar or split parts neverland-images-*.tar.part-* beside the artifact"
+  fail "image bundle not found. Expected $image_tar or split parts tomorrowland-images-*.tar.part-* beside the artifact"
 fi
 log "Docker image load complete"
 

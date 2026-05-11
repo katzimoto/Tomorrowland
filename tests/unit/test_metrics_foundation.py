@@ -36,7 +36,7 @@ def test_metrics_endpoint_exposes_prometheus_runtime_and_build_metrics() -> None
     assert response.headers["content-type"].startswith("text/plain")
     metric_families = list(text_string_to_metric_families(response.text))
     names = {family.name for family in metric_families}
-    assert "neverland_build_info" in names
+    assert "tomorrowland_build_info" in names
     assert "process_virtual_memory_bytes" in names
     assert "python_gc_objects_collected" in names
     assert 'version="9.9.9"' in response.text
@@ -55,7 +55,7 @@ def test_http_metrics_increment_with_route_templates_not_raw_ids() -> None:
     assert metrics_response.status_code == 200
     metrics_text = metrics_response.text
     expected_count = (
-        'neverland_http_requests_total{method="POST",'
+        'tomorrowland_http_requests_total{method="POST",'
         'route="/admin/ingestion/{source_id}/sync-now",status_class="4xx"} 1.0'
     )
     assert expected_count in metrics_text
@@ -73,7 +73,7 @@ def test_metrics_are_isolated_per_app_instance() -> None:
     first_metrics = first.get("/metrics").text
     second_metrics = second.get("/metrics").text
     pattern = re.compile(
-        r'neverland_http_requests_total\{method="GET",route="/health",status_class="2xx"\} 1\.0'
+        r'tomorrowland_http_requests_total\{method="GET",route="/health",status_class="2xx"\} 1\.0'
     )
     assert pattern.search(first_metrics)
     assert pattern.search(second_metrics)
@@ -90,4 +90,4 @@ def test_metric_names_helper_lists_samples() -> None:
 
     names = set(metric_names(app.state.metrics.registry))
 
-    assert "neverland_build_info" in names
+    assert "tomorrowland_build_info" in names

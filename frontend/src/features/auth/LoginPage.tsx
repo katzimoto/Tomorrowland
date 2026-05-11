@@ -58,7 +58,7 @@ export function LoginPage() {
   return (
     <div className={styles.page} aria-label={t.auth.signInLabel}>
       <div className={styles.card}>
-        <div className={styles.mark} aria-label="Neverland">
+        <div className={styles.mark} aria-label="Tomorrowland">
           N
         </div>
         <h1 className={styles.heading}>{t.auth.heading}</h1>

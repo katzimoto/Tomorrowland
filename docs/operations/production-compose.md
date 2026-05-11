@@ -3,7 +3,7 @@
 This guide covers the local production-style Compose runtime. It starts the API,
 frontend container, database migration job, and required infrastructure as
 separate Compose services. It is intended for operators who need to run,
-validate, reset, back up, and troubleshoot Neverland without reading source
+validate, reset, back up, and troubleshoot Tomorrowland without reading source
 code.
 
 ## Service Layout
@@ -73,16 +73,16 @@ the API and frontend.
 ## Host-Mounted SMB Share Ingestion
 
 Use a host-mounted SMB/CIFS share when operators already manage Windows or Samba
-shares at the operating-system layer and Neverland only needs a read-only file
+shares at the operating-system layer and Tomorrowland only needs a read-only file
 view for ingestion. This deployment path keeps SMB credentials on the Docker
-host instead of storing them in Neverland source configuration, and it works when
+host instead of storing them in Tomorrowland source configuration, and it works when
 a read-only ingestion path is enough.
 
 This path uses the existing `folder` connector: the Docker host mounts the SMB
 share, Docker Compose bind-mounts that host path into the `api` container, and
-Neverland reads the in-container path as local files. It is independent from the
+Tomorrowland reads the in-container path as local files. It is independent from the
 native SMB connector work tracked in #77 and does not mirror NTFS ACLs into
-Neverland permissions.
+Tomorrowland permissions.
 
 ### Linux SMB/CIFS host mount
 
@@ -92,16 +92,16 @@ share. Many distributions package it as `cifs-utils`.
 Create a host mount point and mount the share read-only:
 
 ```bash
-sudo mkdir -p /mnt/neverland-smb/legal
-sudo mount -t cifs //fileserver/department /mnt/neverland-smb/legal \
-  -o credentials=/etc/neverland/smb-legal.credentials,ro,vers=3.0,iocharset=utf8
+sudo mkdir -p /mnt/tomorrowland-smb/legal
+sudo mount -t cifs //fileserver/department /mnt/tomorrowland-smb/legal \
+  -o credentials=/etc/tomorrowland/smb-legal.credentials,ro,vers=3.0,iocharset=utf8
 ```
 
 Store generic SMB credentials in a root-owned host file. Keep real credentials
 out of Git, `.env`, Compose examples, documentation, and screenshots:
 
 ```ini
-username=neverland-reader
+username=tomorrowland-reader
 password=REPLACE_WITH_SECRET
 domain=CORP
 ```
@@ -109,21 +109,21 @@ domain=CORP
 Lock down the credential file:
 
 ```bash
-sudo chown root:root /etc/neverland/smb-legal.credentials
-sudo chmod 600 /etc/neverland/smb-legal.credentials
+sudo chown root:root /etc/tomorrowland/smb-legal.credentials
+sudo chmod 600 /etc/tomorrowland/smb-legal.credentials
 ```
 
 Optional `/etc/fstab` entry for remounting after reboot:
 
 ```fstab
-//fileserver/department /mnt/neverland-smb/legal cifs credentials=/etc/neverland/smb-legal.credentials,ro,vers=3.0,iocharset=utf8,nofail 0 0
+//fileserver/department /mnt/tomorrowland-smb/legal cifs credentials=/etc/tomorrowland/smb-legal.credentials,ro,vers=3.0,iocharset=utf8,nofail 0 0
 ```
 
 Verify the host can see the mounted files before starting Compose:
 
 ```bash
-mount | grep /mnt/neverland-smb/legal
-ls -la /mnt/neverland-smb/legal
+mount | grep /mnt/tomorrowland-smb/legal
+ls -la /mnt/tomorrowland-smb/legal
 ```
 
 ### Docker Compose bind mount
@@ -137,16 +137,16 @@ services:
   api:
     volumes:
       - files_data:/data
-      - /mnt/neverland-smb/legal:/data/smb/legal:ro
+      - /mnt/tomorrowland-smb/legal:/data/smb/legal:ro
 ```
 
 Use `:ro` on the Docker bind mount even when the SMB mount is already read-only.
 Keep both the host path and container path stable across upgrades so existing
-Neverland source definitions continue to point at the same in-container path. In
+Tomorrowland source definitions continue to point at the same in-container path. In
 air-gapped deployments, this path does not require internet access after host
 prerequisites such as CIFS tooling are installed.
 
-### Neverland source setup
+### Tomorrowland source setup
 
 Create the source from the admin UI or admin API with:
 
@@ -156,7 +156,7 @@ Path: /data/smb/legal
 ```
 
 The `folder` connector sees the mounted SMB share as local files. The source
-path must be the container path, not the host path. Neverland source permissions
+path must be the container path, not the host path. Tomorrowland source permissions
 control which groups can search and preview indexed documents after ingestion;
 the SMB service account controls which files are visible to the host mount.
 
@@ -168,16 +168,16 @@ the SMB service account controls which files are visible to the host mount.
 - Do not put real SMB credentials in `.env`, Compose examples, docs, or
   screenshots.
 - Prefer both a read-only SMB mount and a read-only Docker bind mount.
-- Neverland does not mirror NTFS ACLs in this host-mounted SMB path.
-- Do not rely on Windows ACLs for per-user Neverland authorization after
-  ingestion; use Neverland source permissions and group grants.
+- Tomorrowland does not mirror NTFS ACLs in this host-mounted SMB path.
+- Do not rely on Windows ACLs for per-user Tomorrowland authorization after
+  ingestion; use Tomorrowland source permissions and group grants.
 
 ### Limitations
 
 - Mount lifecycle, reconnect behavior, DFS, and failover are host/operator
   responsibilities.
-- Neverland sees the share as local files through the `folder` connector.
-- NTFS ACLs are not mirrored into Neverland permissions.
+- Tomorrowland sees the share as local files through the `folder` connector.
+- NTFS ACLs are not mirrored into Tomorrowland permissions.
 - File locking and partial writes are not deeply handled by this path.
 - If files change while syncing, behavior depends on mounted filesystem timing.
 - Native SMB connector UX is tracked separately in #77.
@@ -187,14 +187,14 @@ the SMB service account controls which files are visible to the host mount.
 
 | Symptom | Checks |
 | --- | --- |
-| Container cannot see files | Verify `mount | grep /mnt/neverland-smb/legal`, confirm the bind mount is under the `api` service, and run `docker compose config` to confirm the rendered path. |
+| Container cannot see files | Verify `mount | grep /mnt/tomorrowland-smb/legal`, confirm the bind mount is under the `api` service, and run `docker compose config` to confirm the rendered path. |
 | Permission denied | Confirm the SMB service account can read the share, the host mount is readable, the credential file is root-owned with mode `600`, and the Docker bind mount uses the intended source path. |
-| Empty ingestion | Confirm the Neverland source path is `/data/smb/legal` or another container path, not `/mnt/neverland-smb/legal`; also confirm the mounted subtree contains regular files. |
-| Mount disappears after reboot | Add and validate an `/etc/fstab` or equivalent systemd mount entry, then remount and verify before starting Neverland. |
+| Empty ingestion | Confirm the Tomorrowland source path is `/data/smb/legal` or another container path, not `/mnt/tomorrowland-smb/legal`; also confirm the mounted subtree contains regular files. |
+| Mount disappears after reboot | Add and validate an `/etc/fstab` or equivalent systemd mount entry, then remount and verify before starting Tomorrowland. |
 | Slow scans | Narrow the SMB account/share scope, use a smaller mounted subtree per source, verify network and SMB server performance, and schedule syncs outside peak file-server usage. |
 
 SMB mount state is external host state. Back up the mount configuration and
-credential file outside Neverland, keep paths stable across upgrades, and do not
+credential file outside Tomorrowland, keep paths stable across upgrades, and do not
 use destructive volume commands to fix host mount issues.
 
 ## Air-Gapped Release Artifact
@@ -202,7 +202,7 @@ use destructive volume commands to fix host mount issues.
 For offline deployments, use the versioned release archive generated by the
 `release-artifact` GitHub Actions workflow instead of building images on the
 target host. The archive contains `docker-compose.airgap.yml`, `.env.airgap.example`,
-`images/neverland-images.tar`, loading and validation scripts, checksums, and the
+`images/tomorrowland-images.tar`, loading and validation scripts, checksums, and the
 air-gapped deployment guide. See `docs/operations/air-gapped-deployment.md` for
 the full download, transfer, image loading, configuration, first-use, backup, and
 restore workflow. For an existing offline deployment, use
@@ -218,7 +218,7 @@ publishing it through an internet-facing proxy:
 
 ```yaml
 scrape_configs:
-  - job_name: neverland-api
+  - job_name: tomorrowland-api
     static_configs:
       - targets: ["api:8000"]
     metrics_path: /metrics
@@ -229,7 +229,7 @@ reverse-proxy allowlist or equivalent network control. Metric labels are kept
 low-cardinality and must not include user IDs, document IDs, filenames, query
 text, source names, group names, exception messages, or file contents.
 
-The endpoint includes default Python GC and process metrics, `neverland_build_info`,
+The endpoint includes default Python GC and process metrics, `tomorrowland_build_info`,
 HTTP request totals, request-duration histograms, and exception totals. The API
 also accepts `X-Request-ID` from trusted callers, generates one when absent, and
 echoes it back on all responses including 4xx/5xx errors.
@@ -256,7 +256,7 @@ The profile adds two services on the internal Compose network:
   `docker/prometheus/prometheus.yml` and evaluates alert rules from
   `docker/prometheus/alerts.yml`. Its retention defaults to 15 days and can be
   changed with `PROMETHEUS_RETENTION`.
-- `grafana`, which automatically provisions the `Neverland Prometheus` data
+- `grafana`, which automatically provisions the `Tomorrowland Prometheus` data
   source and dashboards from tracked files under `docker/grafana/`.
 
 The monitoring services do not participate in product health or dependency
@@ -301,13 +301,13 @@ would be needed for deeper infrastructure panels.
 
 The starter Prometheus rules include:
 
-- `NeverlandApiTargetDown` for failed API metrics scrapes.
-- `NeverlandHighApi5xxRate` for sustained API 5xx rates above 2%.
-- `NeverlandHighApiLatency` for sustained API p95 latency above 1 second.
-- `NeverlandIngestionFailuresIncreasing` for non-success ingestion sync outcomes.
-- `NeverlandSearchFailuresIncreasing` for non-success search outcomes.
-- `NeverlandDlqPending` and `NeverlandDlqGrowing` for dead-letter queue backlog.
-- `NeverlandDependencyReadinessDegraded` for dependency readiness probes that
+- `TomorrowlandApiTargetDown` for failed API metrics scrapes.
+- `TomorrowlandHighApi5xxRate` for sustained API 5xx rates above 2%.
+- `TomorrowlandHighApiLatency` for sustained API p95 latency above 1 second.
+- `TomorrowlandIngestionFailuresIncreasing` for non-success ingestion sync outcomes.
+- `TomorrowlandSearchFailuresIncreasing` for non-success search outcomes.
+- `TomorrowlandDlqPending` and `TomorrowlandDlqGrowing` for dead-letter queue backlog.
+- `TomorrowlandDependencyReadinessDegraded` for dependency readiness probes that
   report unavailable.
 
 Alertmanager is not included in this profile. Wire notifications through a
@@ -330,12 +330,12 @@ docker compose --profile monitoring rm -sf prometheus grafana
 ```
 
 Reset monitoring state without deleting product data volumes. Adjust the
-`neverland_` prefix if your Compose project name differs:
+`tomorrowland_` prefix if your Compose project name differs:
 
 ```bash
 docker compose --profile monitoring stop prometheus grafana
 docker compose --profile monitoring rm -sf prometheus grafana
-docker volume rm neverland_prometheus_data neverland_grafana_data
+docker volume rm tomorrowland_prometheus_data tomorrowland_grafana_data
 docker compose --profile monitoring up -d prometheus grafana
 ```
 
@@ -344,14 +344,14 @@ removes product data volumes.
 
 ### Monitoring limitations and follow-ups
 
-- The profile scrapes only the Neverland API metrics endpoint; it does not add
+- The profile scrapes only the Tomorrowland API metrics endpoint; it does not add
   PostgreSQL, Elasticsearch, Qdrant, Kafka, host, container, disk, or node
   exporters.
 - Infrastructure dashboards therefore show dependency readiness and API process
   metrics, not dependency-internal saturation metrics such as disk pressure,
   Elasticsearch shard internals, Qdrant collection size, or Kafka broker
   internals.
-- Alert rules intentionally reference only existing Neverland metrics. Add
+- Alert rules intentionally reference only existing Tomorrowland metrics. Add
   exporter-backed alerts in a follow-up after those exporters are introduced.
 
 ## Startup, Shutdown, And Logs
@@ -463,13 +463,13 @@ volumes plus a logical PostgreSQL dump:
 docker compose down
 mkdir -p backups
 
-docker run --rm -v neverland_postgres_data:/volume -v "$PWD/backups:/backup" \
+docker run --rm -v tomorrowland_postgres_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar czf /backup/postgres_data.tgz -C /volume .'
-docker run --rm -v neverland_files_data:/volume -v "$PWD/backups:/backup" \
+docker run --rm -v tomorrowland_files_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar czf /backup/files_data.tgz -C /volume .'
-docker run --rm -v neverland_elasticsearch_data:/volume -v "$PWD/backups:/backup" \
+docker run --rm -v tomorrowland_elasticsearch_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar czf /backup/elasticsearch_data.tgz -C /volume .'
-docker run --rm -v neverland_qdrant_data:/volume -v "$PWD/backups:/backup" \
+docker run --rm -v tomorrowland_qdrant_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar czf /backup/qdrant_data.tgz -C /volume .'
 
 docker compose up -d postgres
@@ -477,7 +477,7 @@ docker compose exec -T postgres pg_dump -U "${POSTGRES_USER:-postgres}" \
   "${POSTGRES_DB:-app}" > backups/postgres.sql
 ```
 
-Adjust the `neverland_` volume prefix if your Compose project name is different.
+Adjust the `tomorrowland_` volume prefix if your Compose project name is different.
 Run `docker volume ls` to confirm exact names before copying volume data.
 
 For larger deployments, prefer storage-level snapshots taken while services are
@@ -499,18 +499,18 @@ local restore is:
 ```bash
 docker compose down -v
 
-docker volume create neverland_postgres_data
-docker volume create neverland_files_data
-docker volume create neverland_elasticsearch_data
-docker volume create neverland_qdrant_data
+docker volume create tomorrowland_postgres_data
+docker volume create tomorrowland_files_data
+docker volume create tomorrowland_elasticsearch_data
+docker volume create tomorrowland_qdrant_data
 
-docker run --rm -v neverland_postgres_data:/volume -v "$PWD/backups:/backup" \
+docker run --rm -v tomorrowland_postgres_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar xzf /backup/postgres_data.tgz -C /volume'
-docker run --rm -v neverland_files_data:/volume -v "$PWD/backups:/backup" \
+docker run --rm -v tomorrowland_files_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar xzf /backup/files_data.tgz -C /volume'
-docker run --rm -v neverland_elasticsearch_data:/volume -v "$PWD/backups:/backup" \
+docker run --rm -v tomorrowland_elasticsearch_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar xzf /backup/elasticsearch_data.tgz -C /volume'
-docker run --rm -v neverland_qdrant_data:/volume -v "$PWD/backups:/backup" \
+docker run --rm -v tomorrowland_qdrant_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar xzf /backup/qdrant_data.tgz -C /volume'
 
 docker compose up --build -d
@@ -698,7 +698,7 @@ should invoke the bounded drain from an approved operational entrypoint until a
 future worker phase adds supervised runtime wiring.
 
 Create an enabled `nifi` ingestion source before sending events. The source must
-be granted to Neverland groups in the normal admin UI/API; NiFi-ingested
+be granted to Tomorrowland groups in the normal admin UI/API; NiFi-ingested
 documents are inserted with `documents.source = 'nifi'` and the source's
 `source_id`, so search, preview, download, and RAG access continue to use the
 existing source-grant model.
@@ -707,7 +707,7 @@ Required event fields:
 
 - `source_id` (UUID) or `source_key` (matches `ingestion_sources.name` or
   `config.source_key`).
-- `external_id` stable within that source. Neverland stores it as
+- `external_id` stable within that source. Tomorrowland stores it as
   `nifi:<external_id>` and skips reprocessing when the same source/external-id
   already exists.
 - `title` or `filename`.
@@ -779,9 +779,9 @@ the repository root and that the variable names match `.env.example` exactly.
   operational entrypoint and keep live NiFi/Kafka validation outside CI.
 - Confluence and Jira Server/Data Center connectors are implemented, but
   Atlassian page/project permission synchronization is not present; access is
-  governed by Neverland source grants.
+  governed by Tomorrowland source grants.
 - The native SMB connector uses `smbprotocol` with service-account
-  username/password authentication and Neverland source grants. It does not
+  username/password authentication and Tomorrowland source grants. It does not
   mirror NTFS ACLs; Kerberos and DFS support are follow-up limitations. Host
   mounted SMB/CIFS shares can also be ingested through the folder connector.
 - Legacy Office support for `.doc`, `.xls`, and `.ppt` remains deferred to Phase

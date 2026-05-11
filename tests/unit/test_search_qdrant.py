@@ -6,7 +6,7 @@ import pytest
 
 from services.search.qdrant import QdrantSearchClient
 
-COLLECTION_NAME = "neverland_chunks"
+COLLECTION_NAME = "tomorrowland_chunks"
 
 
 def test_upsert_chunks_success() -> None:

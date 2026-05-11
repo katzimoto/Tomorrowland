@@ -59,12 +59,12 @@ def config_from_env(settings: Settings | None = None) -> SmokeBootstrapConfig:
     current_settings = settings or Settings()
     return SmokeBootstrapConfig(
         admin_email=os.environ.get("SMOKE_ADMIN_EMAIL", "smoke-admin@example.com"),
-        admin_password=os.environ.get("SMOKE_ADMIN_PASSWORD", "neverland-smoke-password"),
+        admin_password=os.environ.get("SMOKE_ADMIN_PASSWORD", "tomorrowland-smoke-password"),
         group_name=os.environ.get("SMOKE_GROUP_NAME", "smoke-operators"),
         source_name=os.environ.get("SMOKE_SOURCE_NAME", "smoke-folder-source"),
         fixture_dir=Path(os.environ.get("SMOKE_FIXTURE_DIR", "/data/smoke-fixtures")),
-        fixture_name=os.environ.get("SMOKE_FIXTURE_NAME", "neverland-smoke-document.txt"),
-        query_token=os.environ.get("SMOKE_QUERY", "neverland-smoke-unique-token"),
+        fixture_name=os.environ.get("SMOKE_FIXTURE_NAME", "tomorrowland-smoke-document.txt"),
+        query_token=os.environ.get("SMOKE_QUERY", "tomorrowland-smoke-unique-token"),
         files_root=current_settings.files_root,
     )
 
@@ -215,7 +215,7 @@ def _write_fixture(fixture_path: Path, query_token: str) -> None:
     fixture_path.write_text(
         "\n".join(
             [
-                "Neverland smoke fixture.",
+                "Tomorrowland smoke fixture.",
                 "This deterministic document verifies ingestion, search, preview, and download.",
                 f"Unique query token: {query_token}.",
                 "",

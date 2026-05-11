@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build the user-facing Neverland interface described in
+Build the user-facing Tomorrowland interface described in
 `docs/design/user-ui-spec.md` as reviewable frontend phases. The UI should feel
 native on first use: search-first, fast, dense-but-clear, accessible, and
 grounded in source documents.
@@ -36,7 +36,7 @@ parallel routing, styling, or state framework without updating this plan first.
 - Playwright for browser workflow, responsive layout, and screenshot checks.
 - axe-based accessibility checks through Playwright or Testing Library.
 
-Design principle: build a small Neverland design system first, then compose
+Design principle: build a small Tomorrowland design system first, then compose
 pages from it. Do not style each page independently.
 
 ## Frontend File Layout

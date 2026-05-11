@@ -15,7 +15,7 @@ from qdrant_client.models import (
 
 from services.search.hybrid import SearchResult
 
-COLLECTION_NAME = "neverland_chunks"
+COLLECTION_NAME = "tomorrowland_chunks"
 
 
 class QdrantSearchClient:

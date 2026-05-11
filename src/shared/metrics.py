@@ -27,7 +27,7 @@ HTTP_DURATION_BUCKETS: Final[tuple[float, ...]] = (
 )
 _UNKNOWN_ROUTE: Final[str] = "__unknown__"
 _BRACED_PATH_PARAMETER_RE: Final[re.Pattern[str]] = re.compile(r"\{[^}/]+\}")
-_CURRENT_METRICS: ContextVar[object | None] = ContextVar("neverland_metrics", default=None)
+_CURRENT_METRICS: ContextVar[object | None] = ContextVar("tomorrowland_metrics", default=None)
 
 
 DOMAIN_DURATION_BUCKETS: Final[tuple[float, ...]] = (
@@ -61,249 +61,249 @@ CITATION_COUNT_BUCKETS: Final[tuple[float, ...]] = (0, 1, 2, 3, 5, 8, 13, 21, 34
 
 
 class MetricsRegistry:
-    """Prometheus collectors used by a single Neverland API app instance."""
+    """Prometheus collectors used by a single Tomorrowland API app instance."""
 
     def __init__(self, *, version: str, commit: str, environment: str) -> None:
-        """Initialize default runtime and Neverland application metrics."""
+        """Initialize default runtime and Tomorrowland application metrics."""
         self.registry = CollectorRegistry(auto_describe=True)
         ProcessCollector(registry=self.registry)
         PlatformCollector(registry=self.registry)
         GCCollector(registry=self.registry)
 
         self.build_info = Gauge(
-            "neverland_build_info",
-            "Static Neverland build and runtime metadata.",
+            "tomorrowland_build_info",
+            "Static Tomorrowland build and runtime metadata.",
             ("version", "commit", "environment"),
             registry=self.registry,
         )
         self.http_requests_total = Counter(
-            "neverland_http_requests_total",
+            "tomorrowland_http_requests_total",
             "Total HTTP API requests by method, route template, and status class.",
             ("method", "route", "status_class"),
             registry=self.registry,
         )
         self.http_request_duration_seconds = Histogram(
-            "neverland_http_request_duration_seconds",
+            "tomorrowland_http_request_duration_seconds",
             "HTTP API request duration in seconds by method and route template.",
             ("method", "route"),
             buckets=HTTP_DURATION_BUCKETS,
             registry=self.registry,
         )
         self.http_exceptions_total = Counter(
-            "neverland_http_exceptions_total",
+            "tomorrowland_http_exceptions_total",
             "Unhandled HTTP API exceptions by route template and exception type.",
             ("route", "error_type"),
             registry=self.registry,
         )
         self.auth_login_attempts_total = Counter(
-            "neverland_auth_login_attempts_total",
+            "tomorrowland_auth_login_attempts_total",
             "Login attempts by configured provider and outcome.",
             ("provider", "outcome"),
             registry=self.registry,
         )
         self.authz_denials_total = Counter(
-            "neverland_authz_denials_total",
+            "tomorrowland_authz_denials_total",
             "Authorization denials by coarse resource type and action.",
             ("resource_type", "action"),
             registry=self.registry,
         )
         self.admin_actions_total = Counter(
-            "neverland_admin_actions_total",
+            "tomorrowland_admin_actions_total",
             "Administrative actions already written to the audit log.",
             ("action", "resource_type"),
             registry=self.registry,
         )
         self.ingestion_syncs_total = Counter(
-            "neverland_ingestion_syncs_total",
+            "tomorrowland_ingestion_syncs_total",
             "Source sync attempts by connector type and outcome.",
             ("connector_type", "outcome"),
             registry=self.registry,
         )
         self.ingestion_documents_total = Counter(
-            "neverland_ingestion_documents_total",
+            "tomorrowland_ingestion_documents_total",
             "Documents discovered or accepted for processing by connector type and outcome.",
             ("connector_type", "outcome"),
             registry=self.registry,
         )
         self.pipeline_documents_total = Counter(
-            "neverland_pipeline_documents_total",
+            "tomorrowland_pipeline_documents_total",
             "Document processing attempts by pipeline stage and outcome.",
             ("stage", "outcome"),
             registry=self.registry,
         )
         self.pipeline_stage_duration_seconds = Histogram(
-            "neverland_pipeline_stage_duration_seconds",
+            "tomorrowland_pipeline_stage_duration_seconds",
             "Pipeline stage duration in seconds.",
             ("stage",),
             buckets=DOMAIN_DURATION_BUCKETS,
             registry=self.registry,
         )
         self.pipeline_document_bytes = Histogram(
-            "neverland_pipeline_document_bytes",
+            "tomorrowland_pipeline_document_bytes",
             "Original document size in bytes by connector type.",
             ("connector_type",),
             buckets=DOCUMENT_BYTES_BUCKETS,
             registry=self.registry,
         )
         self.pipeline_chunks_total = Counter(
-            "neverland_pipeline_chunks_total",
+            "tomorrowland_pipeline_chunks_total",
             "Pipeline chunk creation attempts by outcome.",
             ("outcome",),
             registry=self.registry,
         )
         self.dlq_records_total = Counter(
-            "neverland_dlq_records_total",
+            "tomorrowland_dlq_records_total",
             "Records sent to the dead-letter queue by reason and coarse source type.",
             ("reason", "source"),
             registry=self.registry,
         )
         self.dlq_pending = Gauge(
-            "neverland_dlq_pending",
+            "tomorrowland_dlq_pending",
             "Current pending dead-letter queue records.",
             registry=self.registry,
         )
         self.dependency_up = Gauge(
-            "neverland_dependency_up",
+            "tomorrowland_dependency_up",
             "Dependency readiness probe availability by dependency name.",
             ("dependency",),
             registry=self.registry,
         )
         self.dependency_latency_seconds = Histogram(
-            "neverland_dependency_latency_seconds",
+            "tomorrowland_dependency_latency_seconds",
             "Dependency readiness probe latency in seconds.",
             ("dependency", "operation"),
             buckets=DOMAIN_DURATION_BUCKETS,
             registry=self.registry,
         )
         self.search_requests_total = Counter(
-            "neverland_search_requests_total",
+            "tomorrowland_search_requests_total",
             "Search requests by mode and outcome.",
             ("mode", "outcome"),
             registry=self.registry,
         )
         self.search_duration_seconds = Histogram(
-            "neverland_search_duration_seconds",
+            "tomorrowland_search_duration_seconds",
             "End-to-end search duration in seconds by mode.",
             ("mode",),
             buckets=DOMAIN_DURATION_BUCKETS,
             registry=self.registry,
         )
         self.search_backend_duration_seconds = Histogram(
-            "neverland_search_backend_duration_seconds",
+            "tomorrowland_search_backend_duration_seconds",
             "Search backend call duration in seconds.",
             ("backend", "operation"),
             buckets=DOMAIN_DURATION_BUCKETS,
             registry=self.registry,
         )
         self.search_results_count = Histogram(
-            "neverland_search_results_count",
+            "tomorrowland_search_results_count",
             "Search result count by mode.",
             ("mode",),
             buckets=RESULT_COUNT_BUCKETS,
             registry=self.registry,
         )
         self.search_index_documents = Gauge(
-            "neverland_search_index_documents",
+            "tomorrowland_search_index_documents",
             "Approximate indexed documents by backend.",
             ("backend",),
             registry=self.registry,
         )
         self.translation_requests_total = Counter(
-            "neverland_translation_requests_total",
+            "tomorrowland_translation_requests_total",
             "Translation requests by kind and outcome.",
             ("kind", "outcome"),
             registry=self.registry,
         )
         self.translation_duration_seconds = Histogram(
-            "neverland_translation_duration_seconds",
+            "tomorrowland_translation_duration_seconds",
             "Translation duration in seconds by kind.",
             ("kind",),
             buckets=DOMAIN_DURATION_BUCKETS,
             registry=self.registry,
         )
         self.translation_characters_total = Counter(
-            "neverland_translation_characters_total",
+            "tomorrowland_translation_characters_total",
             "Characters submitted for translation by kind.",
             ("kind",),
             registry=self.registry,
         )
         self.intelligence_tasks_total = Counter(
-            "neverland_intelligence_tasks_total",
+            "tomorrowland_intelligence_tasks_total",
             "Intelligence tasks by task type and outcome.",
             ("task", "outcome"),
             registry=self.registry,
         )
         self.intelligence_task_duration_seconds = Histogram(
-            "neverland_intelligence_task_duration_seconds",
+            "tomorrowland_intelligence_task_duration_seconds",
             "Intelligence task duration in seconds by task type.",
             ("task",),
             buckets=DOMAIN_DURATION_BUCKETS,
             registry=self.registry,
         )
         self.ollama_requests_total = Counter(
-            "neverland_ollama_requests_total",
+            "tomorrowland_ollama_requests_total",
             "Ollama requests by operation and outcome.",
             ("operation", "outcome"),
             registry=self.registry,
         )
         self.ollama_duration_seconds = Histogram(
-            "neverland_ollama_duration_seconds",
+            "tomorrowland_ollama_duration_seconds",
             "Ollama request duration in seconds by operation.",
             ("operation",),
             buckets=DOMAIN_DURATION_BUCKETS,
             registry=self.registry,
         )
         self.rag_requests_total = Counter(
-            "neverland_rag_requests_total",
+            "tomorrowland_rag_requests_total",
             "Retrieval-augmented generation requests by outcome.",
             ("outcome",),
             registry=self.registry,
         )
         self.rag_duration_seconds = Histogram(
-            "neverland_rag_duration_seconds",
+            "tomorrowland_rag_duration_seconds",
             "Retrieval-augmented generation duration in seconds by phase.",
             ("phase",),
             buckets=DOMAIN_DURATION_BUCKETS,
             registry=self.registry,
         )
         self.rag_citations_count = Histogram(
-            "neverland_rag_citations_count",
+            "tomorrowland_rag_citations_count",
             "Retrieval-augmented generation citation count.",
             buckets=CITATION_COUNT_BUCKETS,
             registry=self.registry,
         )
         self.preview_requests_total = Counter(
-            "neverland_preview_requests_total",
+            "tomorrowland_preview_requests_total",
             "Preview requests by coarse MIME family and outcome.",
             ("mime_family", "outcome"),
             registry=self.registry,
         )
         self.download_requests_total = Counter(
-            "neverland_download_requests_total",
+            "tomorrowland_download_requests_total",
             "Safe download attempts by outcome.",
             ("outcome",),
             registry=self.registry,
         )
         self.comments_total = Counter(
-            "neverland_comments_total",
+            "tomorrowland_comments_total",
             "Comment operations by action and outcome.",
             ("action", "outcome"),
             registry=self.registry,
         )
         self.annotations_total = Counter(
-            "neverland_annotations_total",
+            "tomorrowland_annotations_total",
             "Annotation operations by action, visibility, and outcome.",
             ("action", "visibility", "outcome"),
             registry=self.registry,
         )
         self.subscriptions_total = Counter(
-            "neverland_subscriptions_total",
+            "tomorrowland_subscriptions_total",
             "Subscription operations by action and outcome.",
             ("action", "outcome"),
             registry=self.registry,
         )
         self.notifications_total = Counter(
-            "neverland_notifications_total",
+            "tomorrowland_notifications_total",
             "Notification events by event type and outcome.",
             ("event", "outcome"),
             registry=self.registry,

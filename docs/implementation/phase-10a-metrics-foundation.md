@@ -34,18 +34,18 @@ Status: Done.
 - Bind `/metrics` to the internal Compose network only; document scrape config for operators
   in `docs/operations/production-compose.md`.
 - Register standard process and Python GC metrics from the Prometheus client.
-- Register `neverland_build_info` gauge with `version`, `commit`, `environment` labels
+- Register `tomorrowland_build_info` gauge with `version`, `commit`, `environment` labels
   (value `1`, set at startup from env/config).
 
 ### HTTP Request Middleware
 
 Add FastAPI middleware that records per-request:
 
-- `neverland_http_requests_total` counter — labels: `method`, `route` (template), `status_class`
+- `tomorrowland_http_requests_total` counter — labels: `method`, `route` (template), `status_class`
   (2xx/4xx/5xx).
-- `neverland_http_request_duration_seconds` histogram — labels: `method`, `route`; buckets:
+- `tomorrowland_http_request_duration_seconds` histogram — labels: `method`, `route`; buckets:
   `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30`.
-- `neverland_http_exceptions_total` counter — labels: `route`, `error_type` (exception class
+- `tomorrowland_http_exceptions_total` counter — labels: `route`, `error_type` (exception class
   name only).
 
 ### Request-ID Middleware

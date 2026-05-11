@@ -268,7 +268,7 @@ def create_app(
     ollama_client: OllamaClient | None = None,
 ) -> FastAPI:
     """Create the API app with Phase 02 auth routes."""
-    app = FastAPI(title="Neverland API")
+    app = FastAPI(title="Tomorrowland API")
     app.state.engine = engine
     app.state.settings = settings or Settings()
     app.state.metrics = MetricsRegistry(

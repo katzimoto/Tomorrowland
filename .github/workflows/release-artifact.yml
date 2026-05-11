@@ -61,12 +61,12 @@ jobs:
         run: SPLIT_IMAGE_BUNDLE=1 IMAGE_PART_SIZE=1900m bash scripts/build-release-artifact.sh "${{ steps.version.outputs.version }}"
 
       - name: Validate packaged artifact metadata and split image bundle
-        run: bash scripts/validate-airgap-artifact.sh --load-images "dist/neverland-release-${{ steps.version.outputs.safe_version }}"
+        run: bash scripts/validate-airgap-artifact.sh --load-images "dist/tomorrowland-release-${{ steps.version.outputs.safe_version }}"
 
       - name: Prove air-gapped compose image references are bundled
         run: |
           set -euo pipefail
-          release_dir="dist/neverland-release-${{ steps.version.outputs.safe_version }}"
+          release_dir="dist/tomorrowland-release-${{ steps.version.outputs.safe_version }}"
           docker compose --env-file "$release_dir/.env.airgap.example" \
             -f "$release_dir/docker-compose.airgap.yml" config --images | tee "$release_dir/compose-images.txt"
           if grep -Eq '^[[:space:]]+build:' "$release_dir/docker-compose.airgap.yml"; then
@@ -74,7 +74,7 @@ jobs:
             exit 1
           fi
           found_parts=0
-          for part in dist/neverland-images-${{ steps.version.outputs.safe_version }}.tar.part-*; do
+          for part in dist/tomorrowland-images-${{ steps.version.outputs.safe_version }}.tar.part-*; do
             [ -f "$part" ] || continue
             found_parts=1
             size_bytes="$(wc -c < "$part")"
@@ -92,12 +92,12 @@ jobs:
       - name: Upload release archive artifact
         uses: actions/upload-artifact@v6
         with:
-          name: neverland-release-${{ steps.version.outputs.safe_version }}
+          name: tomorrowland-release-${{ steps.version.outputs.safe_version }}
           path: |
-            dist/neverland-release-${{ steps.version.outputs.safe_version }}.tar.gz
-            dist/neverland-release-${{ steps.version.outputs.safe_version }}.tar.gz.sha256
-            dist/neverland-images-${{ steps.version.outputs.safe_version }}.tar.part-*
-            dist/neverland-images-${{ steps.version.outputs.safe_version }}.tar.parts.sha256
+            dist/tomorrowland-release-${{ steps.version.outputs.safe_version }}.tar.gz
+            dist/tomorrowland-release-${{ steps.version.outputs.safe_version }}.tar.gz.sha256
+            dist/tomorrowland-images-${{ steps.version.outputs.safe_version }}.tar.part-*
+            dist/tomorrowland-images-${{ steps.version.outputs.safe_version }}.tar.parts.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -108,10 +108,10 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           generate_release_notes: true
           files: |
-            dist/neverland-release-${{ steps.version.outputs.safe_version }}.tar.gz
-            dist/neverland-release-${{ steps.version.outputs.safe_version }}.tar.gz.sha256
-            dist/neverland-images-${{ steps.version.outputs.safe_version }}.tar.part-*
-            dist/neverland-images-${{ steps.version.outputs.safe_version }}.tar.parts.sha256
+            dist/tomorrowland-release-${{ steps.version.outputs.safe_version }}.tar.gz
+            dist/tomorrowland-release-${{ steps.version.outputs.safe_version }}.tar.gz.sha256
+            dist/tomorrowland-images-${{ steps.version.outputs.safe_version }}.tar.part-*
+            dist/tomorrowland-images-${{ steps.version.outputs.safe_version }}.tar.parts.sha256
 
 
   build-ollama-model-bundle:
@@ -155,18 +155,18 @@ jobs:
         run: bash scripts/build-ollama-model-bundle.sh "${{ steps.version.outputs.version }}"
 
       - name: Inspect model bundle contents
-        run: tar tzf "dist/neverland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}.tar.gz" | head -100
+        run: tar tzf "dist/tomorrowland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}.tar.gz" | head -100
 
       - name: Verify model bundle checksum
-        run: sha256sum -c "dist/neverland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}.tar.gz.sha256"
+        run: sha256sum -c "dist/tomorrowland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}.tar.gz.sha256"
 
       - name: Upload Ollama model bundle artifact
         uses: actions/upload-artifact@v6
         with:
-          name: neverland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}
+          name: tomorrowland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}
           path: |
-            dist/neverland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}.tar.gz
-            dist/neverland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}.tar.gz.sha256
+            dist/tomorrowland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}.tar.gz
+            dist/tomorrowland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}.tar.gz.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -177,5 +177,5 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           generate_release_notes: true
           files: |
-            dist/neverland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}.tar.gz
-            dist/neverland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}.tar.gz.sha256
+            dist/tomorrowland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}.tar.gz
+            dist/tomorrowland-ollama-bundle-${{ steps.model.outputs.slug }}-${{ steps.version.outputs.safe_version }}.tar.gz.sha256

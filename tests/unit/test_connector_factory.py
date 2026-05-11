@@ -51,7 +51,7 @@ def test_factory_builds_smb_connector() -> None:
             {
                 "server": "fileserver.local",
                 "share": "department",
-                "username": "svc-neverland",
+                "username": "svc-tomorrowland",
                 "password": "secret",
             }
         ),
@@ -100,7 +100,7 @@ def test_admin_source_creation_accepts_smb(migrated_engine: Engine) -> None:
             "config": {
                 "server": "fileserver.local",
                 "share": "department",
-                "username": "svc-neverland",
+                "username": "svc-tomorrowland",
                 "password": "secret",
             },
         },

@@ -1,84 +1,84 @@
 groups:
-  - name: neverland-api
+  - name: tomorrowland-api
     rules:
-      - alert: NeverlandApiTargetDown
-        expr: up{job="neverland-api"} == 0
+      - alert: TomorrowlandApiTargetDown
+        expr: up{job="tomorrowland-api"} == 0
         for: 2m
         labels:
           severity: critical
         annotations:
-          summary: Neverland API metrics target is down
-          description: Prometheus has been unable to scrape the Neverland API metrics endpoint for 2 minutes.
+          summary: Tomorrowland API metrics target is down
+          description: Prometheus has been unable to scrape the Tomorrowland API metrics endpoint for 2 minutes.
 
-      - alert: NeverlandHighApi5xxRate
+      - alert: TomorrowlandHighApi5xxRate
         expr: |
           (
-            sum(rate(neverland_http_requests_total{status_class="5xx"}[5m]))
+            sum(rate(tomorrowland_http_requests_total{status_class="5xx"}[5m]))
             /
-            sum(rate(neverland_http_requests_total[5m]))
+            sum(rate(tomorrowland_http_requests_total[5m]))
           ) > 0.02
-          and sum(rate(neverland_http_requests_total[5m])) > 0
+          and sum(rate(tomorrowland_http_requests_total[5m])) > 0
         for: 10m
         labels:
           severity: warning
         annotations:
-          summary: Neverland API 5xx rate is above 2%
+          summary: Tomorrowland API 5xx rate is above 2%
           description: More than 2% of API requests have returned 5xx responses for 10 minutes.
 
-      - alert: NeverlandHighApiLatency
+      - alert: TomorrowlandHighApiLatency
         expr: |
           histogram_quantile(
             0.95,
-            sum by (le) (rate(neverland_http_request_duration_seconds_bucket[5m]))
+            sum by (le) (rate(tomorrowland_http_request_duration_seconds_bucket[5m]))
           ) > 1
         for: 10m
         labels:
           severity: warning
         annotations:
-          summary: Neverland API p95 latency is above 1 second
+          summary: Tomorrowland API p95 latency is above 1 second
           description: API p95 request duration has exceeded 1 second for 10 minutes.
 
-      - alert: NeverlandIngestionFailuresIncreasing
-        expr: sum(increase(neverland_ingestion_syncs_total{outcome!="success"}[10m])) > 0
+      - alert: TomorrowlandIngestionFailuresIncreasing
+        expr: sum(increase(tomorrowland_ingestion_syncs_total{outcome!="success"}[10m])) > 0
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: Neverland ingestion failures are increasing
+          summary: Tomorrowland ingestion failures are increasing
           description: One or more source sync attempts have reported a non-success outcome in the last 10 minutes.
 
-      - alert: NeverlandSearchFailuresIncreasing
-        expr: sum(increase(neverland_search_requests_total{outcome!="success"}[10m])) > 0
+      - alert: TomorrowlandSearchFailuresIncreasing
+        expr: sum(increase(tomorrowland_search_requests_total{outcome!="success"}[10m])) > 0
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: Neverland search failures are increasing
+          summary: Tomorrowland search failures are increasing
           description: One or more search requests have reported a non-success outcome in the last 10 minutes.
 
-      - alert: NeverlandDlqPending
-        expr: neverland_dlq_pending > 0
+      - alert: TomorrowlandDlqPending
+        expr: tomorrowland_dlq_pending > 0
         for: 15m
         labels:
           severity: warning
         annotations:
-          summary: Neverland dead-letter queue has pending records
+          summary: Tomorrowland dead-letter queue has pending records
           description: Pending dead-letter queue records have remained above zero for 15 minutes.
 
-      - alert: NeverlandDlqGrowing
-        expr: increase(neverland_dlq_pending[15m]) > 0
+      - alert: TomorrowlandDlqGrowing
+        expr: increase(tomorrowland_dlq_pending[15m]) > 0
         for: 15m
         labels:
           severity: warning
         annotations:
-          summary: Neverland dead-letter queue is growing
+          summary: Tomorrowland dead-letter queue is growing
           description: Pending dead-letter queue records have increased over the last 15 minutes.
 
-      - alert: NeverlandDependencyReadinessDegraded
-        expr: min by (dependency) (neverland_dependency_up) == 0
+      - alert: TomorrowlandDependencyReadinessDegraded
+        expr: min by (dependency) (tomorrowland_dependency_up) == 0
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: Neverland dependency readiness is degraded
+          summary: Tomorrowland dependency readiness is degraded
           description: A dependency readiness probe has reported unavailable for 5 minutes.

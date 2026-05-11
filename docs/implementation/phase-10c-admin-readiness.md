@@ -11,7 +11,7 @@ Design source: `docs/design/metrics-monitoring-spec.md` §Admin Readiness.
 
 Branch: `developer/phase-10c-admin-readiness`
 
-Status: Planned (requires Phase 10a for `neverland_dependency_up` gauge export).
+Status: Planned (requires Phase 10a for `tomorrowland_dependency_up` gauge export).
 
 ## Current Baseline
 
@@ -22,7 +22,7 @@ Status: Planned (requires Phase 10a for `neverland_dependency_up` gauge export).
 ## Dependencies
 
 - Phase 02 auth guards (`Depends(current_user)`, `require_admin`).
-- Phase 10a metrics foundation for exporting `neverland_dependency_up` gauges.
+- Phase 10a metrics foundation for exporting `tomorrowland_dependency_up` gauges.
 
 ## Scope
 
@@ -65,8 +65,8 @@ Each dependency probe must:
 
 ### Dependency Gauge Export
 
-Export `neverland_dependency_up{dependency="<name>"}` gauge (value `1` or `0`) and
-`neverland_dependency_latency_seconds` histogram from the cached probe results.
+Export `tomorrowland_dependency_up{dependency="<name>"}` gauge (value `1` or `0`) and
+`tomorrowland_dependency_latency_seconds` histogram from the cached probe results.
 
 ## Implementation Notes
 
@@ -94,5 +94,5 @@ the caching behavior.
 - Overall `status` is `down` when PostgreSQL is unreachable, `degraded` when only Ollama
   or LibreTranslate is unreachable.
 - Results are cached; rapid repeated calls do not generate repeated probe traffic.
-- `neverland_dependency_up` gauges reflect the most recent cached probe result.
+- `tomorrowland_dependency_up` gauges reflect the most recent cached probe result.
 - `GET /health` behavior is unchanged.

@@ -124,7 +124,7 @@ class _AtlassianConnectorBase:
 
         digest = hashlib.sha256(data).hexdigest()
         with tempfile.NamedTemporaryFile(
-            prefix="neverland-atlassian-", suffix=suffix, delete=False
+            prefix="tomorrowland-atlassian-", suffix=suffix, delete=False
         ) as tmp:
             tmp.write(data)
             tmp_path = tmp.name

@@ -59,6 +59,6 @@ def test_request_id_header_is_echoed_on_unhandled_errors() -> None:
     assert response.headers["X-Request-ID"] == "boom-debug"
     assert response.text == "Internal Server Error"
     assert (
-        'neverland_http_exceptions_total{error_type="RuntimeError",route="/boom"} 1.0'
+        'tomorrowland_http_exceptions_total{error_type="RuntimeError",route="/boom"} 1.0'
         in client.get("/metrics").text
     )

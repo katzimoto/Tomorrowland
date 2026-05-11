@@ -25,7 +25,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/upgrade-airgap.sh --artifact-dir DIR [--skip-backup] [--backup-output-dir DIR]
 
-Safely upgrade an existing Neverland air-gapped Compose deployment with a newer
+Safely upgrade an existing Tomorrowland air-gapped Compose deployment with a newer
 extracted release artifact. Run from the current deployment directory containing
 .env. The script preserves data volumes, never overwrites .env, never pulls from
 the internet, and never runs docker compose down -v.
@@ -40,7 +40,7 @@ Flow:
   7. Start the upgraded stack and run basic health checks.
 
 Options:
-  --artifact-dir DIR       Extracted neverland-release-<version> directory (required).
+  --artifact-dir DIR       Extracted tomorrowland-release-<version> directory (required).
   --skip-backup            Dangerous override; continue without running backup.
   --backup-output-dir DIR  Parent directory for backup (default: ./backups).
   -h, --help               Show this help.
@@ -104,9 +104,9 @@ if [[ "$skip_backup" -eq 1 ]]; then
 else
   before_list="$(mktemp)"
   after_list="$(mktemp)"
-  find "$backup_output_dir" -maxdepth 1 -type d -name 'neverland-airgap-backup-*' 2>/dev/null | sort > "$before_list" || true
+  find "$backup_output_dir" -maxdepth 1 -type d -name 'tomorrowland-airgap-backup-*' 2>/dev/null | sort > "$before_list" || true
   "$script_dir/backup-airgap-data.sh" --output-dir "$backup_output_dir"
-  find "$backup_output_dir" -maxdepth 1 -type d -name 'neverland-airgap-backup-*' 2>/dev/null | sort > "$after_list" || true
+  find "$backup_output_dir" -maxdepth 1 -type d -name 'tomorrowland-airgap-backup-*' 2>/dev/null | sort > "$after_list" || true
   backup_dir="$(comm -13 "$before_list" "$after_list" | tail -n 1 || true)"
   rm -f "$before_list" "$after_list"
   [[ -n "$backup_dir" ]] || fail "backup completed but new backup directory could not be detected"
@@ -135,12 +135,12 @@ cp "$artifact_dir/docker-compose.airgap.yml" docker-compose.airgap.yml
 compose_cmd=(docker compose --env-file .env -f docker-compose.airgap.yml)
 
 log "verifying expected image tags are loaded locally"
-"${compose_cmd[@]}" config --images > /tmp/neverland-upgrade-images.$$
+"${compose_cmd[@]}" config --images > /tmp/tomorrowland-upgrade-images.$$
 while IFS= read -r image; do
   [[ -n "$image" ]] || continue
   docker image inspect "$image" >/dev/null || fail "required image is not loaded locally: $image"
-done < /tmp/neverland-upgrade-images.$$
-rm -f /tmp/neverland-upgrade-images.$$
+done < /tmp/tomorrowland-upgrade-images.$$
+rm -f /tmp/tomorrowland-upgrade-images.$$
 
 log "stopping services safely without removing volumes"
 "${compose_cmd[@]}" stop

@@ -39,7 +39,7 @@ const ADMIN_ITEM: NavItem = {
   icon: <Shield size={20} />,
 };
 
-const STORAGE_KEY = "neverland_rail_expanded";
+const STORAGE_KEY = "tomorrowland_rail_expanded";
 
 interface NavRailProps {
   isAdmin: boolean;
@@ -72,7 +72,7 @@ export function NavRail({ isAdmin, unreadCount = 0 }: NavRailProps) {
       aria-label={t.nav.primary}
     >
       <div className={styles.top}>
-        <div className={styles.mark} aria-label="Neverland">N</div>
+        <div className={styles.mark} aria-label="Tomorrowland">N</div>
         <button
           className={styles.toggle}
           onClick={() => setExpanded((e) => !e)}

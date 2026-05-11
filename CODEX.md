@@ -1,4 +1,4 @@
-# CODEX.md — Neverland Codex Entry Point
+# CODEX.md — Tomorrowland Codex Entry Point
 
 Codex must treat `AGENTS.md` as the primary repository instruction file.
 

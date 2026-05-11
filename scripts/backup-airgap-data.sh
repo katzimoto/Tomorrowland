@@ -25,7 +25,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/backup-airgap-data.sh [--output-dir DIR] [--compose-file FILE ...]
 
-Create a timestamped, fail-closed backup for an existing Neverland air-gapped
+Create a timestamped, fail-closed backup for an existing Tomorrowland air-gapped
 Compose deployment. Run from the deployment directory containing .env.
 
 Backs up:
@@ -94,7 +94,7 @@ done
 
 mkdir -p "$output_parent"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-backup_dir="${output_parent%/}/neverland-airgap-backup-${timestamp}"
+backup_dir="${output_parent%/}/tomorrowland-airgap-backup-${timestamp}"
 [[ ! -e "$backup_dir" ]] || fail "backup directory already exists: $backup_dir"
 mkdir -p "$backup_dir"/{config,metadata,postgres,files,notes,logs}
 backup_abs="$(cd "$backup_dir" && pwd)"
@@ -178,7 +178,7 @@ cat > "$backup_dir/notes/elasticsearch-qdrant-restore-strategy.md" <<'NOTES'
 # Elasticsearch and Qdrant backup/restore strategy
 
 This backup script records Compose metadata and preserves PostgreSQL plus the
-Neverland files volume. It does not automate live Elasticsearch or Qdrant
+Tomorrowland files volume. It does not automate live Elasticsearch or Qdrant
 snapshots because snapshot repository setup is deployment-specific and should not
 write secrets or host paths into release tooling.
 

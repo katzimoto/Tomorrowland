@@ -6,7 +6,7 @@ import pytest
 
 from services.search.elastic import ElasticsearchSearchClient
 
-INDEX_NAME = "neverland_documents"
+INDEX_NAME = "tomorrowland_documents"
 
 
 def test_index_document_success() -> None:

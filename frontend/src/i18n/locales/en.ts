@@ -278,7 +278,7 @@ export const en: Translations = {
     loadFailedBody: "Could not connect to the server. Reload the page to try again.",
   },
   auth: {
-    heading: "Sign in to Neverland",
+    heading: "Sign in to Tomorrowland",
     sessionExpired: "Your session expired. Sign in again.",
     email: "Email",
     emailInvalid: "Enter a valid email",

@@ -7,25 +7,25 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/validate-airgap-artifact.sh [--load-images] [--image-parts-dir DIR] [--model-bundle PATH] [artifact-directory]
 
-Validate an extracted Neverland air-gapped release artifact.
+Validate an extracted Tomorrowland air-gapped release artifact.
 Checks required files, checksums, compose rendering, forbidden build steps, and
 that every image referenced by docker-compose.airgap.yml exists in the offline
 Docker image bundle. With --load-images, also docker-loads the bundle and verifies
 image presence in the local Docker daemon.
 
 The image bundle can be either:
-  - images/neverland-images.tar inside the artifact directory; or
-  - split parts named neverland-images-<version>.tar.part-* beside the artifact.
+  - images/tomorrowland-images.tar inside the artifact directory; or
+  - split parts named tomorrowland-images-<version>.tar.part-* beside the artifact.
 
-If --model-bundle is provided, NEVERLAND_OLLAMA_MODEL_BUNDLE is set, or a
-neverland-ollama-bundle-*.tar.gz archive is found next to the artifact, this
+If --model-bundle is provided, TOMORROWLAND_OLLAMA_MODEL_BUNDLE is set, or a
+tomorrowland-ollama-bundle-*.tar.gz archive is found next to the artifact, this
 script validates the model bundle manifest and checksums. If no model bundle is
 present, validation warns but does not fail the base platform artifact.
 USAGE
 }
 
 load_images=0
-model_bundle="${NEVERLAND_OLLAMA_MODEL_BUNDLE:-}"
+model_bundle="${TOMORROWLAND_OLLAMA_MODEL_BUNDLE:-}"
 image_parts_dir=""
 artifact_dir="$(pwd)"
 while [[ $# -gt 0 ]]; do
@@ -96,8 +96,8 @@ cd "$artifact_dir"
 for file in "${required_files[@]}"; do
   [[ -f "$file" ]] || fail "required file is missing: $file"
 done
-if [[ ! -f "images/neverland-images.tar" && ! -f "images/README-images.txt" ]]; then
-  fail "required file is missing: images/README-images.txt or images/neverland-images.tar"
+if [[ ! -f "images/tomorrowland-images.tar" && ! -f "images/README-images.txt" ]]; then
+  fail "required file is missing: images/README-images.txt or images/tomorrowland-images.tar"
 fi
 log "Required files are present"
 
@@ -154,7 +154,7 @@ from pathlib import Path
 manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 required = [
     "bundle_version",
-    "neverland_release",
+    "tomorrowland_release",
     "created_at",
     "requested_model",
     "resolved_model",
@@ -217,7 +217,7 @@ resolve_split_parts() {
 
   for candidate_dir in "${dirs[@]}"; do
     [[ -d "$candidate_dir" ]] || continue
-    mapfile -t split_parts < <(find "$candidate_dir" -maxdepth 1 -type f -name 'neverland-images-*.tar.part-*' | sort)
+    mapfile -t split_parts < <(find "$candidate_dir" -maxdepth 1 -type f -name 'tomorrowland-images-*.tar.part-*' | sort)
     if [[ ${#split_parts[@]} -gt 0 ]]; then
       split_parts_dir="$candidate_dir"
       return 0
@@ -229,13 +229,13 @@ resolve_split_parts() {
 split_parts=()
 split_parts_dir=""
 image_tar_for_validation=""
-if [[ -f "images/neverland-images.tar" ]]; then
-  image_tar_for_validation="$artifact_dir/images/neverland-images.tar"
-  log "Using embedded image bundle: images/neverland-images.tar"
+if [[ -f "images/tomorrowland-images.tar" ]]; then
+  image_tar_for_validation="$artifact_dir/images/tomorrowland-images.tar"
+  log "Using embedded image bundle: images/tomorrowland-images.tar"
 elif resolve_split_parts; then
   log "Using split image bundle from $split_parts_dir"
-  parts_checksum="$(find "$split_parts_dir" -maxdepth 1 -type f -name 'neverland-images-*.tar.parts.sha256' | sort | head -n 1 || true)"
-  [[ -n "$parts_checksum" ]] || fail "split image parts found but neverland-images-*.tar.parts.sha256 is missing"
+  parts_checksum="$(find "$split_parts_dir" -maxdepth 1 -type f -name 'tomorrowland-images-*.tar.parts.sha256' | sort | head -n 1 || true)"
+  [[ -n "$parts_checksum" ]] || fail "split image parts found but tomorrowland-images-*.tar.parts.sha256 is missing"
   log "Validating split image part checksums with $(basename "$parts_checksum")"
   (cd "$split_parts_dir" && sha256sum -c "$(basename "$parts_checksum")")
 
@@ -248,11 +248,11 @@ elif resolve_split_parts; then
   done
   log "Split image parts are contiguous (${#split_parts[@]} part(s))"
 
-  image_tar_for_validation="$tmp_dir/neverland-images.tar"
+  image_tar_for_validation="$tmp_dir/tomorrowland-images.tar"
   log "Reconstructing split image bundle for metadata validation"
   cat "${split_parts[@]}" > "$image_tar_for_validation"
 else
-  fail "image bundle not found. Expected images/neverland-images.tar or split parts neverland-images-*.tar.part-* beside the artifact"
+  fail "image bundle not found. Expected images/tomorrowland-images.tar or split parts tomorrowland-images-*.tar.part-* beside the artifact"
 fi
 
 if ! tar -tf "$image_tar_for_validation" >/dev/null; then
@@ -277,7 +277,7 @@ log "Every compose image is present in the offline image bundle"
 
 if [[ -z "$model_bundle" ]]; then
   search_parent="$(cd "$artifact_dir/.." && pwd)"
-  mapfile -t found_bundles < <(find "$artifact_dir" "$search_parent" -maxdepth 1 -type f -name 'neverland-ollama-bundle-*.tar.gz' 2>/dev/null | sort -u)
+  mapfile -t found_bundles < <(find "$artifact_dir" "$search_parent" -maxdepth 1 -type f -name 'tomorrowland-ollama-bundle-*.tar.gz' 2>/dev/null | sort -u)
   if [[ "${#found_bundles[@]}" -gt 0 ]]; then
     model_bundle="${found_bundles[0]}"
   fi

@@ -22,7 +22,7 @@ mocked services.
 - NiFi integration beyond the registered connector stub.
 - Old Microsoft Office binary extraction (`.doc`, `.xls`, `.ppt`).
 - Kafka consumer wiring that is not required for the production UI milestone.
-- Atlassian page/project permission synchronization beyond Neverland's existing
+- Atlassian page/project permission synchronization beyond Tomorrowland's existing
   source-grant access model.
 
 Confluence and Jira Server/Data Center polling are already implemented in the

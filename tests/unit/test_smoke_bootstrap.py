@@ -20,8 +20,8 @@ def test_bootstrap_smoke_fixture_is_idempotent(migrated_engine: Engine, tmp_path
         group_name="smoke-operators",
         source_name="smoke-folder-source",
         fixture_dir=fixture_dir,
-        fixture_name="neverland-smoke-document.txt",
-        query_token="neverland-smoke-unique-token",
+        fixture_name="tomorrowland-smoke-document.txt",
+        query_token="tomorrowland-smoke-unique-token",
         files_root=tmp_path / "data",
     )
 
@@ -65,8 +65,8 @@ def test_bootstrap_rejects_fixture_outside_files_root(
         group_name="smoke-operators",
         source_name="smoke-folder-source",
         fixture_dir=tmp_path / "outside",
-        fixture_name="neverland-smoke-document.txt",
-        query_token="neverland-smoke-unique-token",
+        fixture_name="tomorrowland-smoke-document.txt",
+        query_token="tomorrowland-smoke-unique-token",
         files_root=tmp_path / "data",
     )
 

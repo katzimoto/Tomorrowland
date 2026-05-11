@@ -27,50 +27,50 @@ without updating the spec first.
 
 ### Authentication And Authorization
 
-- `neverland_auth_login_attempts_total` — labels: `provider`, `outcome`.
-- `neverland_authz_denials_total` — labels: `resource_type`, `action`.
-- `neverland_admin_actions_total` — labels: `action`, `resource_type`.
+- `tomorrowland_auth_login_attempts_total` — labels: `provider`, `outcome`.
+- `tomorrowland_authz_denials_total` — labels: `resource_type`, `action`.
+- `tomorrowland_admin_actions_total` — labels: `action`, `resource_type`.
 
 ### Ingestion And Pipeline
 
-- `neverland_ingestion_syncs_total` — labels: `connector_type`, `outcome`.
-- `neverland_ingestion_documents_total` — labels: `connector_type`, `outcome`.
-- `neverland_pipeline_documents_total` — labels: `stage`, `outcome`.
-- `neverland_pipeline_stage_duration_seconds` histogram — label: `stage`.
-- `neverland_pipeline_document_bytes` histogram — label: `connector_type`.
-- `neverland_pipeline_chunks_total` — labels: `outcome`.
-- `neverland_dlq_records_total` — labels: `reason`, `source`.
-- `neverland_dlq_pending` gauge — no labels; read from PostgreSQL at scrape time.
+- `tomorrowland_ingestion_syncs_total` — labels: `connector_type`, `outcome`.
+- `tomorrowland_ingestion_documents_total` — labels: `connector_type`, `outcome`.
+- `tomorrowland_pipeline_documents_total` — labels: `stage`, `outcome`.
+- `tomorrowland_pipeline_stage_duration_seconds` histogram — label: `stage`.
+- `tomorrowland_pipeline_document_bytes` histogram — label: `connector_type`.
+- `tomorrowland_pipeline_chunks_total` — labels: `outcome`.
+- `tomorrowland_dlq_records_total` — labels: `reason`, `source`.
+- `tomorrowland_dlq_pending` gauge — no labels; read from PostgreSQL at scrape time.
 
 ### Search And Retrieval
 
-- `neverland_search_requests_total` — labels: `mode`, `outcome`.
-- `neverland_search_duration_seconds` histogram — label: `mode`.
-- `neverland_search_backend_duration_seconds` histogram — labels: `backend`, `operation`.
-- `neverland_search_results_count` histogram — label: `mode`.
-- `neverland_search_index_documents` gauge — label: `backend`.
+- `tomorrowland_search_requests_total` — labels: `mode`, `outcome`.
+- `tomorrowland_search_duration_seconds` histogram — label: `mode`.
+- `tomorrowland_search_backend_duration_seconds` histogram — labels: `backend`, `operation`.
+- `tomorrowland_search_results_count` histogram — label: `mode`.
+- `tomorrowland_search_index_documents` gauge — label: `backend`.
 
 ### Translation, Intelligence, And RAG
 
-- `neverland_translation_requests_total` — labels: `kind`, `outcome`.
-- `neverland_translation_duration_seconds` histogram — label: `kind`.
-- `neverland_translation_characters_total` counter — label: `kind`.
-- `neverland_intelligence_tasks_total` — labels: `task`, `outcome`.
-- `neverland_intelligence_task_duration_seconds` histogram — label: `task`.
-- `neverland_ollama_requests_total` — labels: `operation`, `outcome`.
-- `neverland_ollama_duration_seconds` histogram — label: `operation`.
-- `neverland_rag_requests_total` — label: `outcome`.
-- `neverland_rag_duration_seconds` histogram — label: `phase`.
-- `neverland_rag_citations_count` histogram — no labels.
+- `tomorrowland_translation_requests_total` — labels: `kind`, `outcome`.
+- `tomorrowland_translation_duration_seconds` histogram — label: `kind`.
+- `tomorrowland_translation_characters_total` counter — label: `kind`.
+- `tomorrowland_intelligence_tasks_total` — labels: `task`, `outcome`.
+- `tomorrowland_intelligence_task_duration_seconds` histogram — label: `task`.
+- `tomorrowland_ollama_requests_total` — labels: `operation`, `outcome`.
+- `tomorrowland_ollama_duration_seconds` histogram — label: `operation`.
+- `tomorrowland_rag_requests_total` — label: `outcome`.
+- `tomorrowland_rag_duration_seconds` histogram — label: `phase`.
+- `tomorrowland_rag_citations_count` histogram — no labels.
 
 ### Collaboration And Activity
 
-- `neverland_preview_requests_total` — labels: `mime_family`, `outcome`.
-- `neverland_download_requests_total` — label: `outcome`.
-- `neverland_comments_total` — labels: `action`, `outcome`.
-- `neverland_annotations_total` — labels: `action`, `visibility`, `outcome`.
-- `neverland_subscriptions_total` — labels: `action`, `outcome`.
-- `neverland_notifications_total` — labels: `event`, `outcome`.
+- `tomorrowland_preview_requests_total` — labels: `mime_family`, `outcome`.
+- `tomorrowland_download_requests_total` — label: `outcome`.
+- `tomorrowland_comments_total` — labels: `action`, `outcome`.
+- `tomorrowland_annotations_total` — labels: `action`, `visibility`, `outcome`.
+- `tomorrowland_subscriptions_total` — labels: `action`, `outcome`.
+- `tomorrowland_notifications_total` — labels: `event`, `outcome`.
 
 ## Implementation Notes
 

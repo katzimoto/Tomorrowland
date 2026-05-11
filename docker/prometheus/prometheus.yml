@@ -6,7 +6,7 @@ rule_files:
   - /etc/prometheus/alerts.yml
 
 scrape_configs:
-  - job_name: neverland-api
+  - job_name: tomorrowland-api
     metrics_path: /metrics
     scheme: http
     static_configs:

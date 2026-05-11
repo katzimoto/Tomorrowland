@@ -33,15 +33,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "sum by (method, route, status_class) (rate(neverland_http_requests_total[5m]))",
+          "expr": "sum by (method, route, status_class) (rate(tomorrowland_http_requests_total[5m]))",
           "legendFormat": "{{method}} {{route}} {{status_class}}",
           "refId": "A"
         }
@@ -73,15 +73,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(neverland_http_request_duration_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(tomorrowland_http_request_duration_seconds_bucket[5m])))",
           "legendFormat": "{{route}}",
           "refId": "A"
         }
@@ -115,15 +115,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "sum by (route, error_type) (rate(neverland_http_exceptions_total[5m]))",
+          "expr": "sum by (route, error_type) (rate(tomorrowland_http_exceptions_total[5m]))",
           "legendFormat": "{{route}} {{error_type}}",
           "refId": "A"
         }
@@ -155,15 +155,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "sum by (provider, outcome) (rate(neverland_auth_login_attempts_total[5m]))",
+          "expr": "sum by (provider, outcome) (rate(tomorrowland_auth_login_attempts_total[5m]))",
           "legendFormat": "{{provider}} {{outcome}}",
           "refId": "A"
         }
@@ -195,15 +195,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "sum by (resource_type, action) (rate(neverland_authz_denials_total[5m]))",
+          "expr": "sum by (resource_type, action) (rate(tomorrowland_authz_denials_total[5m]))",
           "legendFormat": "{{resource_type}} {{action}}",
           "refId": "A"
         }
@@ -235,15 +235,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "sum by (mime_family, outcome) (rate(neverland_preview_requests_total[5m]))",
+          "expr": "sum by (mime_family, outcome) (rate(tomorrowland_preview_requests_total[5m]))",
           "legendFormat": "{{mime_family}} {{outcome}}",
           "refId": "A"
         }
@@ -275,15 +275,15 @@
       },
       "datasource": {
         "type": "prometheus",
-        "uid": "neverland-prometheus"
+        "uid": "tomorrowland-prometheus"
       },
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "neverland-prometheus"
+            "uid": "tomorrowland-prometheus"
           },
-          "expr": "sum by (outcome) (rate(neverland_download_requests_total[5m]))",
+          "expr": "sum by (outcome) (rate(tomorrowland_download_requests_total[5m]))",
           "legendFormat": "{{outcome}}",
           "refId": "A"
         }
@@ -307,7 +307,7 @@
   "refresh": "30s",
   "schemaVersion": 39,
   "tags": [
-    "neverland",
+    "tomorrowland",
     "provisioned"
   ],
   "templating": {
@@ -319,8 +319,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Neverland API and UX",
-  "uid": "neverland-api-and-ux",
+  "title": "Tomorrowland API and UX",
+  "uid": "tomorrowland-api-and-ux",
   "version": 1,
   "weekStart": ""
 }

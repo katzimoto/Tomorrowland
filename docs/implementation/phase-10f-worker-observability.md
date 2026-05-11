@@ -6,7 +6,7 @@ When long-running worker entrypoints exist, reuse the Phase 10a–10b service me
 worker-specific gauges for heartbeats, consumer lag, and retry/backoff behavior.
 
 Design source: `docs/design/metrics-monitoring-spec.md` §Dependency And Queue Health
-(`neverland_kafka_consumer_lag`, `neverland_worker_heartbeat_timestamp_seconds`).
+(`tomorrowland_kafka_consumer_lag`, `tomorrowland_worker_heartbeat_timestamp_seconds`).
 
 ## Phase Placement
 
@@ -34,7 +34,7 @@ through direct API-triggered service classes.
 
 ### Worker Heartbeat
 
-- `neverland_worker_heartbeat_timestamp_seconds` gauge — label: `worker` (worker name/type).
+- `tomorrowland_worker_heartbeat_timestamp_seconds` gauge — label: `worker` (worker name/type).
 - Each worker updates its heartbeat gauge once per processing loop or at a configurable
   interval.
 - A flatlined heartbeat (no update for N seconds) should trigger an alert via Grafana
@@ -42,19 +42,19 @@ through direct API-triggered service classes.
 
 ### Kafka Consumer Lag
 
-- `neverland_kafka_consumer_lag` gauge — labels: `topic`, `consumer_group`.
+- `tomorrowland_kafka_consumer_lag` gauge — labels: `topic`, `consumer_group`.
 - Expose lag from the consumer's committed offset vs. the partition high-water mark.
 - Update at each poll cycle.
 
 ### Per-Topic Processing Counters
 
-- `neverland_kafka_messages_processed_total` counter — labels: `topic`, `outcome`.
-- `neverland_kafka_processing_duration_seconds` histogram — label: `topic`.
+- `tomorrowland_kafka_messages_processed_total` counter — labels: `topic`, `outcome`.
+- `tomorrowland_kafka_processing_duration_seconds` histogram — label: `topic`.
 
 ### Retry And Backoff Metrics
 
-- `neverland_worker_retries_total` counter — labels: `worker`, `stage`, `reason`.
-- `neverland_worker_backoff_duration_seconds` histogram — label: `worker`.
+- `tomorrowland_worker_retries_total` counter — labels: `worker`, `stage`, `reason`.
+- `tomorrowland_worker_backoff_duration_seconds` histogram — label: `worker`.
 
 ### Worker Dashboards
 

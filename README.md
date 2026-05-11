@@ -1,11 +1,11 @@
-# neverland
+# tomorrowland
 
-Neverland is a local-first knowledge intelligence system for private document
+Tomorrowland is a local-first knowledge intelligence system for private document
 corpora. The canonical product spec is `spec-v4.pdf`.
 
 ## How To Run
 
-Neverland includes a production-style Docker Compose runtime. It starts the API,
+Tomorrowland includes a production-style Docker Compose runtime. It starts the API,
 frontend container, migration job, and required infrastructure as separate
 services.
 
@@ -51,7 +51,7 @@ limitations.
 
 ## Air-Gapped Release Artifact
 
-Neverland also publishes a versioned release archive for offline Compose
+Tomorrowland also publishes a versioned release archive for offline Compose
 deployments. The archive includes prebuilt first-party images, required
 third-party runtime images, an air-gapped Compose file with no build steps, an
 operator `.env` template, validation/loading scripts, checksums, and deployment
@@ -60,15 +60,15 @@ documentation.
 Connected release operator flow:
 
 ```bash
-# Download neverland-release-<version>.tar.gz and its .sha256 from GitHub
-sha256sum -c neverland-release-<version>.tar.gz.sha256
+# Download tomorrowland-release-<version>.tar.gz and its .sha256 from GitHub
+sha256sum -c tomorrowland-release-<version>.tar.gz.sha256
 ```
 
 Air-gapped host flow:
 
 ```bash
-tar xzf neverland-release-<version>.tar.gz
-cd neverland-release-<version>
+tar xzf tomorrowland-release-<version>.tar.gz
+cd tomorrowland-release-<version>
 bash scripts/validate-airgap-artifact.sh .
 bash scripts/load-airgap-images.sh .
 cp .env.airgap.example .env
@@ -85,7 +85,7 @@ release, run migrations, and preserve data volumes.
 
 ## NiFi Event Ingestion
 
-Neverland includes a release-usable, bounded NiFi Kafka drain for deployments
+Tomorrowland includes a release-usable, bounded NiFi Kafka drain for deployments
 that already provide NiFi-produced Kafka events. Events are validated, normalized
 into `nifi` documents tied to `ingestion_sources`, processed by the standard
 pipeline, and routed to DLQ on terminal failures. The repository tests this path
@@ -97,7 +97,7 @@ file requirements, DLQ behavior, offset semantics, and current limitations.
 ## Host-Mounted SMB Shares
 
 Operators who already mount Windows/SMB shares on the Docker host can expose the
-mounted path to Neverland as a read-only bind mount and ingest it with the
+mounted path to Tomorrowland as a read-only bind mount and ingest it with the
 existing `folder` connector. See `docs/operations/production-compose.md` for the
 host-mounted SMB guide, including CIFS mount examples, read-only service-account
 guidance, the container path to use in the `folder` source, and upgrade notes.

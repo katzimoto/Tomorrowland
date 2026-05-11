@@ -73,7 +73,7 @@ def _config(**overrides: str) -> dict[str, str]:
         "share": "department",
         "base_path": "/legal/contracts",
         "domain": "CORP",
-        "username": "svc-neverland",
+        "username": "svc-tomorrowland",
         "password": SECRET,
     }
     config.update(overrides)
@@ -137,7 +137,7 @@ def test_files_yield_stable_external_ids_sha256_temp_path_and_metadata(
     assert fake.sessions == [
         {
             "server": "fileserver.local",
-            "username": "svc-neverland",
+            "username": "svc-tomorrowland",
             "password": SECRET,
             "domain": "CORP",
         }
@@ -248,4 +248,4 @@ def test_smb_failures_are_sanitized(monkeypatch: pytest.MonkeyPatch, failure: st
     message = str(exc_info.value)
     assert "SMB" in message
     assert SECRET not in message
-    assert "svc-neverland" not in message
+    assert "svc-tomorrowland" not in message

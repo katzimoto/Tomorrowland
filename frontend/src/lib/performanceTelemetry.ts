@@ -26,12 +26,12 @@ interface TelemetryDiagnostics {
 
 declare global {
   interface Window {
-    neverlandTelemetry?: TelemetryDiagnostics;
+    tomorrowlandTelemetry?: TelemetryDiagnostics;
   }
 }
 
 const MAX_EVENTS = 200;
-const DEBUG_STORAGE_KEY = "neverland_perf_debug";
+const DEBUG_STORAGE_KEY = "tomorrowland_perf_debug";
 const events: PerformanceTelemetryEvent[] = [];
 const namedTimers = new Map<string, number>();
 let consoleEnabled = readInitialDebugFlag();
@@ -105,7 +105,7 @@ export function recordPerformanceEvent(
 
   if (consoleEnabled) {
     // Low-cardinality event names, numeric duration, and coarse status only.
-    console.info("[neverland:perf]", event);
+    console.info("[tomorrowland:perf]", event);
   }
   return event;
 }
@@ -117,7 +117,7 @@ export function startPerformanceTimer(): () => number {
 
 export function startNamedPerformanceTimer(name: string): void {
   namedTimers.set(name, now());
-  mark(`neverland:${name}:start`);
+  mark(`tomorrowland:${name}:start`);
 }
 
 export function finishNamedPerformanceTimer(
@@ -128,9 +128,9 @@ export function finishNamedPerformanceTimer(
   const start = namedTimers.get(timerName);
   if (start === undefined) return null;
   namedTimers.delete(timerName);
-  const endMark = `neverland:${timerName}:end`;
+  const endMark = `tomorrowland:${timerName}:end`;
   mark(endMark);
-  measure(`neverland:${eventName}`, `neverland:${timerName}:start`, endMark);
+  measure(`tomorrowland:${eventName}`, `tomorrowland:${timerName}:start`, endMark);
   return recordPerformanceEvent(eventName, now() - start, status);
 }
 
@@ -140,23 +140,23 @@ export async function measurePerformance<T>(
 ): Promise<T> {
   const timer = startPerformanceTimer();
   const markId = `${name}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-  mark(`neverland:${markId}:start`);
+  mark(`tomorrowland:${markId}:start`);
   try {
     const result = await fn();
-    mark(`neverland:${markId}:end`);
+    mark(`tomorrowland:${markId}:end`);
     measure(
-      `neverland:${name}`,
-      `neverland:${markId}:start`,
-      `neverland:${markId}:end`,
+      `tomorrowland:${name}`,
+      `tomorrowland:${markId}:start`,
+      `tomorrowland:${markId}:end`,
     );
     recordPerformanceEvent(name, timer(), "success");
     return result;
   } catch (error) {
-    mark(`neverland:${markId}:end`);
+    mark(`tomorrowland:${markId}:end`);
     measure(
-      `neverland:${name}`,
-      `neverland:${markId}:start`,
-      `neverland:${markId}:end`,
+      `tomorrowland:${name}`,
+      `tomorrowland:${markId}:start`,
+      `tomorrowland:${markId}:end`,
     );
     recordPerformanceEvent(name, timer(), "error");
     throw error;
@@ -183,7 +183,7 @@ export function isPerformanceTelemetryConsoleEnabled(): boolean {
 
 export function installPerformanceTelemetryDiagnostics(): void {
   if (typeof window === "undefined") return;
-  window.neverlandTelemetry = {
+  window.tomorrowlandTelemetry = {
     enableConsole: () => setPerformanceTelemetryConsoleEnabled(true),
     disableConsole: () => setPerformanceTelemetryConsoleEnabled(false),
     clear: clearPerformanceTelemetryEvents,

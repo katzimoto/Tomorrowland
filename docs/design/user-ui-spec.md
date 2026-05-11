@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the user-facing Neverland interface for search,
+This document defines the user-facing Tomorrowland interface for search,
 document inspection, Q&A, comments, annotations, subscriptions, notifications,
 and history. It is a product and interaction spec, not an implementation plan
 for a specific frontend framework.
@@ -99,7 +99,7 @@ separate product surface.
 
 ## First-Run And Onboarding States
 
-Neverland should not depend on a tutorial to be usable. First-run states should
+Tomorrowland should not depend on a tutorial to be usable. First-run states should
 explain the current system state and give the next useful action.
 
 ### No Documents Indexed
@@ -172,7 +172,7 @@ Use a left navigation rail and a top utility bar.
 
 Left rail contents:
 
-- Product mark: compact Neverland wordmark or `N` mark.
+- Product mark: compact Tomorrowland wordmark or `N` mark.
 - Primary nav icons with labels.
 - Admin item separated by a divider when visible.
 - Bottom area: profile/avatar and settings menu.
@@ -390,7 +390,7 @@ Base spacing unit: 4 px.
 
 ## Core Interaction Model
 
-Neverland has one dominant loop:
+Tomorrowland has one dominant loop:
 
 1. Search or ask.
 2. Open a document.
