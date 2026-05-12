@@ -12,7 +12,7 @@ from services.chunking.splitter import chunk_text
 from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from services.extraction.registry import ExtractorRegistry
 from services.search.elastic import ElasticsearchSearchClient
-from services.search.encoder import MockEncoder
+from services.search.encoder import TextEncoder
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.correlation import get_correlation_id
@@ -28,7 +28,7 @@ class SlowWorker:
         document_repository: DocumentRepository,
         extractor_registry: ExtractorRegistry | None,
         translator: LibreTranslateClient,
-        encoder: MockEncoder,
+        encoder: TextEncoder,
         es_client: ElasticsearchSearchClient,
         qdrant_client: QdrantSearchClient,
         version_repository: TranslationVersionRepository | None = None,

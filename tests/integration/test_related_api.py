@@ -17,7 +17,7 @@ from services.documents.models import DocumentRow
 from services.documents.repository import DocumentRepository
 from services.related.repository import RelatedRepository
 from services.related.service import RelatedService
-from services.search.encoder import MockEncoder
+from services.search.encoder import DeterministicTestEncoder
 from services.search.hybrid import SearchResult
 from services.search.qdrant import QdrantSearchClient
 from shared.config import Settings
@@ -139,7 +139,7 @@ def test_related_documents_filters_dedupes_excludes_source_and_respects_limit(
         service = RelatedService(
             repository=RelatedRepository(connection),
             qdrant_client=mock_qdrant,
-            encoder=MockEncoder(),
+            encoder=DeterministicTestEncoder(),
         )
         related = service.related_documents(
             doc=source_doc,
@@ -227,7 +227,7 @@ def test_expertise_ranks_weighted_signals_and_hides_private_evidence(
         service = RelatedService(
             repository=RelatedRepository(connection),
             qdrant_client=mock_qdrant,
-            encoder=MockEncoder(),
+            encoder=DeterministicTestEncoder(),
         )
         results = service.expertise(
             topic="procurement",

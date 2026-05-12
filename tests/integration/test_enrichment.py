@@ -445,7 +445,7 @@ def test_slow_worker_processes_pending_high(
     mock_translator.translate.return_value = "Translated hello world document content."
 
     from services.pipeline.slow_worker import SlowWorker
-    from services.search.encoder import MockEncoder
+    from services.search.encoder import DeterministicTestEncoder
 
     with migrated_engine.begin() as connection:
         doc_repo = DocumentRepository(connection)
@@ -453,7 +453,7 @@ def test_slow_worker_processes_pending_high(
             document_repository=doc_repo,
             extractor_registry=None,  # use real registry for text files
             translator=mock_translator,
-            encoder=MockEncoder(),
+            encoder=DeterministicTestEncoder(),
             es_client=mock_es,
             qdrant_client=mock_qdrant,
         )
@@ -500,7 +500,7 @@ def test_slow_worker_failure_sets_failed(
     mock_translator.translate.side_effect = RuntimeError("Translation failed")
 
     from services.pipeline.slow_worker import SlowWorker
-    from services.search.encoder import MockEncoder
+    from services.search.encoder import DeterministicTestEncoder
 
     with migrated_engine.begin() as connection:
         doc_repo = DocumentRepository(connection)
@@ -508,7 +508,7 @@ def test_slow_worker_failure_sets_failed(
             document_repository=doc_repo,
             extractor_registry=None,
             translator=mock_translator,
-            encoder=MockEncoder(),
+            encoder=DeterministicTestEncoder(),
             es_client=mock_es,
             qdrant_client=mock_qdrant,
         )

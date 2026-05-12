@@ -15,7 +15,7 @@ from services.documents.repository import DocumentRepository
 from services.extraction.registry import ExtractorRegistry
 from services.intelligence.worker import IntelligenceWorker
 from services.search.elastic import ElasticsearchSearchClient
-from services.search.encoder import MockEncoder
+from services.search.encoder import TextEncoder
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.correlation import get_correlation_id
@@ -32,7 +32,7 @@ class PipelineWorker:
         document_repository: DocumentRepository,
         extractor_registry: ExtractorRegistry,
         translator: LibreTranslateClient,
-        encoder: MockEncoder,
+        encoder: TextEncoder,
         es_client: ElasticsearchSearchClient,
         qdrant_client: QdrantSearchClient,
         intelligence_worker: IntelligenceWorker | None = None,

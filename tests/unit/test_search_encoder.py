@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import pytest
 
-from services.search.encoder import MockEncoder
+from services.search.encoder import DeterministicTestEncoder
 
 
 def test_encoder_returns_384_dimensions() -> None:
-    encoder = MockEncoder()
+    encoder = DeterministicTestEncoder()
     vec = encoder.encode("hello world")
 
     assert len(vec) == 384
 
 
 def test_encoder_is_deterministic() -> None:
-    encoder = MockEncoder()
+    encoder = DeterministicTestEncoder()
     vec1 = encoder.encode("hello world")
     vec2 = encoder.encode("hello world")
 
@@ -21,7 +21,7 @@ def test_encoder_is_deterministic() -> None:
 
 
 def test_encoder_different_inputs_different_vectors() -> None:
-    encoder = MockEncoder()
+    encoder = DeterministicTestEncoder()
     vec1 = encoder.encode("hello world")
     vec2 = encoder.encode("goodbye world")
 
@@ -29,14 +29,14 @@ def test_encoder_different_inputs_different_vectors() -> None:
 
 
 def test_encoder_values_are_floats() -> None:
-    encoder = MockEncoder()
+    encoder = DeterministicTestEncoder()
     vec = encoder.encode("test")
 
     assert all(isinstance(v, float) for v in vec)
 
 
 def test_encoder_values_in_reasonable_range() -> None:
-    encoder = MockEncoder()
+    encoder = DeterministicTestEncoder()
     vec = encoder.encode("test")
 
     # Values should be between -1 and 1 (deterministic hash based)
@@ -44,14 +44,14 @@ def test_encoder_values_in_reasonable_range() -> None:
 
 
 def test_encoder_empty_string() -> None:
-    encoder = MockEncoder()
+    encoder = DeterministicTestEncoder()
     vec = encoder.encode("")
 
     assert len(vec) == 384
 
 
 def test_encoder_batch_encoding() -> None:
-    encoder = MockEncoder()
+    encoder = DeterministicTestEncoder()
     texts = ["first", "second", "third"]
     vectors = encoder.encode_batch(texts)
 
@@ -61,14 +61,14 @@ def test_encoder_batch_encoding() -> None:
 
 
 def test_encoder_batch_empty_list() -> None:
-    encoder = MockEncoder()
+    encoder = DeterministicTestEncoder()
     vectors = encoder.encode_batch([])
 
     assert vectors == []
 
 
 def test_encoder_non_string_raises() -> None:
-    encoder = MockEncoder()
+    encoder = DeterministicTestEncoder()
 
     with pytest.raises(TypeError, match="text must be a string"):
         encoder.encode(123)  # type: ignore[arg-type]

@@ -10,7 +10,7 @@ from sqlalchemy.engine import Connection
 
 from services.documents.repository import DocumentRepository
 from services.intelligence.ollama_client import OllamaClient
-from services.search.encoder import MockEncoder
+from services.search.encoder import TextEncoder
 from services.search.qdrant import QdrantSearchClient
 from shared.metrics import current_metrics
 
@@ -27,7 +27,7 @@ class RagService:
     def __init__(
         self,
         qdrant_client: QdrantSearchClient,
-        encoder: MockEncoder,
+        encoder: TextEncoder,
         ollama_client: OllamaClient,
         connection: Connection,
         system_prompt: str | None = None,
