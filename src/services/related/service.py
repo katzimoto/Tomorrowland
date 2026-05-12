@@ -11,7 +11,7 @@ from uuid import UUID
 from services.documents.models import DocumentRow
 from services.extraction.registry import ExtractorRegistry
 from services.related.repository import RelatedRepository
-from services.search.encoder import MockEncoder
+from services.search.encoder import TextEncoder
 from services.search.hybrid import SearchResult
 from services.search.qdrant import QdrantSearchClient
 
@@ -45,7 +45,7 @@ class RelatedService:
         self,
         repository: RelatedRepository,
         qdrant_client: QdrantSearchClient,
-        encoder: MockEncoder,
+        encoder: TextEncoder,
         extractor_registry: ExtractorRegistry | None = None,
     ) -> None:
         self._repository = repository

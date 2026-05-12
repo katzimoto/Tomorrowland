@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     auto_enrich_threshold: int = Field(default=5, ge=0)
     ingest_mode: Literal["hybrid", "watch", "poll"] = "hybrid"
 
+    embedding_provider: str = "deterministic-test"
+    embedding_provider_unsafe_allow_test_in_prod: bool = False
+
     @property
     def cors_origin_list(self) -> list[str]:
         """Return configured CORS origins from a comma-separated setting."""

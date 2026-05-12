@@ -47,7 +47,7 @@ from services.rag.service import RagService
 from services.related.repository import RelatedRepository
 from services.related.service import RelatedService
 from services.search.elastic import ElasticsearchSearchClient
-from services.search.encoder import MockEncoder
+from services.search.factory import build_encoder
 from services.search.hybrid import merge_results
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
@@ -516,13 +516,13 @@ def create_app(
                 document_repository=doc_repo,
                 extractor_registry=ExtractorRegistry(),
                 translator=translator,
-                encoder=MockEncoder(),
+                encoder=build_encoder(app.state.settings),
                 es_client=es_client,
                 qdrant_client=qdrant_client,
                 alert_matcher=(
                     AlertMatcher(
                         repository=AlertRepository(connection),
-                        encoder=MockEncoder(),
+                        encoder=build_encoder(app.state.settings),
                         default_threshold=default_alert_threshold(connection),
                     )
                     if alerts_check_on_ingest(connection)
@@ -601,7 +601,7 @@ def create_app(
         qdrant_client = app.state.qdrant_client or QdrantSearchClient(
             url=app.state.settings.qdrant_url
         )
-        encoder = MockEncoder()
+        encoder = build_encoder(app.state.settings)
 
         backend_start = time.perf_counter()
         bm25_results = es_client.search(request.query, group_ids=group_ids, size=50)
@@ -828,7 +828,7 @@ def create_app(
             service = RelatedService(
                 repository=RelatedRepository(connection),
                 qdrant_client=qdrant_client,
-                encoder=MockEncoder(),
+                encoder=build_encoder(app.state.settings),
             )
             return {
                 "doc_id": str(doc_id),
@@ -858,7 +858,7 @@ def create_app(
             service = RelatedService(
                 repository=RelatedRepository(connection),
                 qdrant_client=qdrant_client,
-                encoder=MockEncoder(),
+                encoder=build_encoder(app.state.settings),
             )
             return service.expertise(topic=topic, group_ids=group_ids)
 
@@ -1214,7 +1214,7 @@ def create_app(
             content = ExtractorRegistry().extract(Path(doc.path), doc.mime_type)
             matcher = AlertMatcher(
                 repository=AlertRepository(connection),
-                encoder=MockEncoder(),
+                encoder=build_encoder(app.state.settings),
                 default_threshold=default_alert_threshold(connection),
             )
             created = matcher.match_document(doc, content)
@@ -1252,7 +1252,7 @@ def create_app(
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
                 url=app.state.settings.qdrant_url
             )
-            encoder = MockEncoder()
+            encoder = build_encoder(app.state.settings)
             ollama_client = app.state.ollama_client or OllamaClient(
                 base_url=app.state.settings.ollama_url,
                 model=app.state.settings.ollama_model,

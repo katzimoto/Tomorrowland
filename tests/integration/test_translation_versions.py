@@ -350,7 +350,7 @@ def test_slow_worker_with_version_repository(
     mock_translator.translate.return_value = "Translated hello world document content."
 
     from services.pipeline.slow_worker import SlowWorker
-    from services.search.encoder import MockEncoder
+    from services.search.encoder import DeterministicTestEncoder
 
     with migrated_engine.begin() as connection:
         doc_repo = DocumentRepository(connection)
@@ -359,7 +359,7 @@ def test_slow_worker_with_version_repository(
             document_repository=doc_repo,
             extractor_registry=None,
             translator=mock_translator,
-            encoder=MockEncoder(),
+            encoder=DeterministicTestEncoder(),
             es_client=mock_es,
             qdrant_client=mock_qdrant,
             version_repository=version_repo,
@@ -428,7 +428,7 @@ def test_slow_worker_version_failure_marks_version_failed(
     mock_translator.translate.side_effect = RuntimeError("Translation failed")
 
     from services.pipeline.slow_worker import SlowWorker
-    from services.search.encoder import MockEncoder
+    from services.search.encoder import DeterministicTestEncoder
 
     with migrated_engine.begin() as connection:
         doc_repo = DocumentRepository(connection)
@@ -437,7 +437,7 @@ def test_slow_worker_version_failure_marks_version_failed(
             document_repository=doc_repo,
             extractor_registry=None,
             translator=mock_translator,
-            encoder=MockEncoder(),
+            encoder=DeterministicTestEncoder(),
             es_client=mock_es,
             qdrant_client=mock_qdrant,
             version_repository=version_repo,

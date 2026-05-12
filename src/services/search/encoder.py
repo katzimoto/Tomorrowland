@@ -1,16 +1,30 @@
 from __future__ import annotations
 
 import hashlib
+from typing import Protocol
 
 DIMENSIONS = 384
 
 
-class MockEncoder:
-    """Deterministic mock encoder that produces 384-dimensional vectors.
+class TextEncoder(Protocol):
+    """Protocol for text-to-vector encoders."""
+
+    def encode(self, text: str) -> list[float]:
+        """Return a vector for *text*."""
+        ...
+
+    def encode_batch(self, texts: list[str]) -> list[list[float]]:
+        """Return a list of vectors for *texts*."""
+        ...
+
+
+class DeterministicTestEncoder:
+    """Deterministic test encoder that produces 384-dimensional vectors.
 
     Vectors are derived from the SHA-256 hash of the input text. This encoder
     has zero external dependencies (no torch, transformers, etc.) and is
-    intended for use in CI and early development phases.
+    intended for use in tests and CI only. It must not be used in production
+    without an explicit unsafe override.
     """
 
     def encode(self, text: str) -> list[float]:

@@ -8,7 +8,7 @@ from uuid import UUID
 
 from services.alerts.repository import AlertRepository
 from services.documents.models import DocumentRow
-from services.search.encoder import MockEncoder
+from services.search.encoder import TextEncoder
 
 
 class AlertMatcher:
@@ -17,7 +17,7 @@ class AlertMatcher:
     def __init__(
         self,
         repository: AlertRepository,
-        encoder: MockEncoder,
+        encoder: TextEncoder,
         default_threshold: float = 0.75,
     ) -> None:
         self._repository = repository

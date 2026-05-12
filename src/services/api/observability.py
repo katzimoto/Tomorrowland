@@ -45,7 +45,7 @@ def configure_api_logging(log_level: str) -> None:
 
 def _is_default_request_observability_middleware(middleware: Middleware) -> bool:
     """Return true for the basic request middleware registered in create_app."""
-    if middleware.cls is not BaseHTTPMiddleware:
+    if middleware.cls is not BaseHTTPMiddleware:  # type: ignore[comparison-overlap]
         return False
     dispatch = middleware.kwargs.get("dispatch")
     return getattr(dispatch, "__name__", None) == "request_observability_middleware"
