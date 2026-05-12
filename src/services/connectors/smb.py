@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import mimetypes
 import tempfile
@@ -131,7 +132,7 @@ class SmbConnector:
                     continue
                 yield self._download(remote_file)
         finally:
-            with suppress(Exception):
+with contextlib.suppress(Exception):
                 smbclient.close_session(self._server)
 
     def _list_files(self) -> Iterator[_RemoteFile]:
