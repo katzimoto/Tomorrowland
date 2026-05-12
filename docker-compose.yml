@@ -184,6 +184,7 @@ services:
     restart: unless-stopped
     environment:
       LT_UPDATE_PACKAGES: "false"
+      LT_UPDATE_MODELS: "false"
       LT_LOAD_ONLY: ${LT_LOAD_ONLY:-en,he,zh,ko,th,ar,fr,ru,es}
       ARGOS_CHUNK_TYPE: ${ARGOS_CHUNK_TYPE:-MINISBD}
     ports:
@@ -270,4 +271,4 @@ volumes:
   libretranslate_data:
   ollama_data:
   prometheus_data:
-  grafana_data:
+  grafana_data
