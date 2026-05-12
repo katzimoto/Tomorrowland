@@ -26,7 +26,11 @@ export const authStorage = {
 };
 
 export async function login(email: string, password: string): Promise<void> {
-  const res = await api.post<LoginResponse>("/auth/login", { email, password });
+  const res = await api.post<LoginResponse>(
+    "/auth/login",
+    { email, password },
+    { skipAuthRedirect: true },
+  );
   authStorage.setToken(res.access_token);
 }
 
