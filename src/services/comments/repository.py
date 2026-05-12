@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -48,7 +49,7 @@ class CommentRepository:
                 JOIN users u ON u.id = c.author_id
                 WHERE c.doc_id = :doc_id
                   AND c.deleted_at IS NULL
-                ORDER BY c.created_at {order}
+                ORDER BY c.created_at {order}, c.updated_at {order}, c.id {order}
                 LIMIT :limit
                 OFFSET :skip
                 """
@@ -82,6 +83,7 @@ class CommentRepository:
     ) -> dict[str, Any]:
         """Create a new comment and return its record."""
         comment_id = uuid4()
+        now = datetime.now(UTC)
         row = (
             self._connection.execute(
                 sa.text(
@@ -92,7 +94,7 @@ class CommentRepository:
                     )
                     VALUES (
                         :id, :doc_id, :author_id, :body,
-                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        :created_at, :updated_at
                     )
                     RETURNING id, doc_id, author_id, body,
                               created_at, updated_at
@@ -103,6 +105,8 @@ class CommentRepository:
                     "doc_id": db_uuid(doc_id),
                     "author_id": db_uuid(author_id),
                     "body": body,
+                    "created_at": now,
+                    "updated_at": now,
                 },
             )
             .mappings()
