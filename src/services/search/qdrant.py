@@ -75,7 +75,7 @@ class QdrantSearchClient:
         if not group_ids:
             raise ValueError("group_ids must not be empty")
 
-        results = self._client.search(  # type: ignore[attr-defined]
+        results = self._client.search(
             collection_name=COLLECTION_NAME,
             query_vector=vector,
             query_filter=Filter(
