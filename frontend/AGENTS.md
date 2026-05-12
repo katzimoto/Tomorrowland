@@ -48,3 +48,9 @@ npx vitest run src/path/to/file.test.tsx
 - Do not rely on color alone for state; preserve keyboard and screen-reader
   affordances.
 - Do not commit `dist/`, Playwright reports, or coverage output.
+
+## References
+
+- `../AGENTS.md` — root agent guide and backend conventions.
+- `../docs/agents/token-efficiency.md` — context limits and handoff fields.
+- `../docs/agents/templates.md` — claim/transfer/issue/PR templates.

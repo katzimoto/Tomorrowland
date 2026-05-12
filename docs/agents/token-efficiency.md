@@ -178,6 +178,8 @@ Every agent handoff must include context accounting:
 
 The handoff should make unnecessary context expansion visible during review.
 
+Templates: claim/transfer/handoff and compact issue/PR templates live in `docs/agents/templates.md`.
+
 ## Stop conditions
 
 Stop and ask for human direction, or create a follow-up issue, when:

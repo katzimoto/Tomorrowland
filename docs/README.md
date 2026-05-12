@@ -37,6 +37,7 @@ README is the landing page; this index routes by audience.
 - [Token efficiency](agents/token-efficiency.md) — context-loading rules.
 - [Issue context template](agents/issue-context-template.md) — compact issue
   format with allowed paths and acceptance criteria.
+ - [Agent templates](agents/templates.md) — claim/transfer/handoff and issue/PR templates.
 
 ## Canonical requirements
 
