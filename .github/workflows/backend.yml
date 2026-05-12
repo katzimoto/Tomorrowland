@@ -6,6 +6,9 @@ on:
       - "src/**"
       - "tests/**"
       - "migrations/**"
+      - "scripts/check-qdrant-compat.py"
+      - "docker-compose.yml"
+      - "docker-compose.airgap.yml"
       - "pyproject.toml"
       - "alembic.ini"
       - ".github/workflows/backend.yml"
@@ -19,6 +22,9 @@ on:
       - "src/**"
       - "tests/**"
       - "migrations/**"
+      - "scripts/check-qdrant-compat.py"
+      - "docker-compose.yml"
+      - "docker-compose.airgap.yml"
       - "pyproject.toml"
       - "alembic.ini"
       - ".github/workflows/backend.yml"
@@ -35,6 +41,19 @@ env:
   PYTHON_VERSION: "3.13"
 
 jobs:
+  dependency-contracts:
+    name: Dependency contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Check Qdrant client/server compatibility
+        run: python scripts/check-qdrant-compat.py
+
   quality:
     name: Ruff & mypy
     runs-on: ubuntu-latest
