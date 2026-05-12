@@ -42,6 +42,31 @@ export interface DocumentEntity {
   count: number;
 }
 
+interface BackendDocumentEntity {
+  id: string;
+  name: string;
+  type: string;
+  frequency: number;
+}
+
+interface DocumentEntitiesEnvelope {
+  doc_id?: string;
+  entities: Array<DocumentEntity | BackendDocumentEntity>;
+}
+
+type DocumentEntitiesResponse = DocumentEntitiesEnvelope | BackendDocumentEntity[];
+
+function normalizeDocumentEntity(entity: DocumentEntity | BackendDocumentEntity): DocumentEntity {
+  if ("label" in entity && "count" in entity) {
+    return entity;
+  }
+  return {
+    label: entity.name,
+    type: entity.type,
+    count: entity.frequency,
+  };
+}
+
 export interface Comment {
   id: string;
   doc_id: string;
@@ -60,12 +85,14 @@ export interface CommentListResponse {
   total: number;
 }
 
+export type TranslationVersionStatus = "pending" | "processing" | "running" | "done" | "available" | "failed";
+
 export interface TranslationVersion {
   version_id: string;
   version_number: number;
   label: string;
   quality: string;
-  status: "pending" | "processing" | "done" | "failed";
+  status: TranslationVersionStatus;
   target_language: string;
   requested_at: string;
 }
@@ -83,8 +110,15 @@ export function getSummary(docId: string): Promise<DocumentSummary> {
   return api.get<DocumentSummary>(`/documents/${docId}/summary`);
 }
 
-export function getEntities(docId: string): Promise<{ doc_id: string; entities: DocumentEntity[] }> {
-  return api.get(`/documents/${docId}/entities`);
+export async function getEntities(docId: string): Promise<{ doc_id: string; entities: DocumentEntity[] }> {
+  const response = await api.get<DocumentEntitiesResponse>(`/documents/${docId}/entities`);
+  if (Array.isArray(response)) {
+    return { doc_id: docId, entities: response.map(normalizeDocumentEntity) };
+  }
+  return {
+    doc_id: response.doc_id ?? docId,
+    entities: response.entities.map(normalizeDocumentEntity),
+  };
 }
 
 export function getTags(docId: string): Promise<{ doc_id: string; tags: string[] }> {
