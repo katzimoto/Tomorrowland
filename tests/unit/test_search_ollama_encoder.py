@@ -11,6 +11,10 @@ from services.search.encoder import OllamaEmbeddingEncoder
 class TestOllamaEmbeddingEncoder:
     """Unit tests for OllamaEmbeddingEncoder with mocked HTTP responses."""
 
+    def test_dimension_property(self) -> None:
+        encoder = OllamaEmbeddingEncoder("http://ollama:11434", dimension=512)
+        assert encoder.dimension == 512
+
     @patch("services.search.encoder.httpx.post")
     def test_encode_returns_vector(self, mock_post: MagicMock) -> None:
         mock_post.return_value = self._response({"embeddings": [[0.1, 0.2, 0.3]]})
@@ -51,6 +55,21 @@ class TestOllamaEmbeddingEncoder:
             encoder.encode(123)  # type: ignore[arg-type]
 
         mock_post.assert_not_called()
+
+    @patch("services.search.encoder.httpx.post")
+    def test_encode_batch_fallback_to_legacy_on_404(self, mock_post: MagicMock) -> None:
+        modern_response = self._response({}, status_code=404)
+        legacy_response = self._response({"embedding": [0.5, 0.6]})
+        mock_post.side_effect = [modern_response, legacy_response]
+
+        encoder = OllamaEmbeddingEncoder("http://ollama:11434")
+        vectors = encoder.encode_batch(["hello"])
+
+        assert vectors == [[0.5, 0.6]]
+        assert mock_post.call_count == 2
+        args, kwargs = mock_post.call_args
+        assert "/api/embeddings" in args[0]
+        assert kwargs["json"]["prompt"] == "hello"
 
     @patch("services.search.encoder.httpx.post")
     def test_encode_fallback_to_legacy_on_404(self, mock_post: MagicMock) -> None:
