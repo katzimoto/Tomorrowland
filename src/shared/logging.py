@@ -82,7 +82,9 @@ class JsonFormatter(logging.Formatter):
                 payload[field] = value
 
         if record.exc_info and "error_type" not in payload:
-            payload["error_type"] = record.exc_info[0].__name__
+            exc_type = record.exc_info[0]
+            if exc_type is not None:
+                payload["error_type"] = exc_type.__name__
 
         return json.dumps(payload, sort_keys=True)
 
