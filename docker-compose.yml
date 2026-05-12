@@ -271,4 +271,4 @@ volumes:
   libretranslate_data:
   ollama_data:
   prometheus_data:
-  grafana_data
+  grafana_data:
