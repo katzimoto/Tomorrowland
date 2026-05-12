@@ -31,9 +31,8 @@ def test_system_config_seed_values_are_inserted(migrated_engine: Engine) -> None
     assert set(rows) == set(SYSTEM_CONFIG_DEFAULTS)
 
 
-def test_document_source_external_id_is_unique(migrated_engine: Engine) -> None:
+def test_document_source_external_sha_is_unique(migrated_engine: Engine) -> None:
     source_id = uuid4()
-    doc_id = uuid4()
 
     with migrated_engine.begin() as connection:
         connection.execute(
@@ -48,22 +47,61 @@ def test_document_source_external_id_is_unique(migrated_engine: Engine) -> None:
         connection.execute(
             sa.text(
                 """
-                INSERT INTO documents (id, source_id, external_id, source, mime_type)
-                VALUES (:id, :source_id, 'file:/data/a.txt', 'folder', 'text/plain')
+                INSERT INTO documents (
+                    id, source_id, external_id, source, mime_type, content_sha256
+                )
+                VALUES (
+                    :id, :source_id, 'file:/data/a.txt', 'folder', 'text/plain', :sha
+                )
                 """
             ),
-            {"id": doc_id.hex, "source_id": source_id.hex},
+            {"id": uuid4().hex, "source_id": source_id.hex, "sha": "a" * 64},
         )
-        with pytest.raises(sa.exc.IntegrityError):
+
+    with pytest.raises(sa.exc.IntegrityError):
+        with migrated_engine.begin() as connection:
             connection.execute(
                 sa.text(
                     """
-                    INSERT INTO documents (id, source_id, external_id, source, mime_type)
-                    VALUES (:id, :source_id, 'file:/data/a.txt', 'folder', 'text/plain')
+                    INSERT INTO documents (
+                        id, source_id, external_id, source, mime_type, content_sha256
+                    )
+                    VALUES (
+                        :id, :source_id, 'file:/data/a.txt', 'folder', 'text/plain', :sha
+                    )
                     """
                 ),
-                {"id": uuid4().hex, "source_id": source_id.hex},
+                {"id": uuid4().hex, "source_id": source_id.hex, "sha": "a" * 64},
             )
+
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO documents (
+                    id, source_id, external_id, source, mime_type, content_sha256
+                )
+                VALUES (
+                    :id, :source_id, 'file:/data/a.txt', 'folder', 'text/plain', :sha
+                )
+                """
+            ),
+            {"id": uuid4().hex, "source_id": source_id.hex, "sha": "b" * 64},
+        )
+
+    with migrated_engine.connect() as connection:
+        count = connection.execute(
+            sa.text(
+                """
+                SELECT COUNT(*)
+                FROM documents
+                WHERE source_id = :source_id AND external_id = 'file:/data/a.txt'
+                """
+            ),
+            {"source_id": source_id.hex},
+        ).scalar_one()
+
+    assert count == 2
 
 
 def test_source_permissions_support_source_level_grants(migrated_engine: Engine) -> None:
