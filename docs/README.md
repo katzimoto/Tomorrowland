@@ -21,6 +21,8 @@ README is the landing page; this index routes by audience.
 - [Testing](development/testing.md) — targeted backend and frontend checks.
 - [Architecture overview](architecture/overview.md) — concise system map and
   major runtime components.
+- [Logging system design](design/logging-system-spec.md) — structured JSON log
+  schema, safe event taxonomy, request/operation correlation, and redaction rules.
 - [Implementation plan index](implementation/README.md) — historical phase plans;
   use GitHub Issues as the current source of truth when an issue exists.
 
