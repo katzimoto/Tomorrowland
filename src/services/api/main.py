@@ -303,6 +303,8 @@ class PreviewResponse(BaseModel):
     title: str | None = None
     mime_type: str
     translation_quality: str | None = None
+    snippet: str | None = None
+    view_count: int = 0
     metadata: dict[str, Any]
 
 

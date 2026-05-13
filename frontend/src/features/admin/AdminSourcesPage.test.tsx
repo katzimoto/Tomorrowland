@@ -26,6 +26,9 @@ const sourceDefaults = {
   last_sync_failed: null,
   last_sync_error: null,
   last_sync_at: null,
+  last_validation_status: null,
+  last_validation_error: null,
+  last_validated_at: null,
 } as const;
 
 const mockConnectorTypes = [
@@ -62,8 +65,9 @@ beforeEach(() => {
   vi.mocked(adminApi.adminApi.connectorTypes).mockResolvedValue(mockConnectorTypes);
   vi.mocked(adminApi.adminApi.listSources).mockResolvedValue([]);
   vi.mocked(adminApi.adminApi.testSource).mockResolvedValue({
+    source_id: "test",
     status: "ok",
-    message: "Source configuration is valid.",
+    checked_at: "2026-01-01T00:00:00Z",
   });
   vi.mocked(adminApi.adminApi.syncSource).mockResolvedValue({
     status: "success",
