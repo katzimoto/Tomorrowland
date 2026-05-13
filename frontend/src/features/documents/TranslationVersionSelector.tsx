@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getTranslationVersions, type TranslationVersion } from "@/api/documents";
 import styles from "./TranslationVersionSelector.module.css";
@@ -23,6 +24,8 @@ export function TranslationVersionSelector({
   selectedVersionId,
   onSelect,
 }: TranslationVersionSelectorProps) {
+  const hadInProgressRef = useRef(false);
+
   const { data: versions } = useQuery({
     queryKey: ["doc-translation-versions", docId],
     queryFn: () => getTranslationVersions(docId),
@@ -31,6 +34,26 @@ export function TranslationVersionSelector({
       return data && hasInProgressVersions(data) ? POLL_INTERVAL_MS : false;
     },
   });
+
+  // When a pending/running translation completes, auto-select the latest available version
+  // so the preview switches to the translated content without requiring a manual action.
+  useEffect(() => {
+    if (!versions) return;
+    if (selectedVersionId !== undefined) return;
+    if (hasInProgressVersions(versions)) {
+      hadInProgressRef.current = true;
+      return;
+    }
+    if (hadInProgressRef.current) {
+      hadInProgressRef.current = false;
+      const latestAvailable = [...versions]
+        .filter((v) => v.status === "available")
+        .sort((a, b) => b.version_number - a.version_number)[0];
+      if (latestAvailable) {
+        onSelect(latestAvailable.version_id);
+      }
+    }
+  }, [versions, selectedVersionId, onSelect]);
 
   if (!versions?.length) return null;
 
