@@ -61,7 +61,7 @@ def test_admin_list_users(migrated_engine: Engine) -> None:
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 2
+    assert len(data) == 3
     emails = {u["email"] for u in data}
     assert emails == {"admin@example.com", "user@example.com"}
 
