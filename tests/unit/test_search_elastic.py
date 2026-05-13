@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from services.search.elastic import ElasticsearchSearchClient
 
 INDEX_NAME = "tomorrowland_documents"
@@ -54,11 +52,14 @@ def test_search_bm25() -> None:
     assert results[1].doc_id == "doc-2"
 
 
-def test_search_no_group_ids_raises() -> None:
+def test_search_without_group_ids_returns_empty() -> None:
     client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
+    mock_es = MagicMock()
+    mock_es.search.return_value = {"hits": {"hits": []}}
+    client._client = mock_es
 
-    with pytest.raises(ValueError, match="group_ids must not be empty"):
-        client.search("hello", group_ids=[])
+    results = client.search("hello", group_ids=[])
+    assert results == []
 
 
 def test_search_respects_size() -> None:

@@ -22,12 +22,62 @@ class ElasticsearchSearchClient:
 
         self._client.indices.create(
             index=INDEX_NAME,
+            settings={
+                "analysis": {
+                    "filter": {
+                        "autocomplete_ngram": {
+                            "type": "edge_ngram",
+                            "min_gram": 1,
+                            "max_gram": 20,
+                        }
+                    },
+                    "analyzer": {
+                        "autocomplete_index": {
+                            "type": "custom",
+                            "tokenizer": "standard",
+                            "filter": ["lowercase", "autocomplete_ngram"],
+                        },
+                        "autocomplete_search": {
+                            "type": "custom",
+                            "tokenizer": "standard",
+                            "filter": ["lowercase"],
+                        },
+                    },
+                }
+            },
             mappings={
                 "properties": {
                     "doc_id": {"type": "keyword"},
-                    "content_english": {"type": "text"},
-                    "title": {"type": "text"},
-                    "summary": {"type": "text"},
+                    "content_english": {
+                        "type": "text",
+                        "fields": {
+                            "autocomplete": {
+                                "type": "text",
+                                "analyzer": "autocomplete_index",
+                                "search_analyzer": "autocomplete_search",
+                            }
+                        },
+                    },
+                    "title": {
+                        "type": "text",
+                        "fields": {
+                            "autocomplete": {
+                                "type": "text",
+                                "analyzer": "autocomplete_index",
+                                "search_analyzer": "autocomplete_search",
+                            }
+                        },
+                    },
+                    "summary": {
+                        "type": "text",
+                        "fields": {
+                            "autocomplete": {
+                                "type": "text",
+                                "analyzer": "autocomplete_index",
+                                "search_analyzer": "autocomplete_search",
+                            }
+                        },
+                    },
                     "tags": {"type": "keyword"},
                     "entities": {"type": "keyword"},
                     "metadata": {"type": "object"},
@@ -74,12 +124,27 @@ class ElasticsearchSearchClient:
         """
         es_query: dict[str, Any] = {
             "bool": {
-                "must": {
-                    "multi_match": {
-                        "query": query,
-                        "fields": ["content_english^2", "title^3", "summary", "tags"],
-                    }
-                },
+                "should": [
+                    {
+                        "multi_match": {
+                            "query": query,
+                            "fields": ["content_english^2", "title^3", "summary", "tags"],
+                            "type": "best_fields",
+                        }
+                    },
+                    {
+                        "multi_match": {
+                            "query": query,
+                            "fields": [
+                                "content_english.autocomplete",
+                                "title.autocomplete^1.5",
+                                "summary.autocomplete^0.5",
+                            ],
+                            "type": "best_fields",
+                        }
+                    },
+                ],
+                "minimum_should_match": 1,
             }
         }
         if group_ids:
