@@ -581,10 +581,47 @@ def test_admin_test_source_connection_validates_without_leaking_config(
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert test_response.status_code == 400
-    detail = test_response.json()["detail"]
-    assert "does not exist" in detail
-    assert "secret-token" not in detail
+    assert test_response.status_code == 200
+    result = test_response.json()
+    assert result["status"] == "unreachable"
+    assert "does not exist" in result["error"]
+    assert "secret-token" not in result["error"]
+
+
+def test_admin_test_source_connection_succeeds_for_valid_source(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+    valid_folder = tmp_path / "valid"
+    valid_folder.mkdir()
+    response = client.post(
+        "/admin/sources",
+        json={
+            "name": "ValidFolder",
+            "type": "folder",
+            "path": str(valid_folder),
+            "source_language": "en",
+            "config": {"path": str(valid_folder)},
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    source_id = response.json()["id"]
+
+    test_response = client.post(
+        f"/admin/sources/{source_id}/test-connection",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert test_response.status_code == 200
+    result = test_response.json()
+    assert result["status"] == "ok"
+    assert result["source_id"] == source_id
+    assert "checked_at" in result
 
 
 def test_admin_list_sources_returns_last_sync_state(migrated_engine: Engine) -> None:

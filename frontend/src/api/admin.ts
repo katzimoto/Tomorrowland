@@ -28,6 +28,9 @@ export interface Source {
   last_sync_failed: number | null;
   last_sync_error: string | null;
   last_sync_at: string | null;
+  last_validation_status: "ok" | "unreachable" | "auth_failed" | "permission_denied" | "config_invalid" | null;
+  last_validation_error: string | null;
+  last_validated_at: string | null;
 }
 
 export interface CreateSourcePayload {
@@ -47,8 +50,11 @@ export interface SyncResult {
 }
 
 export interface SourceTestResult {
-  status: "ok";
-  message: string;
+  source_id: string;
+  status: "ok" | "unreachable" | "auth_failed" | "permission_denied" | "config_invalid";
+  checked_at: string;
+  details?: Record<string, unknown>;
+  error?: string;
 }
 
 export const adminApi = {

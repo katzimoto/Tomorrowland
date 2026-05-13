@@ -108,8 +108,13 @@ const [syncResults, setSyncResults] = useState<Record<string, SyncResult | strin
   async function handleTestConnection(sourceId: string) {
     setTestResults((r) => ({ ...r, [sourceId]: "testing" }));
     try {
-      await adminApi.testSource(sourceId);
-      setTestResults((r) => ({ ...r, [sourceId]: t.admin.testConnectionOk }));
+      const result = await adminApi.testSource(sourceId);
+      if (result.status === "ok") {
+        setTestResults((r) => ({ ...r, [sourceId]: t.admin.testConnectionOk }));
+      } else {
+        const errorMsg = result.error || t.admin.testConnectionError;
+        setTestResults((r) => ({ ...r, [sourceId]: errorMsg }));
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : t.admin.testConnectionError;
       setTestResults((r) => ({ ...r, [sourceId]: msg }));
