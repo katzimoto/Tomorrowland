@@ -120,7 +120,7 @@ def test_folder_connector_skips_unreadable_file_logs_warning(
 
     monkeypatch.setattr(Path, "read_bytes", _patched_read_bytes)
 
-    with caplog.at_level("WARNING"):
+    with caplog.at_level("WARNING", logger="services.connectors.folder"):
         list(FolderConnector(str(tmp_path)).fetch_documents())
 
     assert any("skipped unreadable file" in r.message for r in caplog.records)

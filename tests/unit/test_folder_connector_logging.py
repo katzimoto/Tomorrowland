@@ -24,12 +24,10 @@ def test_folder_connector_logs_file_read_failures(
 
     monkeypatch.setattr(Path, "read_bytes", fake_read_bytes)
 
-    with (
-        caplog.at_level(logging.ERROR, logger="services.connectors.folder"),
-        pytest.raises(OSError, match="permission denied"),
-    ):
-        list(FolderConnector(str(tmp_path)).fetch_documents())
+    with caplog.at_level(logging.WARNING, logger="services.connectors.folder"):
+        docs = list(FolderConnector(str(tmp_path)).fetch_documents())
 
-    assert "Folder connector failed to read file" in caplog.text
+    assert docs == []
+    assert "skipped unreadable file" in caplog.text
     assert str(unreadable) in caplog.text
     assert str(tmp_path) in caplog.text
