@@ -727,7 +727,7 @@ def test_sync_now_connector_enumeration_failure_returns_safe_error(
             ),
             {
                 "id": source_id.hex,
-                "config": '{"base_url":"http://nifi","flow_id":"x","api_token":"t"}',
+                "config": '{"base_url":"http://nifi","flow_id":"x","api_token":"super-secret-key"}',
             },
         )
 
@@ -753,8 +753,9 @@ def test_sync_now_connector_enumeration_failure_returns_safe_error(
 
     assert response.status_code == 502
     detail = response.json()["detail"]
-    assert "Source enumeration failed" in detail
+    assert "Sync failed while reading source documents" in detail
     assert "cannot authenticate" not in detail.lower()
+    assert "super-secret-key" not in detail.lower()
 
 
 def test_sync_now_smb_cleanup_on_item_failure(
