@@ -241,14 +241,18 @@ def test_admin_create_source_always_grants_admins(migrated_engine: Engine) -> No
     source_id = response.json()["id"]
 
     with migrated_engine.connect() as connection:
-        group_names = connection.execute(
-            sa.text("""
+        group_names = (
+            connection.execute(
+                sa.text("""
                 SELECT g.name FROM source_permissions sp
                 JOIN groups g ON g.id = sp.group_id
                 WHERE sp.source_id = :source_id
             """),
-            {"source_id": UUID(source_id).hex},
-        ).scalars().all()
+                {"source_id": UUID(source_id).hex},
+            )
+            .scalars()
+            .all()
+        )
     assert "admins" in group_names
 
 

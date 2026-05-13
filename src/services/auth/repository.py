@@ -113,9 +113,7 @@ class AuthRepository:
         for group_name in group_names:
             group_id = self.ensure_group(group_name)
             self._connection.execute(
-                sa.text(
-                    "INSERT INTO user_groups (user_id, group_id) VALUES (:user_id, :group_id)"
-                ),
+                sa.text("INSERT INTO user_groups (user_id, group_id) VALUES (:user_id, :group_id)"),
                 {"user_id": db_uuid(user_id), "group_id": db_uuid(group_id)},
             )
 
@@ -175,9 +173,7 @@ class AuthRepository:
         except sa.exc.IntegrityError:
             pass
 
-    def create_document(
-        self, source_id: UUID, external_id: str = "file:/data/a.txt"
-    ) -> UUID:
+    def create_document(self, source_id: UUID, external_id: str = "file:/data/a.txt") -> UUID:
         """Create a minimal document tied to an ingestion source."""
         doc_id = uuid4()
         self._connection.execute(
