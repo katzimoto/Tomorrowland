@@ -7,7 +7,6 @@ import hashlib
 import mimetypes
 import tempfile
 from collections.abc import Iterator
-from contextlib import suppress
 from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import PurePosixPath

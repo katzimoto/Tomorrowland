@@ -137,7 +137,9 @@ def _sanitize_source_error(message: str, source_row: Any | None = None) -> str:
     return sanitized
 
 
-def _classify_connection_error(exc: Exception, connector_type: str) -> tuple[str, str]:
+def _classify_connection_error(
+    exc: Exception, connector_type: str
+) -> tuple[Literal["ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"], str]:
     """Classify a connector error into status type and sanitized message."""
     message = str(exc).lower()
     if connector_type in ("smb", "folder"):
@@ -312,8 +314,6 @@ class ConnectionTestResult(BaseModel):
     checked_at: str
     details: dict[str, Any] | None = None
     error: str | None = None
-    snippet: str
-    view_count: int
 
 
 class CreateUserRequest(BaseModel):

@@ -22,7 +22,9 @@ def upgrade() -> None:
     with op.batch_alter_table("ingestion_sources") as batch_op:
         batch_op.add_column(sa.Column("last_validation_status", sa.Text(), nullable=True))
         batch_op.add_column(sa.Column("last_validation_error", sa.Text(), nullable=True))
-        batch_op.add_column(sa.Column("last_validated_at", sa.DateTime(timezone=True), nullable=True))
+        batch_op.add_column(
+            sa.Column("last_validated_at", sa.DateTime(timezone=True), nullable=True)
+        )
 
 
 def downgrade() -> None:
