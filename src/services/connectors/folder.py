@@ -47,13 +47,15 @@ class FolderConnector:
                 mime_type = "application/octet-stream"
             try:
                 sha256 = hashlib.sha256(file_path.read_bytes()).hexdigest()
-            except OSError:
-                logger.exception(
-                    "Folder connector failed to read file path=%s source_path=%s",
+            except OSError as exc:
+                reason = "permission_denied" if isinstance(exc, PermissionError) else "read_failed"
+                logger.warning(
+                    "Folder connector skipped unreadable file path=%s source_path=%s reason=%s",
                     file_path,
                     self._folder,
+                    reason,
                 )
-                raise
+                continue
             yield ConnectorDocument(
                 external_id=f"file:{file_path}",
                 title=file_path.name,

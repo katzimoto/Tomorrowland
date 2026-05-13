@@ -79,6 +79,79 @@ def test_folder_connector_fields_returns_path_field() -> None:
     assert not fields[0].sensitive
 
 
+def test_folder_connector_skips_unreadable_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One unreadable file must not abort the sync; readable files still yield."""
+    (tmp_path / "readable.txt").write_text("hello")
+    (tmp_path / "unreadable.txt").write_text("secret")
+
+    original_read_bytes = Path.read_bytes
+
+    def _patched_read_bytes(self: Path) -> bytes:
+        if self.name == "unreadable.txt":
+            raise PermissionError("Permission denied")
+        return original_read_bytes(self)
+
+    monkeypatch.setattr(Path, "read_bytes", _patched_read_bytes)
+
+    docs = list(FolderConnector(str(tmp_path)).fetch_documents())
+
+    assert len(docs) == 1
+    assert docs[0].title == "readable.txt"
+
+
+def test_folder_connector_skips_unreadable_file_logs_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unreadable file should produce a safe warning log."""
+    (tmp_path / "readable.txt").write_text("hello")
+    (tmp_path / "unreadable.txt").write_text("secret")
+
+    original_read_bytes = Path.read_bytes
+
+    def _patched_read_bytes(self: Path) -> bytes:
+        if self.name == "unreadable.txt":
+            raise PermissionError("Permission denied")
+        return original_read_bytes(self)
+
+    monkeypatch.setattr(Path, "read_bytes", _patched_read_bytes)
+
+    with caplog.at_level("WARNING", logger="services.connectors.folder"):
+        list(FolderConnector(str(tmp_path)).fetch_documents())
+
+    assert any("skipped unreadable file" in r.message for r in caplog.records)
+    assert any("permission_denied" in r.message for r in caplog.records)
+    # No file contents leaked
+    assert "secret" not in caplog.text
+
+
+def test_folder_connector_skips_unreadable_file_generic_oserror(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A generic OSError (not PermissionError) should also be skipped."""
+    (tmp_path / "readable.txt").write_text("hello")
+    (tmp_path / "broken.txt").write_text("content")
+
+    original_read_bytes = Path.read_bytes
+
+    def _patched_read_bytes(self: Path) -> bytes:
+        if self.name == "broken.txt":
+            raise OSError("Device I/O error")
+        return original_read_bytes(self)
+
+    monkeypatch.setattr(Path, "read_bytes", _patched_read_bytes)
+
+    docs = list(FolderConnector(str(tmp_path)).fetch_documents())
+
+    assert len(docs) == 1
+    assert docs[0].title == "readable.txt"
+
+
 # ── NiFiConnector ──────────────────────────────────────────────────────────────
 
 

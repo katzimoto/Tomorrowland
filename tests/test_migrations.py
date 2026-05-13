@@ -58,21 +58,23 @@ def test_document_source_external_sha_is_unique(migrated_engine: Engine) -> None
             {"id": uuid4().hex, "source_id": source_id.hex, "sha": "a" * 64},
         )
 
-    with pytest.raises(sa.exc.IntegrityError):
-        with migrated_engine.begin() as connection:
-            connection.execute(
-                sa.text(
-                    """
-                    INSERT INTO documents (
-                        id, source_id, external_id, source, mime_type, content_sha256
-                    )
-                    VALUES (
-                        :id, :source_id, 'file:/data/a.txt', 'folder', 'text/plain', :sha
-                    )
-                    """
-                ),
-                {"id": uuid4().hex, "source_id": source_id.hex, "sha": "a" * 64},
-            )
+    with (
+        pytest.raises(sa.exc.IntegrityError),
+        migrated_engine.begin() as connection,
+    ):
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO documents (
+                    id, source_id, external_id, source, mime_type, content_sha256
+                )
+                VALUES (
+                    :id, :source_id, 'file:/data/a.txt', 'folder', 'text/plain', :sha
+                )
+                """
+            ),
+            {"id": uuid4().hex, "source_id": source_id.hex, "sha": "a" * 64},
+        )
 
     with migrated_engine.begin() as connection:
         connection.execute(

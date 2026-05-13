@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
@@ -85,7 +85,7 @@ class _FakeQdrant:
 
 
 def _document() -> DocumentRow:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return DocumentRow(
         id=uuid4(),
         source_id=uuid4(),
