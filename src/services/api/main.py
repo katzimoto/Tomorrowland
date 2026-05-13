@@ -137,6 +137,28 @@ def _sanitize_source_error(message: str, source_row: Any | None = None) -> str:
     return sanitized
 
 
+def _classify_connection_error(
+    exc: Exception, connector_type: str
+) -> tuple[Literal["ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"], str]:
+    """Classify a connector error into status type and sanitized message."""
+    message = str(exc).lower()
+    if connector_type in ("smb", "folder"):
+        if "does not exist" in message or "not found" in message or "unreachable" in message:
+            return ("unreachable", _sanitize_source_error(str(exc), None))
+        if "permission" in message or "access denied" in message:
+            return ("permission_denied", _sanitize_source_error(str(exc), None))
+    if connector_type in ("confluence", "jira"):
+        if "401" in message or "unauthorized" in message or "auth" in message:
+            return ("auth_failed", _sanitize_source_error(str(exc), None))
+        if "403" in message or "forbidden" in message:
+            return ("permission_denied", _sanitize_source_error(str(exc), None))
+        if "connection" in message or "timeout" in message or "refused" in message:
+            return ("unreachable", _sanitize_source_error(str(exc), None))
+    if "requires" in message or "missing" in message or "invalid" in message:
+        return ("config_invalid", _sanitize_source_error(str(exc), None))
+    return ("config_invalid", _sanitize_source_error(str(exc), None))
+
+
 def _record_source_sync_state(
     connection: sa.Connection,
     source_id: UUID,
@@ -281,9 +303,19 @@ class PreviewResponse(BaseModel):
     title: str | None = None
     mime_type: str
     translation_quality: str | None = None
+    snippet: str | None = None
+    view_count: int = 0
     metadata: dict[str, Any]
-    snippet: str
-    view_count: int
+
+
+class ConnectionTestResult(BaseModel):
+    """Source connection validation result."""
+
+    source_id: str
+    status: Literal["ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"]
+    checked_at: str
+    details: dict[str, Any] | None = None
+    error: str | None = None
 
 
 class CreateUserRequest(BaseModel):
@@ -1732,12 +1764,12 @@ def create_app(
         require_admin(user)
         return connector_types()
 
-    @app.post("/admin/sources/{source_id}/test-connection")
+    @app.post("/admin/sources/{source_id}/test-connection", response_model=ConnectionTestResult)
     def admin_test_source_connection(
         source_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
-    ) -> dict[str, str]:
-        """Validate a source configuration without fetching documents."""
+    ) -> ConnectionTestResult:
+        """Validate a source configuration and reachability."""
         require_admin(user)
         with app.state.engine.begin() as connection:
             source_row = (
@@ -1751,14 +1783,60 @@ def create_app(
             if source_row is None:
                 raise HTTPException(status_code=404, detail="Source not found")
 
+            connector_type = str(source_row["type"])
+            checked_at = datetime.now(UTC).isoformat()
+
             try:
                 connector = build_connector(source_row)
                 connector.validate()
-            except ValueError as exc:
-                detail = _sanitize_source_error(str(exc), source_row)
-                raise HTTPException(status_code=400, detail=detail) from exc
+            except Exception as exc:
+                status, error = _classify_connection_error(exc, connector_type)
+                connection.execute(
+                    sa.text(
+                        """
+                        UPDATE ingestion_sources
+                        SET last_validation_status = :status,
+                            last_validation_error = :error,
+                            last_validated_at = :checked_at
+                        WHERE id = :id
+                        """
+                    ),
+                    {
+                        "id": source_id.hex,
+                        "status": status,
+                        "error": error,
+                        "checked_at": checked_at,
+                    },
+                )
+                return ConnectionTestResult(
+                    source_id=str(source_id),
+                    status=status,
+                    checked_at=checked_at,
+                    error=error,
+                )
 
-            return {"status": "ok", "message": "Source configuration is valid."}
+            details: dict[str, Any] = {"config_valid": True}
+            connection.execute(
+                sa.text(
+                    """
+                    UPDATE ingestion_sources
+                    SET last_validation_status = 'ok',
+                        last_validation_error = NULL,
+                        last_validated_at = :checked_at
+                    WHERE id = :id
+                    """
+                ),
+                {
+                    "id": source_id.hex,
+                    "checked_at": checked_at,
+                },
+            )
+            return ConnectionTestResult(
+                source_id=str(source_id),
+                status="ok",
+                checked_at=checked_at,
+                details=details,
+            )
 
     @app.get("/admin/sources")
     def admin_list_sources(
@@ -1771,7 +1849,8 @@ def create_app(
                     """
                     SELECT id, name, type, path, source_language, enabled, created_at,
                            last_sync_status, last_sync_indexed, last_sync_skipped,
-                           last_sync_failed, last_sync_error, last_sync_at
+                           last_sync_failed, last_sync_error, last_sync_at,
+                           last_validation_status, last_validation_error, last_validated_at
                     FROM ingestion_sources ORDER BY created_at DESC
                     """
                 )
@@ -1791,6 +1870,9 @@ def create_app(
                     "last_sync_failed": row.get("last_sync_failed"),
                     "last_sync_error": row.get("last_sync_error"),
                     "last_sync_at": _fmt_dt(row.get("last_sync_at")),
+                    "last_validation_status": row.get("last_validation_status"),
+                    "last_validation_error": row.get("last_validation_error"),
+                    "last_validated_at": _fmt_dt(row.get("last_validated_at")),
                 }
                 for row in rows
             ]
