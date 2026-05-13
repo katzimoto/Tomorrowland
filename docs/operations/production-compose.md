@@ -334,8 +334,9 @@ volumes:
 docker compose --profile monitoring rm -sf prometheus grafana
 ```
 
-Reset monitoring state without deleting product data volumes. Adjust the
-`tomorrowland_` prefix if your Compose project name differs:
+Reset monitoring state without deleting product data volumes. Use the actual
+volume names shown by `docker volume ls` (default names use the `tomorrowland_`
+prefix):
 
 ```bash
 docker compose --profile monitoring stop prometheus grafana
@@ -440,24 +441,29 @@ docker compose up --build -d
 
 ## Data Volumes And Consistency
 
-Compose creates these named volumes:
+Compose creates these named volumes. The actual Docker volume names are
+configurable through `.env` variables; defaults use the `tomorrowland_` prefix:
 
-- `files_data`: original files and generated file artifacts under `FILES_ROOT`.
-- `postgres_data`: document metadata, users, permissions, comments,
-  annotations, and other relational state.
-- `elasticsearch_data`: full-text indexes derived from PostgreSQL and files.
-- `qdrant_data`: vector indexes derived from document chunks.
-- `kafka_data`: local Redpanda event log.
-- `libretranslate_data`: LibreTranslate downloaded language data and cache.
-- `ollama_data`: local Ollama model cache.
-- `prometheus_data`: optional monitoring time-series data; operational state, not product data.
-- `grafana_data`: optional monitoring UI database/plugins state; operational state, not product data.
+| Internal key | Default Docker name | Env variable |
+| --- | --- | --- |
+| `files_data` | `tomorrowland_files_data` | `TOMORROWLAND_FILES_VOLUME` |
+| `postgres_data` | `tomorrowland_postgres_data` | `TOMORROWLAND_POSTGRES_VOLUME` |
+| `elasticsearch_data` | `tomorrowland_elasticsearch_data` | `TOMORROWLAND_ELASTICSEARCH_VOLUME` |
+| `qdrant_data` | `tomorrowland_qdrant_data` | `TOMORROWLAND_QDRANT_VOLUME` |
+| `kafka_data` | `tomorrowland_kafka_data` | `TOMORROWLAND_KAFKA_VOLUME` |
+| `libretranslate_data` | `tomorrowland_libretranslate_data` | `TOMORROWLAND_LIBRETRANSLATE_VOLUME` |
+| `ollama_data` | `tomorrowland_ollama_data` | `TOMORROWLAND_OLLAMA_VOLUME` |
+| `prometheus_data` | `tomorrowland_prometheus_data` | `TOMORROWLAND_PROMETHEUS_VOLUME` |
+| `grafana_data` | `tomorrowland_grafana_data` | `TOMORROWLAND_GRAFANA_VOLUME` |
 
 Back up `postgres_data`, `files_data`, `elasticsearch_data`, and `qdrant_data`
 together while the stack is stopped, or from a storage snapshot that captures
 them at the same point in time. PostgreSQL is the source of truth for metadata,
 but the file, full-text, and vector volumes must match it to avoid missing
 previews, stale search results, or vector hits that refer to deleted chunks.
+
+Run `docker volume ls` to confirm exact volume names before copying or archiving
+data, especially when custom `TOMORROWLAND_*_VOLUME` values are in use.
 
 ## Backup Guidance
 
@@ -482,8 +488,9 @@ docker compose exec -T postgres pg_dump -U "${POSTGRES_USER:-postgres}" \
   "${POSTGRES_DB:-app}" > backups/postgres.sql
 ```
 
-Adjust the `tomorrowland_` volume prefix if your Compose project name is different.
-Run `docker volume ls` to confirm exact names before copying volume data.
+These commands assume the default `tomorrowland_*` volume names. If you set
+custom `TOMORROWLAND_*_VOLUME` values in `.env`, replace the volume names in
+the `docker run` commands with the actual names shown by `docker volume ls`.
 
 For larger deployments, prefer storage-level snapshots taken while services are
 stopped or application writes are paused. If Elasticsearch or Qdrant indexes are

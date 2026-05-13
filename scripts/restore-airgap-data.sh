@@ -127,13 +127,9 @@ log "restoring PostgreSQL database $postgres_db"
   --no-privileges < "$backup_dir/postgres/postgres.dump"
 
 project_name="$(env_value COMPOSE_PROJECT_NAME "$(basename "$(pwd)")")"
-files_volume="${project_name}_files_data"
+files_volume="$(env_value TOMORROWLAND_FILES_VOLUME "tomorrowland_files_data")"
 if ! docker volume inspect "$files_volume" >/dev/null 2>&1; then
-  if docker volume inspect files_data >/dev/null 2>&1; then
-    files_volume="files_data"
-  else
-    fail "files_data volume not found as $files_volume; create/start the stack once before restoring files"
-  fi
+  fail "files volume not found: $files_volume; create/start the stack once before restoring files"
 fi
 
 tar_image="${RESTORE_TAR_IMAGE:-postgres:16-alpine}"

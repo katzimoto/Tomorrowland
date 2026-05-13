@@ -186,6 +186,11 @@ Edit `.env` before starting. At minimum:
 - Set `API_PORT` and `FRONTEND_PORT` for the host ports operators should reach.
 - Leave the direct API and infrastructure ports bound to localhost unless a
   maintenance workflow explicitly requires host access.
+- Optional: pin `TOMORROWLAND_*_VOLUME` names before the first production
+  deployment so persistent data uses stable names across upgrades and re-creates.
+  Defaults use the `tomorrowland_` prefix. Changing a volume name after data
+  exists makes that data appear missing until the old name is restored or data
+  is migrated.
 
 The template contains placeholders only. Do not put real secrets back into the
 release archive or commit them to source control.

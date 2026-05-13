@@ -79,8 +79,24 @@ PY
 [[ -n "$model" ]] || fail "model-manifest.json does not identify expected OLLAMA_MODEL"
 log "Bundle model: $model"
 
+env_value() {
+  key="$1"
+  default="$2"
+  if [[ -f "$env_file" ]]; then
+    value="$(awk -F= -v key="$key" '
+      $0 ~ /^[[:space:]]*#/ {next}
+      $1 == key {sub(/^[^=]*=/, ""); gsub(/^"|"$/, ""); gsub(/^'"'"'|'"'"'$/, ""); print; exit}
+    ' "$env_file")"
+    if [[ -n "$value" ]]; then
+      printf '%s' "$value"
+      return
+    fi
+  fi
+  printf '%s' "$default"
+}
+
 if [[ -z "$project_name" ]]; then
-  env_project_name="$(awk -F= '/^[[:space:]]*COMPOSE_PROJECT_NAME[[:space:]]*=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$env_file")"
+  env_project_name="$(env_value COMPOSE_PROJECT_NAME "")"
   if [[ -n "$env_project_name" ]]; then
     project_name="$env_project_name"
   else
@@ -91,7 +107,7 @@ if [[ -z "$project_name" ]]; then
 fi
 [[ -n "$project_name" ]] || fail "could not determine Compose project name; pass --project-name"
 compose_args=(-p "$project_name" --env-file "$env_file" -f "$compose_file")
-volume_name="${project_name}_ollama_data"
+volume_name="$(env_value TOMORROWLAND_OLLAMA_VOLUME "tomorrowland_ollama_data")"
 
 log "Ensuring target Docker volume exists: $volume_name"
 docker volume inspect "$volume_name" >/dev/null 2>&1 || docker volume create "$volume_name" >/dev/null

@@ -71,6 +71,7 @@ services:
       driver: json-file
     volumes:
       - files_data:/data
+      - ./data:/data/mounted:ro
 
   frontend:
     build:
@@ -264,11 +265,20 @@ services:
 
 volumes:
   files_data:
+    name: ${TOMORROWLAND_FILES_VOLUME:-tomorrowland_files_data}
   postgres_data:
+    name: ${TOMORROWLAND_POSTGRES_VOLUME:-tomorrowland_postgres_data}
   kafka_data:
+    name: ${TOMORROWLAND_KAFKA_VOLUME:-tomorrowland_kafka_data}
   elasticsearch_data:
+    name: ${TOMORROWLAND_ELASTICSEARCH_VOLUME:-tomorrowland_elasticsearch_data}
   qdrant_data:
+    name: ${TOMORROWLAND_QDRANT_VOLUME:-tomorrowland_qdrant_data}
   libretranslate_data:
+    name: ${TOMORROWLAND_LIBRETRANSLATE_VOLUME:-tomorrowland_libretranslate_data}
   ollama_data:
+    name: ${TOMORROWLAND_OLLAMA_VOLUME:-tomorrowland_ollama_data}
   prometheus_data:
+    name: ${TOMORROWLAND_PROMETHEUS_VOLUME:-tomorrowland_prometheus_data}
   grafana_data:
+    name: ${TOMORROWLAND_GRAFANA_VOLUME:-tomorrowland_grafana_data}

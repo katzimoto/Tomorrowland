@@ -239,6 +239,15 @@ $(for image in "${all_images[@]:1}"; do printf ',\n    "%s"' "$image"; done)
   "migrations": {"expected": true, "service": "migrate", "command": "alembic upgrade head"},
   "persistent_data": {
     "volumes": ["files_data", "postgres_data", "kafka_data", "elasticsearch_data", "qdrant_data", "libretranslate_data", "ollama_data"],
+    "volume_env_names": {
+      "files_data": "TOMORROWLAND_FILES_VOLUME",
+      "postgres_data": "TOMORROWLAND_POSTGRES_VOLUME",
+      "kafka_data": "TOMORROWLAND_KAFKA_VOLUME",
+      "elasticsearch_data": "TOMORROWLAND_ELASTICSEARCH_VOLUME",
+      "qdrant_data": "TOMORROWLAND_QDRANT_VOLUME",
+      "libretranslate_data": "TOMORROWLAND_LIBRETRANSLATE_VOLUME",
+      "ollama_data": "TOMORROWLAND_OLLAMA_VOLUME"
+    },
     "paths": ["TOMORROWLAND_FOLDER_SOURCE_HOST_PATH"]
   },
   "backup_restore_script_version": "1.0"

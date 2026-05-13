@@ -149,13 +149,7 @@ fi
 [[ -s "$backup_dir/postgres/postgres.dump" ]] || fail "PostgreSQL dump is empty"
 
 project_name="$(env_value COMPOSE_PROJECT_NAME "$(basename "$(pwd)")")"
-files_volume="${project_name}_files_data"
-if ! docker volume inspect "$files_volume" >/dev/null 2>&1; then
-  alt_volume="$("${compose_cmd[@]}" config --volumes 2>/dev/null | awk '/^files_data$/ {print "files_data"; exit}')"
-  if [[ -n "$alt_volume" ]] && docker volume inspect "$alt_volume" >/dev/null 2>&1; then
-    files_volume="$alt_volume"
-  fi
-fi
+files_volume="$(env_value TOMORROWLAND_FILES_VOLUME "tomorrowland_files_data")"
 
 tar_image="${BACKUP_TAR_IMAGE:-postgres:16-alpine}"
 log "archiving files volume $files_volume with local image $tar_image"

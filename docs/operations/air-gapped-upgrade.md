@@ -50,6 +50,12 @@ default. This includes:
 - Optional monitoring data when the operator backs up monitoring volumes.
 - `.env` and local Compose overrides.
 
+Volume names are determined by `TOMORROWLAND_*_VOLUME` values in `.env`. Keep
+these values stable across upgrades so Compose continues to mount the same
+Docker volumes. If a volume name changes, Compose creates a new empty volume
+with the new name and the existing data remains in the old volume. Migrate data
+explicitly if you must rename volumes.
+
 ## Translation language pack upgrade notes
 
 The `tomorrowland/libretranslate:airgap` image bundles Argos Translate language packs
