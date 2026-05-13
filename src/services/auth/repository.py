@@ -162,14 +162,18 @@ class AuthRepository:
         return source_id
 
     def grant_source_to_group(self, source_id: UUID, group_id: UUID) -> None:
-        """Grant a group access to an ingestion source."""
-        self._connection.execute(
-            sa.text("""
-                INSERT INTO source_permissions (source_id, group_id)
-                VALUES (:source_id, :group_id)
-                """),
-            {"source_id": db_uuid(source_id), "group_id": db_uuid(group_id)},
-        )
+        """Grant a group access to an ingestion source (idempotent)."""
+        try:
+            with self._connection.begin_nested():
+                self._connection.execute(
+                    sa.text("""
+                        INSERT INTO source_permissions (source_id, group_id)
+                        VALUES (:source_id, :group_id)
+                        """),
+                    {"source_id": db_uuid(source_id), "group_id": db_uuid(group_id)},
+                )
+        except sa.exc.IntegrityError:
+            pass
 
     def create_document(
         self, source_id: UUID, external_id: str = "file:/data/a.txt"
