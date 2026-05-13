@@ -32,3 +32,6 @@ tmp/
 .idea/
 .vscode/
 *.swp
+.opencode_auth.json
+main
+token_opencode.txt
