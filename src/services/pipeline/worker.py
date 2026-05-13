@@ -80,6 +80,10 @@ class PipelineWorker:
         if doc is None:
             raise ValueError(f"Document {doc_id} not found")
 
+        allowed_group_ids = [
+            str(group_id) for group_id in self._doc_repo.source_group_ids(doc.source_id)
+        ]
+
         # 1. Extract — use pre-extracted text when available (API sources),
         #    otherwise read from the local file path (folder sources).
         start = time.perf_counter()
@@ -119,26 +123,10 @@ class PipelineWorker:
                 time.perf_counter() - start
             )
             self._metrics.pipeline_chunks_total.labels("success").inc(len(chunks))
-        allowed_group_ids = [
-            str(group_id) for group_id in self._doc_repo.source_group_ids(doc.source_id)
-        ]
 
-        # 4. Encode + build Qdrant points
-        qdrant_chunks: list[dict[str, Any]] = []
-        for idx, chunk_text_content in enumerate(chunks):
-            vector = self._encoder.encode(chunk_text_content)
-            qdrant_chunks.append(
-                {
-                    "chunk_id": f"{doc_id}-{idx}",
-                    "doc_id": str(doc_id),
-                    "group_id": allowed_group_ids,
-                    "chunk_index": idx,
-                    "text": chunk_text_content,
-                    "vector": vector,
-                }
-            )
-
-        # 5. Index full document in Elasticsearch
+        # 4. Index full document in Elasticsearch. This is intentionally before
+        #    vector embedding so an Ollama/Qdrant outage does not prevent BM25
+        #    text search from receiving the document.
         start = time.perf_counter()
         self._es.index_document(
             str(doc_id),
@@ -159,20 +147,46 @@ class PipelineWorker:
             )
             self._metrics.search_index_documents.labels("elasticsearch").inc()
 
-        # 6. Index chunks in Qdrant
-        if qdrant_chunks:
-            start = time.perf_counter()
-            self._qdrant.upsert_chunks(qdrant_chunks)
-            if self._metrics is not None:
-                self._metrics.search_backend_duration_seconds.labels("qdrant", "upsert").observe(
-                    time.perf_counter() - start
+        # 5. Index chunks in Qdrant. Vector indexing is degraded/best-effort
+        #    relative to text indexing: failures are logged safely but do not
+        #    turn a text-indexed document into a failed document.
+        try:
+            qdrant_chunks: list[dict[str, Any]] = []
+            for idx, chunk_text_content in enumerate(chunks):
+                vector = self._encoder.encode(chunk_text_content)
+                qdrant_chunks.append(
+                    {
+                        "chunk_id": f"{doc_id}-{idx}",
+                        "doc_id": str(doc_id),
+                        "group_id": allowed_group_ids,
+                        "chunk_index": idx,
+                        "text": chunk_text_content,
+                        "vector": vector,
+                    }
                 )
-                self._metrics.search_index_documents.labels("qdrant").inc()
 
-        # 7. Update status
+            if qdrant_chunks:
+                start = time.perf_counter()
+                self._qdrant.upsert_chunks(qdrant_chunks)
+                if self._metrics is not None:
+                    self._metrics.search_backend_duration_seconds.labels(
+                        "qdrant", "upsert"
+                    ).observe(time.perf_counter() - start)
+                    self._metrics.search_index_documents.labels("qdrant").inc()
+        except Exception as exc:
+            logger.error(
+                "Vector indexing failed for doc_id=%s error_type=%s correlation=%s",
+                doc_id,
+                exc.__class__.__name__,
+                get_correlation_id(),
+            )
+
+        # 6. Update status after text indexing has succeeded. Vector indexing may
+        #    be degraded; a future async job model should persist stage-specific
+        #    retry state for vector failures.
         self._doc_repo.update_indexed(doc_id, "indexed", translation_quality)
 
-        # 8. Intelligence (best-effort, never blocking)
+        # 7. Intelligence (best-effort, never blocking)
         if self._intelligence is not None and translation_quality in ("fast", "high"):
             try:
                 self._intelligence.process_document(doc.id, translated)
@@ -183,7 +197,7 @@ class PipelineWorker:
                     get_correlation_id(),
                 )
 
-        # 9. Alert matching (best-effort, never blocking)
+        # 8. Alert matching (best-effort, never blocking)
         if self._alert_matcher is not None:
             try:
                 self._alert_matcher.match_document(doc, translated)
