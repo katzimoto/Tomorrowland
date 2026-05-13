@@ -106,4 +106,4 @@ export function ResultRow({ result, id, selected = false, onClick, onSelect, onP
       </div>
     </div>
   );
-});
+}

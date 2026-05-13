@@ -22,7 +22,6 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigateMock,
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
 }));
-}));
 
 vi.mock("@/api/search");
 
