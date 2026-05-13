@@ -55,9 +55,9 @@ beforeEach(() => {
 });
 
 describe("SearchPage", () => {
-  it("binds route search params to the registered search route", () => {
+  it("binds route search params to the typed search route", () => {
     render(<SearchPage />);
-    expect(routerMocks.useSearch).toHaveBeenCalledWith({ from: "/search" });
+    expect(routerMocks.useSearch).toHaveBeenCalledWith({ from: "/app/search" });
   });
 
   it("renders the search input and title", () => {
