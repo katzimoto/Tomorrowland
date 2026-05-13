@@ -47,7 +47,7 @@ def test_no_direct_encoder_construction_outside_factory() -> None:
             if name in text:
                 hits.append(f"{path}: {name}")
                 break
-    assert not hits, f"Forbidden direct encoder construction found in:\n" + "\n".join(hits)
+    assert not hits, "Forbidden direct encoder construction found in:\n" + "\n".join(hits)
 
 
 def test_main_py_uses_build_encoder() -> None:
