@@ -81,8 +81,45 @@ def test_search_uses_multi_match_query() -> None:
     client.search("hello world", group_ids=["group-1"])
 
     query = mock_es.search.call_args.kwargs["query"]
-    assert "multi_match" in query["bool"]["must"]
-    assert query["bool"]["must"]["multi_match"]["query"] == "hello world"
+    should_clauses = query["bool"]["should"]
+    assert len(should_clauses) == 2
+    full_text_clause = should_clauses[0]["multi_match"]
+    assert full_text_clause["query"] == "hello world"
+    assert "title^3" in full_text_clause["fields"]
+    assert "content_english^2" in full_text_clause["fields"]
+
+
+def test_search_includes_autocomplete_fields() -> None:
+    """Partial-word matching: the query must include .autocomplete subfields."""
+    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
+    mock_es = MagicMock()
+    mock_es.search.return_value = {"hits": {"hits": []}}
+    client._client = mock_es
+
+    client.search("trans", group_ids=["group-1"])
+
+    query = mock_es.search.call_args.kwargs["query"]
+    should_clauses = query["bool"]["should"]
+    autocomplete_fields = should_clauses[1]["multi_match"]["fields"]
+    assert any("autocomplete" in f for f in autocomplete_fields)
+    assert query["bool"]["minimum_should_match"] == 1
+
+
+def test_search_prefix_query_covers_all_text_fields() -> None:
+    """All searchable text fields must have an autocomplete variant in the query."""
+    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
+    mock_es = MagicMock()
+    mock_es.search.return_value = {"hits": {"hits": []}}
+    client._client = mock_es
+
+    client.search("transl", group_ids=["group-1"])
+
+    query = mock_es.search.call_args.kwargs["query"]
+    autocomplete_clause = query["bool"]["should"][1]["multi_match"]
+    field_names = [f.split("^")[0] for f in autocomplete_clause["fields"]]
+    assert "title.autocomplete" in field_names
+    assert "content_english.autocomplete" in field_names
+    assert "summary.autocomplete" in field_names
 
 
 def test_search_filters_by_group_ids() -> None:
@@ -120,6 +157,42 @@ def test_create_index_if_not_exists() -> None:
     call_args = mock_es.indices.create.call_args
     assert call_args.kwargs["index"] == INDEX_NAME
     assert "mappings" in call_args.kwargs
+    assert "settings" in call_args.kwargs
+
+
+def test_create_index_has_edge_ngram_analyzer() -> None:
+    """Index settings must define the edge_ngram filter and autocomplete analyzers."""
+    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
+    mock_es = MagicMock()
+    mock_es.indices.exists.return_value = False
+    client._client = mock_es
+
+    client.create_index_if_not_exists()
+
+    settings = mock_es.indices.create.call_args.kwargs["settings"]
+    filters = settings["analysis"]["filter"]
+    analyzers = settings["analysis"]["analyzer"]
+    assert filters["autocomplete_ngram"]["type"] == "edge_ngram"
+    assert "autocomplete_index" in analyzers
+    assert "autocomplete_search" in analyzers
+    assert "autocomplete_ngram" in analyzers["autocomplete_index"]["filter"]
+
+
+def test_create_index_has_autocomplete_subfields() -> None:
+    """Searchable text fields must have an .autocomplete multi-field in the mapping."""
+    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
+    mock_es = MagicMock()
+    mock_es.indices.exists.return_value = False
+    client._client = mock_es
+
+    client.create_index_if_not_exists()
+
+    props = mock_es.indices.create.call_args.kwargs["mappings"]["properties"]
+    for field in ("title", "content_english", "summary"):
+        assert "autocomplete" in props[field]["fields"], f"{field} missing .autocomplete subfield"
+        subfield = props[field]["fields"]["autocomplete"]
+        assert subfield["analyzer"] == "autocomplete_index"
+        assert subfield["search_analyzer"] == "autocomplete_search"
 
 
 def test_create_index_already_exists() -> None:

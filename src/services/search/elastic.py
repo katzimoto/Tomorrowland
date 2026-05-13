@@ -22,12 +22,62 @@ class ElasticsearchSearchClient:
 
         self._client.indices.create(
             index=INDEX_NAME,
+            settings={
+                "analysis": {
+                    "filter": {
+                        "autocomplete_ngram": {
+                            "type": "edge_ngram",
+                            "min_gram": 2,
+                            "max_gram": 20,
+                        }
+                    },
+                    "analyzer": {
+                        "autocomplete_index": {
+                            "type": "custom",
+                            "tokenizer": "standard",
+                            "filter": ["lowercase", "autocomplete_ngram"],
+                        },
+                        "autocomplete_search": {
+                            "type": "custom",
+                            "tokenizer": "standard",
+                            "filter": ["lowercase"],
+                        },
+                    },
+                }
+            },
             mappings={
                 "properties": {
                     "doc_id": {"type": "keyword"},
-                    "content_english": {"type": "text"},
-                    "title": {"type": "text"},
-                    "summary": {"type": "text"},
+                    "content_english": {
+                        "type": "text",
+                        "fields": {
+                            "autocomplete": {
+                                "type": "text",
+                                "analyzer": "autocomplete_index",
+                                "search_analyzer": "autocomplete_search",
+                            }
+                        },
+                    },
+                    "title": {
+                        "type": "text",
+                        "fields": {
+                            "autocomplete": {
+                                "type": "text",
+                                "analyzer": "autocomplete_index",
+                                "search_analyzer": "autocomplete_search",
+                            }
+                        },
+                    },
+                    "summary": {
+                        "type": "text",
+                        "fields": {
+                            "autocomplete": {
+                                "type": "text",
+                                "analyzer": "autocomplete_index",
+                                "search_analyzer": "autocomplete_search",
+                            }
+                        },
+                    },
                     "tags": {"type": "keyword"},
                     "entities": {"type": "keyword"},
                     "metadata": {"type": "object"},
@@ -71,14 +121,31 @@ class ElasticsearchSearchClient:
         if not group_ids:
             raise ValueError("group_ids must not be empty")
 
+        # should[0]: full-text BM25 with original boosts for full-word relevance
+        # should[1]: edge_ngram subfields for prefix/partial-word matching (lower boost)
         es_query: dict[str, Any] = {
             "bool": {
-                "must": {
-                    "multi_match": {
-                        "query": query,
-                        "fields": ["content_english^2", "title^3", "summary", "tags"],
-                    }
-                },
+                "should": [
+                    {
+                        "multi_match": {
+                            "query": query,
+                            "fields": ["content_english^2", "title^3", "summary", "tags"],
+                            "type": "best_fields",
+                        }
+                    },
+                    {
+                        "multi_match": {
+                            "query": query,
+                            "fields": [
+                                "content_english.autocomplete",
+                                "title.autocomplete^1.5",
+                                "summary.autocomplete^0.5",
+                            ],
+                            "type": "best_fields",
+                        }
+                    },
+                ],
+                "minimum_should_match": 1,
                 # "filter": {"terms": {"allowed_group_ids": group_ids}},
             }
         }
