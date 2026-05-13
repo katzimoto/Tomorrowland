@@ -35,7 +35,10 @@ from services.comments.models import CommentCreateRequest, CommentUpdateRequest
 from services.comments.repository import CommentRepository
 from services.connectors.factory import build_connector, connector_types
 from services.documents.models import DocumentRow, DocumentSource
-from services.documents.repository import DocumentRepository, TranslationVersionRepository
+from services.documents.repository import (
+    DocumentRepository,
+    TranslationVersionRepository,
+)
 from services.extraction.registry import ExtractorRegistry
 from services.health import HealthResponse, health
 from services.intelligence.ollama_client import OllamaClient
@@ -127,12 +130,10 @@ def _audit_log(
             safe_label_value(action), safe_label_value(resource_type)
         ).inc()
     connection.execute(
-        sa.text(
-            """
+        sa.text("""
             INSERT INTO audit_log (id, user_id, action, resource_type, resource_id, details)
             VALUES (:id, :user_id, :action, :resource_type, :resource_id, :details)
-            """
-        ),
+            """),
         {
             "id": uuid4().hex,
             "user_id": user_id.hex if user_id else None,
@@ -334,7 +335,9 @@ def create_app(
             route = route_template_for_request(request)
             elapsed = time.perf_counter() - start
             metrics: MetricsRegistry = request.app.state.metrics
-            metrics.http_request_duration_seconds.labels(request.method, route).observe(elapsed)
+            metrics.http_request_duration_seconds.labels(request.method, route).observe(
+                elapsed
+            )
             metrics.http_requests_total.labels(
                 request.method, route, status_class(response.status_code)
             ).inc()
@@ -345,7 +348,9 @@ def create_app(
             elapsed = time.perf_counter() - start
             metrics = request.app.state.metrics
             error_type = exc.__class__.__name__
-            metrics.http_request_duration_seconds.labels(request.method, route).observe(elapsed)
+            metrics.http_request_duration_seconds.labels(request.method, route).observe(
+                elapsed
+            )
             metrics.http_requests_total.labels(request.method, route, "5xx").inc()
             metrics.http_exceptions_total.labels(route, error_type).inc()
             return Response(
@@ -376,7 +381,9 @@ def create_app(
     def require_related_docs_enabled(connection: sa.Connection) -> None:
         """Raise 404 when related documents are disabled."""
         if not app.state.settings.feature_related_docs:
-            raise HTTPException(status_code=404, detail="Related documents are disabled")
+            raise HTTPException(
+                status_code=404, detail="Related documents are disabled"
+            )
         row = (
             connection.execute(
                 sa.text("SELECT value FROM system_config WHERE key = :key"),
@@ -386,7 +393,9 @@ def create_app(
             .first()
         )
         if row and not _config_bool(row["value"], default=True):
-            raise HTTPException(status_code=404, detail="Related documents are disabled")
+            raise HTTPException(
+                status_code=404, detail="Related documents are disabled"
+            )
 
     def require_expertise_enabled(connection: sa.Connection) -> None:
         """Raise 404 when expertise map is disabled."""
@@ -460,7 +469,9 @@ def create_app(
         return health("api")
 
     @app.get("/admin/readiness", response_model=None)
-    def admin_readiness(user: Annotated[TokenPayload, Depends(current_user)]) -> ReadinessResponse:
+    def admin_readiness(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> ReadinessResponse:
         require_admin(user)
         readiness: ReadinessResponse = app.state.readiness_checker.check()
         return readiness
@@ -489,7 +500,9 @@ def create_app(
         return UserResponse.from_token(user)
 
     @app.get("/admin/health")
-    def admin_health(user: Annotated[TokenPayload, Depends(current_user)]) -> dict[str, str]:
+    def admin_health(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, str]:
         require_admin(user)
         return {"status": "ok"}
 
@@ -556,12 +569,10 @@ def create_app(
                 message: str,
             ) -> None:
                 connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                         INSERT INTO dlq (id, doc_id, error_message, status)
                         VALUES (:id, :doc_id, :error_message, 'pending')
-                        """
-                    ),
+                        """),
                     {
                         "id": db_uuid(uuid4()),
                         "doc_id": db_uuid(doc_id) if doc_id is not None else None,
@@ -598,7 +609,9 @@ def create_app(
 
                         doc_id_for_dlq = doc.id
                         try:
-                            worker.process_document(doc.id, pre_extracted_text=item.text_content)
+                            worker.process_document(
+                                doc.id, pre_extracted_text=item.text_content
+                            )
                             results["indexed"] += 1
                             app.state.metrics.ingestion_documents_total.labels(
                                 safe_label_value(connector_type), "success"
@@ -614,13 +627,17 @@ def create_app(
                         app.state.metrics.ingestion_documents_total.labels(
                             safe_label_value(connector_type), "failure"
                         ).inc()
-                        _record_sync_dlq(doc_id_for_dlq, "Document creation or discovery failed")
+                        _record_sync_dlq(
+                            doc_id_for_dlq, "Document creation or discovery failed"
+                        )
                     finally:
                         if connector_type == "smb" and item.path:
                             with suppress(OSError):
                                 os.unlink(item.path)
             except Exception:
-                raise HTTPException(status_code=502, detail="Source enumeration failed") from None
+                raise HTTPException(
+                    status_code=502, detail="Source enumeration failed"
+                ) from None
 
             sync_outcome = "failure" if results["failed"] else "success"
             app.state.metrics.ingestion_syncs_total.labels(
@@ -641,32 +658,34 @@ def create_app(
             app.state.metrics.search_duration_seconds.labels("hybrid").observe(
                 time.perf_counter() - metrics_start
             )
+            logger.warning("There is no group id for this search")
             return SearchResponse(results=[], total=0)
 
         es_client = app.state.es_client or ElasticsearchSearchClient(
             hosts=[app.state.settings.elastic_url]
         )
-        qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-            url=app.state.settings.qdrant_url
-        )
-        encoder = build_encoder(app.state.settings)
 
         backend_start = time.perf_counter()
         bm25_results = es_client.search(request.query, group_ids=group_ids, size=50)
-        app.state.metrics.search_backend_duration_seconds.labels("elasticsearch", "search").observe(
-            time.perf_counter() - backend_start
-        )
-
+        app.state.metrics.search_backend_duration_seconds.labels(
+            "elasticsearch", "search"
+        ).observe(time.perf_counter() - backend_start)
+        logger.debug(f"The elastic search client returned {bm25_results}")
         vector_results: list[SearchResult] = []
         try:
+            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+                url=app.state.settings.qdrant_url
+            )
+            encoder = build_encoder(app.state.settings)
             query_vector = encoder.encode(request.query)
             backend_start = time.perf_counter()
             vector_results = qdrant_client.search(
                 vector=query_vector, group_ids=group_ids, limit=50
             )
-            app.state.metrics.search_backend_duration_seconds.labels("qdrant", "search").observe(
-                time.perf_counter() - backend_start
-            )
+            logger.debug(f"The word vector returned {vector_results}")
+            app.state.metrics.search_backend_duration_seconds.labels(
+                "qdrant", "search"
+            ).observe(time.perf_counter() - backend_start)
         except Exception as exc:
             logger.warning(
                 "Vector search degraded route=/search stage=vector_search "
@@ -674,7 +693,7 @@ def create_app(
                 exc.__class__.__name__,
                 get_correlation_id(),
             )
-            app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
+        app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
 
         # TODO: read weights from system_config in Phase 04
         if vector_results:
@@ -695,7 +714,7 @@ def create_app(
         start = (request.page - 1) * request.page_size
         end = start + request.page_size
         page = merged[start:end]
-
+        logger.info(f"The search result are {page}")
         # Enrich page with document metadata from the database
         doc_ids: list[UUID] = []
         for r in page:
@@ -782,7 +801,9 @@ def create_app(
                 doc_id, user.sub, translation_version_id=translation_version_id
             )
             if not result:
-                app.state.metrics.preview_requests_total.labels("unknown", "failure").inc()
+                app.state.metrics.preview_requests_total.labels(
+                    "unknown", "failure"
+                ).inc()
                 raise HTTPException(status_code=404, detail="Document not found")
 
             app.state.metrics.preview_requests_total.labels(
@@ -1026,7 +1047,9 @@ def create_app(
                         "created_at": _fmt_dt(c["created_at"]),
                         "edited_at": _fmt_dt(c["edited_at"]),
                         "edited_by_id": (
-                            str(to_uuid(c["edited_by_id"])) if c["edited_by_id"] else None
+                            str(to_uuid(c["edited_by_id"]))
+                            if c["edited_by_id"]
+                            else None
                         ),
                         "deleted_at": _fmt_dt(c["deleted_at"]),
                     }
@@ -1089,7 +1112,9 @@ def create_app(
                 "created_at": _fmt_dt(updated["created_at"]),
                 "edited_at": _fmt_dt(updated["edited_at"]),
                 "edited_by_id": (
-                    str(to_uuid(updated["edited_by_id"])) if updated["edited_by_id"] else None
+                    str(to_uuid(updated["edited_by_id"]))
+                    if updated["edited_by_id"]
+                    else None
                 ),
             }
 
@@ -1108,7 +1133,9 @@ def create_app(
             if comment is None or comment["deleted_at"] is not None:
                 raise HTTPException(status_code=404, detail="Comment not found")
             if not repo.can_delete(comment_id, user.sub, user.is_admin):
-                raise HTTPException(status_code=403, detail="Cannot delete this comment")
+                raise HTTPException(
+                    status_code=403, detail="Cannot delete this comment"
+                )
 
             repo.soft_delete(comment_id, deleted_by_id=user.sub)
             app.state.metrics.comments_total.labels("delete", "success").inc()
@@ -1123,7 +1150,9 @@ def create_app(
             assert_doc_access(doc_id, user, auth_repo)
 
             repo = AnnotationRepository(connection)
-            annotations = repo.list_annotations(doc_id, user.sub, is_admin=user.is_admin)
+            annotations = repo.list_annotations(
+                doc_id, user.sub, is_admin=user.is_admin
+            )
             return {
                 "doc_id": str(doc_id),
                 "annotations": [
@@ -1161,7 +1190,9 @@ def create_app(
                 is_private=request.is_private,
             )
             visibility = "private" if request.is_private else "shared"
-            app.state.metrics.annotations_total.labels("create", visibility, "success").inc()
+            app.state.metrics.annotations_total.labels(
+                "create", visibility, "success"
+            ).inc()
             return {
                 "id": str(to_uuid(annotation["id"])),
                 "doc_id": str(to_uuid(annotation["doc_id"])),
@@ -1190,7 +1221,9 @@ def create_app(
             assert_doc_access(to_uuid(annotation["doc_id"]), user, auth_repo)
 
             if not repo.can_modify(annotation_id, user.sub, user.is_admin):
-                raise HTTPException(status_code=403, detail="Cannot modify this annotation")
+                raise HTTPException(
+                    status_code=403, detail="Cannot modify this annotation"
+                )
 
             repo.update(
                 annotation_id,
@@ -1200,7 +1233,9 @@ def create_app(
                 is_private=request.is_private,
             )
             visibility = "private" if request.is_private else "shared"
-            app.state.metrics.annotations_total.labels("update", visibility, "success").inc()
+            app.state.metrics.annotations_total.labels(
+                "update", visibility, "success"
+            ).inc()
             updated = repo.get_by_id(annotation_id)
             if updated is None:
                 raise HTTPException(status_code=404, detail="Annotation not found")
@@ -1232,11 +1267,15 @@ def create_app(
             assert_doc_access(to_uuid(annotation["doc_id"]), user, auth_repo)
 
             if not repo.can_modify(annotation_id, user.sub, user.is_admin):
-                raise HTTPException(status_code=403, detail="Cannot delete this annotation")
+                raise HTTPException(
+                    status_code=403, detail="Cannot delete this annotation"
+                )
 
             visibility = "private" if annotation["is_private"] else "shared"
             repo.delete(annotation_id)
-            app.state.metrics.annotations_total.labels("delete", visibility, "success").inc()
+            app.state.metrics.annotations_total.labels(
+                "delete", visibility, "success"
+            ).inc()
 
     @app.get("/subscriptions")
     def list_subscriptions(
@@ -1245,7 +1284,9 @@ def create_app(
         with app.state.engine.begin() as connection:
             require_subscriptions_enabled(connection)
             repo = AlertRepository(connection)
-            return [_subscription_response(row) for row in repo.list_subscriptions(user.sub)]
+            return [
+                _subscription_response(row) for row in repo.list_subscriptions(user.sub)
+            ]
 
     @app.post("/subscriptions", status_code=201)
     def create_subscription(
@@ -1544,14 +1585,10 @@ def create_app(
     ) -> list[dict[str, Any]]:
         require_admin(user)
         with app.state.engine.begin() as connection:
-            rows = connection.execute(
-                sa.text(
-                    """
+            rows = connection.execute(sa.text("""
                     SELECT id, email, display_name, auth_source, is_admin, created_at
                     FROM users ORDER BY created_at DESC
-                    """
-                )
-            ).mappings()
+                    """)).mappings()
             return [
                 {
                     "id": str(to_uuid(row["id"])),
@@ -1620,7 +1657,9 @@ def create_app(
             rows = connection.execute(
                 sa.text("SELECT id, name FROM groups ORDER BY name")
             ).mappings()
-            return [{"id": str(to_uuid(row["id"])), "name": row["name"]} for row in rows]
+            return [
+                {"id": str(to_uuid(row["id"])), "name": row["name"]} for row in rows
+            ]
 
     @app.post("/admin/groups", status_code=201)
     def admin_create_group(
@@ -1647,14 +1686,10 @@ def create_app(
     ) -> list[dict[str, Any]]:
         require_admin(user)
         with app.state.engine.begin() as connection:
-            rows = connection.execute(
-                sa.text(
-                    """
+            rows = connection.execute(sa.text("""
                     SELECT id, name, type, path, source_language, enabled, created_at
                     FROM ingestion_sources ORDER BY created_at DESC
-                    """
-                )
-            ).mappings()
+                    """)).mappings()
             return [
                 {
                     "id": str(to_uuid(row["id"])),
@@ -1677,14 +1712,12 @@ def create_app(
         with app.state.engine.begin() as connection:
             source_id = uuid4()
             connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     INSERT INTO ingestion_sources
                         (id, name, type, path, source_language, enabled, config)
                     VALUES
                         (:id, :name, :type, :path, :source_language, :enabled, :config)
-                    """
-                ),
+                    """),
                 {
                     "id": source_id.hex,
                     "name": request.name,
@@ -1695,6 +1728,7 @@ def create_app(
                     "config": json.dumps(request.config),
                 },
             )
+
             _audit_log(
                 connection,
                 user.sub,
@@ -1743,12 +1777,10 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     DELETE FROM source_permissions
                     WHERE source_id = :source_id AND group_id = :group_id
-                    """
-                ),
+                    """),
                 {"source_id": source_id.hex, "group_id": group_id.hex},
             )
             _audit_log(
@@ -1787,13 +1819,11 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     UPDATE system_config
                     SET value = :value, updated_at = CURRENT_TIMESTAMP, updated_by = :user_id
                     WHERE key = :key
-                    """
-                ),
+                    """),
                 {
                     "key": key,
                     "value": request.value,
@@ -1802,7 +1832,9 @@ def create_app(
             )
             row = (
                 connection.execute(
-                    sa.text("SELECT key, value, updated_at FROM system_config WHERE key = :key"),
+                    sa.text(
+                        "SELECT key, value, updated_at FROM system_config WHERE key = :key"
+                    ),
                     {"key": key},
                 )
                 .mappings()
@@ -1834,13 +1866,11 @@ def create_app(
         with app.state.engine.begin() as connection:
             for key, value in SYSTEM_CONFIG_DEFAULTS.items():
                 connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                         UPDATE system_config
                         SET value = :value, updated_at = CURRENT_TIMESTAMP, updated_by = :user_id
                         WHERE key = :key
-                        """
-                    ),
+                        """),
                     {"key": key, "value": value, "user_id": user.sub.hex},
                 )
             _audit_log(connection, user.sub, "reset", "system_config")
@@ -1852,14 +1882,10 @@ def create_app(
     ) -> list[DlqItem]:
         require_admin(user)
         with app.state.engine.begin() as connection:
-            rows = connection.execute(
-                sa.text(
-                    """
+            rows = connection.execute(sa.text("""
                     SELECT id, doc_id, error_message, retry_count, status, created_at, updated_at
                     FROM dlq ORDER BY created_at DESC
-                    """
-                )
-            ).mappings()
+                    """)).mappings()
             return [
                 DlqItem(
                     id=str(to_uuid(row["id"])),
@@ -1881,18 +1907,18 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             result = connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     UPDATE dlq
                     SET status = 'retried', retry_count = retry_count + 1,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = :id AND status = 'pending'
-                    """
-                ),
+                    """),
                 {"id": dlq_id.hex},
             )
             if result.rowcount == 0:
-                raise HTTPException(status_code=404, detail="DLQ item not found or not pending")
+                raise HTTPException(
+                    status_code=404, detail="DLQ item not found or not pending"
+                )
             _audit_log(connection, user.sub, "retry", "dlq", str(dlq_id))
             return {"id": str(dlq_id), "status": "retried"}
 
@@ -1902,14 +1928,10 @@ def create_app(
     ) -> list[dict[str, Any]]:
         require_admin(user)
         with app.state.engine.begin() as connection:
-            rows = connection.execute(
-                sa.text(
-                    """
+            rows = connection.execute(sa.text("""
                     SELECT id, user_id, action, resource_type, resource_id, details, created_at
                     FROM audit_log ORDER BY created_at DESC LIMIT 100
-                    """
-                )
-            ).mappings()
+                    """)).mappings()
             return [
                 {
                     "id": str(to_uuid(row["id"])),

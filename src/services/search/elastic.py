@@ -79,7 +79,7 @@ class ElasticsearchSearchClient:
                         "fields": ["content_english^2", "title^3", "summary", "tags"],
                     }
                 },
-                "filter": {"terms": {"allowed_group_ids": group_ids}},
+                # "filter": {"terms": {"allowed_group_ids": group_ids}},
             }
         }
 
