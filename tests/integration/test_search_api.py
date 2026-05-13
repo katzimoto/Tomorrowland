@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
@@ -439,3 +440,231 @@ def test_search_with_null_translation_quality(
     data = response.json()
     assert data["total"] == 1
     assert data["results"][0]["doc_id"] == doc_id
+
+
+def test_search_encoder_failure_returns_bm25_only(
+    migrated_engine: Engine,
+) -> None:
+    """When encoder fails, search should still return BM25 results."""
+    _setup_users(migrated_engine)
+
+    source_id, doc_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
+
+    mock_es = MagicMock(spec=ElasticsearchSearchClient)
+    mock_es.search.return_value = [SearchResult(doc_id=doc_id, score=1.5, title="Hello Doc")]
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+
+    from services.search.encoder import TextEncoder
+
+    class BrokenEncoder(TextEncoder):
+        def encode(self, text: str) -> list[float]:
+            raise RuntimeError("Ollama is down")
+
+    with patch("services.api.main.build_encoder", return_value=BrokenEncoder()):
+        client = TestClient(
+            create_app(
+                migrated_engine,
+                Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+                es_client=mock_es,
+                qdrant_client=mock_qdrant,
+            )
+        )
+    token = _user_token(client)
+
+    response = client.post(
+        "/search",
+        json={"query": "hello", "page": 1, "page_size": 10},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 1
+    assert len(data["results"]) == 1
+    assert data["results"][0]["doc_id"] == doc_id
+
+
+def test_search_qdrant_failure_returns_bm25_only(
+    migrated_engine: Engine,
+) -> None:
+    """When Qdrant fails, search should still return BM25 results."""
+    _setup_users(migrated_engine)
+
+    source_id, doc_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
+
+    mock_es = MagicMock(spec=ElasticsearchSearchClient)
+    mock_es.search.return_value = [SearchResult(doc_id=doc_id, score=1.5, title="Hello Doc")]
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.side_effect = RuntimeError("Qdrant unavailable")
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            es_client=mock_es,
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _user_token(client)
+
+    response = client.post(
+        "/search",
+        json={"query": "hello", "page": 1, "page_size": 10},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 1
+    assert len(data["results"]) == 1
+    assert data["results"][0]["doc_id"] == doc_id
+
+
+def test_search_es_failure_still_fails(
+    migrated_engine: Engine,
+) -> None:
+    """When Elasticsearch fails, search should fail because there is no fallback."""
+    _setup_users(migrated_engine)
+
+    mock_es = MagicMock(spec=ElasticsearchSearchClient)
+    mock_es.search.side_effect = RuntimeError("ES down")
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            es_client=mock_es,
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _user_token(client)
+
+    response = client.post(
+        "/search",
+        json={"query": "hello", "page": 1, "page_size": 10},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 500
+
+
+def test_search_logs_no_raw_query_on_vector_degradation(
+    migrated_engine: Engine,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """When vector search fails, logs must not contain the raw query text."""
+    _setup_users(migrated_engine)
+
+    mock_es = MagicMock(spec=ElasticsearchSearchClient)
+    mock_es.search.return_value = []
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.side_effect = RuntimeError("Qdrant unavailable")
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            es_client=mock_es,
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _user_token(client)
+
+    with caplog.at_level("WARNING"):
+        client.post(
+            "/search",
+            json={"query": "super-secret-query-12345", "page": 1, "page_size": 10},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    for record in caplog.records:
+        assert "super-secret-query-12345" not in record.message
+
+
+def test_related_documents_degraded_on_encoder_failure(
+    migrated_engine: Engine,
+) -> None:
+    """When encoder fails, related documents should return empty list safely."""
+    _setup_users(migrated_engine)
+
+    from services.search.encoder import TextEncoder
+
+    class BrokenEncoder(TextEncoder):
+        def encode(self, text: str) -> list[float]:
+            raise RuntimeError("Ollama is down")
+
+    _source_id, doc_id = _create_source_with_doc(migrated_engine, "users", "Related Doc")
+
+    # Create a real file for extraction
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("test content")
+        path = f.name
+
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text("UPDATE documents SET path = :path WHERE id = :id"),
+            {"path": path, "id": doc_id},
+        )
+
+    with patch("services.api.main.build_encoder", return_value=BrokenEncoder()):
+        client = TestClient(
+            create_app(
+                migrated_engine,
+                Settings(
+                    auth_provider="local",
+                    jwt_secret=TEST_JWT_SECRET,
+                    feature_related_docs=True,
+                ),
+            )
+        )
+    token = _user_token(client)
+
+    response = client.get(
+        f"/documents/{doc_id}/related",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["doc_id"] == doc_id
+    assert data["related"] == []
+
+    Path(path).unlink(missing_ok=True)
+
+
+def test_expertise_degraded_on_encoder_failure(
+    migrated_engine: Engine,
+) -> None:
+    """When encoder fails, expertise should return empty list safely."""
+    _setup_users(migrated_engine)
+
+    from services.search.encoder import TextEncoder
+
+    class BrokenEncoder(TextEncoder):
+        def encode(self, text: str) -> list[float]:
+            raise RuntimeError("Ollama is down")
+
+    with patch("services.api.main.build_encoder", return_value=BrokenEncoder()):
+        client = TestClient(
+            create_app(
+                migrated_engine,
+                Settings(
+                    auth_provider="local",
+                    jwt_secret=TEST_JWT_SECRET,
+                    feature_expertise_map=True,
+                ),
+            )
+        )
+    token = _user_token(client)
+
+    response = client.get(
+        "/expertise?topic=ai",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []

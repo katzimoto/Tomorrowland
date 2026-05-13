@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from collections.abc import Awaitable, Callable, Iterator
@@ -48,10 +49,11 @@ from services.related.repository import RelatedRepository
 from services.related.service import RelatedService
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.factory import build_encoder
-from services.search.hybrid import merge_results
+from services.search.hybrid import SearchResult, merge_results
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
+from shared.correlation import get_correlation_id
 from shared.db import db_uuid, to_uuid
 from shared.metrics import (
     MetricsRegistry,
@@ -66,6 +68,7 @@ from shared.metrics import (
 from shared.request_context import reset_request_id, set_request_id
 
 AUTH_SCHEME = "Bearer "
+logger = logging.getLogger(__name__)
 
 
 def current_user(request: Request) -> TokenPayload:
@@ -639,26 +642,48 @@ def create_app(
         app.state.metrics.search_backend_duration_seconds.labels("elasticsearch", "search").observe(
             time.perf_counter() - backend_start
         )
-        query_vector = encoder.encode(request.query)
-        backend_start = time.perf_counter()
-        vector_results = qdrant_client.search(vector=query_vector, group_ids=group_ids, limit=50)
-        app.state.metrics.search_backend_duration_seconds.labels("qdrant", "search").observe(
-            time.perf_counter() - backend_start
-        )
+
+        vector_results: list[SearchResult] = []
+        try:
+            query_vector = encoder.encode(request.query)
+            backend_start = time.perf_counter()
+            vector_results = qdrant_client.search(
+                vector=query_vector, group_ids=group_ids, limit=50
+            )
+            app.state.metrics.search_backend_duration_seconds.labels("qdrant", "search").observe(
+                time.perf_counter() - backend_start
+            )
+        except Exception as exc:
+            logger.warning(
+                "Vector search degraded route=/search stage=vector_search "
+                "error_type=%s correlation_id=%s",
+                exc.__class__.__name__,
+                get_correlation_id(),
+            )
+            app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
 
         # TODO: read weights from system_config in Phase 04
-        merged = merge_results(
-            bm25_results=bm25_results,
-            vector_results=vector_results,
-            vector_weight=0.7,
-            bm25_weight=0.3,
-        )
+        if vector_results:
+            merged = merge_results(
+                bm25_results=bm25_results,
+                vector_results=vector_results,
+                vector_weight=0.7,
+                bm25_weight=0.3,
+            )
+        else:
+            merged = merge_results(
+                bm25_results=bm25_results,
+                vector_results=[],
+                vector_weight=0.0,
+                bm25_weight=1.0,
+            )
 
         start = (request.page - 1) * request.page_size
         end = start + request.page_size
         page = merged[start:end]
 
-        app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
+        if vector_results:
+            app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
         app.state.metrics.search_results_count.labels("hybrid").observe(len(merged))
         app.state.metrics.search_duration_seconds.labels("hybrid").observe(
             time.perf_counter() - metrics_start
@@ -861,14 +886,21 @@ def create_app(
                 qdrant_client=qdrant_client,
                 encoder=build_encoder(app.state.settings),
             )
-            return {
-                "doc_id": str(doc_id),
-                "related": service.related_documents(
+            try:
+                related = service.related_documents(
                     doc=doc,
                     group_ids=group_ids,
                     limit=related_docs_limit(connection),
-                ),
-            }
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Related documents degraded route=/documents/{doc_id}/related "
+                    "stage=vector_search error_type=%s correlation_id=%s",
+                    exc.__class__.__name__,
+                    get_correlation_id(),
+                )
+                related = []
+            return {"doc_id": str(doc_id), "related": related}
 
     @app.get("/expertise")
     def expertise(
@@ -891,7 +923,16 @@ def create_app(
                 qdrant_client=qdrant_client,
                 encoder=build_encoder(app.state.settings),
             )
-            return service.expertise(topic=topic, group_ids=group_ids)
+            try:
+                return service.expertise(topic=topic, group_ids=group_ids)
+            except Exception as exc:
+                logger.warning(
+                    "Expertise degraded route=/expertise stage=vector_search "
+                    "error_type=%s correlation_id=%s",
+                    exc.__class__.__name__,
+                    get_correlation_id(),
+                )
+                return []
 
     @app.get("/documents/{doc_id}/comments")
     def list_comments(
@@ -1307,11 +1348,27 @@ def create_app(
                 connection=connection,
                 system_prompt=system_prompt,
             )
-            result = rag.answer(
-                question=request.question,
-                group_ids=group_ids,
-                top_k=request.top_k,
-            )
+            try:
+                result = rag.answer(
+                    question=request.question,
+                    group_ids=group_ids,
+                    top_k=request.top_k,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "RAG Q&A degraded route=/qa stage=retrieval error_type=%s correlation_id=%s",
+                    exc.__class__.__name__,
+                    get_correlation_id(),
+                )
+                return {
+                    "question": request.question,
+                    "answer": (
+                        "I could not search the document collection right now. "
+                        "Please try again later."
+                    ),
+                    "citations": [],
+                    "model": "",
+                }
             return {
                 "question": result.question,
                 "answer": result.answer,
