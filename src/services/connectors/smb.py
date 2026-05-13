@@ -132,7 +132,7 @@ class SmbConnector:
                     continue
                 yield self._download(remote_file)
         finally:
-with contextlib.suppress(Exception):
+            with contextlib.suppress(Exception):
                 smbclient.close_session(self._server)
 
     def _list_files(self) -> Iterator[_RemoteFile]:
