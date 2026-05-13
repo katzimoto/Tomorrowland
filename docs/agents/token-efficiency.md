@@ -130,6 +130,9 @@ Do not read unrelated plans, designs, or source areas. Do not introduce a new da
 abstraction such as SQLModel unless the issue explicitly authorizes it; preserve
 existing SQLAlchemy Core repository patterns for ordinary backend work.
 
+For multi-issue feature work, target the feature branch (`feature/<name>`), not
+`main` directly. See `AGENTS.md` → `Feature branch policy`.
+
 ### Review mode
 
 Load:
