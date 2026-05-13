@@ -29,9 +29,10 @@ interface ResultRowProps {
   onClick?: () => void;
   onSelect?: () => void;
   onPreview?: () => void;
+  onPrefetch?: () => void;
 }
 
-export function ResultRow({ result, id, selected = false, onClick, onSelect, onPreview }: ResultRowProps) {
+export function ResultRow({ result, id, selected = false, onClick, onSelect, onPreview, onPrefetch }: ResultRowProps) {
   const visibleTags = result.tags.slice(0, 4);
   const extraTags = result.tags.length - visibleTags.length;
 
@@ -40,8 +41,8 @@ export function ResultRow({ result, id, selected = false, onClick, onSelect, onP
       id={id}
       className={`${styles.row} ${selected ? styles.rowSelected : ""}`}
       onClick={onClick}
-      onFocus={onSelect}
-      onMouseEnter={onSelect}
+      onFocus={() => { onSelect?.(); onPrefetch?.(); }}
+      onMouseEnter={() => { onSelect?.(); onPrefetch?.(); }}
       role="option"
       aria-selected={selected}
       tabIndex={-1}

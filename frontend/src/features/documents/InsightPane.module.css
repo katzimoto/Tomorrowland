@@ -139,3 +139,7 @@
   align-items: center;
 }
 .iconAction:hover { color: var(--color-text-primary); }
+
+.loadingStack {
+  padding: var(--space-2) 0;
+}

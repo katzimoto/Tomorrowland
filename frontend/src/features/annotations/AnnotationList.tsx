@@ -17,7 +17,7 @@ interface AnnotationListProps {
 export function AnnotationList({ docId, enabled = true }: AnnotationListProps) {
   const t = useT();
   const userQuery = useQuery({ queryKey: ["current-user"], queryFn: getCurrentUser, enabled });
-  const annotationsQuery = useQuery({ queryKey: ["annotations", docId], queryFn: () => listAnnotations(docId), enabled });
+  const annotationsQuery = useQuery({ queryKey: ["annotations", docId], queryFn: () => listAnnotations(docId), enabled, staleTime: 2 * 60_000 });
 
   if (!enabled) return null;
   if (annotationsQuery.isLoading) return <SkeletonRow compact count={3} />;

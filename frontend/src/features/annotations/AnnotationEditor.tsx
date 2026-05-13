@@ -29,11 +29,38 @@ export function AnnotationEditor({ docId, annotation, onDone }: AnnotationEditor
     mutationFn: (values: FormValues) => annotation
       ? updateAnnotation(annotation.id, { ...values, position: annotation.position ?? null })
       : createAnnotation(docId, { ...values, position: null }),
-    onSuccess: () => {
-      reset({ body: "", shared: false });
-      void queryClient.invalidateQueries({ queryKey: ["annotations", docId] });
-      onDone?.();
+    onMutate: async (values) => {
+      await queryClient.cancelQueries({ queryKey: ["annotations", docId] });
+      const previous = queryClient.getQueryData<Annotation[]>(["annotations", docId]);
+      const now = new Date().toISOString();
+      if (annotation) {
+        queryClient.setQueryData<Annotation[]>(["annotations", docId], (current = []) =>
+          current.map((item) => item.id === annotation.id
+            ? { ...item, body: values.body, shared: values.shared, updated_at: now }
+            : item),
+        );
+        onDone?.();
+      } else {
+        const optimistic: Annotation = {
+          id: `optimistic-${Date.now()}`,
+          doc_id: docId,
+          author_id: "current-user",
+          author_name: "Reader",
+          body: values.body,
+          position: null,
+          shared: values.shared,
+          created_at: now,
+          updated_at: null,
+        };
+        queryClient.setQueryData<Annotation[]>(["annotations", docId], (current = []) => [...current, optimistic]);
+        reset({ body: "", shared: false });
+      }
+      return { previous };
     },
+    onError: (_error, _values, context) => {
+      if (context?.previous) queryClient.setQueryData(["annotations", docId], context.previous);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["annotations", docId] }),
   });
 
   return (

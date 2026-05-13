@@ -26,7 +26,18 @@ export function AnnotationItem({ docId, annotation, currentUser }: AnnotationIte
   const canManage = currentUser?.is_admin || currentUser?.user_id === annotation.author_id;
   const remove = useMutation({
     mutationFn: () => deleteAnnotation(annotation.id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["annotations", docId] }),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["annotations", docId] });
+      const previous = queryClient.getQueryData<Annotation[]>(["annotations", docId]);
+      queryClient.setQueryData<Annotation[]>(["annotations", docId], (current = []) =>
+        current.filter((item) => item.id !== annotation.id),
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(["annotations", docId], context.previous);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["annotations", docId] }),
   });
 
   return (

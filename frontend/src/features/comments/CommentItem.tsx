@@ -27,7 +27,18 @@ export function CommentItem({ docId, comment, currentUser }: CommentItemProps) {
   const body = !expanded && longComment ? `${comment.body.slice(0, COLLAPSE_AT)}…` : comment.body;
   const remove = useMutation({
     mutationFn: () => deleteComment(docId, comment.id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["comments", docId] }),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["comments", docId] });
+      const previous = queryClient.getQueryData<Comment[]>(["comments", docId]);
+      queryClient.setQueryData<Comment[]>(["comments", docId], (current = []) =>
+        current.filter((item) => item.id !== comment.id),
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(["comments", docId], context.previous);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["comments", docId] }),
   });
 
   return (

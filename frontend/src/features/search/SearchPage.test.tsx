@@ -8,6 +8,7 @@ import {
   clearPerformanceTelemetryEvents,
   getPerformanceTelemetryEvents,
 } from "@/lib/performanceTelemetry";
+import { getPreview } from "@/api/documents";
 
 const routerMocks = vi.hoisted(() => ({
   useSearch: vi.fn(() => ({ q: "", mode: "hybrid" })),
@@ -24,6 +25,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/api/search");
+vi.mock("@/api/documents", () => ({ getPreview: vi.fn(() => Promise.resolve({ doc_id: "doc-1" })) }));
 
 const mockResults = [
   {
@@ -69,6 +71,7 @@ beforeEach(() => {
     total: 2,
     query: "vendor risk",
   });
+  vi.mocked(getPreview).mockClear();
 });
 
 describe("SearchPage", () => {
@@ -165,6 +168,35 @@ describe("SearchPage", () => {
     await waitFor(() => {
       expect(screen.getByText("2 results")).toBeInTheDocument();
     });
+  });
+
+  it("keeps previous results visible while a new search refetches", async () => {
+    vi.mocked(searchApi.search)
+      .mockResolvedValueOnce({ results: mockResults, total: 1, query: "vendor risk" })
+      .mockImplementationOnce(() => new Promise(() => undefined));
+
+    render(<SearchPage />);
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "vendor risk" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(await screen.findByText("Vendor Risk Assessment 2024")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "supplier risk" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(screen.getByText("Vendor Risk Assessment 2024")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Updating results");
+  });
+
+  it("prefetches document preview on result hover", async () => {
+    render(<SearchPage />);
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "vendor risk" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    const result = await screen.findByText("Vendor Risk Assessment 2024");
+    fireEvent.mouseEnter(result.closest('[role="option"]')!);
+
+    await waitFor(() => expect(getPreview).toHaveBeenCalledWith("doc-1"));
   });
 
   it("focuses the search input with the slash shortcut", async () => {

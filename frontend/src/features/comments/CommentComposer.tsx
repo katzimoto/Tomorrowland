@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createComment } from "@/api/comments";
+import { createComment, type Comment } from "@/api/comments";
 import { Button } from "@/components/primitives/Button";
 import styles from "./Comments.module.css";
 
@@ -12,11 +12,27 @@ export function CommentComposer({ docId }: CommentComposerProps) {
   const [body, setBody] = useState("");
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: () => createComment(docId, body.trim()),
-    onSuccess: () => {
+    mutationFn: (draft: string) => createComment(docId, draft),
+    onMutate: async (draft) => {
+      await queryClient.cancelQueries({ queryKey: ["comments", docId] });
+      const previous = queryClient.getQueryData<Comment[]>(["comments", docId]);
+      const optimistic: Comment = {
+        id: `optimistic-${Date.now()}`,
+        doc_id: docId,
+        author_id: "current-user",
+        author_name: "Reader",
+        body: draft,
+        created_at: new Date().toISOString(),
+        updated_at: null,
+      };
+      queryClient.setQueryData<Comment[]>(["comments", docId], (current = []) => [...current, optimistic]);
       setBody("");
-      void queryClient.invalidateQueries({ queryKey: ["comments", docId] });
+      return { previous };
     },
+    onError: (_error, _draft, context) => {
+      if (context?.previous) queryClient.setQueryData(["comments", docId], context.previous);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["comments", docId] }),
   });
 
   return (
@@ -24,7 +40,7 @@ export function CommentComposer({ docId }: CommentComposerProps) {
       className={styles.form}
       onSubmit={(event) => {
         event.preventDefault();
-        if (body.trim()) mutation.mutate();
+        if (body.trim()) mutation.mutate(body.trim());
       }}
     >
       <label htmlFor={`comment-${docId}`}>Add a comment</label>

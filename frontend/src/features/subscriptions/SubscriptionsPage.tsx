@@ -21,15 +21,45 @@ export function SubscriptionsPage() {
   const [defaults, setDefaults] = useState<SubscriptionWrite>(DEFAULT_FORM);
   const { show: showToast } = useToast();
   const queryClient = useQueryClient();
-  const { data = [], isLoading, isError } = useQuery({ queryKey: ["subscriptions"], queryFn: listSubscriptions });
+  const { data = [], isLoading, isError } = useQuery({ queryKey: ["subscriptions"], queryFn: listSubscriptions, staleTime: 2 * 60_000 });
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
   const save = useMutation({
     mutationFn: (values: SubscriptionWrite) => editing ? updateSubscription(editing.id, values) : createSubscription(values),
     onSuccess: () => { setDialogOpen(false); setEditing(null); setDefaults(DEFAULT_FORM); invalidate(); },
     onError: () => showToast("error", t.subscriptions.saveError),
   });
-  const remove = useMutation({ mutationFn: deleteSubscription, onSuccess: invalidate, onError: () => showToast("error", t.subscriptions.deleteError) });
-  const toggle = useMutation({ mutationFn: (sub: Subscription) => updateSubscription(sub.id, { name: sub.name, query: sub.query, similarity_threshold: sub.similarity_threshold, enabled: !sub.enabled }), onSuccess: invalidate });
+  const remove = useMutation({
+    mutationFn: deleteSubscription,
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["subscriptions"] });
+      const previous = queryClient.getQueryData<Subscription[]>(["subscriptions"]);
+      queryClient.setQueryData<Subscription[]>(["subscriptions"], (current = []) =>
+        current.filter((sub) => sub.id !== id),
+      );
+      return { previous };
+    },
+    onError: (_error, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(["subscriptions"], context.previous);
+      showToast("error", t.subscriptions.deleteError);
+    },
+    onSettled: invalidate,
+  });
+  const toggle = useMutation({
+    mutationFn: (sub: Subscription) => updateSubscription(sub.id, { name: sub.name, query: sub.query, similarity_threshold: sub.similarity_threshold, enabled: !sub.enabled }),
+    onMutate: async (sub) => {
+      await queryClient.cancelQueries({ queryKey: ["subscriptions"] });
+      const previous = queryClient.getQueryData<Subscription[]>(["subscriptions"]);
+      queryClient.setQueryData<Subscription[]>(["subscriptions"], (current = []) =>
+        current.map((item) => item.id === sub.id ? { ...item, enabled: !item.enabled } : item),
+      );
+      return { previous };
+    },
+    onError: (_error, _sub, context) => {
+      if (context?.previous) queryClient.setQueryData(["subscriptions"], context.previous);
+      showToast("error", t.subscriptions.saveError);
+    },
+    onSettled: invalidate,
+  });
 
   function openCreate(values: SubscriptionWrite = DEFAULT_FORM) { setEditing(null); setDefaults(values); setDialogOpen(true); }
   function openEdit(sub: Subscription) { setEditing(sub); setDefaults({ name: sub.name, query: sub.query, similarity_threshold: sub.similarity_threshold, enabled: sub.enabled }); setDialogOpen(true); }
