@@ -20,7 +20,7 @@ import styles from "./SearchPage.module.css";
 
 export function SearchPage() {
   const t = useT();
-  const routeSearch = useSearch({ from: "/search" });
+  const routeSearch = useSearch({ from: "/app/search" });
   const navigate = useNavigate();
   const { show: showToast } = useToast();
 
