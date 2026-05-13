@@ -206,4 +206,21 @@ describe("AdminSourcesPage", () => {
     expect(await screen.findByText(/api_token \[redacted\]/i)).toBeInTheDocument();
     expect(screen.queryByText(/secret/i)).not.toBeInTheDocument();
   });
+
+  it("shows sanitized sync error from API failure", async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminApi.adminApi.listSources).mockResolvedValue([
+      { ...sourceDefaults, id: "abc-1", name: "Broken Source", type: "folder" },
+    ]);
+    vi.mocked(adminApi.adminApi.syncSource).mockRejectedValue(
+      new Error("Source path does not exist: /invalid"),
+    );
+
+    render(<AdminSourcesPage />);
+
+    await screen.findByText("Broken Source");
+    await user.click(screen.getByRole("button", { name: /^sync$/i }));
+
+    expect(await screen.findByText(/Source path does not exist/i)).toBeInTheDocument();
+  });
 });
