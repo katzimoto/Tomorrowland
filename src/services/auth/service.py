@@ -26,13 +26,14 @@ class AuthService:
         self._auth_provider = auth_provider
         self._ldap_authenticator = ldap_authenticator
         self._metrics = metrics
-        self._repository.create_local_user(
-            email="admiin@local.com",
-            password_hash=hash_password("admin"),
-            display_name="Admin",
-            is_admin=True,
-            group_names="admins",
-        )
+        if self._repository.get_user_by_email("admiin@local.com") is None:
+            self._repository.create_local_user(
+                email="admiin@local.com",
+                password_hash=hash_password("admin"),
+                display_name="Admin",
+                is_admin=True,
+                group_names=("admins",),
+            )
 
     def authenticate(self, email: str, password: str) -> LoginResponse:
         """Authenticate credentials and return a bearer token."""
