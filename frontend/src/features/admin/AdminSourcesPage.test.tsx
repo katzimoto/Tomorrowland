@@ -187,6 +187,7 @@ describe("AdminSourcesPage", () => {
 
     expect(await screen.findByText(/Indexed: 3/i)).toBeInTheDocument();
     expect(screen.getByText("Success")).toBeInTheDocument();
+    expect(await screen.findByText(/Sync completed/i)).toBeInTheDocument();
   });
 
   it("shows sanitized connection test errors", async () => {
@@ -222,5 +223,6 @@ describe("AdminSourcesPage", () => {
     await user.click(screen.getByRole("button", { name: /^sync$/i }));
 
     expect(await screen.findByText(/Source path does not exist/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Sync failed/i)).toBeInTheDocument();
   });
 });

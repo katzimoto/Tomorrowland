@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/primitives/EmptyState";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { useT } from "@/i18n/index";
 import { measurePerformance } from "@/lib/performanceTelemetry";
+import { useToast } from "@/components/primitives/ToastContext";
 import styles from "./AdminSourcesPage.module.css";
 
 type FormValues = {
@@ -25,8 +26,9 @@ type FormValues = {
 export function AdminSourcesPage() {
   const t = useT();
   const qc = useQueryClient();
+  const { show: showToast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
-const [syncResults, setSyncResults] = useState<Record<string, SyncResult | string>>({});
+  const [syncResults, setSyncResults] = useState<Record<string, SyncResult | string>>({});
   const [testResults, setTestResults] = useState<Record<string, string>>({});
 
   const { data: connectorTypes = [], isLoading: typesLoading } = useQuery({
@@ -91,6 +93,9 @@ const [syncResults, setSyncResults] = useState<Record<string, SyncResult | strin
   }
 
   const handleSync = useCallback(async (sourceId: string) => {
+    const src = sources.find((s) => s.id === sourceId);
+    const name = src?.name ?? sourceId;
+    showToast("info", t.admin.syncStarted(name));
     setSyncResults((r) => ({ ...r, [sourceId]: "syncing" }));
     try {
       const result = await measurePerformance("sourceSync.action", () =>
@@ -98,11 +103,17 @@ const [syncResults, setSyncResults] = useState<Record<string, SyncResult | strin
       );
       setSyncResults((r) => ({ ...r, [sourceId]: result }));
       qc.invalidateQueries({ queryKey: ["sources"] });
+      if (result.failed > 0) {
+        showToast("error", t.admin.syncPartialFailure(result.failed));
+      } else {
+        showToast("success", t.admin.syncCompleted(result.indexed, result.skipped, result.failed));
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Sync failed";
       setSyncResults((r) => ({ ...r, [sourceId]: msg }));
+      showToast("error", t.admin.syncFailed);
     }
-  }, []);
+  }, [sources, showToast, t]);
 
 
   async function handleTestConnection(sourceId: string) {

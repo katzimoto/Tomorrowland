@@ -245,6 +245,12 @@ export const he: Translations = {
     lastSynced: (value: string) => `הרצה אחרונה: ${value}`,
     syncResult: (indexed: number, skipped: number, failed: number) =>
       `אינדקס: ${indexed}  דילוג: ${skipped}  נכשל: ${failed}`,
+    syncStarted: (name: string) => `תחילת סנכרון עבור ${name}.`,
+    syncCompleted: (indexed: number, skipped: number, failed: number) =>
+      `הסנכרון הושלם. אונדקס ${indexed} מסמכים. דילוג: ${skipped}. נכשל: ${failed}.`,
+    syncPartialFailure: (failed: number) =>
+      `הסנכרון הושלם עם שגיאות. ${failed} מסמכים נכשלו. בדוק את תצורת המקור.`,
+    syncFailed: "הסנכרון נכשל. בדוק את תצורת המקור או נסה שוב מאוחר יותר.",
     dialogTitle: "הוסף מקור",
     nameLabel: "שם",
     namePlaceholder: "לדוגמה: מסמכים משפטיים",
