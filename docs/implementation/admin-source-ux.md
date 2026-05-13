@@ -2,56 +2,69 @@
 
 Feature track: `feature/admin-source-ux`  
 Related issues: #87, #170, #171  
-Existing PR: #99
+PRs: #99 (dropped), #242 (original plan), #243 (merged — #170)
+
+---
+
+## Current state
+
+- **#99** — dropped. Merged as partial commits into `feature/admin-source-ux` but
+  the PR is dead. Do not revive.
+- **#170 / PR #243** — merged into `feature/admin-source-ux`. Structured
+  connection validation with status classification (`ok`, `unreachable`,
+  `auth_failed`, `permission_denied`, `config_invalid`), validation stored in
+  `ingestion_sources` metadata, frontend test-connection with error display.
+- **#87 remaining** — any scope not covered by #170 should be recreated as a
+  fresh focused PR, avoiding overlap with the validation work in #243.
+- **#171** — not yet started. Planned for sync/failure status UI.
+
+---
 
 ## Scope boundaries
 
-### #87 — Admin source sync usability polish
-**Owner:** codex/implement-admin-source-sync-usability-polish  
-**Status:** PR #99 open against `feature/admin-source-ux`.
+### #170 — Connector validation and test-connection UX (DONE)
+
+**Status:** Merged via PR #243.
 
 Backend:
-- Add `last_sync_state` JSON column to `ingestion_sources` (migration `a7d9c2e4f6b8`).
-- Add `GET /admin/sources/{source_id}/sync-state` endpoint.
-- Add `POST /admin/sources/{source_id}/test-connection` endpoint.
-- Sanitize connector errors before returning to frontend.
+- `POST /admin/sources/{source_id}/test-connection` returns structured result.
+- `_classify_connection_error()` helper maps exceptions to status types.
+- Validation stored in `last_validation_status`, `last_validation_error`, `last_validated_at`.
 
 Frontend:
-- Render last sync metadata (started at, finished at, document counts, status).
-- Show sanitized error summaries in the source list.
-- Add "Test Connection" button with loading / success / error states.
+- "Test Connection" button with loading / success / error states.
+- Error messages from structured response displayed inline.
+- `Source` type includes validation fields.
 
-### #170 — Connector validation and test-connection UX
-**Owner:** *unclaimed*  
-**Depends on:** #87 backend contracts.
+### #87 remaining — Admin source sync usability polish (recreate as new PR)
 
-Backend:
-- Extend `POST /admin/sources/{source_id}/test-connection` to validate credentials, reachability, and permissions for each connector type (`folder`, `smb`, `confluence`, `jira`, `nifi`).
-- Return structured validation result: `ok`, `unreachable`, `auth_failed`, `permission_denied`, `config_invalid`.
-- Store validation result in `ingestion_sources` metadata for quick reference.
+Anything not covered by #170. Avoid duplicating #243 validation logic.
 
-Frontend:
-- Test-connection result panel on source create/edit modal.
-- Inline validation hints (e.g., "SMB share not reachable", "Confluence space not found").
-- Disable "Save and Sync" until validation passes or user explicitly overrides.
+Possible remaining scope:
+- Source list already shows sync state (`last_sync_status`, counts) from #99
+  partial merge. Verify all sync metadata renders correctly.
+- Ensure sync error display is consistent with new validation error handling.
+- Any missing frontend polish for sync state rendering.
 
-### #171 — Connector sync and failure status UI
-**Owner:** *unclaimed*  
-**Depends on:** #87 backend contracts.
+### #171 — Connector sync and failure status UI (NOT STARTED)
+
+**Depends on:** nothing from #170 (independent feature).
 
 Backend:
-- Add `GET /admin/sources/{source_id}/sync-jobs` endpoint (paginated recent syncs).
-- Add `GET /admin/sources/{source_id}/sync-jobs/{job_id}` endpoint with detailed per-item results.
-- Enrich DLQ records with `source_id` and `job_id` for tracing.
+- `GET /admin/sources/{source_id}/sync-jobs` — paginated recent syncs.
+- `GET /admin/sources/{source_id}/sync-jobs/{job_id}` — per-item results.
+- Enrich DLQ records with `source_id` and `job_id`.
 
 Frontend:
 - Sync job history table on source detail page.
-- Per-job document-level status: `ok`, `skipped`, `failed`, `pending`.
+- Per-job document status: `ok`, `skipped`, `failed`, `pending`.
 - DLQ quick-link from failed job rows.
 
-## API contract changes
+---
 
-### Source validation / test connection
+## API contract changes (landed)
+
+### Test connection
 
 ```http
 POST /admin/sources/{source_id}/test-connection
@@ -61,233 +74,114 @@ Authorization: Bearer <token>
 Response `200 OK`:
 ```json
 {
-  "source_id": "...",
+  "source_id": "<uuid>",
   "status": "ok",
   "checked_at": "2026-05-13T12:00:00Z",
-  "details": {
-    "reachable": true,
-    "auth_ok": true,
-    "sample_items_found": 3
-  }
+  "details": {"config_valid": true}
 }
 ```
 
-Response `200 OK` (with validation failure):
+Response `200 OK` (validation failure):
 ```json
 {
-  "source_id": "...",
+  "source_id": "<uuid>",
   "status": "unreachable",
   "checked_at": "2026-05-13T12:00:00Z",
-  "details": {
-    "reachable": false,
-    "error_code": "CONNECTION_REFUSED",
-    "message": "Unable to reach SMB server at the configured address."
-  }
+  "error": "Source path does not exist: /path/to/missing"
 }
 ```
 
-### Sync status / last sync metadata
+Status values: `ok`, `unreachable`, `auth_failed`, `permission_denied`, `config_invalid`.
 
+---
+
+## API contract changes (still needed for #87/#171)
+
+### List sources (already includes validation fields)
 ```http
-GET /admin/sources/{source_id}/sync-state
+GET /admin/sources
 Authorization: Bearer <token>
 ```
 
-Response `200 OK`:
+Response includes:
 ```json
-{
-  "source_id": "...",
-  "last_sync": {
-    "started_at": "2026-05-13T11:55:00Z",
-    "finished_at": "2026-05-13T11:58:00Z",
-    "status": "completed",
-    "summary": {
-      "discovered": 42,
-      "indexed": 40,
-      "skipped": 1,
-      "failed": 1
-    }
-  },
-  "next_sync_scheduled": null,
-  "dlq_unresolved_count": 1
-}
+  "last_validation_status": "ok",
+  "last_validation_error": null,
+  "last_validated_at": "2026-05-13T12:00:00Z"
 ```
 
-### Sync job history
+---
 
-```http
-GET /admin/sources/{source_id}/sync-jobs?page=1&page_size=10
-Authorization: Bearer <token>
-```
+## Secret redaction and sanitized-error rules
 
-Response `200 OK`:
-```json
-{
-  "jobs": [
-    {
-      "job_id": "...",
-      "started_at": "2026-05-13T11:55:00Z",
-      "finished_at": "2026-05-13T11:58:00Z",
-      "status": "completed",
-      "summary": {
-        "discovered": 42,
-        "indexed": 40,
-        "skipped": 1,
-        "failed": 1
-      }
-    }
-  ],
-  "total": 5
-}
-```
+- `_sanitize_source_error()` redacts sensitive config values (`password`,
+  `api_token`, `api_key`, `secret`, `private_key`) from error messages.
+- Sensitive values are matched by exact string replacement — avoid
+  single-character values that could match common text.
+- All connector errors returned to the frontend are sanitized before leaving
+  the endpoint.
+- The test-connection endpoint returns errors in the `error` field of a `200`
+  response, not as HTTP exception details.
+
+---
 
 ## Frontend surfaces affected
 
-- `frontend/src/features/admin/AdminSourcesPage.tsx` — source list with sync metadata.
-- `frontend/src/features/admin/AdminSourcesPage.test.tsx` — update tests for new columns/states.
-- `frontend/src/features/admin/SourceFormModal.tsx` — *new or existing* create/edit modal with test-connection button.
-- `frontend/src/features/admin/SourceDetailPage.tsx` — *new* job history, per-item status, DLQ link.
-- `frontend/src/features/admin/SyncJobTable.tsx` — *new* reusable job history table.
-- `frontend/src/i18n/locales/en.ts` and `he.ts` — new translation keys for validation statuses, sync labels, error messages.
-- `frontend/src/api/admin.ts` — new API client methods for test-connection, sync-state, sync-jobs.
+| Surface | Issue | Status |
+|---------|-------|--------|
+| Admin sources list | #87/#170 | Done (validation fields, test button) |
+| Source create/edit modal | #170 | Partial (error display) — inline hints pending |
+| Sync job history table | #171 | Not started |
+| Source detail page | #171 | Not started |
+| DLQ quick-link | #171 | Not started |
 
-## Secret redaction and sanitized error rules
-
-1. **Never return raw connector credentials** in any API response.
-2. **Never log credentials** at `INFO` or higher levels.
-3. **Sanitize error messages** before returning to frontend:
-   - Remove hostnames, IPs, share paths, usernames from error text.
-   - Replace with generic context: `<host>`, `<share>`, `<path>`, `<user>`.
-4. **Store original errors** in DLQ / internal logs at `DEBUG` level only.
-5. **Frontend must not render raw error text** directly; use mapped translation keys.
-6. **Audit log** may record action + source_id but must not record credential values.
-
-Example sanitization:
-
-```python
-# backend sanitization helper
-def sanitize_connector_error(exc: Exception) -> str:
-    message = str(exc)
-    # remove URLs, IPs, paths
-    message = re.sub(r"https?://\S+", "<url>", message)
-    message = re.sub(r"\\[\w.-]+\\\w+", "<share>", message)
-    return message
-```
+---
 
 ## Merge order inside `feature/admin-source-ux`
 
-```text
-1. PR #99  (#87 — admin source sync usability polish)
-   - migration, backend endpoints, frontend list rendering, tests
-2. PR for #170 (connector validation and test-connection UX)
-   - extends #99 backend contracts
-   - adds SourceFormModal validation UX
-3. PR for #171 (connector sync and failure status UI)
-   - extends #99 backend contracts
-   - adds SourceDetailPage + SyncJobTable
-4. Integration / cleanup PR
-   - rebase latest main
-   - full CI validation
-   - docs update
-   - CHANGELOG update
-5. Final PR: feature/admin-source-ux -> main
-```
+1. ~~#242 — Original plan doc~~ (merged)
+2. ~~PR #243 / #170 — Connector validation~~ (merged)
+3. **Next: #87 remaining** — Sync usability polish (fresh PR, avoid duplicating #243)
+4. **Then: #171** — Sync/failure status UI
 
-## Existing PR #99 decision
+After all items land, a final integration PR merges `feature/admin-source-ux -> main`.
 
-**Decision: keep as-is, rebase onto `feature/admin-source-ux`.**
+---
 
-PR #99 already contains the foundational backend and frontend changes for #87. It is reviewable and does not depend on #170 or #171.
+## Validation checklist before `feature/admin-source-ux -> main`
 
-Action items:
-- Rebase `codex/implement-admin-source-sync-usability-polish` onto latest `feature/admin-source-ux`.
-- Run fresh CI validation (ruff, mypy, pytest, frontend lint/typecheck/tests).
-- Merge #99 into `feature/admin-source-ux` after review passes.
-- Do **not** retarget #99 to `main`.
+- [ ] #87 remaining PR merged (or verified unnecessary).
+- [ ] #171 PR merged.
+- [ ] `pytest` suite passes (no regressions).
+- [ ] `ruff check` and `ruff format` pass.
+- [ ] `mypy src --strict` passes (pre-existing errors exempted).
+- [ ] Frontend build, lint, and typecheck pass.
+- [ ] Manual smoke: create source, test connection, trigger sync, view results.
+- [ ] Manual smoke: sanitized errors do not leak secrets.
+- [ ] `CHANGELOG.md` updated for the admin source UX track.
 
-## Final validation checklist before `feature/admin-source-ux -> main`
+---
 
-### Backend
-- [ ] `ruff check --fix src/ tests/ migrations/`
-- [ ] `ruff format src/ tests/ migrations/`
-- [ ] `mypy src --strict`
-- [ ] `pytest tests/unit/test_admin.py -q`
-- [ ] `pytest tests/integration/test_admin.py -q`
-- [ ] `pytest tests/unit/test_connector_*.py -q`
-- [ ] Migration has upgrade + downgrade paths and passes `pytest tests/test_migrations.py -q`
-- [ ] No raw credentials in API responses or logs at `INFO`+
-- [ ] Sanitized error tests pass
+## Operator documentation checklist
 
-### Frontend
-- [ ] `npm --prefix frontend run lint`
-- [ ] `npm --prefix frontend run typecheck`
-- [ ] `npm --prefix frontend run test -- --run`
-- [ ] `npm --prefix frontend run build`
-- [ ] No placeholder copy on any admin surface
-- [ ] No raw secrets rendered in UI
+This is a separate docs task (not part of any specific issue). Candidate docs to update:
 
-### Integration / docs
-- [ ] `bash scripts/production-audit.sh`
-- [ ] Admin docs updated (`docs/operations/production-compose.md` or new `docs/operations/admin-sources.md`)
-- [ ] CHANGELOG.md updated
-- [ ] `AGENTS.md` feature branch policy followed (no direct merge to main without integration PR)
+- `docs/operations/production-compose.md` — how to test connections, interpret
+  validation statuses and sync summaries, handle sanitized errors.
+- `docs/context/frontend.md` — admin source UX surfaces (source list, test
+  connection, sync history).
+- `docs/context/backend-api.md` — test-connection and sync job API contracts.
+- `README.md` — brief admin source management section if missing.
 
-## Documentation update checklist
+### Key concepts operators should understand
 
-### Operator docs to create or update
-
-- [ ] **How to test a connector/source connection**
-  - Navigate to Admin > Sources.
-  - Select a source and click "Test Connection".
-  - Interpret validation statuses: `ok`, `unreachable`, `auth_failed`, `permission_denied`, `config_invalid`.
-  - Retry after fixing credentials or network issues.
-
-- [ ] **Validation statuses and their meaning**
-  - `ok`: connector can reach the source and authenticate.
-  - `unreachable`: network or DNS failure; check host/port/URL.
-  - `auth_failed`: credentials rejected; verify username/password/token.
-  - `permission_denied`: authenticated but cannot list/read target scope.
-  - `config_invalid`: required fields missing or malformed (e.g., missing `space_key`).
-
-- [ ] **Sync summary counts**
-  - `discovered`: total items found by the connector.
-  - `indexed`: items successfully processed through the pipeline.
-  - `skipped`: items skipped (already indexed with same SHA, or filtered out).
-  - `failed`: items that failed extraction, translation, or indexing and were routed to DLQ.
-
-- [ ] **Sanitized error behavior**
-  - Frontend shows generic, redacted error messages.
-  - Full error details are available in service logs at `DEBUG` level only.
-  - Operators with log access can inspect the original exception for root-cause analysis.
-
-- [ ] **Request / operation ID usage**
-  - Every sync job and DLQ entry includes a `correlation_id`.
-  - Use the correlation ID to trace a failed item from the admin UI through backend logs.
-  - Example: `grep "correlation_id=<id>" docker compose logs api`.
-
-- [ ] **Retry / DLQ limitations**
-  - DLQ entries are not automatically retried in this release.
-  - Operators can manually re-ingest corrected files or trigger a full source re-sync.
-  - Follow-up issue for automatic retry with exponential backoff is deferred to a future phase.
-
-### Target docs files
-
-- `docs/operations/admin-sources.md` — *new*, primary operator guide for admin source UX.
-- `docs/operations/production-compose.md` — add cross-reference to admin-sources doc.
-- `CHANGELOG.md` — summarize feature track at integration time.
-
-## Guardrails
-
-- Do not merge partial admin source UX work directly to `main`.
-- Do not expose connector secrets in docs, UI, API, logs, tests, or screenshots.
-- Do not redesign the full admin UI in this track; keep changes scoped to source list, test-connection, and sync status.
-- Keep validation/test-connection separate from ingestion; testing must be non-destructive.
-- One branch — one active owner within the feature track.
-
-## Acceptance criteria for this plan
-
-- [x] Implementation plan exists and references #87/#170/#171.
-- [x] Documentation update checklist is explicit.
-- [x] Existing PR #99 has a documented keep/split/rebase decision.
-- [x] Final validation checklist is documented.
-- [x] PR targets `feature/admin-source-ux`, not `main`.
+- **Validation statuses:** `ok`, `unreachable`, `auth_failed`,
+  `permission_denied`, `config_invalid`. Indicate whether a source
+  configuration is valid and reachable.
+- **Sync summary counts:** `indexed`, `skipped`, `failed` — documents
+  processed per sync run.
+- **Sanitized errors:** Connector secrets are redacted from error messages
+  before they reach the admin UI. An error like "Source path does not exist"
+  or "Authentication failed" indicates the issue without exposing credentials.
+- **Retry and DLQ:** Failed documents land in the Dead Letter Queue (DLQ) for
+  manual retry. The DLQ is accessible from the admin API.
