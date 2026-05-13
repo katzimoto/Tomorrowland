@@ -122,6 +122,56 @@ To replace or upgrade the model safely:
      --env-file .env
    ```
 
+### Embedding model changes and reindex
+
+When changing the embedding model or provider, or when the embedding dimension
+changes:
+
+1. Update `EMBEDDING_MODEL`, `EMBEDDING_PROVIDER`, and `EMBEDDING_DIMENSION` in
+   `.env` as needed. The embedding model is typically a smaller model such as
+   `nomic-embed-text` or `mxbai-embed-large`.
+
+2. Ensure the new embedding model is loaded in Ollama:
+
+   ```bash
+   curl -s http://localhost:11434/api/tags | grep -q "$EMBEDDING_MODEL" \
+     && echo "Embedding model available" \
+     || echo "Embedding model not found — load the model bundle first"
+   ```
+
+3. Restart the stack to pick up the new settings:
+
+   ```bash
+   docker compose down
+   docker compose up -d
+   ```
+
+4. Reindex existing documents so they are embedded with the new model. This
+   populates the new Qdrant collection (`documents_v{dimension}`) while the old
+   collection remains intact for rollback:
+
+   ```bash
+   # Reindex all documents via the admin API
+   # (requires admin token — see the admin API docs)
+   curl -X POST "http://localhost:8080/admin/reindex" \
+     -H "Authorization: Bearer <admin-token>" \
+     -H "Content-Type: application/json" \
+     -d '{}'
+   ```
+
+   > **Note:** If there is no dedicated reindex endpoint yet, re-triggering sync
+   > on each ingestion source will re-embed documents with the new model.
+
+5. Verify semantic search returns results with the new embedding model:
+
+   ```bash
+   curl "http://localhost:8080/search?q=test&mode=semantic" \
+     -H "Authorization: Bearer <admin-token>"
+   ```
+
+6. Once the new collection is verified, the old Qdrant collection can be
+   removed manually if desired.
+
 5. Validate availability, and optionally run a smoke test:
 
    ```bash
