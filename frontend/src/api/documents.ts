@@ -16,7 +16,7 @@ export interface DocAnnotation {
 export interface AnnotationCreate {
   text: string;
   note?: string;
-  position: { mode: "text-range"; start_char: number; end_char: number };
+  position?: { mode: "text-range"; start_char: number; end_char: number } | null;
   is_private: boolean;
 }
 

@@ -132,8 +132,6 @@ function RelatedTab({ docId }: { docId: string }) {
   );
 }
 
-const PLACEHOLDER_POSITION = { mode: "text-range" as const, start_char: 0, end_char: 0 };
-
 function AnnotationsTab({ docId }: { docId: string }) {
   const [newText, setNewText] = useState("");
   const [isPrivate, setIsPrivate] = useState(true);
@@ -148,7 +146,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["doc-annotations", docId] });
 
   const addMut = useMutation({
-    mutationFn: () => createAnnotation(docId, { text: newText.trim(), position: PLACEHOLDER_POSITION, is_private: isPrivate }),
+    mutationFn: () => createAnnotation(docId, { text: newText.trim(), position: null, is_private: isPrivate }),
     onSuccess: () => { setNewText(""); invalidate(); },
     onError: () => showToast("error", "Failed to add annotation."),
   });
