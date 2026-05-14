@@ -26,9 +26,9 @@ class AuthService:
         self._auth_provider = auth_provider
         self._ldap_authenticator = ldap_authenticator
         self._metrics = metrics
-        if self._repository.get_user_by_email("admiin@local.com") is None:
+        if self._repository.get_user_by_email("admin@local.com") is None:
             self._repository.create_local_user(
-                email="admiin@local.com",
+                email="admin@local.com",
                 password_hash=hash_password("admin"),
                 display_name="Admin",
                 is_admin=True,
@@ -38,7 +38,10 @@ class AuthService:
     def authenticate(self, email: str, password: str) -> LoginResponse:
         """Authenticate credentials and return a bearer token."""
         user = None
-        if self._auth_provider in {"ldap", "both"} and self._ldap_authenticator is not None:
+        if (
+            self._auth_provider in {"ldap", "both"}
+            and self._ldap_authenticator is not None
+        ):
             profile = self._ldap_authenticator.authenticate(email, password)
             if profile is not None:
                 user = self._repository.upsert_ldap_user(profile)
