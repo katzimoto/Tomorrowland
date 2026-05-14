@@ -11,12 +11,24 @@ from shared.db import db_uuid, to_uuid
 
 logger = logging.getLogger(__name__)
 
-_MAX_ERROR_LENGTH = 500
+_MAX_ERROR_LENGTH = 200
 
 
-def _sanitize_error(error: str) -> str:
-    """Truncate and clean error storage to avoid leaking raw document content."""
-    return error.strip()[:_MAX_ERROR_LENGTH]
+def _is_sqlite(conn: sa.Connection) -> bool:
+    """Return True when the connection uses SQLite dialect."""
+    return conn.dialect.name == "sqlite"
+
+
+def _sanitize_error(exc_or_msg: BaseException | str, stage: str = "") -> str:
+    """Store only exception type/class-name and optional stage — never raw message text."""
+    if isinstance(exc_or_msg, BaseException):
+        tag = type(exc_or_msg).__name__
+    elif isinstance(exc_or_msg, str):
+        tag = exc_or_msg.strip()
+    else:
+        tag = "unknown"
+    result = f"{tag}:{stage}" if stage else tag
+    return result[:_MAX_ERROR_LENGTH]
 
 
 class PipelineJobRepository:
@@ -31,7 +43,7 @@ class PipelineJobRepository:
         source_id: UUID,
         job_type: str = "process_document",
         priority: int = 0,
-        max_attempts: int = 3,
+        max_attempts: int = 5,
         content_text: str | None = None,
         content_path: str | None = None,
         content_sha256: str | None = None,
@@ -60,6 +72,8 @@ class PipelineJobRepository:
 
         job_id = uuid4()
         now = datetime.now(UTC)
+        if run_after is None:
+            run_after = now
         self._connection.execute(
             sa.text(
                 """
@@ -120,32 +134,34 @@ class PipelineJobRepository:
 
         Returns the job row or None.
         Prioritizes by priority (higher first), then created_at (oldest first).
+        Uses ``FOR UPDATE SKIP LOCKED`` on PostgreSQL to avoid double-claiming.
+        On SQLite, the SELECT and UPDATE are executed sequentially without
+        row-level locking (SQLite serializes writes at the connection level).
         """
-        type_clause = "AND job_type = ANY(:job_types)" if job_types else ""
+        params: dict[str, Any] = {"now": datetime.now(UTC)}
+        type_filter = ""
+        if job_types:
+            type_filter = "AND job_type IN :job_types"
+            params["job_types"] = tuple(job_types)
 
-        row = (
-            self._connection.execute(
-                sa.text(
-                    f"""
-                SELECT id, doc_id, source_id, job_type, priority, attempts,
-                       max_attempts, stage, last_error, run_after
-                FROM pipeline_jobs
-                WHERE status IN ('pending', 'retry')
-                  AND (run_after IS NULL OR run_after <= :now)
-                  {type_clause}
-                ORDER BY priority DESC, created_at ASC
-                LIMIT 1
-                FOR UPDATE SKIP LOCKED
-            """
-                ),
-                {
-                    "now": datetime.now(UTC),
-                    "job_types": job_types,
-                },
-            )
-            .mappings()
-            .first()
+        lock_clause = "FOR UPDATE SKIP LOCKED" if not _is_sqlite(self._connection) else ""
+
+        stmt = sa.text(
+            f"""
+            SELECT id, doc_id, source_id, job_type, priority, attempts,
+                   max_attempts, stage, last_error, run_after
+            FROM pipeline_jobs
+            WHERE status IN ('pending', 'retry')
+              AND run_after <= :now
+              {type_filter}
+            ORDER BY priority DESC, created_at ASC
+            LIMIT 1
+            {lock_clause}
+        """
         )
+        if job_types:
+            stmt = stmt.bindparams(sa.bindparam("job_types", expanding=True))
+        row = (self._connection.execute(stmt, params).mappings().first())
 
         if row is None:
             return None
@@ -171,7 +187,19 @@ class PipelineJobRepository:
             },
         )
 
-        return dict(row)
+        return {
+            "id": to_uuid(row["id"]),
+            "doc_id": to_uuid(row["doc_id"]),
+            "source_id": to_uuid(row["source_id"]),
+            "job_type": row["job_type"],
+            "priority": row["priority"],
+            "attempts": row["attempts"] + 1,
+            "max_attempts": row["max_attempts"],
+            "stage": row["stage"],
+            "last_error": row["last_error"],
+            "run_after": row["run_after"],
+            "locked_by": locker_id,
+        }
 
     def mark_running_stage(self, job_id: UUID, stage: str) -> None:
         """Update the current processing stage of a running job."""
@@ -191,7 +219,7 @@ class PipelineJobRepository:
         )
 
     def mark_succeeded(self, job_id: UUID) -> None:
-        """Mark a job as succeeded."""
+        """Mark a running job as succeeded."""
         self._connection.execute(
             sa.text(
                 """
@@ -200,14 +228,16 @@ class PipelineJobRepository:
                     locked_by = NULL,
                     locked_at = NULL,
                     updated_at = :updated_at
-                WHERE id = :id
+                WHERE id = :id AND status = 'running'
             """
             ),
             {"id": db_uuid(job_id), "updated_at": datetime.now(UTC)},
         )
 
-    def mark_retry(self, job_id: UUID, error: str, retry_delay_seconds: int = 60) -> None:
-        """Mark a job for retry with a sanitized error and backoff."""
+    def mark_retry(
+        self, job_id: UUID, error: str | BaseException, retry_delay_seconds: int = 60
+    ) -> None:
+        """Mark a running job for retry with a sanitized error and backoff."""
         now = datetime.now(UTC)
         self._connection.execute(
             sa.text(
@@ -219,19 +249,19 @@ class PipelineJobRepository:
                     locked_by = NULL,
                     locked_at = NULL,
                     updated_at = :updated_at
-                WHERE id = :id
+                WHERE id = :id AND status = 'running'
             """
             ),
             {
                 "id": db_uuid(job_id),
-                "last_error": _sanitize_error(error),
+                "last_error": _sanitize_error(error, stage="process"),
                 "run_after": now + timedelta(seconds=retry_delay_seconds),
                 "updated_at": now,
             },
         )
 
-    def mark_dead_letter(self, job_id: UUID, error: str) -> None:
-        """Move a job to dead-letter state (final failure)."""
+    def mark_dead_letter(self, job_id: UUID, error: str | BaseException) -> None:
+        """Move a running job to dead-letter state (final failure)."""
         self._connection.execute(
             sa.text(
                 """
@@ -241,12 +271,12 @@ class PipelineJobRepository:
                     locked_by = NULL,
                     locked_at = NULL,
                     updated_at = :updated_at
-                WHERE id = :id
+                WHERE id = :id AND status = 'running'
             """
             ),
             {
                 "id": db_uuid(job_id),
-                "last_error": _sanitize_error(error),
+                "last_error": _sanitize_error(error, stage="process"),
                 "updated_at": datetime.now(UTC),
             },
         )

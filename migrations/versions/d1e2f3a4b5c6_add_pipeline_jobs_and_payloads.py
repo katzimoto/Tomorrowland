@@ -28,15 +28,25 @@ def upgrade() -> None:
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("source_id", sa.Uuid(), nullable=False),
+        sa.Column(
+            "source_id",
+            sa.Uuid(),
+            sa.ForeignKey("ingestion_sources.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("job_type", sa.Text(), nullable=False),
         sa.Column("status", sa.Text(), nullable=False, server_default="pending"),
         sa.Column("priority", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("attempts", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("max_attempts", sa.Integer(), nullable=False, server_default="3"),
+        sa.Column("max_attempts", sa.Integer(), nullable=False, server_default="5"),
         sa.Column("stage", sa.Text(), nullable=True),
         sa.Column("last_error", sa.Text(), nullable=True),
-        sa.Column("run_after", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "run_after",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
         sa.Column("locked_by", sa.Text(), nullable=True),
         sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
@@ -54,6 +64,11 @@ def upgrade() -> None:
     )
     op.create_index("ix_pipeline_jobs_doc_id", "pipeline_jobs", ["doc_id"])
     op.create_index("ix_pipeline_jobs_source_id", "pipeline_jobs", ["source_id"])
+    op.create_index(
+        "ix_pipeline_jobs_ready",
+        "pipeline_jobs",
+        ["status", "run_after", "priority", "created_at"],
+    )
     op.execute(
         """
         CREATE UNIQUE INDEX ix_pipeline_jobs_active_unique
@@ -64,7 +79,12 @@ def upgrade() -> None:
 
     op.create_table(
         "document_payloads",
-        sa.Column("doc_id", sa.Uuid(), primary_key=True),
+        sa.Column(
+            "doc_id",
+            sa.Uuid(),
+            sa.ForeignKey("documents.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
         sa.Column("content_text", sa.Text(), nullable=True),
         sa.Column("content_path", sa.Text(), nullable=True),
         sa.Column("content_sha256", sa.Text(), nullable=True),
@@ -86,6 +106,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("document_payloads")
     op.execute("DROP INDEX IF EXISTS ix_pipeline_jobs_active_unique")
+    op.drop_index("ix_pipeline_jobs_ready", table_name="pipeline_jobs")
     op.drop_index("ix_pipeline_jobs_source_id", table_name="pipeline_jobs")
     op.drop_index("ix_pipeline_jobs_doc_id", table_name="pipeline_jobs")
     op.drop_table("pipeline_jobs")
