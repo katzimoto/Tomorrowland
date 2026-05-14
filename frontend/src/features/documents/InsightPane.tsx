@@ -33,7 +33,6 @@ export function InsightPane({ docId }: InsightPaneProps) {
     { id: "related", label: t.insight.tabRelated },
     { id: "annotations", label: t.insight.tabAnnotations },
     { id: "comments", label: t.insight.tabComments },
-    { id: "subscriptions", label: t.insight.tabSubscriptions },
   ];
 
   return (
@@ -50,7 +49,6 @@ export function InsightPane({ docId }: InsightPaneProps) {
         {activeTab === "related" && <RelatedTab docId={docId} />}
         {activeTab === "annotations" && <AnnotationsTab docId={docId} />}
         {activeTab === "comments" && <CommentsTab docId={docId} />}
-        {activeTab === "subscriptions" && <SubscriptionsStub />}
       </div>
     </div>
   );
@@ -426,15 +424,5 @@ function CommentsTab({ docId }: { docId: string }) {
         <Button size="sm" onClick={() => addMut.mutate(newBody.trim())} disabled={!newBody.trim() || addMut.isPending}>{t.insight.commentPostBtn}</Button>
       </div>
     </div>
-  );
-}
-
-function SubscriptionsStub() {
-  const t = useT();
-  return (
-    <EmptyState
-      title={t.insight.subscriptionsTitle}
-      body={t.insight.subscriptionsBody}
-    />
   );
 }
