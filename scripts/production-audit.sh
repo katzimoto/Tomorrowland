@@ -72,6 +72,38 @@ if [[ -n "$SECRET_HITS" ]]; then
   exit 1
 fi
 
+log_step "Scanning tracked runtime code for forbidden placeholder/mock patterns"
+FORBIDDEN_PATTERNS=(
+  "MockEncoder"
+  "PlaceholderPage"
+  "This page will be implemented"
+  "SubscriptionsStub"
+  "PLACEHOLDER_POSITION"
+  "NotImplementedError"
+)
+PATTERN_HITS=""
+for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
+  hits="$(git grep -n -F "$pattern" -- \
+    'src/' 'frontend/src/' \
+    ':(exclude)tests/**' \
+    ':(exclude)frontend/src/**/*.test.ts' \
+    ':(exclude)frontend/src/**/*.test.tsx' \
+    ':(exclude)frontend/src/**/*.spec.ts' \
+    ':(exclude)frontend/src/**/*.spec.tsx' \
+    ':(exclude)docs/**' \
+    ':(exclude)**/*.md' \
+    2>/dev/null || true)"
+  if [[ -n "$hits" ]]; then
+    PATTERN_HITS="$PATTERN_HITS$(printf '\n--- Pattern: %s ---\n' "$pattern")$hits"
+  fi
+done
+if [[ -n "$PATTERN_HITS" ]]; then
+  echo "Production runtime code contains forbidden placeholder/mock patterns:" >&2
+  printf '%s\n' "$PATTERN_HITS" >&2
+  echo "Remove or implement these before production deployment." >&2
+  exit 1
+fi
+
 if [[ $INCLUDE_DEPENDENCY_AUDITS -eq 1 ]]; then
   require_command uv
   require_command npm
