@@ -132,6 +132,9 @@ class PipelineWorker:
             str(doc_id),
             {
                 "doc_id": str(doc_id),
+                "path": doc.path or "",
+                "filename": Path(doc.path).name if doc.path else doc.title or "",
+                "content_original": text,
                 "content_english": translated,
                 "title": doc.title or "",
                 "summary": "",

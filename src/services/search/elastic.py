@@ -53,6 +53,36 @@ class ElasticsearchSearchClient:
             mappings={
                 "properties": {
                     "doc_id": {"type": "keyword"},
+                    "path": {
+                        "type": "text",
+                        "fields": {
+                            "autocomplete": {
+                                "type": "text",
+                                "analyzer": "autocomplete_index",
+                                "search_analyzer": "autocomplete_search",
+                            }
+                        },
+                    },
+                    "filename": {
+                        "type": "text",
+                        "fields": {
+                            "autocomplete": {
+                                "type": "text",
+                                "analyzer": "autocomplete_index",
+                                "search_analyzer": "autocomplete_search",
+                            }
+                        },
+                    },
+                    "content_original": {
+                        "type": "text",
+                        "fields": {
+                            "autocomplete": {
+                                "type": "text",
+                                "analyzer": "autocomplete_index",
+                                "search_analyzer": "autocomplete_search",
+                            }
+                        },
+                    },
                     "content_english": {
                         "type": "text",
                         "fields": {
@@ -133,7 +163,15 @@ class ElasticsearchSearchClient:
                     {
                         "multi_match": {
                             "query": query,
-                            "fields": ["content_english^2", "title^3", "summary", "tags"],
+                            "fields": [
+                                "title^3",
+                                "filename^3",
+                                "path^2",
+                                "content_english^2",
+                                "content_original^2",
+                                "summary",
+                                "tags",
+                            ],
                             "type": "best_fields",
                         }
                     },
@@ -141,8 +179,11 @@ class ElasticsearchSearchClient:
                         "multi_match": {
                             "query": query,
                             "fields": [
-                                "content_english.autocomplete",
                                 "title.autocomplete^1.5",
+                                "filename.autocomplete^2",
+                                "path.autocomplete",
+                                "content_english.autocomplete",
+                                "content_original.autocomplete",
                                 "summary.autocomplete^0.5",
                             ],
                             "type": "best_fields",
