@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor, act, render as tlRender } from "@testing-library/react";
+import { screen, act, render as tlRender } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@/test/render";
 import { ToastProvider } from "@/components/primitives/Toast";
@@ -110,7 +110,7 @@ describe("TranslationVersionSelector", () => {
     expect(documentsApi.getTranslationVersions).toHaveBeenCalledWith("doc-2");
   });
 
-  it("auto-selects latest available version when translation transitions from pending to available", async () => {
+  it("does not auto-select when translation version transitions from pending to available", async () => {
     const onSelect = vi.fn();
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity, refetchOnWindowFocus: false } },
@@ -122,7 +122,6 @@ describe("TranslationVersionSelector", () => {
     };
     const availableVersion: TranslationVersion = { ...pendingVersion, status: "available" };
 
-    // Pre-seed cache with pending version so the selector renders without a network call
     qc.setQueryData(["doc-translation-versions", "doc-auto"], [pendingVersion]);
 
     renderWithClient(
@@ -130,18 +129,14 @@ describe("TranslationVersionSelector", () => {
       qc,
     );
 
-    // Component renders with pending version; hadInProgressRef becomes true
     await screen.findByRole("option", { name: /Manual EN/ });
 
-    // Simulate a poll result arriving (version now available)
     act(() => {
       qc.setQueryData(["doc-translation-versions", "doc-auto"], [availableVersion]);
     });
 
-    // useEffect detects the transition and auto-selects the newly available version
-    await waitFor(() => {
-      expect(onSelect).toHaveBeenCalledWith("v1");
-    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("does not auto-select when user has already manually selected a version", async () => {

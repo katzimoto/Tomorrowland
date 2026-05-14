@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { getPreview } from "@/api/documents";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getPreview, getTranslationVersions } from "@/api/documents";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
@@ -18,6 +18,35 @@ export function DocumentPage() {
   const [selectedVersionId, setSelectedVersionId] = useState<
     string | undefined
   >(undefined);
+  const qc = useQueryClient();
+  const hadInProgressRef = useRef(false);
+
+  // Poll for translation versions when there are in-progress translations.
+  // When a pending/running translation completes, invalidate the preview
+  // so that the next render fetches the latest translated content.
+  const { data: versions } = useQuery({
+    queryKey: ["doc-translation-versions", docId],
+    queryFn: () => getTranslationVersions(docId),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data && data.some((v) => v.status === "pending" || v.status === "running")
+        ? 5000
+        : false;
+    },
+  });
+
+  useEffect(() => {
+    if (!versions) return;
+    if (selectedVersionId !== undefined) return;
+    if (versions.some((v) => v.status === "pending" || v.status === "running")) {
+      hadInProgressRef.current = true;
+      return;
+    }
+    if (hadInProgressRef.current) {
+      hadInProgressRef.current = false;
+      qc.invalidateQueries({ queryKey: ["doc-preview", docId] });
+    }
+  }, [versions, selectedVersionId, docId, qc]);
 
   const {
     data: preview,
@@ -30,7 +59,6 @@ export function DocumentPage() {
       measurePerformance("preview.load", () =>
         getPreview(docId, selectedVersionId),
       ),
-    staleTime: 2 * 60_000,
   });
 
   if (isLoading) {

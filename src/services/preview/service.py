@@ -163,7 +163,7 @@ class PreviewService:
                 .first()
             )
             if latest_row and latest_row["translated_text"]:
-                version_id = latest_row["id"]
+                version_id = UUID(latest_row["id"])
 
         # If we have a resolved version, render from translated text
         if version_id is not None:
