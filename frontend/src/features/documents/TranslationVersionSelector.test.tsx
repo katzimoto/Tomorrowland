@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor, act, render as tlRender } from "@testing-library/react";
+import { screen, act, render as tlRender } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@/test/render";
 import { ToastProvider } from "@/components/primitives/Toast";
