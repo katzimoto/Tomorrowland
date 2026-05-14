@@ -178,6 +178,20 @@ def test_create_index_has_edge_ngram_analyzer() -> None:
     assert "autocomplete_ngram" in analyzers["autocomplete_index"]["filter"]
 
 
+def test_create_index_edge_ngram_min_gram_is_one() -> None:
+    """The edge_ngram filter must use min_gram=1 for single-character prefix search."""
+    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
+    mock_es = MagicMock()
+    mock_es.indices.exists.return_value = False
+    client._client = mock_es
+
+    client.create_index_if_not_exists()
+
+    settings = mock_es.indices.create.call_args.kwargs["settings"]
+    ngram = settings["analysis"]["filter"]["autocomplete_ngram"]
+    assert ngram["min_gram"] == 1
+
+
 def test_create_index_has_autocomplete_subfields() -> None:
     """Searchable text fields must have an .autocomplete multi-field in the mapping."""
     client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
