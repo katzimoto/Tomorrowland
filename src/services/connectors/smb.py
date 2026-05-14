@@ -12,7 +12,7 @@ from fnmatch import fnmatch
 from pathlib import PurePosixPath
 from typing import Any
 
-import smbclient  # type: ignore
+import smbclient  # type: ignore[import-untyped]
 
 from services.connectors.base import ConnectorDocument, ConnectorField
 

@@ -56,6 +56,7 @@ from services.translation.client import LibreTranslateClient
 from shared.config import Settings
 from shared.correlation import get_correlation_id
 from shared.db import db_uuid, to_uuid
+from shared.logging import log_extra
 from shared.metrics import (
     MetricsRegistry,
     current_metrics,
@@ -323,7 +324,7 @@ def create_app(
     async def request_observability_middleware(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        """Attach request IDs and record low-cardinality HTTP metrics."""
+        """Attach request IDs, record metrics, and emit structured JSON logs."""
         request_id = request.headers.get("x-request-id") or str(uuid4())
         token = set_request_id(request_id)
         metrics_token = set_current_metrics(request.app.state.metrics)
@@ -339,6 +340,19 @@ def create_app(
                 request.method, route, status_class(response.status_code)
             ).inc()
             response.headers["X-Request-ID"] = request_id
+            logger.info(
+                "http_request_completed",
+                extra=log_extra(
+                    {
+                        "component": "api",
+                        "outcome": "success",
+                        "method": request.method,
+                        "route": route,
+                        "status_code": response.status_code,
+                        "duration_ms": round(elapsed * 1000),
+                    }
+                ),
+            )
             return response
         except Exception as exc:
             route = route_template_for_request(request)
@@ -348,6 +362,21 @@ def create_app(
             metrics.http_request_duration_seconds.labels(request.method, route).observe(elapsed)
             metrics.http_requests_total.labels(request.method, route, "5xx").inc()
             metrics.http_exceptions_total.labels(route, error_type).inc()
+            logger.error(
+                "http_request_failed",
+                exc_info=True,
+                extra=log_extra(
+                    {
+                        "component": "api",
+                        "outcome": "failure",
+                        "method": request.method,
+                        "route": route,
+                        "status_code": 500,
+                        "duration_ms": round(elapsed * 1000),
+                        "error_type": error_type,
+                    }
+                ),
+            )
             return Response(
                 content="Internal Server Error",
                 status_code=500,

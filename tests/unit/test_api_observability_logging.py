@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from io import StringIO
+from unittest.mock import patch
 
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
@@ -12,6 +13,48 @@ from services.api.observability import (
     install_enhanced_request_observability,
 )
 from shared.config import Settings
+
+
+def test_structured_log_emitted_for_successful_request() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    app = create_app(engine, Settings(app_env="test", auth_provider="local"))
+
+    @app.get("/hello")
+    def hello() -> dict[str, str]:
+        return {"ok": "yes"}
+
+    with patch("services.api.main.logger.info") as mock_info:
+        client = TestClient(app)
+        response = client.get("/hello")
+
+    assert response.status_code == 200
+    mock_info.assert_called_once()
+    args, kwargs = mock_info.call_args
+    assert args[0] == "http_request_completed"
+    assert kwargs["extra"]["component"] == "api"
+    assert kwargs["extra"]["outcome"] == "success"
+
+
+def test_structured_log_emitted_for_internal_server_error() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    app = create_app(engine, Settings(app_env="test", auth_provider="local"))
+
+    @app.get("/boom")
+    def boom() -> None:
+        raise RuntimeError("boom")
+
+    with patch("services.api.main.logger.error") as mock_error:
+        client = TestClient(app)
+        response = client.get("/boom")
+
+    assert response.status_code == 500
+    assert "X-Request-ID" in response.headers
+    mock_error.assert_called_once()
+    args, kwargs = mock_error.call_args
+    assert args[0] == "http_request_failed"
+    assert kwargs["extra"]["error_type"] == "RuntimeError"
+    assert kwargs["extra"]["component"] == "api"
+    assert kwargs["extra"]["outcome"] == "failure"
 
 
 def test_enhanced_observability_logs_unhandled_errors() -> None:
