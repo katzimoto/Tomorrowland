@@ -466,3 +466,151 @@ def test_slow_worker_version_failure_marks_version_failed(
 
     mock_es.index_document.assert_not_called()
     mock_qdrant.upsert_chunks.assert_not_called()
+
+
+def test_preview_defaults_to_latest_available_translation(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.txt"
+    test_file.write_text("Original content here.")
+
+    _source_id, doc_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+
+    with migrated_engine.begin() as connection:
+        version_repo = TranslationVersionRepository(connection)
+        version1 = version_repo.create_version(
+            doc_id=UUID(doc_id),
+            label="v1",
+            quality="fast",
+            request_type="manual",
+            target_language="en",
+        )
+        version_repo.update_version_status(
+            UUID(version1["id"]), "available", translated_text="First translation."
+        )
+        version2 = version_repo.create_version(
+            doc_id=UUID(doc_id),
+            label="v2",
+            quality="high",
+            request_type="manual",
+            target_language="en",
+        )
+        version_repo.update_version_status(
+            UUID(version2["id"]), "available", translated_text="Latest translation."
+        )
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.get(
+        f"/preview/{doc_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["snippet"] == "Latest translation."
+
+
+def test_preview_default_falls_back_when_no_available_translation(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.txt"
+    test_file.write_text("Original content here.")
+
+    _source_id, doc_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+
+    with migrated_engine.begin() as connection:
+        version_repo = TranslationVersionRepository(connection)
+        version = version_repo.create_version(
+            doc_id=UUID(doc_id),
+            label="Pending en",
+            quality="fast",
+            request_type="manual",
+            target_language="en",
+        )
+        version_repo.update_version_status(
+            UUID(version["id"]), "pending", translated_text="Should not appear."
+        )
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.get(
+        f"/preview/{doc_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["snippet"] == "Original content here."
+
+
+def test_preview_does_not_render_cross_document_translation_version(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    file_a = files_root / "a.txt"
+    file_a.write_text("Document A content.")
+    file_b = files_root / "b.txt"
+    file_b.write_text("Document B content.")
+
+    _source_a, doc_a_id = _create_source_with_doc(migrated_engine, "users", path=str(file_a))
+    _source_b, doc_b_id = _create_source_with_doc(migrated_engine, "users", path=str(file_b))
+
+    with migrated_engine.begin() as connection:
+        version_repo = TranslationVersionRepository(connection)
+        version = version_repo.create_version(
+            doc_id=UUID(doc_b_id),
+            label="Doc B en",
+            quality="high",
+            request_type="manual",
+            target_language="en",
+        )
+        version_b_id = version["id"]
+        version_repo.update_version_status(
+            UUID(version_b_id), "available", translated_text="Document B translated text."
+        )
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _user_token(client)
+
+    # Request preview of doc A with doc B's translation version ID
+    response = client.get(
+        f"/preview/{doc_a_id}?translation_version_id={version_b_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # Should fall back to doc A original content, not render doc B's text
+    assert data["snippet"] == "Document A content."
