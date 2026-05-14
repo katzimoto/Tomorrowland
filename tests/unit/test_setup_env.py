@@ -5,9 +5,6 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, cast
-
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "setup-env.sh"

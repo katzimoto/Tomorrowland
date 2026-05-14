@@ -113,9 +113,7 @@ class AuthRepository:
         for group_name in group_names:
             group_id = self.ensure_group(group_name)
             self._connection.execute(
-                sa.text(
-                    "INSERT INTO user_groups (user_id, group_id) VALUES (:user_id, :group_id)"
-                ),
+                sa.text("INSERT INTO user_groups (user_id, group_id) VALUES (:user_id, :group_id)"),
                 {"user_id": db_uuid(user_id), "group_id": db_uuid(group_id)},
             )
 
@@ -175,9 +173,7 @@ class AuthRepository:
         except sa.exc.IntegrityError:
             pass
 
-    def create_document(
-        self, source_id: UUID, external_id: str = "file:/data/a.txt"
-    ) -> UUID:
+    def create_document(self, source_id: UUID, external_id: str = "file:/data/a.txt") -> UUID:
         """Create a minimal document tied to an ingestion source."""
         doc_id = uuid4()
         self._connection.execute(
@@ -195,7 +191,7 @@ class AuthRepository:
 
     def user_can_access_source(self, user: UserIdentity, source_id: UUID) -> bool:
         """Return whether any of a user's groups can access a source."""
-        if user.email == "admin@local.com":
+        if self._is_admins_group_member(user):
             return True
         if not user.groups:
             return False
@@ -209,6 +205,17 @@ class AuthRepository:
         ).scalars()
         allowed_groups = {to_uuid(row) for row in rows}
         return bool(allowed_groups.intersection(user.groups))
+
+    def _is_admins_group_member(self, user: UserIdentity) -> bool:
+        """Return True if the user belongs to the 'admins' group."""
+        if not user.groups:
+            return False
+        admins_id = self._connection.execute(
+            sa.text("SELECT id FROM groups WHERE name = 'admins'"),
+        ).scalar()
+        if admins_id is None:
+            return False
+        return to_uuid(admins_id) in user.groups
 
     def document_source_id(self, doc_id: UUID) -> UUID | None:
         """Return the ingestion source for a document when it exists."""
