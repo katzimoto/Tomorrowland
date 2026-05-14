@@ -53,20 +53,15 @@ class TestOllamaEmbeddingEncoder:
         mock_post.assert_not_called()
 
     @patch("services.search.encoder.httpx.post")
-    def test_encode_fallback_to_legacy_on_404(self, mock_post: MagicMock) -> None:
-        modern_response = self._response({}, status_code=404)
-        legacy_response = self._response({"embedding": [0.5, 0.6]})
-        mock_post.side_effect = [modern_response, legacy_response]
+    def test_encode_raises_on_404_with_no_fallback(self, mock_post: MagicMock) -> None:
+        mock_post.return_value = self._response({}, status_code=404)
 
         encoder = OllamaEmbeddingEncoder("http://ollama:11434")
-        vec = encoder.encode("hello")
 
-        assert vec == [0.5, 0.6]
-        assert mock_post.call_count == 2
-        # Second call should be to legacy endpoint
-        args, kwargs = mock_post.call_args
-        assert "/api/embeddings" in args[0]
-        assert kwargs["json"]["prompt"] == "hello"
+        with pytest.raises(RuntimeError, match="does not support the /api/embed endpoint"):
+            encoder.encode("hello")
+
+        mock_post.assert_called_once()
 
     @patch("services.search.encoder.httpx.post")
     def test_encode_raises_on_missing_embeddings_key(self, mock_post: MagicMock) -> None:
