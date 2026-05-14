@@ -409,6 +409,16 @@ def create_app(
     app.state.es_client = es_client
     app.state.qdrant_client = qdrant_client
     app.state.ollama_client = ollama_client
+
+    with app.state.engine.begin() as connection:
+        try:
+            admins_id = connection.execute(
+                sa.text("SELECT id FROM groups WHERE name = 'admins'"),
+            ).scalar()
+            app.state.admins_group_id = str(admins_id) if admins_id else None
+        except Exception:
+            app.state.admins_group_id = None
+
     app.state.readiness_checker = ReadinessChecker(
         engine=app.state.engine,
         settings=app.state.settings,
@@ -776,6 +786,11 @@ def create_app(
             )
             return SearchResponse(results=[], total=0)
 
+        if app.state.admins_group_id in group_ids:
+            search_group_ids: list[str] = []
+        else:
+            search_group_ids = group_ids
+
         es_client = app.state.es_client or ElasticsearchSearchClient(
             hosts=[app.state.settings.elastic_url]
         )
@@ -785,7 +800,7 @@ def create_app(
         encoder = build_encoder(app.state.settings)
 
         backend_start = time.perf_counter()
-        bm25_results = es_client.search(request.query, group_ids=group_ids, size=50)
+        bm25_results = es_client.search(request.query, group_ids=search_group_ids, size=50)
         app.state.metrics.search_backend_duration_seconds.labels("elasticsearch", "search").observe(
             time.perf_counter() - backend_start
         )
@@ -795,7 +810,7 @@ def create_app(
             query_vector = encoder.encode(request.query)
             backend_start = time.perf_counter()
             vector_results = qdrant_client.search(
-                vector=query_vector, group_ids=group_ids, limit=50
+                vector=query_vector, group_ids=search_group_ids, limit=50
             )
             app.state.metrics.search_backend_duration_seconds.labels("qdrant", "search").observe(
                 time.perf_counter() - backend_start
@@ -809,13 +824,28 @@ def create_app(
             )
             app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
 
-        # TODO: read weights from system_config in Phase 04
+        with app.state.engine.begin() as connection:
+            vector_row = connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = 'search.vector_weight'"),
+            ).scalar()
+            bm25_row = connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = 'search.bm25_weight'"),
+            ).scalar()
+            try:
+                vector_weight = float(vector_row) if vector_row is not None else 0.7
+            except (TypeError, ValueError):
+                vector_weight = 0.7
+            try:
+                bm25_weight = float(bm25_row) if bm25_row is not None else 0.3
+            except (TypeError, ValueError):
+                bm25_weight = 0.3
+
         if vector_results:
             merged = merge_results(
                 bm25_results=bm25_results,
                 vector_results=vector_results,
-                vector_weight=0.7,
-                bm25_weight=0.3,
+                vector_weight=vector_weight,
+                bm25_weight=bm25_weight,
             )
         else:
             merged = merge_results(

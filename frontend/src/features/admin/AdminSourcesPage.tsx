@@ -192,7 +192,7 @@ export function AdminSourcesPage() {
               </tr>
             </thead>
             <tbody>
-{sources.map((src) => {
+              {sources.map((src) => {
                 const result = syncResults[src.id];
                 const testResult = testResults[src.id];
                 return (
