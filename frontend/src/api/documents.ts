@@ -7,7 +7,7 @@ export interface DocAnnotation {
   user_id: string;
   text: string;
   note: string | null;
-  position: { mode: "text-range"; start_char: number; end_char: number };
+  position: { mode: "text-range"; start_char: number; end_char: number } | null;
   is_private: boolean;
   created_at: string;
   can_modify: boolean;
