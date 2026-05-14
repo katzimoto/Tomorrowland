@@ -6,6 +6,21 @@ Closes #<issue-number>.
 
 - 
 
+## Changed Files Audit
+
+Run `git diff --name-only <target-branch>...HEAD` and paste the output below.
+
+```
+# paste output here
+```
+
+- [ ] Changed files listed above
+- [ ] Every changed file is required by this issue
+- [ ] No local agent artifacts (`.opencode_auth.json`, `token_opencode.txt`, root `main`)
+- [ ] No unrelated `.gitignore` additions (use `.git/info/exclude` for local tooling)
+- [ ] No formatting-only or execute-bit-only diffs outside scope
+- [ ] `bash scripts/check-pr-cleanliness.sh <target-branch>` passed (or N/A; reason: )
+
 ## Tests / Checks
 
 - [ ] `ruff check src/ tests/ migrations/`

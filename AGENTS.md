@@ -165,6 +165,39 @@ Do not read `spec.md` or `spec-v4.pdf` unless explicitly authorized.
 - `frontend/AGENTS.md` — frontend-specific conventions
 - `docs/context/*.md` — area context maps
 
+## Pre-PR changed-files checklist
+
+Before opening any PR, run the following and review every file listed:
+
+```bash
+git diff --name-only <target-branch>...HEAD
+```
+
+For PRs targeting `main` use `main`; for feature-branch sub-PRs use the feature
+branch name. Then verify:
+
+1. **Every changed file is in scope** — it must be required by the issue.
+   Unexplained out-of-scope changes block merge.
+2. **No local agent artifacts** — the following files must not appear in the diff:
+   - `.opencode_auth.json`
+   - `token_opencode.txt`
+   - any root-level file named `main` (without extension)
+   These belong in `.git/info/exclude` or your global gitignore, not in
+   `repo/.gitignore` and never in a commit.
+3. **No unrelated `.gitignore` additions** — only add entries that the team has
+   agreed to track. Local tooling exclusions go in `.git/info/exclude` or
+   `~/.gitignore_global`.
+4. **No formatting-only changes outside scope** — ruff/prettier churn on files
+   not touched by the issue adds noise and risks merge conflicts.
+5. **No execute-bit or trailing-newline-only diffs** — check with
+   `git diff --stat` and `git diff` before staging.
+
+Run the guard script for a quick automated check:
+
+```bash
+bash scripts/check-pr-cleanliness.sh [target-branch]
+```
+
 ## Conventions & guardrails (quick)
 
 ### Python

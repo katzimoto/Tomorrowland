@@ -22,6 +22,14 @@
 
 <!-- Screenshots or N/A for non-UI changes. -->
 
+## Changed Files Audit
+
+Run `git diff --name-only <target-branch>...HEAD` and paste the output:
+
+```
+# paste output here
+```
+
 ## Checklist
 
 - [ ] This PR maps to one phase or one named phase subtask.
@@ -29,3 +37,6 @@
 - [ ] Public interfaces are documented.
 - [ ] Tests or validation steps are included above.
 - [ ] Reviewer agent can audit this change without unrelated context.
+- [ ] No local agent artifacts in the diff (`.opencode_auth.json`, `token_opencode.txt`, root `main`)
+- [ ] No unrelated `.gitignore` additions; local tooling exclusions use `.git/info/exclude`
+- [ ] `bash scripts/check-pr-cleanliness.sh <target-branch>` passed (or N/A; reason: )
