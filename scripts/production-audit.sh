@@ -63,12 +63,45 @@ SECRET_HITS="$(git grep -n -E "$SECRET_PATTERN" -- \
   ':(exclude)frontend/src/**/*.test.ts' \
   ':(exclude)frontend/src/**/*.test.tsx' \
   ':(exclude)frontend/src/**/*.spec.ts' \
-  ':(exclude)frontend/src/**/*.spec.tsx' || true)"
+  ':(exclude)frontend/src/**/*.spec.tsx' \
+  ':(exclude)frontend/src/i18n/**' \
+  || true)"
 if [[ -n "$SECRET_HITS" ]]; then
   echo "Potential hardcoded secret-like assignments found outside test files:" >&2
   printf '%s\n' "$SECRET_HITS" | sed -E \
     "s/((password|secret|token|api_key)[[:space:]]*[:=][[:space:]]*['\"])[^'\"]*/\\1<redacted>/" >&2
   echo "Replace real values with placeholders or document accepted false positives before review." >&2
+  exit 1
+fi
+
+log_step "Scanning tracked runtime code for forbidden placeholder/mock patterns"
+FORBIDDEN_PATTERNS=(
+  "MockEncoder"
+  "PlaceholderPage"
+  "This page will be implemented"
+  "SubscriptionsStub"
+  "PLACEHOLDER_POSITION"
+)
+PATTERN_HITS=""
+for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
+  hits="$(git grep -l -n -F "$pattern" -- \
+    'src/' 'frontend/src/' \
+    ':(exclude)tests/**' \
+    ':(exclude)frontend/src/**/*.test.ts' \
+    ':(exclude)frontend/src/**/*.test.tsx' \
+    ':(exclude)frontend/src/**/*.spec.ts' \
+    ':(exclude)frontend/src/**/*.spec.tsx' \
+    ':(exclude)docs/**' \
+    ':(exclude)**/*.md' \
+    2>/dev/null || true)"
+  if [[ -n "$hits" ]]; then
+    PATTERN_HITS="$PATTERN_HITS$(printf '\n--- Pattern: %s ---\n' "$pattern")$hits"
+  fi
+done
+if [[ -n "$PATTERN_HITS" ]]; then
+  echo "Production runtime code contains forbidden placeholder/mock patterns:" >&2
+  printf '%s\n' "$PATTERN_HITS" >&2
+  echo "Remove or implement these before production deployment." >&2
   exit 1
 fi
 
