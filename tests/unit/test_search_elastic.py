@@ -88,6 +88,11 @@ def test_search_uses_multi_match_query() -> None:
     assert full_text_clause["query"] == "hello world"
     assert "title^3" in full_text_clause["fields"]
     assert "content_english^2" in full_text_clause["fields"]
+    assert "filename^3" in full_text_clause["fields"]
+    assert "content_original^2" in full_text_clause["fields"]
+    assert "path^2" in full_text_clause["fields"]
+    assert "summary" in full_text_clause["fields"]
+    assert "tags" in full_text_clause["fields"]
 
 
 def test_search_includes_autocomplete_fields() -> None:
@@ -120,6 +125,9 @@ def test_search_prefix_query_covers_all_text_fields() -> None:
     field_names = [f.split("^")[0] for f in autocomplete_clause["fields"]]
     assert "title.autocomplete" in field_names
     assert "content_english.autocomplete" in field_names
+    assert "filename.autocomplete" in field_names
+    assert "content_original.autocomplete" in field_names
+    assert "path.autocomplete" in field_names
     assert "summary.autocomplete" in field_names
 
 
@@ -203,7 +211,7 @@ def test_create_index_has_autocomplete_subfields() -> None:
     client.create_index_if_not_exists()
 
     props = mock_es.indices.create.call_args.kwargs["mappings"]["properties"]
-    for field in ("title", "content_english", "summary"):
+    for field in ("title", "content_english", "summary", "path", "filename", "content_original"):
         assert "autocomplete" in props[field]["fields"], f"{field} missing .autocomplete subfield"
         subfield = props[field]["fields"]["autocomplete"]
         assert subfield["analyzer"] == "autocomplete_index"

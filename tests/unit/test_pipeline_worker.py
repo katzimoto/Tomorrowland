@@ -182,3 +182,41 @@ def test_worker_marks_indexed_when_text_and_vector_succeed() -> None:
     assert qdrant_chunks[0]["group_id"] == [str(group_id)]
     assert repo.indexed_updates == [(doc.id, "indexed", None)]
     assert repo.status_updates == []
+
+
+def test_worker_indexes_filename_path_and_content_fields() -> None:
+    doc = _document()
+    doc.path = "/data/ingest/test1.pdf"
+    group_id = uuid4()
+    repo = _FakeDocumentRepository(doc, [group_id])
+    encoder = _FakeEncoder()
+    es = _FakeElasticsearch()
+    qdrant = _FakeQdrant()
+    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant)
+
+    worker.process_document(doc.id, pre_extracted_text="Original extracted text")
+
+    assert len(es.calls) == 1
+    indexed_body = es.calls[0][1]
+    assert indexed_body["path"] == "/data/ingest/test1.pdf"
+    assert indexed_body["filename"] == "test1.pdf"
+    assert indexed_body["content_original"] == "Original extracted text"
+    assert indexed_body["content_english"] == "Original extracted text"
+    assert indexed_body["title"] == "Test document"
+
+
+def test_worker_indexes_filename_fallback_when_path_is_none() -> None:
+    doc = _document()
+    doc.path = None
+    doc.title = "My Document Title"
+    repo = _FakeDocumentRepository(doc, [uuid4()])
+    encoder = _FakeEncoder()
+    es = _FakeElasticsearch()
+    qdrant = _FakeQdrant()
+    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant)
+
+    worker.process_document(doc.id, pre_extracted_text="Some content")
+
+    indexed_body = es.calls[0][1]
+    assert indexed_body["filename"] == "My Document Title"
+    assert indexed_body["path"] == ""
