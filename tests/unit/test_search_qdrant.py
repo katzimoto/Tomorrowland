@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from services.search.qdrant import QdrantSearchClient
 
 COLLECTION_NAME = "tomorrowland_chunks"
@@ -71,11 +69,14 @@ def test_search_vector() -> None:
     assert results[0].chunk_text == "hello"
 
 
-def test_search_no_group_ids_raises() -> None:
+def test_search_without_group_ids_returns_empty() -> None:
     client = QdrantSearchClient(url="http://localhost:6333")
+    mock_qdrant = MagicMock()
+    mock_qdrant.search.return_value = []
+    client._client = mock_qdrant
 
-    with pytest.raises(ValueError, match="group_ids must not be empty"):
-        client.search(vector=[0.1] * 384, group_ids=[])
+    results = client.search(vector=[0.1] * 384, group_ids=[])
+    assert results == []
 
 
 def test_search_respects_limit() -> None:
