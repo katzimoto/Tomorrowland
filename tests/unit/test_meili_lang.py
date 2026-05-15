@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import pytest
-
 from services.search.meili_lang import detect_query_language, resolve_query_language
-
 
 # ---------------------------------------------------------------------------
 # detect_query_language

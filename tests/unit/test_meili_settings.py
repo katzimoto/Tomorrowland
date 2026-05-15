@@ -36,7 +36,7 @@ def test_settings_version_is_positive_int() -> None:
 
 
 def test_settings_contains_all_required_keys() -> None:
-    assert _REQUIRED_TOP_LEVEL_KEYS <= set(INDEX_SETTINGS.keys())
+    assert set(INDEX_SETTINGS.keys()) >= _REQUIRED_TOP_LEVEL_KEYS
 
 
 def test_distinct_attribute_is_document_id() -> None:

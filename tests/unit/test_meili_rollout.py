@@ -13,7 +13,6 @@ from services.search.meili_rollout import (
     record_search_metrics,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -143,9 +142,7 @@ def test_health_probe_observes_latency() -> None:
     metrics.dependency_latency_seconds.labels.assert_called_with(
         dependency="meilisearch", operation="health"
     )
-    metrics.dependency_latency_seconds.labels().observe.assert_called_with(
-        pytest.approx(0.2)
-    )
+    metrics.dependency_latency_seconds.labels().observe.assert_called_with(pytest.approx(0.2))
 
 
 def test_health_probe_skips_metrics_when_none() -> None:
@@ -172,17 +169,13 @@ def test_record_search_metrics_emits_duration() -> None:
     metrics.search_backend_duration_seconds.labels.assert_called_with(
         backend="meilisearch", operation="search"
     )
-    metrics.search_backend_duration_seconds.labels().observe.assert_called_with(
-        pytest.approx(0.05)
-    )
+    metrics.search_backend_duration_seconds.labels().observe.assert_called_with(pytest.approx(0.05))
 
 
 def test_record_search_metrics_emits_request_counter() -> None:
     metrics = _metrics()
     record_search_metrics(metrics, duration_s=0.05, hits=10, outcome="ok")
-    metrics.search_requests_total.labels.assert_called_with(
-        mode="meilisearch", outcome="ok"
-    )
+    metrics.search_requests_total.labels.assert_called_with(mode="meilisearch", outcome="ok")
     metrics.search_requests_total.labels().inc.assert_called_once()
 
 
@@ -207,12 +200,8 @@ def test_record_search_metrics_noop_when_metrics_none() -> None:
 def test_record_index_metrics_emits_stage_duration() -> None:
     metrics = _metrics()
     record_index_metrics(metrics, duration_s=0.3, chunk_count=5, outcome="ok")
-    metrics.pipeline_stage_duration_seconds.labels.assert_called_with(
-        stage="meilisearch_index"
-    )
-    metrics.pipeline_stage_duration_seconds.labels().observe.assert_called_with(
-        pytest.approx(0.3)
-    )
+    metrics.pipeline_stage_duration_seconds.labels.assert_called_with(stage="meilisearch_index")
+    metrics.pipeline_stage_duration_seconds.labels().observe.assert_called_with(pytest.approx(0.3))
 
 
 def test_record_index_metrics_increments_by_chunk_count() -> None:

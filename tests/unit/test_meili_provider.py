@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import uuid
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from services.search.meili_provider import MeilisearchSearchProvider, _build_user_filter
 from services.search.meili_settings import INDEX_NAME, SHADOW_INDEX_NAME
 from services.search.meili_types import (
-    ChunkPosition,
     DocumentSearchFilters,
     DocumentSearchQuery,
     SearchChunkRecord,
@@ -182,7 +181,10 @@ def test_search_short_circuits_for_groupless_user() -> None:
 def test_search_queries_meilisearch_for_admin() -> None:
     client, provider = _provider()
     client.index.return_value.search.return_value = {
-        "hits": [], "nbHits": 0, "estimatedTotalHits": 0, "processingTimeMs": 1
+        "hits": [],
+        "nbHits": 0,
+        "estimatedTotalHits": 0,
+        "processingTimeMs": 1,
     }
     provider.search(_query(), _admin())
     client.index().search.assert_called_once()
@@ -191,7 +193,10 @@ def test_search_queries_meilisearch_for_admin() -> None:
 def test_search_queries_meilisearch_for_user_with_groups() -> None:
     client, provider = _provider()
     client.index.return_value.search.return_value = {
-        "hits": [], "nbHits": 0, "estimatedTotalHits": 0, "processingTimeMs": 1
+        "hits": [],
+        "nbHits": 0,
+        "estimatedTotalHits": 0,
+        "processingTimeMs": 1,
     }
     provider.search(_query(), _user_with_groups(_G1))
     client.index().search.assert_called_once()
@@ -200,7 +205,10 @@ def test_search_queries_meilisearch_for_user_with_groups() -> None:
 def test_search_includes_acl_filter_for_non_admin() -> None:
     client, provider = _provider()
     client.index.return_value.search.return_value = {
-        "hits": [], "nbHits": 0, "estimatedTotalHits": 0, "processingTimeMs": 1
+        "hits": [],
+        "nbHits": 0,
+        "estimatedTotalHits": 0,
+        "processingTimeMs": 1,
     }
     provider.search(_query(), _user_with_groups(_G1))
     _, kwargs = client.index().search.call_args
@@ -212,7 +220,10 @@ def test_search_includes_acl_filter_for_non_admin() -> None:
 def test_search_no_filter_for_admin() -> None:
     client, provider = _provider()
     client.index.return_value.search.return_value = {
-        "hits": [], "nbHits": 0, "estimatedTotalHits": 0, "processingTimeMs": 1
+        "hits": [],
+        "nbHits": 0,
+        "estimatedTotalHits": 0,
+        "processingTimeMs": 1,
     }
     provider.search(_query(), _admin())
     params = client.index().search.call_args[0][1]
@@ -222,16 +233,18 @@ def test_search_no_filter_for_admin() -> None:
 def test_search_maps_hits_to_results() -> None:
     client, provider = _provider()
     client.index.return_value.search.return_value = {
-        "hits": [{
-            "id": "doc_doc1_chunk_0000",
-            "document_id": "doc1",
-            "chunk_index": 0,
-            "title": "My Doc",
-            "content": "some text",
-            "position": {"chunk_index": 0},
-            "metadata": {"source": "upload"},
-            "_rankingScore": 0.9,
-        }],
+        "hits": [
+            {
+                "id": "doc_doc1_chunk_0000",
+                "document_id": "doc1",
+                "chunk_index": 0,
+                "title": "My Doc",
+                "content": "some text",
+                "position": {"chunk_index": 0},
+                "metadata": {"source": "upload"},
+                "_rankingScore": 0.9,
+            }
+        ],
         "nbHits": 1,
         "estimatedTotalHits": 1,
         "processingTimeMs": 5,
@@ -286,9 +299,7 @@ def test_build_user_filter_multiple_fields_joined_with_and() -> None:
 def test_swap_indexes_calls_client() -> None:
     client, provider = _provider()
     provider.swap_indexes()
-    client.swap_indexes.assert_called_once_with(
-        [{"indexes": [INDEX_NAME, SHADOW_INDEX_NAME]}]
-    )
+    client.swap_indexes.assert_called_once_with([{"indexes": [INDEX_NAME, SHADOW_INDEX_NAME]}])
 
 
 def test_health_check_returns_ok_true_on_success() -> None:

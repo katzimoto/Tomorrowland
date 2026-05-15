@@ -110,7 +110,7 @@ def test_record_rejects_empty_allowed_group_ids_when_not_admin_only() -> None:
             chunk_index=0,
             title="T",
             content="C",
-            allowed_group_ids=[],   # empty — must be rejected
+            allowed_group_ids=[],  # empty — must be rejected
             is_admin_only=False,
             content_checksum="abc",
             indexed_at="2024-01-01T00:00:00+00:00",
@@ -208,13 +208,13 @@ def test_from_parts_builds_metadata_text_automatically() -> None:
 
 
 def test_from_parts_is_deterministic_for_same_inputs() -> None:
-    kwargs = dict(
-        document_id="d",
-        chunk_index=0,
-        title="T",
-        content="C",
-        allowed_group_ids=["g"],
-    )
+    kwargs = {
+        "document_id": "d",
+        "chunk_index": 0,
+        "title": "T",
+        "content": "C",
+        "allowed_group_ids": ["g"],
+    }
     r1 = SearchChunkRecord.from_parts(**kwargs)
     r2 = SearchChunkRecord.from_parts(**kwargs)
     assert r1.id == r2.id
