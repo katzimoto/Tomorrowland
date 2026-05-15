@@ -28,6 +28,10 @@ x-app-environment: &app-environment
   FEATURE_AUTO_TAGGING: ${FEATURE_AUTO_TAGGING:-true}
   AUTO_ENRICH_THRESHOLD: ${AUTO_ENRICH_THRESHOLD:-5}
   INGEST_MODE: ${INGEST_MODE:-hybrid}
+  MEILISEARCH_URL: ${MEILISEARCH_URL:-http://meilisearch:7700}
+  MEILISEARCH_MASTER_KEY: ${MEILISEARCH_MASTER_KEY:-}
+  FEATURE_MEILISEARCH_SEARCH: ${FEATURE_MEILISEARCH_SEARCH:-false}
+  FEATURE_MEILISEARCH_SHADOW_INDEX: ${FEATURE_MEILISEARCH_SHADOW_INDEX:-false}
 
 services:
   migrate:
@@ -56,6 +60,8 @@ services:
       elasticsearch:
         condition: service_healthy
       qdrant:
+        condition: service_healthy
+      meilisearch:
         condition: service_healthy
       libretranslate:
         condition: service_healthy
@@ -161,6 +167,24 @@ services:
       driver: json-file
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.9
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILISEARCH_MASTER_KEY:-}
+      MEILI_ENV: ${APP_ENV:-prod}
+    ports:
+      - "${MEILISEARCH_PORT:-7700}:7700"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/7700'"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    logging:
+      driver: json-file
+    volumes:
+      - meilisearch_data:/meili_data
 
   qdrant:
     image: qdrant/qdrant:v1.10.1
@@ -274,6 +298,8 @@ volumes:
     name: ${TOMORROWLAND_ELASTICSEARCH_VOLUME:-tomorrowland_elasticsearch_data}
   qdrant_data:
     name: ${TOMORROWLAND_QDRANT_VOLUME:-tomorrowland_qdrant_data}
+  meilisearch_data:
+    name: ${TOMORROWLAND_MEILISEARCH_VOLUME:-tomorrowland_meilisearch_data}
   libretranslate_data:
     name: ${TOMORROWLAND_LIBRETRANSLATE_VOLUME:-tomorrowland_libretranslate_data}
   ollama_data:
