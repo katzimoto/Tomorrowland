@@ -3,10 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-import pytest
-
 from services.pipeline.index_worker import run_index_once
-
 
 # ---------------------------------------------------------------------------
 # Fakes
@@ -69,9 +66,7 @@ class _FakeDoc:
 
 
 class _FakeDocRepo:
-    def __init__(
-        self, doc: _FakeDoc | None = None, group_ids: list[UUID] | None = None
-    ) -> None:
+    def __init__(self, doc: _FakeDoc | None = None, group_ids: list[UUID] | None = None) -> None:
         self._doc = doc
         self._group_ids = group_ids or []
         self.indexed_updates: list[tuple[UUID, str, str | None]] = []

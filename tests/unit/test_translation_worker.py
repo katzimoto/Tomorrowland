@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
 
 from services.pipeline.translation_worker import run_translation_once
-
 
 # ---------------------------------------------------------------------------
 # Fakes
