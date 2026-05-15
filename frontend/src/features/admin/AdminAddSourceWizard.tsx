@@ -15,6 +15,7 @@ interface WizardState {
   name: string;
   path: string;
   sourceLanguage: string;
+  version: string;
   config: Record<string, string>;
   enabled: boolean;
   groups: SourceGroup[];
@@ -26,7 +27,7 @@ export function AdminAddSourceWizard() {
   const { show: showToast } = useToast();
   const [step, setStep] = useState<WizardStep>("type");
   const [state, setState] = useState<WizardState>({
-    type: "", name: "", path: "", sourceLanguage: "en",
+    type: "", name: "", path: "", sourceLanguage: "en", version: "",
     config: {}, enabled: true, groups: [],
   });
 
@@ -44,12 +45,16 @@ export function AdminAddSourceWizard() {
 
   const createMutation = useMutation({
     mutationFn: () => {
+      const config = { ...state.config } as Record<string, string>;
+      if (state.version && state.version !== "auto-detect") {
+        config["version"] = state.version;
+      }
       const payload: Parameters<typeof adminApi.createSource>[0] = {
         name: state.name,
         type: state.type,
         source_language: state.sourceLanguage,
         enabled: state.enabled,
-        config: state.config as Record<string, string>,
+        config,
       };
       if (currentSpec?.fields.some((f) => f.key === "path") && state.path) {
         payload.path = state.path;
@@ -139,6 +144,18 @@ export function AdminAddSourceWizard() {
                 <option value="de">German</option>
               </select>
             </label>
+            {currentSpec?.supported_versions && (
+              <label className={styles.label}>
+                Version
+                <select className={styles.select} value={state.version}
+                  onChange={(e) => update("version", e.target.value)}>
+                  <option value="auto-detect">Auto detect</option>
+                  {(currentSpec.supported_versions[state.sourceLanguage] || currentSpec.supported_versions["en"] || []).map((v) => (
+                    <option key={v.value} value={v.value}>{v.label}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className={styles.dialogActions}>
               <Button onClick={() => setStep("validate")} disabled={!state.name}>
                 Next: Validate

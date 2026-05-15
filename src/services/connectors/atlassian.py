@@ -163,6 +163,16 @@ class _AtlassianConnectorBase:
 class ConfluenceConnector(_AtlassianConnectorBase):
     """Poll Confluence Server/Data Center pages and attachments."""
 
+    supported_versions: dict[str, list[str]] = {
+        "en": ["7.x", "8.x", "9.x"],
+        "fr": ["7.x", "8.x"],
+        "de": ["7.x", "8.x"],
+        "es": ["7.x"],
+        "ar": ["7.x", "8.x"],
+        "zh": ["8.x", "9.x"],
+        "he": ["7.x", "8.x"],
+    }
+
     @classmethod
     def fields(cls) -> list[ConnectorField]:
         """Return admin UI field metadata for Confluence source configuration."""
