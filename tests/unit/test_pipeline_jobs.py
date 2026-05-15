@@ -343,6 +343,8 @@ def test_mark_retry_schedules_backoff(engine: Engine) -> None:
             if isinstance(row.run_after, datetime)
             else datetime.fromisoformat(row.run_after)
         )  # noqa: E501
+        if run_after.tzinfo is None:
+            run_after = run_after.replace(tzinfo=UTC)
         assert run_after > datetime.now(UTC)
 
 
