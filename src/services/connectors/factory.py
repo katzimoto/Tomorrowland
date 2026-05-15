@@ -41,8 +41,7 @@ def connector_types() -> list[dict[str, Any]]:
         versions = getattr(cls, "supported_versions", None)
         if versions:
             entry["supported_versions"] = {
-                lang: [{"value": v, "label": v} for v in vers]
-                for lang, vers in versions.items()
+                lang: [{"value": v, "label": v} for v in vers] for lang, vers in versions.items()
             }
         result.append(entry)
     return result
