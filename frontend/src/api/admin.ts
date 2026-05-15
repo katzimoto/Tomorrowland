@@ -12,6 +12,7 @@ export interface ConnectorType {
   type: string;
   label: string;
   fields: ConnectorField[];
+  supported_versions?: Record<string, { value: string; label: string }[]>;
 }
 
 export interface Source {

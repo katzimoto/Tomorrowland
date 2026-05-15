@@ -31,14 +31,21 @@ def connector_types() -> list[dict[str, Any]]:
     The result drives the admin UI form — each type describes the config
     fields it requires, including which are sensitive (passwords/tokens).
     """
-    return [
-        {
+    result: list[dict[str, Any]] = []
+    for key, cls in _REGISTRY.items():
+        entry: dict[str, Any] = {
             "type": key,
             "label": getattr(cls, "label", cls.__name__.replace("Connector", "")),
             "fields": [asdict(f) for f in cls.fields()],
         }
-        for key, cls in _REGISTRY.items()
-    ]
+        versions = getattr(cls, "supported_versions", None)
+        if versions:
+            entry["supported_versions"] = {
+                lang: [{"value": v, "label": v} for v in vers]
+                for lang, vers in versions.items()
+            }
+        result.append(entry)
+    return result
 
 
 def build_connector(source_row: RowMapping) -> SourceConnector:
