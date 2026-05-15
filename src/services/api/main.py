@@ -1904,6 +1904,13 @@ def create_app(
         require_admin(user)
         return connector_types()
 
+    @app.get("/admin/source-languages")
+    def admin_source_languages(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[str]:
+        require_admin(user)
+        return app.state.settings.supported_translation_source_languages_list
+
     @app.post("/admin/sources/{source_id}/test-connection", response_model=ConnectionTestResult)
     def admin_test_source_connection(
         source_id: UUID,

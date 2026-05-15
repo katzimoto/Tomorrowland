@@ -38,7 +38,7 @@ export interface CreateSourcePayload {
   name: string;
   type: string;
   path?: string | null;
-  source_language: string;
+  source_language: string | null;
   enabled: boolean;
   config: Record<string, string>;
 }
@@ -70,6 +70,7 @@ export interface SourceDetail extends Source {
 
 export const adminApi = {
   connectorTypes: () => api.get<ConnectorType[]>("/admin/connector-types"),
+  sourceLanguages: () => api.get<string[]>("/admin/source-languages"),
   listSources: () => api.get<Source[]>("/admin/sources"),
   createSource: (payload: CreateSourcePayload) =>
     api.post<Source>("/admin/sources", payload),

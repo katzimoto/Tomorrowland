@@ -58,10 +58,21 @@ class Settings(BaseSettings):
     feature_meilisearch_search: bool = False
     feature_meilisearch_shadow_index: bool = False
 
+    supported_translation_source_languages: str = "en,he,zh,ko,th,ar,fr,ru,es"
+
     @property
     def cors_origin_list(self) -> list[str]:
         """Return configured CORS origins from a comma-separated setting."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def supported_translation_source_languages_list(self) -> list[str]:
+        """Return supported source languages parsed from the comma-separated setting."""
+        return [
+            lang.strip()
+            for lang in self.supported_translation_source_languages.split(",")
+            if lang.strip()
+        ]
 
 
 def get_settings() -> Settings:

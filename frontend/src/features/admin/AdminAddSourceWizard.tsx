@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, ServerIcon, Plus } from "lucide-react";
-import { adminApi, type ConnectorType, type SourceGroup } from "@/api/admin";
+import { adminApi, type SourceGroup } from "@/api/admin";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
 import { useToast } from "@/components/primitives/ToastContext";
@@ -29,16 +29,13 @@ const LANGUAGE_LABELS: Record<string, string> = {
   de: "German",
   es: "Spanish",
   ru: "Russian",
+  zh: "Chinese",
+  ko: "Korean",
+  th: "Thai",
 };
 
 function languageLabel(code: string): string {
   return LANGUAGE_LABELS[code] ?? code.toUpperCase();
-}
-
-function getSupportedLanguageCodes(spec: ConnectorType): string[] {
-  if (!spec.supported_versions) return ["en"];
-  const keys = Object.keys(spec.supported_versions);
-  return keys.length > 0 ? keys : ["en"];
 }
 
 export function AdminAddSourceWizard() {
@@ -47,13 +44,18 @@ export function AdminAddSourceWizard() {
   const { show: showToast } = useToast();
   const [step, setStep] = useState<WizardStep>("type");
   const [state, setState] = useState<WizardState>({
-    type: "", name: "", path: "", sourceLanguage: "en", version: "auto-detect",
+    type: "", name: "", path: "", sourceLanguage: "", version: "auto-detect",
     config: {}, enabled: true, groups: [],
   });
 
   const { data: connectorTypes = [] } = useQuery({
     queryKey: ["connector-types"],
     queryFn: adminApi.connectorTypes,
+  });
+
+  const { data: sourceLanguages = [] } = useQuery({
+    queryKey: ["source-languages"],
+    queryFn: adminApi.sourceLanguages,
   });
 
   const { data: allGroups = [] } = useQuery({
@@ -72,7 +74,7 @@ export function AdminAddSourceWizard() {
       const payload: Parameters<typeof adminApi.createSource>[0] = {
         name: state.name,
         type: state.type,
-        source_language: state.sourceLanguage,
+        source_language: state.sourceLanguage || null,
         enabled: state.enabled,
         config,
       };
@@ -102,12 +104,6 @@ export function AdminAddSourceWizard() {
     return <div className={styles.page}><p>Loading connector types...</p></div>;
   }
 
-  const supportedLanguageCodes = currentSpec ? getSupportedLanguageCodes(currentSpec) : ["en"];
-  const languageOptions = supportedLanguageCodes.map((code) => ({
-    value: code,
-    label: languageLabel(code),
-  }));
-
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -135,8 +131,7 @@ export function AdminAddSourceWizard() {
                 key={ct.type}
                 className={`${styles.typeCard} ${state.type === ct.type ? styles.typeCardActive : ""}`}
                 onClick={() => {
-                  const nextLanguage = getSupportedLanguageCodes(ct)[0] ?? "en";
-                  setState((s) => ({ ...s, type: ct.type, sourceLanguage: nextLanguage, version: "auto-detect" }));
+                  setState((s) => ({ ...s, type: ct.type, sourceLanguage: "", version: "auto-detect" }));
                   setStep("settings");
                 }}
               >
@@ -179,9 +174,10 @@ export function AdminAddSourceWizard() {
                     ...(currentVersionStillValid ? {} : { version: "auto-detect" }),
                   }));
                 }}>
-                {languageOptions.map((language) => (
-                  <option key={language.value} value={language.value}>
-                    {language.label}
+                <option value="">Auto detect</option>
+                {sourceLanguages.map((code) => (
+                  <option key={code} value={code}>
+                    {languageLabel(code)}
                   </option>
                 ))}
               </select>
@@ -258,7 +254,8 @@ export function AdminAddSourceWizard() {
           <dl className={styles.dl}>
             <dt>Type</dt><dd>{state.type}</dd>
             <dt>Name</dt><dd>{state.name}</dd>
-            <dt>Language</dt><dd>{languageLabel(state.sourceLanguage)}</dd>
+            <dt>Language</dt>
+            <dd>{state.sourceLanguage ? languageLabel(state.sourceLanguage) : "Auto detect"}</dd>
             <dt>Enabled</dt><dd>{state.enabled ? "Yes" : "No"}</dd>
             {Object.entries(state.config).map(([k, v]) => (
               <div key={k}>
