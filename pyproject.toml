@@ -7,6 +7,7 @@ dependencies = [
   "alembic>=1.13",
   "bcrypt>=4.1",
   "elasticsearch>=8.14,<9",
+  "meilisearch>=0.41,<1",
   "extract-msg>=0.55",
   "fastapi>=0.111",
   "openpyxl>=3.1",
