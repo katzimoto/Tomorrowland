@@ -63,7 +63,7 @@ from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
 from shared.correlation import get_correlation_id
-from shared.db import to_uuid
+from shared.db import db_uuid, to_uuid
 from shared.metrics import (
     MetricsRegistry,
     current_metrics,
@@ -381,6 +381,18 @@ class AdminUpdateUserGroupsRequest(BaseModel):
     """Admin update user group memberships request."""
 
     group_names: list[str]
+
+
+class AddUserToGroupRequest(BaseModel):
+    """Admin add user to group request."""
+
+    user_id: str
+
+
+class AddChildGroupRequest(BaseModel):
+    """Admin add child group request."""
+
+    child_group_id: str
 
 
 class UpdateConfigRequest(BaseModel):
@@ -806,7 +818,10 @@ def create_app(
         if app.state.admins_group_id in group_ids or user.is_admin:
             search_group_ids: list[str] = []
         else:
-            search_group_ids = group_ids
+            with app.state.engine.begin() as _conn:
+                _auth_repo = AuthRepository(_conn)
+                _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+            search_group_ids = [str(g) for g in _effective]
 
         es_client = app.state.es_client or ElasticsearchSearchClient(
             hosts=[app.state.settings.elastic_url]
@@ -1158,9 +1173,14 @@ def create_app(
             raise HTTPException(status_code=422, detail="Topic must not be empty")
         with app.state.engine.begin() as connection:
             require_expertise_enabled(connection)
-            group_ids = [str(group_id) for group_id in user.groups]
-            if not group_ids:
+            if not user.groups:
                 return []
+            if user.is_admin:
+                group_ids: list[str] = []
+            else:
+                _auth_repo = AuthRepository(connection)
+                _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+                group_ids = [str(g) for g in _effective]
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
                 url=app.state.settings.qdrant_url
             )
@@ -1546,8 +1566,8 @@ def create_app(
         if not app.state.settings.feature_rag_qa:
             raise HTTPException(status_code=404, detail="RAG Q&A is disabled")
 
-        group_ids = [str(g) for g in user.groups]
-        if not group_ids:
+        base_group_ids = [str(g) for g in user.groups]
+        if not base_group_ids:
             return {
                 "question": request.question,
                 "answer": "You do not belong to any groups with document access.",
@@ -1566,6 +1586,13 @@ def create_app(
             )
             if flag_row and not _config_bool(flag_row["value"], default=True):
                 raise HTTPException(status_code=404, detail="RAG Q&A is disabled")
+
+            if user.is_admin:
+                group_ids: list[str] = []
+            else:
+                _auth_repo = AuthRepository(connection)
+                _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+                group_ids = [str(g) for g in _effective]
 
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
                 url=app.state.settings.qdrant_url
@@ -1899,6 +1926,211 @@ def create_app(
             group_id = auth_repo.ensure_group(request.name)
             _audit_log(connection, user.sub, "create", "group", str(group_id))
             return {"id": str(group_id), "name": request.name}
+
+    @app.get("/admin/groups/{group_id}/users")
+    def admin_list_group_users(
+        group_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, Any]]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            group_row = connection.execute(
+                sa.text("SELECT id FROM groups WHERE id = :id"),
+                {"id": db_uuid(group_id)},
+            ).first()
+            if group_row is None:
+                raise HTTPException(status_code=404, detail="Group not found")
+            rows = (
+                connection.execute(
+                    sa.text("""
+                        SELECT u.id, u.email, u.display_name
+                        FROM user_groups ug
+                        JOIN users u ON u.id = ug.user_id
+                        WHERE ug.group_id = :group_id
+                        ORDER BY u.email
+                    """),
+                    {"group_id": db_uuid(group_id)},
+                )
+                .mappings()
+                .all()
+            )
+            return [
+                {
+                    "id": str(to_uuid(r["id"])),
+                    "email": r["email"],
+                    "display_name": r["display_name"],
+                }  # noqa: E501
+                for r in rows
+            ]
+
+    @app.post("/admin/groups/{group_id}/users", status_code=201)
+    def admin_add_user_to_group(
+        group_id: UUID,
+        request: AddUserToGroupRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, str]:
+        require_admin(user)
+        user_id = UUID(request.user_id)
+        with app.state.engine.begin() as connection:
+            group_row = connection.execute(
+                sa.text("SELECT id FROM groups WHERE id = :id"),
+                {"id": db_uuid(group_id)},
+            ).first()
+            if group_row is None:
+                raise HTTPException(status_code=404, detail="Group not found")
+            try:
+                with connection.begin_nested():
+                    connection.execute(
+                        sa.text(
+                            "INSERT INTO user_groups (user_id, group_id)"
+                            " VALUES (:user_id, :group_id)"
+                        ),
+                        {"user_id": db_uuid(user_id), "group_id": db_uuid(group_id)},
+                    )
+            except sa.exc.IntegrityError:
+                pass
+            _audit_log(
+                connection,
+                user.sub,
+                "add_user_to_group",
+                "group",
+                str(group_id),
+                {"user_id": str(user_id)},
+            )
+            return {"group_id": str(group_id), "user_id": str(user_id)}
+
+    @app.delete("/admin/groups/{group_id}/users/{user_id}", status_code=204)
+    def admin_remove_user_from_group(
+        group_id: UUID,
+        user_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> None:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            group_row = connection.execute(
+                sa.text("SELECT id FROM groups WHERE id = :id"),
+                {"id": db_uuid(group_id)},
+            ).first()
+            if group_row is None:
+                raise HTTPException(status_code=404, detail="Group not found")
+            connection.execute(
+                sa.text(
+                    "DELETE FROM user_groups WHERE user_id = :user_id AND group_id = :group_id"
+                ),
+                {"user_id": db_uuid(user_id), "group_id": db_uuid(group_id)},
+            )
+            _audit_log(
+                connection,
+                user.sub,
+                "remove_user_from_group",
+                "group",
+                str(group_id),
+                {"user_id": str(user_id)},
+            )
+
+    @app.get("/admin/groups/{group_id}/children")
+    def admin_list_group_children(
+        group_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, str]]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            group_row = connection.execute(
+                sa.text("SELECT id FROM groups WHERE id = :id"),
+                {"id": db_uuid(group_id)},
+            ).first()
+            if group_row is None:
+                raise HTTPException(status_code=404, detail="Group not found")
+            rows = (
+                connection.execute(
+                    sa.text("""
+                        SELECT g.id, g.name
+                        FROM group_memberships gm
+                        JOIN groups g ON g.id = gm.child_group_id
+                        WHERE gm.parent_group_id = :group_id
+                        ORDER BY g.name
+                    """),
+                    {"group_id": db_uuid(group_id)},
+                )
+                .mappings()
+                .all()
+            )
+            return [{"id": str(to_uuid(r["id"])), "name": r["name"]} for r in rows]
+
+    @app.post("/admin/groups/{group_id}/children", status_code=201)
+    def admin_add_child_group(
+        group_id: UUID,
+        request: AddChildGroupRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, str]:
+        require_admin(user)
+        child_id = UUID(request.child_group_id)
+        with app.state.engine.begin() as connection:
+            for gid in (group_id, child_id):
+                if (
+                    connection.execute(
+                        sa.text("SELECT id FROM groups WHERE id = :id"),
+                        {"id": db_uuid(gid)},
+                    ).first()
+                    is None
+                ):
+                    raise HTTPException(status_code=404, detail="Group not found")
+            auth_repo = AuthRepository(connection)
+            if auth_repo._group_would_create_cycle(group_id, child_id):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Adding this group would create a circular membership.",
+                )
+            try:
+                with connection.begin_nested():
+                    connection.execute(
+                        sa.text(
+                            "INSERT INTO group_memberships (parent_group_id, child_group_id)"
+                            " VALUES (:parent, :child)"
+                        ),
+                        {"parent": db_uuid(group_id), "child": db_uuid(child_id)},
+                    )
+            except sa.exc.IntegrityError:
+                pass
+            _audit_log(
+                connection,
+                user.sub,
+                "add_child_group",
+                "group",
+                str(group_id),
+                {"child_group_id": str(child_id)},
+            )
+            return {"group_id": str(group_id), "child_group_id": str(child_id)}
+
+    @app.delete("/admin/groups/{group_id}/children/{child_id}", status_code=204)
+    def admin_remove_child_group(
+        group_id: UUID,
+        child_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> None:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            group_row = connection.execute(
+                sa.text("SELECT id FROM groups WHERE id = :id"),
+                {"id": db_uuid(group_id)},
+            ).first()
+            if group_row is None:
+                raise HTTPException(status_code=404, detail="Group not found")
+            connection.execute(
+                sa.text(
+                    "DELETE FROM group_memberships"
+                    " WHERE parent_group_id = :parent AND child_group_id = :child"
+                ),
+                {"parent": db_uuid(group_id), "child": db_uuid(child_id)},
+            )
+            _audit_log(
+                connection,
+                user.sub,
+                "remove_child_group",
+                "group",
+                str(group_id),
+                {"child_group_id": str(child_id)},
+            )
 
     @app.get("/admin/connector-types")
     def admin_connector_types(

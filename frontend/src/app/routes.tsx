@@ -12,6 +12,7 @@ import { ExpertisePage } from "@/features/expertise/ExpertisePage";
 import { AdminSourcesPage } from "@/features/admin/AdminSourcesPage";
 import { AdminSourceDetailPage } from "@/features/admin/AdminSourceDetailPage";
 import { AdminAddSourceWizard } from "@/features/admin/AdminAddSourceWizard";
+import { AdminGroupDetailPage } from "@/features/admin/AdminGroupDetailPage";
 import { AppLayout } from "./AppLayout";
 
 function requireAuth() {
@@ -111,6 +112,12 @@ const adminSourceDetailRoute = createRoute({
   component: AdminSourceDetailPage,
 });
 
+const adminGroupDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/groups/$groupId",
+  component: AdminGroupDetailPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -126,6 +133,7 @@ const routeTree = rootRoute.addChildren([
     adminRoute,
     adminAddSourceRoute,
     adminSourceDetailRoute,
+    adminGroupDetailRoute,
   ]),
 ]);
 

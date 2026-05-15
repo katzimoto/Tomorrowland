@@ -30,6 +30,20 @@ def build_permission_filter(user: TokenPayload | UserIdentity) -> str:
     return f"allowed_group_ids IN [{quoted}] AND is_admin_only = false"
 
 
+def build_permission_filter_for_ids(group_ids: list[str], *, is_admin: bool) -> str:
+    """Build a Meilisearch ACL filter from pre-resolved effective group IDs.
+
+    Use this instead of build_permission_filter() when the caller has already
+    expanded transitive group membership (nested-groups support).
+    """
+    if is_admin:
+        return ""
+    if not group_ids:
+        return "is_admin_only = true AND is_admin_only = false"
+    quoted = ", ".join(f'"{gid}"' for gid in group_ids)
+    return f"allowed_group_ids IN [{quoted}] AND is_admin_only = false"
+
+
 def needs_acl_short_circuit(user: TokenPayload | UserIdentity) -> bool:
     """Return True when the query should be short-circuited to empty results.
 

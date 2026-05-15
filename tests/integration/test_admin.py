@@ -757,3 +757,271 @@ def test_admin_list_sources_omits_config(migrated_engine: Engine) -> None:
     assert response.status_code == 200
     for src in response.json():
         assert "config" not in src
+
+
+# ---------------------------------------------------------------------------
+# Nested group membership endpoints (#312)
+# ---------------------------------------------------------------------------
+
+
+def _setup_nested_group_users(engine: Engine) -> tuple[str, str, str]:
+    """Create admin + two regular users; return (admin_id, user1_id, user2_id)."""
+    with engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        admin = auth_repo.create_local_user(
+            email="admin@example.com",
+            password_hash=hash_password("secret"),
+            is_admin=True,
+            group_names=["admins"],
+        )
+        u1 = auth_repo.create_local_user(
+            email="u1@example.com",
+            password_hash=hash_password("secret"),
+            group_names=[],
+        )
+        u2 = auth_repo.create_local_user(
+            email="u2@example.com",
+            password_hash=hash_password("secret"),
+            group_names=[],
+        )
+    return str(admin.id), str(u1.id), str(u2.id)
+
+
+def _make_client(engine: Engine) -> tuple[TestClient, str]:
+    client = TestClient(
+        create_app(engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = client.post(
+        "/auth/login", json={"email": "admin@example.com", "password": "secret"}
+    ).json()["access_token"]
+    return client, token
+
+
+def test_nested_groups_list_users_empty(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+
+    # Create group
+    group = client.post(
+        "/admin/groups", json={"name": "alpha"}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+
+    resp = client.get(
+        f"/admin/groups/{group['id']}/users",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_nested_groups_add_and_list_users(migrated_engine: Engine) -> None:
+    _, user1_id, _ = _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+
+    group = client.post(
+        "/admin/groups", json={"name": "beta"}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+    group_id = group["id"]
+
+    add_resp = client.post(
+        f"/admin/groups/{group_id}/users",
+        json={"user_id": user1_id},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert add_resp.status_code == 201
+
+    users = client.get(
+        f"/admin/groups/{group_id}/users",
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+    assert any(u["id"] == user1_id for u in users)
+
+
+def test_nested_groups_remove_user(migrated_engine: Engine) -> None:
+    _, user1_id, _ = _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+
+    group = client.post(
+        "/admin/groups", json={"name": "gamma"}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+    group_id = group["id"]
+    client.post(
+        f"/admin/groups/{group_id}/users",
+        json={"user_id": user1_id},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    del_resp = client.delete(
+        f"/admin/groups/{group_id}/users/{user1_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert del_resp.status_code == 204
+
+    users = client.get(
+        f"/admin/groups/{group_id}/users",
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+    assert not any(u["id"] == user1_id for u in users)
+
+
+def test_nested_groups_add_and_list_children(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+
+    parent = client.post(
+        "/admin/groups", json={"name": "parent"}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+    child = client.post(
+        "/admin/groups", json={"name": "child"}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+
+    add_resp = client.post(
+        f"/admin/groups/{parent['id']}/children",
+        json={"child_group_id": child["id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert add_resp.status_code == 201
+
+    children = client.get(
+        f"/admin/groups/{parent['id']}/children",
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+    assert any(c["id"] == child["id"] for c in children)
+
+
+def test_nested_groups_remove_child(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+
+    parent = client.post(
+        "/admin/groups", json={"name": "rp"}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+    child = client.post(
+        "/admin/groups", json={"name": "rc"}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+    client.post(
+        f"/admin/groups/{parent['id']}/children",
+        json={"child_group_id": child["id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    del_resp = client.delete(
+        f"/admin/groups/{parent['id']}/children/{child['id']}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert del_resp.status_code == 204
+
+    children = client.get(
+        f"/admin/groups/{parent['id']}/children",
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+    assert not any(c["id"] == child["id"] for c in children)
+
+
+def test_nested_groups_cycle_rejection(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+
+    a = client.post(
+        "/admin/groups", json={"name": "ca"}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+    b = client.post(
+        "/admin/groups", json={"name": "cb"}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+    c = client.post(
+        "/admin/groups", json={"name": "cc"}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+
+    # a -> b -> c
+    client.post(
+        f"/admin/groups/{a['id']}/children",
+        json={"child_group_id": b["id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    client.post(
+        f"/admin/groups/{b['id']}/children",
+        json={"child_group_id": c["id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    # c -> a would create a cycle
+    cycle_resp = client.post(
+        f"/admin/groups/{c['id']}/children",
+        json={"child_group_id": a["id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert cycle_resp.status_code == 409
+    assert "circular" in cycle_resp.json()["detail"].lower()
+
+
+def test_nested_groups_self_membership_rejected(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+
+    g = client.post(
+        "/admin/groups", json={"name": "self"}, headers={"Authorization": f"Bearer {token}"}
+    ).json()
+
+    resp = client.post(
+        f"/admin/groups/{g['id']}/children",
+        json={"child_group_id": g["id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 409
+
+
+def test_nested_groups_non_admin_denied(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client, _ = _make_client(migrated_engine)
+
+    g = client.post(
+        "/admin/groups",
+        json={"name": "secret"},
+        headers={
+            "Authorization": "Bearer "
+            + client.post(
+                "/auth/login", json={"email": "admin@example.com", "password": "secret"}
+            ).json()["access_token"]
+        },
+    ).json()
+
+    user_token = client.post(
+        "/auth/login", json={"email": "u1@example.com", "password": "secret"}
+    ).json()["access_token"]
+
+    for method, path, body in [
+        ("GET", f"/admin/groups/{g['id']}/users", None),
+        ("GET", f"/admin/groups/{g['id']}/children", None),
+        ("POST", f"/admin/groups/{g['id']}/users", {"user_id": str(uuid4())}),
+        ("POST", f"/admin/groups/{g['id']}/children", {"child_group_id": str(uuid4())}),
+        ("DELETE", f"/admin/groups/{g['id']}/users/{uuid4()}", None),
+        ("DELETE", f"/admin/groups/{g['id']}/children/{uuid4()}", None),
+    ]:
+        if method == "GET":
+            resp = client.get(path, headers={"Authorization": f"Bearer {user_token}"})
+        elif method == "POST":
+            resp = client.post(path, json=body, headers={"Authorization": f"Bearer {user_token}"})
+        else:
+            resp = client.delete(path, headers={"Authorization": f"Bearer {user_token}"})
+        assert resp.status_code == 403, f"{method} {path} should be 403 for non-admin"
+
+
+def test_nested_groups_group_not_found(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+    fake_id = uuid4()
+
+    assert (
+        client.get(
+            f"/admin/groups/{fake_id}/users",
+            headers={"Authorization": f"Bearer {token}"},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(
+            f"/admin/groups/{fake_id}/children",
+            headers={"Authorization": f"Bearer {token}"},
+        ).status_code
+        == 404
+    )

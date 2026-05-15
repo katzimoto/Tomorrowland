@@ -68,6 +68,17 @@ export interface SourceDetail extends Source {
   groups: SourceGroup[];
 }
 
+export interface GroupMember {
+  id: string;
+  email: string;
+  display_name: string | null;
+}
+
+export interface ChildGroup {
+  id: string;
+  name: string;
+}
+
 export const adminApi = {
   connectorTypes: () => api.get<ConnectorType[]>("/admin/connector-types"),
   sourceLanguages: () => api.get<string[]>("/admin/source-languages"),
@@ -80,7 +91,7 @@ export const adminApi = {
     api.post<SourceTestResult>(`/admin/sources/${sourceId}/test-connection`, {}),
   getSource: (sourceId: string) =>
     api.get<SourceDetail>(`/admin/sources/${sourceId}`),
-  listGroups: () => api.get<{id: string; name: string}[]>("/admin/groups"),
+  listGroups: () => api.get<{ id: string; name: string }[]>("/admin/groups"),
   grantPermission: (sourceId: string, groupId: string) =>
     api.post(`/admin/sources/${sourceId}/permissions`, { group_id: groupId }),
   revokePermission: (sourceId: string, groupId: string) =>
@@ -91,6 +102,18 @@ export const adminApi = {
   getUser: (userId: string) => api.get<UserDetail>(`/admin/users/${userId}`),
   setUserGroups: (userId: string, groupNames: string[]) =>
     api.put(`/admin/users/${userId}/groups`, { group_names: groupNames }),
+  listGroupUsers: (groupId: string) =>
+    api.get<GroupMember[]>(`/admin/groups/${groupId}/users`),
+  addUserToGroup: (groupId: string, userId: string) =>
+    api.post(`/admin/groups/${groupId}/users`, { user_id: userId }),
+  removeUserFromGroup: (groupId: string, userId: string) =>
+    api.delete(`/admin/groups/${groupId}/users/${userId}`),
+  listGroupChildren: (groupId: string) =>
+    api.get<ChildGroup[]>(`/admin/groups/${groupId}/children`),
+  addChildGroup: (groupId: string, childGroupId: string) =>
+    api.post(`/admin/groups/${groupId}/children`, { child_group_id: childGroupId }),
+  removeChildGroup: (groupId: string, childGroupId: string) =>
+    api.delete(`/admin/groups/${groupId}/children/${childGroupId}`),
 };
 
 export interface UserDetail {
