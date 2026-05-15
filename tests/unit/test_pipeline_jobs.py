@@ -14,7 +14,8 @@ from services.pipeline.jobs import PipelineJobRepository
 def engine() -> Engine:
     eng = create_engine("sqlite://", echo=False)
     with eng.begin() as conn:
-        conn.execute(sa.text("""
+        conn.execute(
+            sa.text("""
             CREATE TABLE ingestion_sources (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -26,8 +27,10 @@ def engine() -> Engine:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE documents (
                 id TEXT PRIMARY KEY,
                 source_id TEXT NOT NULL REFERENCES ingestion_sources(id),
@@ -44,8 +47,10 @@ def engine() -> Engine:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE pipeline_jobs (
                 id TEXT PRIMARY KEY,
                 doc_id TEXT NOT NULL REFERENCES documents(id),
@@ -63,8 +68,10 @@ def engine() -> Engine:
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE document_payloads (
                 doc_id TEXT PRIMARY KEY REFERENCES documents(id),
                 content_text TEXT,
@@ -73,7 +80,8 @@ def engine() -> Engine:
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        """))
+        """)
+        )
     return eng
 
 
@@ -90,7 +98,13 @@ def test_creates_pending_job(engine: Engine) -> None:
                 "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
-            {"id": doc_id.hex, "source_id": source_id.hex, "eid": "ext1", "source": "folder", "mime": "text/plain"},
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },  # noqa: E501
         )
 
         repo = PipelineJobRepository(conn)
@@ -120,7 +134,13 @@ def test_duplicate_active_returns_existing(engine: Engine) -> None:
                 "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
-            {"id": doc_id.hex, "source_id": source_id.hex, "eid": "ext1", "source": "folder", "mime": "text/plain"},
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },  # noqa: E501
         )
 
         repo = PipelineJobRepository(conn)
@@ -145,7 +165,13 @@ def test_completed_job_allows_new_enqueue(engine: Engine) -> None:
                 "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
-            {"id": doc_id.hex, "source_id": source_id.hex, "eid": "ext1", "source": "folder", "mime": "text/plain"},
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },  # noqa: E501
         )
 
         repo = PipelineJobRepository(conn)
@@ -176,7 +202,13 @@ def test_claims_by_priority(engine: Engine) -> None:
                     "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
                     "VALUES (:id, :source_id, :eid, :source, :mime)"
                 ),
-                {"id": d.hex, "source_id": source_id.hex, "eid": d.hex, "source": "folder", "mime": "text/plain"},
+                {
+                    "id": d.hex,
+                    "source_id": source_id.hex,
+                    "eid": d.hex,
+                    "source": "folder",
+                    "mime": "text/plain",
+                },  # noqa: E501
             )
 
         repo = PipelineJobRepository(conn)
@@ -207,7 +239,13 @@ def test_retry_not_claimable_before_run_after(engine: Engine) -> None:
                 "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
-            {"id": doc_id.hex, "source_id": source_id.hex, "eid": "ext1", "source": "folder", "mime": "text/plain"},
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },  # noqa: E501
         )
 
         repo = PipelineJobRepository(conn)
@@ -235,7 +273,13 @@ def test_mark_succeeded_updates_status(engine: Engine) -> None:
                 "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
-            {"id": doc_id.hex, "source_id": source_id.hex, "eid": "ext1", "source": "folder", "mime": "text/plain"},
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },  # noqa: E501
         )
 
         repo = PipelineJobRepository(conn)
@@ -272,7 +316,13 @@ def test_mark_retry_schedules_backoff(engine: Engine) -> None:
                 "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
-            {"id": doc_id.hex, "source_id": source_id.hex, "eid": "ext1", "source": "folder", "mime": "text/plain"},
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },  # noqa: E501
         )
 
         repo = PipelineJobRepository(conn)
@@ -288,7 +338,11 @@ def test_mark_retry_schedules_backoff(engine: Engine) -> None:
         ).one()
         assert row.status == "retry"
         assert row.last_error == "ValueError:process"
-        run_after = row.run_after if isinstance(row.run_after, datetime) else datetime.fromisoformat(row.run_after)
+        run_after = (
+            row.run_after
+            if isinstance(row.run_after, datetime)
+            else datetime.fromisoformat(row.run_after)
+        )  # noqa: E501
         assert run_after > datetime.now(UTC)
 
 
@@ -305,7 +359,13 @@ def test_mark_dead_letter(engine: Engine) -> None:
                 "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
-            {"id": doc_id.hex, "source_id": source_id.hex, "eid": "ext1", "source": "folder", "mime": "text/plain"},
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },  # noqa: E501
         )
 
         repo = PipelineJobRepository(conn)
@@ -336,7 +396,13 @@ def test_payload_store_and_load(engine: Engine) -> None:
                 "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
-            {"id": doc_id.hex, "source_id": source_id.hex, "eid": "ext1", "source": "folder", "mime": "text/plain"},
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },  # noqa: E501
         )
 
         repo = PipelineJobRepository(conn)
@@ -368,7 +434,13 @@ def test_mark_succeeded_on_non_running_is_noop(engine: Engine) -> None:
                 "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
-            {"id": doc_id.hex, "source_id": source_id.hex, "eid": "ext1", "source": "folder", "mime": "text/plain"},
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },  # noqa: E501
         )
 
         repo = PipelineJobRepository(conn)
@@ -396,7 +468,13 @@ def test_end_to_end(engine: Engine) -> None:
                 "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
-            {"id": doc_id.hex, "source_id": source_id.hex, "eid": "ext1", "source": "folder", "mime": "text/plain"},
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },  # noqa: E501
         )
 
         repo = PipelineJobRepository(conn)

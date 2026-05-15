@@ -79,6 +79,7 @@ def run_loop(
             ran = run_once(job_repo, worker, worker_id=worker_id)
             if not ran:
                 import time
+
                 time.sleep(poll_interval)
     except KeyboardInterrupt:
         logger.info("Pipeline worker %s shutting down", worker_id)

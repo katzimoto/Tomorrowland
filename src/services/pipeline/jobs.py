@@ -177,7 +177,7 @@ class PipelineJobRepository:
         )
         if job_types:
             stmt = stmt.bindparams(sa.bindparam("job_types", expanding=True))
-        row = (self._connection.execute(stmt, params).mappings().first())
+        row = self._connection.execute(stmt, params).mappings().first()
 
         if row is None:
             return None
@@ -252,8 +252,11 @@ class PipelineJobRepository:
         )
 
     def mark_retry(
-        self, job_id: UUID, error: str | BaseException,
-        retry_delay_seconds: int = 60, stage: str = "process",
+        self,
+        job_id: UUID,
+        error: str | BaseException,
+        retry_delay_seconds: int = 60,
+        stage: str = "process",
     ) -> None:
         """Mark a running job for retry with a sanitized error and backoff."""
         now = datetime.now(UTC)
@@ -315,9 +318,13 @@ class PipelineJobRepository:
             .mappings()
             .first()
         )
-        return {
-            "doc_id": to_uuid(row["doc_id"]),
-            "content_text": row["content_text"],
-            "content_path": row["content_path"],
-            "content_sha256": row["content_sha256"],
-        } if row else None
+        return (
+            {
+                "doc_id": to_uuid(row["doc_id"]),
+                "content_text": row["content_text"],
+                "content_path": row["content_path"],
+                "content_sha256": row["content_sha256"],
+            }
+            if row
+            else None
+        )
