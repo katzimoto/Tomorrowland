@@ -224,3 +224,35 @@ def test_record_index_metrics_error_outcome() -> None:
 def test_record_index_metrics_noop_when_metrics_none() -> None:
     # Must not raise
     record_index_metrics(None, duration_s=0.1, chunk_count=3, outcome="ok")
+
+
+class TestAppInitialization:
+    """Tests that Meilisearch provider is initialized in create_app."""
+
+    def test_meili_provider_initialized_when_flag_enabled(self) -> None:
+        import sqlalchemy as sa
+
+        from services.api.main import create_app
+        from shared.config import Settings
+
+        engine = sa.create_engine("sqlite:///:memory:")
+        settings = Settings(app_env="test", auth_provider="local", jwt_secret="x" * 32)
+        settings.feature_meilisearch_search = True
+        settings.meilisearch_url = "http://meilisearch:7700"
+        settings.meilisearch_master_key = "test-key"
+
+        app = create_app(engine, settings=settings)
+        assert app.state.meili_provider is not None
+
+    def test_meili_provider_none_when_flag_disabled(self) -> None:
+        import sqlalchemy as sa
+
+        from services.api.main import create_app
+        from shared.config import Settings
+
+        engine = sa.create_engine("sqlite:///:memory:")
+        settings = Settings(app_env="test", auth_provider="local", jwt_secret="x" * 32)
+        settings.feature_meilisearch_search = False
+
+        app = create_app(engine, settings=settings)
+        assert app.state.meili_provider is None
