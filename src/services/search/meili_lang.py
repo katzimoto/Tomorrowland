@@ -9,7 +9,7 @@ QueryLanguage = Literal["en", "he", "mixed"]
 _HEBREW_START = 0x0591
 _HEBREW_END = 0x05FF
 
-_HE_THRESHOLD = 0.6   # > 60 % Hebrew → "he"
+_HE_THRESHOLD = 0.6  # > 60 % Hebrew → "he"
 _MIXED_THRESHOLD = 0.1  # > 10 % Hebrew → "mixed"
 
 
