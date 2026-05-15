@@ -2144,7 +2144,7 @@ def create_app(
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> list[str]:
         require_admin(user)
-        return app.state.settings.supported_translation_source_languages_list
+        return cast("list[str]", app.state.settings.supported_translation_source_languages_list)
 
     @app.post(
         "/admin/sources/{source_id}/test-connection",
