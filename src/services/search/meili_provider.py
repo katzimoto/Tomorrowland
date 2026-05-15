@@ -223,14 +223,19 @@ class MeilisearchSearchProvider:
     # Stale chunk detection
     # ------------------------------------------------------------------
 
-    def existing_chunk_checksums(self, document_id: str) -> dict[str, str]:
+    def existing_chunk_checksums(self, document_id: str, *, shadow: bool = False) -> dict[str, str]:
         """Return {chunk_id: contentChecksum} for all indexed chunks of a document.
 
         Used to skip unchanged chunks during reindex of a single document.
         Fetches up to _MAX_CHUNK_SCAN records — documents with more chunks
         than this are fully reindexed without checksum comparison.
+
+        When *shadow* is True the shadow index is queried instead of the live
+        index. This is used during backfill to compare against previously
+        backfilled data.
         """
-        result = self._client.index(INDEX_NAME).search(
+        name = SHADOW_INDEX_NAME if shadow else INDEX_NAME
+        result = self._client.index(name).search(
             "",
             {
                 "filter": f'document_id = "{document_id}"',
