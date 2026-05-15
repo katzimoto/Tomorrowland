@@ -109,46 +109,61 @@ _RANKING_RULES: list[str] = [
 # ---------------------------------------------------------------------------
 _STOP_WORDS: list[str] = [
     # English
-    "a", "an", "the", "and", "or", "of", "in", "to", "for",
-    "is", "it", "on", "at", "by", "with", "from", "as",
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "of",
+    "in",
+    "to",
+    "for",
+    "is",
+    "it",
+    "on",
+    "at",
+    "by",
+    "with",
+    "from",
+    "as",
     # Hebrew — high-frequency particles that carry no discriminating search value
-    "של",   # of / belonging to
-    "עם",   # with
-    "את",   # accusative marker / you (f.)
-    "הם",   # they (m.)
-    "הן",   # they (f.)
+    "של",  # of / belonging to
+    "עם",  # with
+    "את",  # accusative marker / you (f.)
+    "הם",  # they (m.)
+    "הן",  # they (f.)
     "הוא",  # he
     "היא",  # she
     "אני",  # I
     "אתה",  # you (m.)
-    "כי",   # because / that
-    "לא",   # not / no
-    "על",   # on / about
-    "אל",   # to / don't
-    "גם",   # also
-    "רק",   # only
-    "כל",   # all / every
-    "זה",   # this (m.)
-    "זו",   # this (f.)
-    "אנחנו", # we
+    "כי",  # because / that
+    "לא",  # not / no
+    "על",  # on / about
+    "אל",  # to / don't
+    "גם",  # also
+    "רק",  # only
+    "כל",  # all / every
+    "זה",  # this (m.)
+    "זו",  # this (f.)
+    "אנחנו",  # we
     "אבל",  # but
-    "לו",   # to him
-    "לה",   # to her
-    "אם",   # if
-    "כאשר", # when
+    "לו",  # to him
+    "לה",  # to her
+    "אם",  # if
+    "כאשר",  # when
     "אשר",  # which / that
-    "כך",   # thus / so
+    "כך",  # thus / so
     "כבר",  # already
     "עוד",  # still / more
     "כאן",  # here
-    "יש",   # there is
+    "יש",  # there is
     "אין",  # there is not
-    "מה",   # what
-    "מי",   # who
+    "מה",  # what
+    "מי",  # who
     "איך",  # how
     "מתי",  # when (time)
-    "לפני", # before
-    "אחרי", # after
+    "לפני",  # before
+    "אחרי",  # after
     "בין",  # between
 ]
 
@@ -156,10 +171,10 @@ _STOP_WORDS: list[str] = [
 # Synonyms
 # ---------------------------------------------------------------------------
 _SYNONYMS: dict[str, list[str]] = {
-    "spec":       ["specification", "specifications"],
-    "prd":        ["product requirements", "requirements document"],
-    "design":     ["design doc", "design document"],
-    "notes":      ["meeting notes", "meeting minutes"],
+    "spec": ["specification", "specifications"],
+    "prd": ["product requirements", "requirements document"],
+    "design": ["design doc", "design document"],
+    "notes": ["meeting notes", "meeting minutes"],
     "transcript": ["meeting transcript", "call transcript", "recording transcript"],
 }
 

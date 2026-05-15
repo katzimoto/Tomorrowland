@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     embedding_url: str = ""
     embedding_provider_unsafe_allow_test_in_prod: bool = False
 
+    meilisearch_url: str = "http://meilisearch:7700"
+    meilisearch_master_key: str = ""
+    meilisearch_search_key: str = ""
+    feature_meilisearch_search: bool = False
+    feature_meilisearch_shadow_index: bool = False
+
     @property
     def cors_origin_list(self) -> list[str]:
         """Return configured CORS origins from a comma-separated setting."""
