@@ -1951,9 +1951,10 @@ def create_app(
     ) -> dict[str, Any]:
         require_admin(user)
         with app.state.engine.begin() as connection:
-            row = connection.execute(
-                sa.text(
-                    """
+            row = (
+                connection.execute(
+                    sa.text(
+                        """
                     SELECT id, name, type, path, source_language, enabled, created_at,
                            config,
                            last_sync_status, last_sync_indexed, last_sync_skipped,
@@ -1961,9 +1962,12 @@ def create_app(
                            last_validation_status, last_validation_error, last_validated_at
                     FROM ingestion_sources WHERE id = :id
                     """
-                ),
-                {"id": source_id.hex},
-            ).mappings().first()
+                    ),
+                    {"id": source_id.hex},
+                )
+                .mappings()
+                .first()
+            )
             if row is None:
                 raise HTTPException(status_code=404, detail="Source not found")
 
@@ -1975,18 +1979,22 @@ def create_app(
                 else:
                     masked_config[key] = value
 
-            permissions = connection.execute(
-                sa.text(
-                    """
+            permissions = (
+                connection.execute(
+                    sa.text(
+                        """
                     SELECT g.id, g.name
                     FROM source_permissions sp
                     JOIN groups g ON g.id = sp.group_id
                     WHERE sp.source_id = :source_id
                     ORDER BY g.name
                     """
-                ),
-                {"source_id": source_id.hex},
-            ).mappings().all()
+                    ),
+                    {"source_id": source_id.hex},
+                )
+                .mappings()
+                .all()
+            )
 
             return {
                 "id": str(to_uuid(row["id"])),
@@ -2006,10 +2014,7 @@ def create_app(
                 "last_validation_status": row.get("last_validation_status"),
                 "last_validation_error": row.get("last_validation_error"),
                 "last_validated_at": _fmt_dt(row.get("last_validated_at")),
-                "groups": [
-                    {"id": str(to_uuid(p["id"])), "name": p["name"]}
-                    for p in permissions
-                ],
+                "groups": [{"id": str(to_uuid(p["id"])), "name": p["name"]} for p in permissions],
             }
 
     @app.put("/admin/sources/{source_id}")
@@ -2043,9 +2048,7 @@ def create_app(
                 params["config"] = json.dumps(request.config)
             if updates:
                 connection.execute(
-                    sa.text(
-                        f"UPDATE ingestion_sources SET {', '.join(updates)} WHERE id = :id"
-                    ),
+                    sa.text(f"UPDATE ingestion_sources SET {', '.join(updates)} WHERE id = :id"),
                     params,
                 )
             _audit_log(connection, user.sub, "update", "source", str(source_id))
