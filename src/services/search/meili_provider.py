@@ -4,14 +4,13 @@ import time
 from typing import Any
 
 from services.auth.models import TokenPayload, UserIdentity
-from services.search.meili_acl import (
+from services.search.meili_acl import (  # type: ignore[import-not-found]
     build_permission_filter,
     compose_filters,
     needs_acl_short_circuit,
 )
 from services.search.meili_settings import (
     INDEX_NAME,
-    INDEX_SETTINGS,
     SHADOW_INDEX_NAME,
     apply_index_settings,
 )
@@ -30,9 +29,9 @@ from services.search.meili_types import (
 _MeilisearchClient = Any
 
 _SORT_MAP: dict[str, list[str]] = {
-    "relevance":       [],
-    "updatedAt:desc":  ["metadata.updated_at:desc"],
-    "createdAt:desc":  ["metadata.created_at:desc"],
+    "relevance": [],
+    "updatedAt:desc": ["metadata.updated_at:desc"],
+    "createdAt:desc": ["metadata.created_at:desc"],
     "importedAt:desc": ["metadata.imported_at:desc"],
 }
 
@@ -53,22 +52,22 @@ def _build_user_filter(filters: DocumentSearchFilters) -> str:
         if value:
             parts.append(f'{field} >= "{value}"')
 
-    _in("metadata.source",        filters.source)
+    _in("metadata.source", filters.source)
     _in("metadata.document_type", filters.document_type)
-    _in("metadata.mime_type",     filters.mime_type)
-    _in("metadata.file_extension",filters.file_extension)
-    _in("metadata.language",      filters.language)
-    _in("metadata.author",        filters.author)
-    _in("metadata.owner",         filters.owner)
-    _in("metadata.tags",          filters.tags)
-    _in("metadata.labels",        filters.labels)
-    _in("metadata.topics",        filters.topics)
-    _in("metadata.project",       filters.project)
-    _in("metadata.workspace",     filters.workspace)
-    _in("metadata.collection",    filters.collection)
-    _gte("metadata.created_at",   filters.created_after)
-    _gte("metadata.updated_at",   filters.updated_after)
-    _gte("metadata.imported_at",  filters.imported_after)
+    _in("metadata.mime_type", filters.mime_type)
+    _in("metadata.file_extension", filters.file_extension)
+    _in("metadata.language", filters.language)
+    _in("metadata.author", filters.author)
+    _in("metadata.owner", filters.owner)
+    _in("metadata.tags", filters.tags)
+    _in("metadata.labels", filters.labels)
+    _in("metadata.topics", filters.topics)
+    _in("metadata.project", filters.project)
+    _in("metadata.workspace", filters.workspace)
+    _in("metadata.collection", filters.collection)
+    _gte("metadata.created_at", filters.created_after)
+    _gte("metadata.updated_at", filters.updated_after)
+    _gte("metadata.imported_at", filters.imported_after)
 
     if not parts:
         return ""
@@ -99,11 +98,7 @@ def _map_result(hit: dict[str, Any]) -> DocumentSearchResult:
     )
 
     # Prefer the language-matched snippet field; fall back to original content.
-    snippet = (
-        hit.get("_formatted", {}).get("content")
-        or hit.get("content")
-        or ""
-    )
+    snippet = hit.get("_formatted", {}).get("content") or hit.get("content") or ""
 
     return DocumentSearchResult(
         document_id=hit["document_id"],
@@ -155,9 +150,7 @@ class MeilisearchSearchProvider:
 
         Returns the Meilisearch task UID as a string.
         """
-        task = self._client.swap_indexes(
-            [{"indexes": [INDEX_NAME, SHADOW_INDEX_NAME]}]
-        )
+        task = self._client.swap_indexes([{"indexes": [INDEX_NAME, SHADOW_INDEX_NAME]}])
         return str(task.task_uid)
 
     def drop_shadow_index(self) -> str:
@@ -172,14 +165,10 @@ class MeilisearchSearchProvider:
     def index(self, document: SearchChunkRecord, *, shadow: bool = False) -> str:
         """Add or replace a single chunk record. Returns the task UID."""
         name = SHADOW_INDEX_NAME if shadow else INDEX_NAME
-        task = self._client.index(name).add_documents(
-            [document.model_dump()], primary_key="id"
-        )
+        task = self._client.index(name).add_documents([document.model_dump()], primary_key="id")
         return str(task.task_uid)
 
-    def index_batch(
-        self, documents: list[SearchChunkRecord], *, shadow: bool = False
-    ) -> str:
+    def index_batch(self, documents: list[SearchChunkRecord], *, shadow: bool = False) -> str:
         """Add or replace a batch of chunk records. Returns the task UID.
 
         Prefer this over repeated index() calls — Meilisearch processes a
@@ -247,10 +236,7 @@ class MeilisearchSearchProvider:
                 "attributesToRetrieve": ["id", "content_checksum"],
             },
         )
-        return {
-            hit["id"]: hit.get("content_checksum", "")
-            for hit in result.get("hits", [])
-        }
+        return {hit["id"]: hit.get("content_checksum", "") for hit in result.get("hits", [])}
 
     # ------------------------------------------------------------------
     # Search
@@ -359,8 +345,7 @@ class MeilisearchSearchProvider:
                 )
             time.sleep(poll_interval_seconds)
         raise TimeoutError(
-            f"Meilisearch task {task_uid} did not complete within "
-            f"{timeout_seconds}s"
+            f"Meilisearch task {task_uid} did not complete within {timeout_seconds}s"
         )
 
     def health_check(self) -> dict[str, Any]:
