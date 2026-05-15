@@ -1,348 +1,440 @@
 # Pipeline Worker Operations Guide
 
-> **Status**: planning scope — worker containers do not exist yet. This document
-> defines operator expectations for the `feature/pipeline-jobs` track (#235).
-> Update this doc when #214, #215, and #216 land.
+This guide covers the two long-running worker processes that drive document
+ingestion and vector indexing, the Prometheus metrics they emit, and how to
+interpret those signals on-call.
 
 ---
 
-## Overview
+## Worker Architecture
 
-Tomorrowland's ingestion pipeline is split across three worker roles:
+Tomorrowland's ingestion pipeline is served by two independent workers that
+claim durable jobs from a shared PostgreSQL-backed queue (`pipeline_jobs`
+table).
 
-| Role | Process | Current state |
-|------|---------|---------------|
-| **api** | FastAPI / Uvicorn (`services.api.asgi:app`) | Running |
-| **pipeline-worker** | Fast-path indexing worker | Planned (#214) |
-| **slow-worker** | High-quality translation enrichment | Planned (#215) |
-| **vector-worker** | Dedicated vector re-indexing (future) | Deferred |
+| Service | Module | Job type handled |
+|---------|--------|-----------------|
+| `pipeline-worker` | `services.pipeline.runner` | `process_document` |
+| `vector-worker` | `services.pipeline.vector_worker` | `vector_index_document` |
 
-Today, pipeline and slow enrichment run synchronously inside the API process.
-After the `feature/pipeline-jobs` track merges, they run as separate
-long-running worker containers that claim jobs from a PostgreSQL job queue.
+**Queue transport**: workers poll the database with `SELECT … FOR UPDATE SKIP
+LOCKED`. There is no Kafka consumer; consumer-lag concepts do not apply here.
 
----
+**Job flow**: when the pipeline worker successfully completes a
+`process_document` job it immediately enqueues a `vector_index_document` job
+for the same document. The vector worker picks that up independently.
 
-## Service Roles
+Both workers run a tight poll loop:
 
-### api
-
-The API service handles all HTTP traffic: authentication, document access,
-admin operations, search, RAG, preview, download, and job enqueueing.
-
-After the pipeline-jobs track lands, the API no longer runs pipeline work
-inline. `POST /admin/ingestion/{source_id}/sync-now` scans the source and
-enqueues jobs; workers perform extraction, translation, chunking, and indexing.
-
-The API's Prometheus endpoint (`GET /metrics`) continues to expose all existing
-metrics. Worker metrics are exposed on separate per-worker health ports.
-
-### pipeline-worker
-
-Processes `job_type = 'pipeline'` jobs from the `pipeline_jobs` table. One job
-corresponds to one document. The worker runs the full ingestion pipeline:
-extraction → translation (fast) → chunking → Elasticsearch indexing → Qdrant
-vector indexing → intelligence → alert matching.
-
-Vector indexing is soft-failure: if Qdrant is unavailable, the document is
-still marked `done` for full-text search purposes.
-
-### slow-worker
-
-Processes `job_type = 'slow'` jobs. Re-translates documents with a
-high-quality translation and re-indexes them in Elasticsearch and Qdrant.
-Intended for off-peak enrichment after fast indexing completes.
-
-The slow-worker creates translation versions (tracked in
-`translation_versions`) so operators can see version history.
-
-### vector-worker (future / deferred)
-
-A future dedicated worker for vector re-indexing, re-embedding after model
-changes, and batch Qdrant refresh. Not part of the `feature/pipeline-jobs`
-track; tracked separately.
+1. Emit heartbeat gauge (current Unix timestamp).
+2. Sample queue depth by status and job type.
+3. Reap stale locks every 60 seconds.
+4. Attempt to claim and process one job; sleep `poll_interval` (default 1 s)
+   when the queue is empty.
 
 ---
 
-## Starting and Scaling Workers
+## Metrics Reference
 
-### Starting with Docker Compose
+All metrics below are registered in `MetricsRegistry` in `src/shared/metrics.py`.
+Metric names are reproduced exactly as registered.
 
-Workers are defined under the `workers` Compose profile. The standard stack
-does not start them unless the profile is active:
+### `tomorrowland_worker_heartbeat_timestamp_seconds`
 
-```bash
-# Start API and infrastructure only (current default):
-docker compose up -d
+**Type**: Gauge  
+**Labels**: `worker_type`, `worker_id`
 
-# Start everything including workers:
-docker compose --profile workers up -d
+Set to the current Unix timestamp at the top of every loop iteration.
+`worker_type` is either `pipeline` or `vector`; `worker_id` is the stable
+identifier passed at startup (e.g. `pipeline-worker`, `vector-worker`).
 
-# Start only workers (API must already be running):
-docker compose --profile workers up -d pipeline-worker slow-worker
+**How to use**: detect a stopped or stale worker:
+
+```promql
+time() - tomorrowland_worker_heartbeat_timestamp_seconds > 120
 ```
 
-### Scaling worker concurrency
-
-Each worker process can run multiple jobs concurrently. Set the environment
-variable in `.env` or as a Compose override:
-
-```bash
-# Run 4 parallel pipeline jobs per worker container:
-PIPELINE_WORKER_CONCURRENCY=4
-
-# Run 2 parallel slow enrichment jobs per worker container:
-SLOW_WORKER_CONCURRENCY=2
-```
-
-For higher throughput, run multiple replicas of the worker container. Because
-workers claim jobs with `SELECT … FOR UPDATE SKIP LOCKED`, multiple replicas
-do not produce duplicate processing:
-
-```bash
-docker compose --profile workers up -d --scale pipeline-worker=3
-```
-
-### Checking worker health
-
-Each worker serves a health endpoint on its configured port:
-
-```bash
-# Default ports (configure via PIPELINE_WORKER_HEALTH_PORT, SLOW_WORKER_HEALTH_PORT):
-curl -fsS http://localhost:8001/health    # pipeline-worker
-curl -fsS http://localhost:8002/health    # slow-worker
-```
-
-A healthy worker returns:
-
-```json
-{"status": "ok", "worker_type": "pipeline"}
-```
-
-### Stopping workers gracefully
-
-Send SIGTERM to allow the worker to finish its current job before exiting:
-
-```bash
-docker compose --profile workers stop pipeline-worker
-docker compose --profile workers stop slow-worker
-```
-
-Workers finish in-progress jobs (up to 30 seconds), then exit with code 0.
-Jobs that were in-flight but not finished within the timeout are reset to
-`pending` on next worker startup.
+If the expression is true for a worker instance for longer than two minutes,
+the process is stuck or has stopped.
 
 ---
 
-## Inspecting Queued, Retry, and Dead-Letter Jobs
+### `tomorrowland_pipeline_queue_depth`
 
-All job inspection uses the admin API. Requires an admin JWT.
+**Type**: Gauge  
+**Labels**: `status`, `job_type`
 
-### Queue depth by status
+Snapshot of the `pipeline_jobs` table, counted by `(status, job_type)`, taken
+at the top of every loop iteration by both workers. The snapshot is produced by
+`PipelineJobRepository.count_by_status()` which issues a single
+`COUNT … GROUP BY status, job_type` query.
 
-```bash
-# All jobs for a source:
-curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/admin/jobs?source_id=<uuid>"
+Known `status` values: `pending`, `running`, `retry`, `dead_letter`.  
+Known `job_type` values: `process_document`, `vector_index_document`.
 
-# Only pending jobs:
-curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/admin/jobs?source_id=<uuid>&status=pending"
+**How to use**:
 
-# Only DLQ jobs:
-curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/admin/jobs?status=dlq"
+```promql
+# Total pending work across all job types
+sum(tomorrowland_pipeline_queue_depth{status="pending"})
+
+# Dead-letter backlog
+sum(tomorrowland_pipeline_queue_depth{status="dead_letter"})
+
+# Queue depth by job type
+tomorrowland_pipeline_queue_depth{status="pending", job_type="process_document"}
+tomorrowland_pipeline_queue_depth{status="pending", job_type="vector_index_document"}
 ```
 
-Response includes `total` and a `jobs` array with per-job status, attempts,
-error, and timestamps.
+A non-zero `dead_letter` depth requires operator attention; those jobs will not
+be retried automatically.
 
-### Single job status
+---
 
-```bash
-curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/admin/jobs/<job-id>"
+### `tomorrowland_pipeline_jobs_claimed_total`
+
+**Type**: Counter  
+**Labels**: `worker_type`, `job_type`
+
+Incremented each time a worker successfully claims a job from the queue.
+Combined with `_succeeded_total` and `_retried_total` / `_dead_lettered_total`
+this describes the overall throughput and error split.
+
+```promql
+# Per-minute claim rate for pipeline worker
+rate(tomorrowland_pipeline_jobs_claimed_total{worker_type="pipeline"}[5m]) * 60
 ```
 
-### Re-queueing a dead-letter job
+---
 
-```bash
-curl -X POST -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/admin/jobs/<job-id>/retry"
+### `tomorrowland_pipeline_jobs_succeeded_total`
+
+**Type**: Counter  
+**Labels**: `worker_type`, `job_type`
+
+Incremented when a job is marked succeeded. For `pipeline` workers the stage
+is `process`; for `vector` workers the stage is `vector_encode`.
+
+```promql
+# Success rate as a fraction of claimed jobs (5-minute window)
+rate(tomorrowland_pipeline_jobs_succeeded_total[5m])
+  /
+rate(tomorrowland_pipeline_jobs_claimed_total[5m])
 ```
 
-This resets `status` to `pending`, clears `dlq_at` and `dlq_reason`, and
-resets `attempts` to 0. The job will be claimed by the next available worker.
+---
 
-### Prometheus metrics
+### `tomorrowland_pipeline_jobs_retried_total`
 
-Workers expose job queue metrics at `GET /metrics` on the health port. The
-key metrics for job inspection:
+**Type**: Counter  
+**Labels**: `worker_type`, `job_type`
 
-| Metric | Meaning |
-|--------|---------|
-| `tomorrowland_job_queue_depth{worker_type,status}` | Current jobs per status |
-| `tomorrowland_dlq_depth{worker_type}` | DLQ backlog (feeds `TomorrowlandDlqPending` alert) |
-| `tomorrowland_job_duration_seconds` | Job processing time histogram |
-| `tomorrowland_job_attempts_total` | First attempts vs retries |
+Incremented each time a job fails but still has attempts remaining and is
+scheduled for retry. A sustained retry rate indicates a recurring transient
+error (upstream service instability, intermittent timeouts, etc.).
 
-Grafana's **Ingestion and Indexing** dashboard will include DLQ trend panels
-once the `feature/pipeline-jobs` track lands.
+```promql
+rate(tomorrowland_pipeline_jobs_retried_total[5m])
+```
 
-### Reading worker logs
+---
 
-Follow structured JSON logs from running workers:
+### `tomorrowland_pipeline_jobs_dead_lettered_total`
+
+**Type**: Counter  
+**Labels**: `worker_type`, `job_type`
+
+Incremented when a job exhausts all retry attempts and is moved to
+`dead_letter` status. Dead-lettered jobs require manual operator action.
+
+```promql
+increase(tomorrowland_pipeline_jobs_dead_lettered_total[1h])
+```
+
+Alert when this rate is non-zero or rising. See the troubleshooting section
+for remediation steps.
+
+---
+
+### `tomorrowland_pipeline_jobs_stale_lock_reaped_total`
+
+**Type**: Counter  
+**Labels**: `worker_type`
+
+Incremented by the number of jobs reset from `running` back to `pending` by
+`PipelineJobRepository.reap_stale_locks()`. Stale locks occur when a worker
+process crashes or is killed while holding a `running` claim on a job.
+
+`reap_stale_locks()` runs at the top of the loop whenever
+`now − last_reap ≥ 60 s`. Each worker instance runs its own reap cycle.
+
+An isolated spike (e.g. after a deploy restart) is normal. A sustained rate
+of reaps indicates repeated worker crashes — investigate `worker_loop_errors_total`
+and container exit codes.
+
+```promql
+rate(tomorrowland_pipeline_jobs_stale_lock_reaped_total[5m])
+```
+
+---
+
+### `tomorrowland_pipeline_job_duration_seconds`
+
+**Type**: Histogram  
+**Labels**: `worker_type`, `job_type`, `stage`, `outcome`  
+**Buckets**: 0.1 s, 0.5 s, 1 s, 2.5 s, 5 s, 10 s, 30 s, 60 s, 120 s, 300 s, 600 s
+
+Measures wall-clock duration of each job attempt from claim to outcome.
+
+| `worker_type` | `stage` | `outcome` values |
+|--------------|---------|-----------------|
+| `pipeline` | `process` | `succeeded`, `retried`, `dead_lettered` |
+| `vector` | `vector_encode` | `succeeded`, `retried`, `dead_lettered` |
+
+```promql
+# p95 job duration for pipeline workers
+histogram_quantile(0.95,
+  rate(tomorrowland_pipeline_job_duration_seconds_bucket{worker_type="pipeline"}[10m])
+)
+
+# p99 for vector encode
+histogram_quantile(0.99,
+  rate(tomorrowland_pipeline_job_duration_seconds_bucket{stage="vector_encode"}[10m])
+)
+```
+
+---
+
+### `tomorrowland_worker_loop_errors_total`
+
+**Type**: Counter  
+**Labels**: `worker_type`, `error_type`
+
+Incremented when an unhandled exception escapes the per-job try/except inside
+the main loop (i.e. an error outside of normal job retry/dead-letter handling).
+`error_type` is the Python exception class name. After incrementing, the loop
+sleeps `poll_interval` and continues.
+
+```promql
+rate(tomorrowland_worker_loop_errors_total[5m])
+```
+
+A non-zero sustained rate means the worker loop is hitting unexpected errors
+that are not being absorbed by the per-job error path. Check logs for full
+tracebacks.
+
+---
+
+## Queue Depth Sampling
+
+Queue depth is **not** tracked via Kafka consumer lag. The workers sample the
+PostgreSQL `pipeline_jobs` table directly at the top of every loop iteration:
+
+```sql
+SELECT status, job_type, COUNT(*) FROM pipeline_jobs GROUP BY status, job_type;
+```
+
+This snapshot reflects the instantaneous state of the queue at that moment. Both
+the pipeline worker and the vector worker independently sample and set the same
+gauge labels, so the gauge for `job_type="process_document"` is updated by the
+pipeline worker and the gauge for `job_type="vector_index_document"` is updated
+by the vector worker.
+
+---
+
+## Safe Labels and Cardinality
+
+All pipeline worker metric labels are bounded, low-cardinality keywords. The
+following **must never appear** as label values:
+
+- Document IDs or UUIDs
+- Raw file paths
+- User data or user IDs
+- Document content or excerpts
+- Credentials or tokens
+- Exception messages (use the exception class name only via `error_type`)
+
+`worker_id` is the only label that varies per process instance; it is set to a
+stable identifier at startup (e.g. the container name or a replica ordinal) and
+must not be set to a per-request or per-document value.
+
+The `safe_label_value()` helper in `src/shared/metrics.py` truncates values to
+100 characters and coerces empty strings to `"unknown"`. Use it for any
+operator-controlled label value.
+
+---
+
+## Stale Lock Reaping
+
+When a worker process is killed or crashes while a job is in `running` state,
+the job remains locked with no process to complete it. `reap_stale_locks()`
+detects these orphaned jobs and resets them to `pending` so they can be
+reclaimed.
+
+The reap check runs at the top of each loop iteration whenever at least 60
+seconds have elapsed since the last reap. The reap query looks for `running`
+jobs whose lock timestamp is older than the configured timeout (configured in
+`PipelineJobRepository`) and resets them atomically.
+
+**What stale locks mean operationally**:
+
+- A single reap event after a deploy or container restart is expected.
+- Repeated reaps of the same job (visible via the dead-letter counter if the
+  job exhausts attempts after repeated crashes) indicate the job itself is
+  causing crashes.
+- A sustained non-zero reap rate on a stable system means workers are crashing
+  repeatedly; check `worker_loop_errors_total` and container exit codes.
+
+---
+
+## Restart Guidance
+
+To restart a stuck worker safely using Docker Compose:
+
+```bash
+# Restart pipeline-worker without losing container config
+docker compose restart pipeline-worker
+
+# Restart vector-worker
+docker compose restart vector-worker
+```
+
+`restart: unless-stopped` is set on both services, so a plain container exit
+will be automatically restarted by Docker. Use `docker compose restart` when
+you need to force a restart of a live but unresponsive container.
+
+After restart, the worker's next loop iteration will reap any stale locks it
+finds, returning orphaned `running` jobs to `pending` within 60 seconds.
+
+To observe the worker after restart:
 
 ```bash
 docker compose logs -f pipeline-worker
-docker compose logs -f slow-worker
+docker compose logs -f vector-worker
 ```
 
+Look for the startup log line `pipeline worker started` / `vector worker
+started` to confirm the process is running, followed by periodic heartbeat
+and queue-depth updates.
+
 Each log line for a job event includes:
-- `worker_type`, `job_id`, `documant_id`, `source_id`
+- `worker_type`, `job_id`, `document_id`, `source_id`
 - `attempt` (1-based), `outcome` (done/failed/dlq/retry)
 - `duration_ms`, `correlation_id`
 
 ---
 
-## When Ollama, Qdrant, or Elasticsearch Are Unavailable
+## Troubleshooting Playbook
 
-### Elasticsearch unavailable
+### Worker stopped
 
-- The pipeline-worker **cannot complete** a job when Elasticsearch is
-  unavailable. Full-text indexing is required for `status = 'done'`.
-- The worker logs the error, increments `attempts`, and sets
-  `next_attempt_at` for exponential backoff retry.
-- After `max_attempts` failures, the job moves to DLQ.
-- The API continues to serve existing search results from the last successful
-  index state.
+**Signals**: `time() - tomorrowland_worker_heartbeat_timestamp_seconds > 120`
 
-**Operator action**: restore Elasticsearch health, then let workers retry
-automatically. Re-queue DLQ jobs with `POST /admin/jobs/{job_id}/retry` if
-they accumulated before the service recovered.
-
-### Qdrant unavailable
-
-- Qdrant indexing is **soft-failure** (best-effort). If Qdrant is unavailable,
-  the pipeline-worker logs the vector indexing failure but still marks the job
-  `done` after successful Elasticsearch indexing.
-- Vector search results will be stale or incomplete until Qdrant recovers and
-  a re-indexing pass runs.
-- The future `vector-worker` (deferred) will handle targeted re-indexing
-  after Qdrant recovers.
-
-**Operator action**: restore Qdrant health. Re-trigger a source sync to
-re-enqueue documents for vector indexing once the worker implementation is
-confirmed to handle partial re-indexing. Track this gap until the vector-worker
-is built.
-
-### Ollama unavailable
-
-- Intelligence features (summaries, tags, Q&A) run best-effort after
-  successful indexing. Ollama unavailability does not block `status = 'done'`.
-- Documents are fully text-searchable and vector-indexed without Ollama.
-- The pipeline-worker logs the intelligence failure and continues.
-
-**Operator action**: restore Ollama and pull the configured model
-(`OLLAMA_MODEL`). Intelligence enrichment is not retroactively applied to
-already-indexed documents; a future re-enrichment mechanism is tracked
-separately.
-
-### LibreTranslate unavailable
-
-- Fast-path translation failure falls back to the original document text
-  (existing behavior, preserved from the synchronous pipeline).
-- The document is indexed without translation; `translation_quality` is `null`.
-- The slow-worker will later attempt high-quality translation when scheduled.
-
-**Operator action**: restore LibreTranslate. The slow-worker will re-process
-pending high-quality translation jobs automatically.
+1. Check container status: `docker compose ps pipeline-worker vector-worker`
+2. Check recent logs: `docker compose logs --tail=100 pipeline-worker`
+3. If the container is stopped: `docker compose restart pipeline-worker`
+4. If it exits immediately, check for config/DB connection errors in the logs
+   and verify `DATABASE_URL` in `.env`.
 
 ---
 
-## How Sync Counts Differ from Indexing Counts
+### Queue backlog growing
 
-After the `feature/pipeline-jobs` track lands, these two counts are distinct:
+**Signals**: `tomorrowland_pipeline_queue_depth{status="pending"}` rising,
+claim rate (`tomorrowland_pipeline_jobs_claimed_total`) flat.
 
-| Count | Where to find it | Meaning |
-|-------|-----------------|---------|
-| **Sync count** (`queued`) | `POST /admin/ingestion/{source_id}/sync-now` response | Documents discovered in this sync run and enqueued |
-| **Indexed count** | `GET /admin/jobs?source_id=<uuid>&status=done` total | Jobs completed successfully |
-| **Failed count** | `GET /admin/jobs?source_id=<uuid>&status=failed` total | Jobs that failed but may retry |
-| **DLQ count** | `GET /admin/jobs?status=dlq` total | Jobs exhausted retries; need operator attention |
-
-A sync that discovers 100 documents will show `"queued": 100`. After workers
-run, the indexed count may be lower if some documents failed or are in DLQ.
-The difference is always accounted for in the job status breakdown.
-
-**Note (current behavior)**: Before this track lands, `sync-now` returns
-`{"synced": N}` which reflects documents processed inline. There is no
-separate DLQ count. After the track lands, operators gain fine-grained
-visibility through the job status API.
+1. Confirm workers are running and heartbeating.
+2. If workers are running but not claiming, check `worker_loop_errors_total` —
+   loop errors cause the worker to sleep and skip the claim attempt.
+3. Scale workers if capacity is genuinely saturated:
+   `docker compose up -d --scale pipeline-worker=2`
 
 ---
 
-## Air-Gapped Deployment Implications
+### Retry count increasing
 
-### Job queue backend
+**Signals**: `rate(tomorrowland_pipeline_jobs_retried_total[5m])` non-zero and rising.
 
-The default job queue backend is PostgreSQL (`JOB_QUEUE_BACKEND=db`). No
-additional services are required beyond what the current air-gapped runtime
-already includes (Postgres, Elasticsearch, Qdrant, Ollama).
+1. Check which `job_type` is retrying: filter by `job_type` label.
+2. For `process_document` retries: check Elasticsearch and Qdrant health.
+3. For `vector_index_document` retries: check Qdrant and Ollama health.
+4. Check worker logs for the exception class driving retries.
+5. If a dependency is recovering, retries will clear automatically once it is
+   healthy.
 
-Kafka is **not required** for the job queue in this track. If Kafka is
-present (for NiFi ingestion), workers can optionally use it as a transport
-by setting `JOB_QUEUE_BACKEND=kafka`, but this is not the default.
+---
 
-### Image bundles
+### Dead-letter count increasing
 
-Worker containers use the same Python application image as the API. No new
-base images are required. The `tomorrowland-images-<version>.tar` bundle
-already included in the air-gapped release artifacts will include worker
-image layers when they are added to the Compose file.
+**Signals**: `increase(tomorrowland_pipeline_jobs_dead_lettered_total[1h]) > 0`
 
-### Offline model availability
+Dead-lettered jobs have exhausted all retry attempts and will not be
+automatically retried.
 
-Pipeline workers call Ollama for intelligence enrichment. In air-gapped
-environments, the Ollama model bundle must be loaded before workers start
-attempting intelligence steps. Workers handle Ollama unavailability as
-best-effort and do not fail the job, but intelligence enrichment will silently
-produce no output until the model is loaded.
+1. Identify the failing `job_type` and `worker_type` from label values.
+2. Check worker logs for the last error before dead-letter.
+3. Fix the root cause (upstream service, bad document, config issue).
+4. Re-queue affected jobs via the admin API:
+   `POST /admin/jobs/<job-id>/retry`
+5. Monitor `_succeeded_total` to confirm re-queued jobs complete.
 
-To load an Ollama model bundle offline:
+---
 
-```bash
-bash scripts/tomorrowland-airgap.sh load-ollama /path/to/ollama-bundle.tar
+### Stale locks repeatedly reaped
+
+**Signals**: `rate(tomorrowland_pipeline_jobs_stale_lock_reaped_total[5m]) > 0`
+sustained outside of a deploy window.
+
+1. Check `worker_loop_errors_total` — sustained loop errors cause crash/restart
+   cycles that produce stale locks.
+2. Check container restart counts: `docker compose ps` (look at the `STATUS`
+   column for recent restarts).
+3. If a specific job is repeatedly crashing the worker, it will eventually
+   exhaust its `max_attempts` and dead-letter; monitor
+   `_dead_lettered_total`.
+
+---
+
+### Loop errors increasing
+
+**Signals**: `rate(tomorrowland_worker_loop_errors_total[5m]) > 0`
+
+Loop errors are unhandled exceptions outside of the per-job retry/dead-letter
+path — typically infrastructure failures (DB connection lost, unexpected OS
+errors).
+
+1. Check logs for the full traceback: `docker compose logs -f pipeline-worker`
+2. The `error_type` label gives the Python exception class for alerting.
+3. Loop errors cause a `poll_interval` sleep before retrying; they do not
+   immediately crash the worker, but a sustained rate indicates instability.
+
+---
+
+### Job duration p95/p99 high
+
+**Signals**:
+```promql
+histogram_quantile(0.95,
+  rate(tomorrowland_pipeline_job_duration_seconds_bucket[10m])
+) > 30
 ```
 
-### Compose profile in air-gapped mode
-
-The `docker-compose.airgap.yml` file must include worker services under the
-`workers` profile after the feature track lands. The air-gapped wrapper
-(`scripts/tomorrowland-airgap.sh`) should expose a `start-workers` subcommand
-or update the profile documentation when the feature is promoted. Track this
-as a follow-up in #216 or a child issue.
-
----
-
-## Troubleshooting
-
-| Symptom | Likely cause | Action |
-|---------|-------------|--------|
-| Jobs stuck in `pending` indefinitely | Workers not running | `docker compose --profile workers ps`; start workers |
-| Jobs stuck in `running` after restart | Abandoned claims from crash | Workers reset stale `running` rows on startup; wait for next poll or restart worker |
-| DLQ depth growing | Persistent service failure | Check Elasticsearch/Qdrant health; re-queue after service recovery |
-| Worker exits immediately | Config error or DB connection issue | `docker compose logs pipeline-worker`; verify `DATABASE_URL` in `.env` |
-| `GET /health` returns 502 | Worker not started or crashed | Check `docker compose --profile workers ps` and logs |
-| Sync count ≠ indexed count | Jobs still in flight, failed, or DLQ | `GET /admin/jobs?source_id=<uuid>` for status breakdown |
-| Intelligence missing on indexed docs | Ollama unavailable during indexing | Restore Ollama, pull model; retroactive enrichment not automatic |
+1. Filter by `stage` to isolate whether the slowdown is in `process` or
+   `vector_encode`.
+2. For `process`: check Elasticsearch indexing latency and extraction time for
+   large documents.
+3. For `vector_encode`: check Ollama embedding latency
+   (`tomorrowland_ollama_duration_seconds`) and Qdrant upsert latency.
+4. Very large documents will naturally fall in higher histogram buckets; check
+   `tomorrowland_pipeline_document_bytes` for document size distribution.
 
 ---
 
 ## See Also
 
-- `docs/implementation/pipeline-jobs-runtime-split.md` — full implementation plan (#235)
-- `docs/operations/production-compose.md` — Compose service layout and general operations
+- `src/services/pipeline/runner.py` — pipeline worker loop and job lifecycle
+- `src/services/pipeline/vector_worker.py` — vector worker loop
+- `src/shared/metrics.py` — `MetricsRegistry` with all metric definitions
+- `docs/operations/production-compose.md` — Compose service layout
 - `docs/operations/air-gapped-deployment.md` — offline deployment guide
-- `src/services/pipeline/worker.py` — `PipelineWorker` class (current synchronous impl)
-- `src/services/pipeline/slow_worker.py` — `SlowWorker` class (current synchronous impl)
+- Issue #68 — Grafana dashboard panels and Prometheus alert rules (companion to this guide)
