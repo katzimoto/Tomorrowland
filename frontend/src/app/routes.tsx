@@ -11,6 +11,7 @@ import { HistoryPage } from "@/features/history/HistoryPage";
 import { ExpertisePage } from "@/features/expertise/ExpertisePage";
 import { AdminSourcesPage } from "@/features/admin/AdminSourcesPage";
 import { AdminSourceDetailPage } from "@/features/admin/AdminSourceDetailPage";
+import { AdminAddSourceWizard } from "@/features/admin/AdminAddSourceWizard";
 import { AppLayout } from "./AppLayout";
 
 function requireAuth() {
@@ -98,6 +99,12 @@ const adminRoute = createRoute({
   component: AdminSourcesPage,
 });
 
+const adminAddSourceRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/sources/new",
+  component: AdminAddSourceWizard,
+});
+
 const adminSourceDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/admin/sources/$sourceId",
@@ -117,6 +124,7 @@ const routeTree = rootRoute.addChildren([
     historyRoute,
     expertiseRoute,
     adminRoute,
+    adminAddSourceRoute,
     adminSourceDetailRoute,
   ]),
 ]);

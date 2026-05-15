@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -54,10 +54,19 @@ class ChunkPosition(BaseModel):
 class ChunkMetadata(BaseModel):
     # Source provenance — loosely typed to accommodate connector expansion
     source: str | None = None
-    document_type: Literal[
-        "spec", "design", "research", "prd", "notes",
-        "transcript", "code", "unknown",
-    ] | None = None
+    document_type: (
+        Literal[
+            "spec",
+            "design",
+            "research",
+            "prd",
+            "notes",
+            "transcript",
+            "code",
+            "unknown",
+        ]
+        | None
+    ) = None
     mime_type: str | None = None
     file_name: str | None = None
     file_extension: str | None = None
@@ -92,9 +101,9 @@ class SearchChunkRecord(BaseModel):
     """
 
     # --- Identity ---
-    id: str                        # chunk_record_id(documentId, chunkIndex)
-    document_id: str               # parent document UUID as string
-    chunk_index: int               # duplicates position.chunk_index for top-level sort
+    id: str  # chunk_record_id(documentId, chunkIndex)
+    document_id: str  # parent document UUID as string
+    chunk_index: int  # duplicates position.chunk_index for top-level sort
 
     # --- Content (original language) ---
     title: str
@@ -127,19 +136,17 @@ class SearchChunkRecord(BaseModel):
     metadata_text: str = ""
 
     # --- Security (required; filtered on every query) ---
-    allowed_group_ids: list[str]   # no default — must be set explicitly
+    allowed_group_ids: list[str]  # no default — must be set explicitly
     is_admin_only: bool = False
 
     # --- Indexing provenance ---
-    content_checksum: str          # SHA-256 of content; no default — must be set explicitly
-    indexed_at: str                # ISO 8601; set by from_parts(), not the caller
+    content_checksum: str  # SHA-256 of content; no default — must be set explicitly
+    indexed_at: str  # ISO 8601; set by from_parts(), not the caller
 
     @model_validator(mode="after")
     def _validate_required_security(self) -> SearchChunkRecord:
         if not self.allowed_group_ids and not self.is_admin_only:
-            raise ValueError(
-                "allowed_group_ids must not be empty unless is_admin_only is True"
-            )
+            raise ValueError("allowed_group_ids must not be empty unless is_admin_only is True")
         return self
 
     @staticmethod
@@ -173,7 +180,7 @@ class SearchChunkRecord(BaseModel):
             metadata_text=build_metadata_text(meta),
             position=pos,
             content_checksum=cls.content_sha256(content),
-            indexed_at=datetime.now(timezone.utc).isoformat(),
+            indexed_at=datetime.now(UTC).isoformat(),
             **kwargs,
         )
 
@@ -206,9 +213,7 @@ class DocumentSearchQuery(BaseModel):
     q: str
     language: Literal["auto", "en", "he"] = "auto"
     filters: DocumentSearchFilters = Field(default_factory=DocumentSearchFilters)
-    sort: Literal[
-        "relevance", "updatedAt:desc", "createdAt:desc", "importedAt:desc"
-    ] = "relevance"
+    sort: Literal["relevance", "updatedAt:desc", "createdAt:desc", "importedAt:desc"] = "relevance"
     limit: int = Field(default=20, ge=1, le=100)
     offset: int = Field(default=0, ge=0)
 
@@ -234,9 +239,7 @@ class DocumentSearchResult(BaseModel):
     section_path: list[str] = Field(default_factory=list)
     snippet: str
 
-    metadata: DocumentSearchResultMetadata = Field(
-        default_factory=DocumentSearchResultMetadata
-    )
+    metadata: DocumentSearchResultMetadata = Field(default_factory=DocumentSearchResultMetadata)
     position: ChunkPosition
     score: float | None = None
 

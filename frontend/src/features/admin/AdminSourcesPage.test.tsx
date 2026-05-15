@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/test/render";
 import { AdminSourcesPage } from "./AdminSourcesPage";
@@ -98,62 +98,6 @@ describe("AdminSourcesPage", () => {
     expect(screen.getByText("Never synced")).toBeInTheDocument();
   });
 
-  it("opens the Add Source dialog on button click", async () => {
-    const user = userEvent.setup();
-    render(<AdminSourcesPage />);
-    await screen.findByRole("heading", { name: "Sources" });
-    await user.click(screen.getByRole("button", { name: /add source/i }));
-    expect(await screen.findByRole("dialog", { name: /add source/i })).toBeInTheDocument();
-  });
-
-  it("renders folder path field when folder type is selected", async () => {
-    const user = userEvent.setup();
-    render(<AdminSourcesPage />);
-    await screen.findByRole("heading", { name: "Sources" });
-    await user.click(screen.getByRole("button", { name: /add source/i }));
-    await screen.findByRole("dialog");
-    expect(screen.getByLabelText(/folder path/i)).toBeInTheDocument();
-  });
-
-  it("renders sensitive api_token field as password input for nifi", async () => {
-    const user = userEvent.setup();
-    render(<AdminSourcesPage />);
-    await screen.findByRole("heading", { name: "Sources" });
-    await user.click(screen.getByRole("button", { name: /add source/i }));
-    await screen.findByRole("dialog");
-
-    const typeSelect = screen.getByLabelText(/type/i);
-    await user.selectOptions(typeSelect, "nifi");
-
-    const tokenInput = screen.getByLabelText(/api token/i);
-    expect(tokenInput).toHaveAttribute("type", "password");
-  });
-
-  it("calls createSource and closes dialog on valid submit", async () => {
-    vi.mocked(adminApi.adminApi.createSource).mockResolvedValue({
-      ...sourceDefaults,
-      id: "new-1",
-      name: "My Folder",
-      type: "folder",
-      path: "/tmp",
-    });
-    const user = userEvent.setup();
-    render(<AdminSourcesPage />);
-    await screen.findByRole("heading", { name: "Sources" });
-    await user.click(screen.getByRole("button", { name: /add source/i }));
-    await screen.findByRole("dialog");
-
-    await user.type(screen.getByLabelText(/name/i), "My Folder");
-    await user.type(screen.getByLabelText(/folder path/i), "/tmp/docs");
-    await user.click(screen.getByRole("button", { name: /save source/i }));
-
-    await waitFor(() => {
-      expect(adminApi.adminApi.createSource).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "My Folder", type: "folder" }),
-        expect.anything(),
-      );
-    });
-  });
 
   it("renders last sync state and sync result updates", async () => {
     const user = userEvent.setup();

@@ -166,7 +166,7 @@ export function AdminSourcesPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>{t.admin.title}</h1>
-        <Button onClick={() => setDialogOpen(true)} disabled={typesLoading}>
+        <Button onClick={() => navigate({ to: "/admin/sources/new" })} disabled={typesLoading}>
           <Plus size={16} />
           {t.admin.addSource}
         </Button>
