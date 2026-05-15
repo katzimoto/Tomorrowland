@@ -52,14 +52,29 @@ def test_search_bm25() -> None:
     assert results[1].doc_id == "doc-2"
 
 
-def test_search_without_group_ids_returns_empty() -> None:
+def test_search_without_group_ids_sends_zero_result_filter() -> None:
     client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
     mock_es = MagicMock()
     mock_es.search.return_value = {"hits": {"hits": []}}
     client._client = mock_es
 
     results = client.search("hello", group_ids=[])
+
     assert results == []
+    query = mock_es.search.call_args.kwargs["query"]
+    assert query["bool"]["filter"]["terms"]["allowed_group_ids"] == []
+
+
+def test_admin_search_omits_acl_filter() -> None:
+    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
+    mock_es = MagicMock()
+    mock_es.search.return_value = {"hits": {"hits": []}}
+    client._client = mock_es
+
+    client.search("hello", group_ids=[], is_admin=True)
+
+    query = mock_es.search.call_args.kwargs["query"]
+    assert "filter" not in query["bool"]
 
 
 def test_search_respects_size() -> None:
