@@ -82,3 +82,20 @@ Meilisearch holds a derived read index, not a source-of-truth store. There is no
 migration. The index is populated (or re-populated) via the shadow-index workflow or by
 re-running the pipeline ingestion. This keeps the Meilisearch lifecycle orthogonal to the
 Postgres schema migration lifecycle.
+
+### 9. Rollback
+
+Rollback from Meilisearch to Elasticsearch is a feature-flag flip:
+
+1. Set `FEATURE_MEILISEARCH_SEARCH=false` in `.env` (or the container environment).
+2. Restart the API container so the new setting takes effect.
+3. Verify search requests return results through the Elasticsearch/hybrid path.
+4. Monitor search errors and latency in logs and metrics.
+5. Meilisearch data remains intact and can be re-enabled later.
+
+**Important:** The feature flag is read at application startup. Live runtime toggling
+is not supported — the API container must be restarted for the change to apply.
+
+The Elasticsearch index remains the serving backend whenever `FEATURE_MEILISEARCH_SEARCH`
+is `false`. Search continues to work even if the Meilisearch container is unavailable,
+because the disabled flag prevents the application from connecting to Meilisearch.
