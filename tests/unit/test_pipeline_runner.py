@@ -16,6 +16,8 @@ class _FakeJobRepo:
         self.claimed_job: dict | None = None
         self.payload: dict | None = {"content_text": "extracted text"}
         self.for_success: bool = True
+        self.translated_text_updates: list[tuple[UUID, str]] = []
+        self.enqueue_calls: list[dict] = []
 
     def claim_next(self, worker_id: str) -> dict | None:
         self.claim_next_calls.append(worker_id)
@@ -35,6 +37,16 @@ class _FakeJobRepo:
 
     def mark_dead_letter(self, job_id: UUID, error: str | BaseException) -> None:
         self.dead_lettered = (job_id, error)
+
+    def update_translated_text(self, doc_id: UUID, translated_text: str) -> None:
+        self.translated_text_updates.append((doc_id, translated_text))
+
+    def enqueue_document(self, *, doc_id: UUID, source_id: UUID, job_type: str) -> UUID:
+        from uuid import uuid4
+
+        job_id = uuid4()
+        self.enqueue_calls.append({"doc_id": doc_id, "source_id": source_id, "job_type": job_type})
+        return job_id
 
 
 class TestRunOnce:
@@ -153,3 +165,51 @@ class TestRunOnce:
         worker = MagicMock()
         run_once(repo, worker)
         worker.process_document.assert_called_once_with(doc_id, pre_extracted_text=None)
+
+    def test_persists_translated_text_after_successful_process_document(self) -> None:
+        doc_id = uuid4()
+        repo = _FakeJobRepo()
+        repo.claimed_job = {
+            "id": uuid4(),
+            "doc_id": doc_id,
+            "source_id": uuid4(),
+            "job_type": "process_document",
+            "priority": 0,
+            "attempts": 1,
+            "max_attempts": 5,
+            "stage": None,
+            "last_error": None,
+            "run_after": None,
+            "locked_by": "runner",
+        }
+        worker = MagicMock()
+        worker.process_document.return_value = "translated document body"
+
+        run_once(repo, worker)
+
+        assert len(repo.translated_text_updates) == 1
+        persisted_doc_id, persisted_text = repo.translated_text_updates[0]
+        assert persisted_doc_id == doc_id
+        assert persisted_text == "translated document body"
+
+    def test_does_not_persist_translated_text_when_worker_raises(self) -> None:
+        repo = _FakeJobRepo()
+        repo.claimed_job = {
+            "id": uuid4(),
+            "doc_id": uuid4(),
+            "source_id": uuid4(),
+            "job_type": "process_document",
+            "priority": 0,
+            "attempts": 1,
+            "max_attempts": 3,
+            "stage": None,
+            "last_error": None,
+            "run_after": None,
+            "locked_by": "runner",
+        }
+        worker = MagicMock()
+        worker.process_document.side_effect = RuntimeError("pipeline failure")
+
+        run_once(repo, worker)
+
+        assert repo.translated_text_updates == []

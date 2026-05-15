@@ -49,21 +49,25 @@ class PipelineWorker:
         self._alert_matcher = alert_matcher
         self._metrics = metrics
 
-    def process_document(self, doc_id: UUID, pre_extracted_text: str | None = None) -> None:
+    def process_document(self, doc_id: UUID, pre_extracted_text: str | None = None) -> str | None:
         """Run the full pipeline for a single document.
 
         When *pre_extracted_text* is supplied it is used directly, bypassing
         the file extractor. This is required for connectors that fetch content
         over a network API rather than from a local file path.
 
-        On success the document status is set to ``"indexed"``. On any
-        unhandled exception the status is set to ``"failed"`` and the
-        exception is re-raised after logging.
+        On success the document status is set to ``"indexed"`` and the
+        translated text is returned so the caller can persist it. On any
+        unhandled exception the status is set to ``"failed"``, the exception
+        is re-raised after logging, and ``None`` is returned (unreachable in
+        practice because the exception propagates, but the return type
+        reflects this for callers that catch it).
         """
         try:
-            self._run(doc_id, pre_extracted_text=pre_extracted_text)
+            translated = self._run(doc_id, pre_extracted_text=pre_extracted_text)
             if self._metrics is not None:
                 self._metrics.pipeline_documents_total.labels("document", "success").inc()
+            return translated
         except Exception:
             if self._metrics is not None:
                 self._metrics.pipeline_documents_total.labels("document", "failure").inc()
@@ -75,7 +79,7 @@ class PipelineWorker:
             self._doc_repo.update_status(doc_id, "failed")
             raise
 
-    def _run(self, doc_id: UUID, pre_extracted_text: str | None = None) -> None:
+    def _run(self, doc_id: UUID, pre_extracted_text: str | None = None) -> str:
         doc = self._doc_repo.get_by_id(doc_id)
         if doc is None:
             raise ValueError(f"Document {doc_id} not found")
@@ -210,3 +214,5 @@ class PipelineWorker:
                     doc_id,
                     get_correlation_id(),
                 )
+
+        return translated
