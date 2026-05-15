@@ -6,7 +6,7 @@ import logging
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from services.alerts.service import AlertMatcher
@@ -22,6 +22,13 @@ from shared.correlation import get_correlation_id
 from shared.metrics import MetricsRegistry
 
 logger = logging.getLogger(__name__)
+
+
+class ProcessResult(NamedTuple):
+    """Result returned by process_document on success."""
+
+    extracted_text: str
+    translated_text: str
 
 
 class PipelineWorker:
@@ -49,25 +56,25 @@ class PipelineWorker:
         self._alert_matcher = alert_matcher
         self._metrics = metrics
 
-    def process_document(self, doc_id: UUID, pre_extracted_text: str | None = None) -> str | None:
+    def process_document(
+        self, doc_id: UUID, pre_extracted_text: str | None = None
+    ) -> ProcessResult | None:
         """Run the full pipeline for a single document.
 
         When *pre_extracted_text* is supplied it is used directly, bypassing
         the file extractor. This is required for connectors that fetch content
         over a network API rather than from a local file path.
 
-        On success the document status is set to ``"indexed"`` and the
-        translated text is returned so the caller can persist it. On any
-        unhandled exception the status is set to ``"failed"``, the exception
-        is re-raised after logging, and ``None`` is returned (unreachable in
-        practice because the exception propagates, but the return type
-        reflects this for callers that catch it).
+        On success returns a :class:`ProcessResult` with both the raw extracted
+        text and the translated text so the caller can persist them. On any
+        unhandled exception the document status is set to ``"failed"`` and the
+        exception is re-raised.
         """
         try:
-            translated = self._run(doc_id, pre_extracted_text=pre_extracted_text)
+            result = self._run(doc_id, pre_extracted_text=pre_extracted_text)
             if self._metrics is not None:
                 self._metrics.pipeline_documents_total.labels("document", "success").inc()
-            return translated
+            return result
         except Exception:
             if self._metrics is not None:
                 self._metrics.pipeline_documents_total.labels("document", "failure").inc()
@@ -79,7 +86,7 @@ class PipelineWorker:
             self._doc_repo.update_status(doc_id, "failed")
             raise
 
-    def _run(self, doc_id: UUID, pre_extracted_text: str | None = None) -> str:
+    def _run(self, doc_id: UUID, pre_extracted_text: str | None = None) -> ProcessResult:
         doc = self._doc_repo.get_by_id(doc_id)
         if doc is None:
             raise ValueError(f"Document {doc_id} not found")
@@ -215,4 +222,4 @@ class PipelineWorker:
                     get_correlation_id(),
                 )
 
-        return translated
+        return ProcessResult(extracted_text=text, translated_text=translated)

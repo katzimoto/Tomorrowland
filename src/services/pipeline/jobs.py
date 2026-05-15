@@ -350,6 +350,25 @@ class PipelineJobRepository:
             else None
         )
 
+    def update_content_text(self, doc_id: UUID, content_text: str) -> None:
+        """Persist the extracted document text so downstream workers (e.g. translation-worker)
+        can read raw content from the DB without re-running file extraction."""
+        self._connection.execute(
+            sa.text(
+                """
+                UPDATE document_payloads
+                SET content_text = :content_text,
+                    updated_at = :updated_at
+                WHERE doc_id = :doc_id
+            """
+            ),
+            {
+                "doc_id": db_uuid(doc_id),
+                "content_text": content_text,
+                "updated_at": datetime.now(UTC),
+            },
+        )
+
     def update_translated_text(self, doc_id: UUID, translated_text: str) -> None:
         """Persist the pipeline-translated text for later use by the index-worker."""
         self._connection.execute(

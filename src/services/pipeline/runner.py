@@ -71,9 +71,9 @@ def run_once(
     job_repo.mark_running_stage(job_id, "process")
 
     start = time.monotonic()
-    translated_text: str | None = None
+    process_result = None
     try:
-        translated_text = worker.process_document(doc_id, pre_extracted_text=pre_extracted_text)
+        process_result = worker.process_document(doc_id, pre_extracted_text=pre_extracted_text)
     except Exception as exc:
         elapsed = time.monotonic() - start
         error_type = type(exc).__name__
@@ -142,10 +142,18 @@ def run_once(
         attempts,
     )
 
-    # Persist translated text and enqueue downstream jobs after successful processing.
-    if job_type == "process_document" and translated_text is not None:
+    # Persist extracted and translated text after successful processing so downstream
+    # workers (translation-worker, index-worker) can operate from IDs only.
+    if job_type == "process_document" and process_result is not None:
         try:
-            job_repo.update_translated_text(doc_id, translated_text)
+            job_repo.update_content_text(doc_id, process_result.extracted_text)
+        except Exception:
+            logger.exception(
+                "failed to persist extracted text: worker_id=%s error_type=PersistError",
+                worker_id,
+            )
+        try:
+            job_repo.update_translated_text(doc_id, process_result.translated_text)
         except Exception:
             logger.exception(
                 "failed to persist translated text: worker_id=%s error_type=PersistError",

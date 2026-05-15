@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from services.documents.models import DocumentRow
-from services.pipeline.worker import PipelineWorker
+from services.pipeline.worker import PipelineWorker, ProcessResult
 
 
 class _FakeDocumentRepository:
@@ -222,7 +222,7 @@ def test_worker_indexes_filename_fallback_when_path_is_none() -> None:
     assert indexed_body["path"] == ""
 
 
-def test_process_document_returns_translated_text_on_success() -> None:
+def test_process_document_returns_process_result_on_success() -> None:
     doc = _document()
     repo = _FakeDocumentRepository(doc, [uuid4()])
     encoder = _FakeEncoder()
@@ -233,10 +233,12 @@ def test_process_document_returns_translated_text_on_success() -> None:
 
     result = worker.process_document(doc.id, pre_extracted_text="raw body")
 
-    assert result == "translated body"
+    assert isinstance(result, ProcessResult)
+    assert result.extracted_text == "raw body"
+    assert result.translated_text == "translated body"
 
 
-def test_process_document_returns_none_and_raises_on_failure() -> None:
+def test_process_document_raises_on_failure() -> None:
     doc = _document()
     repo = _FakeDocumentRepository(doc, [uuid4()])
     encoder = _FakeEncoder()

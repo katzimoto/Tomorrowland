@@ -488,6 +488,38 @@ def test_get_payload_translated_text_is_none_by_default(engine: Engine) -> None:
         assert payload["translated_text"] is None
 
 
+def test_update_content_text_persists_value(engine: Engine) -> None:
+    with engine.begin() as conn:
+        source_id = uuid4()
+        doc_id = uuid4()
+        conn.execute(
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
+            {"id": source_id.hex, "name": "test", "type": "folder"},
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
+                "VALUES (:id, :source_id, :eid, :source, :mime)"
+            ),
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },
+        )
+
+        repo = PipelineJobRepository(conn)
+        # Enqueue with content_path only (file-based doc: content_text starts NULL)
+        repo.enqueue_document(doc_id, source_id, content_path="/data/file.txt")
+        repo.update_content_text(doc_id, "extracted file content")
+
+        payload = repo.get_payload(doc_id)
+        assert payload is not None
+        assert payload["content_text"] == "extracted file content"
+
+
 def test_update_translated_text_persists_value(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()

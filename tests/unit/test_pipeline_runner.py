@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 from services.pipeline.runner import run_once
+from services.pipeline.worker import ProcessResult
 
 
 class _FakeJobRepo:
@@ -16,6 +17,7 @@ class _FakeJobRepo:
         self.claimed_job: dict | None = None
         self.payload: dict | None = {"content_text": "extracted text"}
         self.for_success: bool = True
+        self.content_text_updates: list[tuple[UUID, str]] = []
         self.translated_text_updates: list[tuple[UUID, str]] = []
         self.enqueue_calls: list[dict] = []
 
@@ -37,6 +39,9 @@ class _FakeJobRepo:
 
     def mark_dead_letter(self, job_id: UUID, error: str | BaseException) -> None:
         self.dead_lettered = (job_id, error)
+
+    def update_content_text(self, doc_id: UUID, content_text: str) -> None:
+        self.content_text_updates.append((doc_id, content_text))
 
     def update_translated_text(self, doc_id: UUID, translated_text: str) -> None:
         self.translated_text_updates.append((doc_id, translated_text))
@@ -166,7 +171,9 @@ class TestRunOnce:
         run_once(repo, worker)
         worker.process_document.assert_called_once_with(doc_id, pre_extracted_text=None)
 
-    def test_persists_translated_text_after_successful_process_document(self) -> None:
+    def test_persists_extracted_and_translated_text_after_successful_process_document(
+        self,
+    ) -> None:
         doc_id = uuid4()
         repo = _FakeJobRepo()
         repo.claimed_job = {
@@ -183,16 +190,20 @@ class TestRunOnce:
             "locked_by": "runner",
         }
         worker = MagicMock()
-        worker.process_document.return_value = "translated document body"
+        worker.process_document.return_value = ProcessResult(
+            extracted_text="raw document text",
+            translated_text="translated document body",
+        )
 
         run_once(repo, worker)
 
-        assert len(repo.translated_text_updates) == 1
-        persisted_doc_id, persisted_text = repo.translated_text_updates[0]
-        assert persisted_doc_id == doc_id
-        assert persisted_text == "translated document body"
+        assert len(repo.content_text_updates) == 1
+        assert repo.content_text_updates[0] == (doc_id, "raw document text")
 
-    def test_does_not_persist_translated_text_when_worker_raises(self) -> None:
+        assert len(repo.translated_text_updates) == 1
+        assert repo.translated_text_updates[0] == (doc_id, "translated document body")
+
+    def test_does_not_persist_texts_when_worker_raises(self) -> None:
         repo = _FakeJobRepo()
         repo.claimed_job = {
             "id": uuid4(),
@@ -212,4 +223,5 @@ class TestRunOnce:
 
         run_once(repo, worker)
 
+        assert repo.content_text_updates == []
         assert repo.translated_text_updates == []
