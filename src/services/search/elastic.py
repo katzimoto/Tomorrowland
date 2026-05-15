@@ -151,11 +151,15 @@ class ElasticsearchSearchClient:
         query: str,
         group_ids: list[str],
         size: int = 50,
+        *,
+        is_admin: bool = False,
     ) -> list[SearchResult]:
-        """BM25 search restricted to *group_ids*.
+        """BM25 search with an explicit server-side permission filter.
 
-        When *group_ids* is empty (admins-group user), no permission
-        filter is applied, giving the caller global document access.
+        Admin callers set *is_admin=True* to bypass the permission filter.
+        Non-admin callers always get an ACL filter, even when *group_ids* is
+        empty, so a groupless user cannot accidentally see every document if a
+        caller forgets an earlier route-level guard.
         """
         es_query: dict[str, Any] = {
             "bool": {
@@ -193,7 +197,7 @@ class ElasticsearchSearchClient:
                 "minimum_should_match": 1,
             }
         }
-        if group_ids:
+        if not is_admin:
             es_query["bool"]["filter"] = {"terms": {"allowed_group_ids": group_ids}}
 
         response = self._client.search(index=INDEX_NAME, query=es_query, size=size)
