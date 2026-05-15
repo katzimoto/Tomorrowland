@@ -786,7 +786,7 @@ def create_app(
             )
             return SearchResponse(results=[], total=0)
 
-        if app.state.admins_group_id in group_ids:
+        if app.state.admins_group_id in group_ids or user.is_admin:
             search_group_ids: list[str] = []
         else:
             search_group_ids = group_ids

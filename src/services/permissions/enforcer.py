@@ -26,7 +26,14 @@ def get_allowed_groups(user: TokenPayload | UserIdentity) -> list[UUID]:
 def assert_source_access(
     source_id: UUID, user: TokenPayload | UserIdentity, repository: AuthRepository
 ) -> None:
-    """Raise 403 unless the user can access a source through source grants."""
+    """Raise 403 unless the user can access a source through source grants.
+
+    Admin users (``is_admin=True``) bypass source-grant checks and may
+    access every source/document.  Non-admin users remain constrained by
+    their group memberships and source permissions.
+    """
+    if user.is_admin:
+        return
     if not repository.user_can_access_source(user, source_id):  # type: ignore[arg-type]
         metrics = current_metrics()
         if metrics is not None:
