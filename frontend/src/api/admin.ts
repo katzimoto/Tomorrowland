@@ -57,6 +57,16 @@ export interface SourceTestResult {
   error?: string;
 }
 
+export interface SourceGroup {
+  id: string;
+  name: string;
+}
+
+export interface SourceDetail extends Source {
+  config: Record<string, unknown>;
+  groups: SourceGroup[];
+}
+
 export const adminApi = {
   connectorTypes: () => api.get<ConnectorType[]>("/admin/connector-types"),
   listSources: () => api.get<Source[]>("/admin/sources"),
@@ -66,4 +76,6 @@ export const adminApi = {
     api.post<SyncResult>(`/admin/ingestion/${sourceId}/sync-now`, {}),
   testSource: (sourceId: string) =>
     api.post<SourceTestResult>(`/admin/sources/${sourceId}/test-connection`, {}),
+  getSource: (sourceId: string) =>
+    api.get<SourceDetail>(`/admin/sources/${sourceId}`),
 };

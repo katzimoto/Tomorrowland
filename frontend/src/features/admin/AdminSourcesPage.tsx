@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,6 +26,7 @@ type FormValues = {
 
 export function AdminSourcesPage() {
   const t = useT();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { show: showToast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -197,7 +199,17 @@ export function AdminSourcesPage() {
                 const testResult = testResults[src.id];
                 return (
                   <tr key={src.id}>
-                    <td className={styles.nameCell}>{src.name}</td>
+                    <td className={styles.nameCell}>
+                      <a
+                        href={`/admin/sources/${src.id}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          void navigate({ to: "/admin/sources/$sourceId", params: { sourceId: src.id } });
+                        }}
+                      >
+                        {src.name}
+                      </a>
+                    </td>
                     <td>
                       <Badge variant="neutral">{src.type}</Badge>
                     </td>

@@ -1917,6 +1917,74 @@ def create_app(
                 for row in rows
             ]
 
+    @app.get("/admin/sources/{source_id}")
+    def admin_get_source(
+        source_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            row = connection.execute(
+                sa.text(
+                    """
+                    SELECT id, name, type, path, source_language, enabled, created_at,
+                           config,
+                           last_sync_status, last_sync_indexed, last_sync_skipped,
+                           last_sync_failed, last_sync_error, last_sync_at,
+                           last_validation_status, last_validation_error, last_validated_at
+                    FROM ingestion_sources WHERE id = :id
+                    """
+                ),
+                {"id": source_id.hex},
+            ).mappings().first()
+            if row is None:
+                raise HTTPException(status_code=404, detail="Source not found")
+
+            config = _source_config(row.get("config"))
+            masked_config: dict[str, Any] = {}
+            for key, value in config.items():
+                if key.lower() in _SENSITIVE_CONFIG_KEYS:
+                    masked_config[key] = "••••••••"
+                else:
+                    masked_config[key] = value
+
+            permissions = connection.execute(
+                sa.text(
+                    """
+                    SELECT g.id, g.name
+                    FROM source_permissions sp
+                    JOIN groups g ON g.id = sp.group_id
+                    WHERE sp.source_id = :source_id
+                    ORDER BY g.name
+                    """
+                ),
+                {"source_id": source_id.hex},
+            ).mappings().all()
+
+            return {
+                "id": str(to_uuid(row["id"])),
+                "name": row["name"],
+                "type": row["type"],
+                "path": row["path"],
+                "source_language": row["source_language"],
+                "enabled": row["enabled"],
+                "created_at": _fmt_dt(row["created_at"]),
+                "config": masked_config,
+                "last_sync_status": row.get("last_sync_status"),
+                "last_sync_indexed": row.get("last_sync_indexed"),
+                "last_sync_skipped": row.get("last_sync_skipped"),
+                "last_sync_failed": row.get("last_sync_failed"),
+                "last_sync_error": row.get("last_sync_error"),
+                "last_sync_at": _fmt_dt(row.get("last_sync_at")),
+                "last_validation_status": row.get("last_validation_status"),
+                "last_validation_error": row.get("last_validation_error"),
+                "last_validated_at": _fmt_dt(row.get("last_validated_at")),
+                "groups": [
+                    {"id": str(to_uuid(p["id"])), "name": p["name"]}
+                    for p in permissions
+                ],
+            }
+
     @app.post("/admin/sources", status_code=201)
     def admin_create_source(
         request: CreateSourceRequest,
