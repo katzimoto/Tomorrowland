@@ -361,6 +361,15 @@ class CreateSourceRequest(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class UpdateSourceRequest(BaseModel):
+    """Admin update source request."""
+
+    name: str | None = None
+    source_language: str | None = None
+    enabled: bool | None = None
+    config: dict[str, Any] | None = None
+
+
 class GrantPermissionRequest(BaseModel):
     """Admin grant permission request."""
 
@@ -2099,6 +2108,43 @@ def create_app(
                 "last_validated_at": _fmt_dt(row.get("last_validated_at")),
                 "groups": [{"id": str(to_uuid(p["id"])), "name": p["name"]} for p in permissions],
             }
+
+    @app.put("/admin/sources/{source_id}")
+    def admin_update_source(
+        source_id: UUID,
+        request: UpdateSourceRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            existing = connection.execute(
+                sa.text("SELECT id FROM ingestion_sources WHERE id = :id"),
+                {"id": source_id.hex},
+            ).scalar()
+            if existing is None:
+                raise HTTPException(status_code=404, detail="Source not found")
+
+            updates: list[str] = []
+            params: dict[str, Any] = {"id": source_id.hex}
+            if request.name is not None:
+                updates.append("name = :name")
+                params["name"] = request.name
+            if request.source_language is not None:
+                updates.append("source_language = :source_language")
+                params["source_language"] = request.source_language
+            if request.enabled is not None:
+                updates.append("enabled = :enabled")
+                params["enabled"] = request.enabled
+            if request.config is not None:
+                updates.append("config = :config")
+                params["config"] = json.dumps(request.config)
+            if updates:
+                connection.execute(
+                    sa.text(f"UPDATE ingestion_sources SET {', '.join(updates)} WHERE id = :id"),
+                    params,
+                )
+            _audit_log(connection, user.sub, "update", "source", str(source_id))
+            return {"id": str(source_id)}
 
     @app.post("/admin/sources", status_code=201)
     def admin_create_source(

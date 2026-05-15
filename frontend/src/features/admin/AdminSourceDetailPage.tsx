@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Plus, X } from "lucide-react";
+import { ArrowLeft, Plus, X, Pencil } from "lucide-react";
 import { adminApi } from "@/api/admin";
 import { Button } from "@/components/primitives/Button";
 import { Badge } from "@/components/primitives/Badge";
+import { Dialog } from "@/components/primitives/Dialog";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { useToast } from "@/components/primitives/ToastContext";
@@ -23,6 +24,9 @@ export function AdminSourceDetailPage() {
   const { show: showToast } = useToast();
   const { sourceId } = useParams({ from: "/app/admin/sources/$sourceId" });
   const [addingGroup, setAddingGroup] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editLang, setEditLang] = useState("");
 
   const { data: source, isLoading, isError } = useQuery({
     queryKey: ["admin-source", sourceId],
@@ -58,6 +62,18 @@ export function AdminSourceDetailPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) => adminApi.updateSource(sourceId!, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-source", sourceId] });
+      setIsEditing(false);
+      showToast("success", "Source updated.");
+    },
+    onError: () => {
+      showToast("error", "Failed to update source.");
+    },
+  });
+
   if (isLoading) {
     return (
       <div className={styles.page}>
@@ -89,6 +105,14 @@ export function AdminSourceDetailPage() {
         <Badge variant={source.enabled ? "success" : "neutral"}>
           {source.enabled ? "Enabled" : "Disabled"}
         </Badge>
+        <Button variant="secondary" size="sm" onClick={() => {
+          setEditName(source.name);
+          setEditLang(source.source_language || "");
+          setIsEditing(true);
+        }}>
+          <Pencil size={14} />
+          Edit
+        </Button>
       </div>
 
       <div className={styles.section}>
@@ -233,6 +257,66 @@ export function AdminSourceDetailPage() {
           </Button>
         )}
       </div>
+
+      <Dialog
+        open={isEditing}
+        onClose={() => setIsEditing(false)}
+        title={`Edit: ${source.name}`}
+      >
+        <div className={styles.form}>
+          <label className={styles.label}>
+            Name
+            <input
+              className={styles.input}
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+            />
+          </label>
+          <label className={styles.label}>
+            Language
+            <select
+              className={styles.select}
+              value={editLang}
+              onChange={(e) => setEditLang(e.target.value)}
+            >
+              <option value="en">English</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="es">Spanish</option>
+              <option value="ar">Arabic</option>
+              <option value="zh">Chinese</option>
+              <option value="he">Hebrew</option>
+            </select>
+          </label>
+          <label className={styles.label}>
+            <input
+              type="checkbox"
+              checked={source.enabled}
+              onChange={(e) => {
+                updateMutation.mutate({ enabled: e.target.checked });
+              }}
+            />{" "}
+            Enabled
+          </label>
+          <div className={styles.dialogActions}>
+            <Button
+              onClick={() => {
+                const payload: Record<string, unknown> = {};
+                if (editName !== source.name) payload.name = editName;
+                if (editLang !== (source.source_language || "")) payload.source_language = editLang;
+                updateMutation.mutate(payload);
+              }}
+              loading={updateMutation.isPending}
+            >
+              Save
+            </Button>
+            <Button variant="secondary" onClick={() => setIsEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }
