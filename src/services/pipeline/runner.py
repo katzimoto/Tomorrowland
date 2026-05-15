@@ -70,6 +70,19 @@ def run_once(
 
     job_repo.mark_succeeded(job_id)
     logger.info("Job %s completed successfully", job_id)
+
+    # Enqueue vector indexing job after successful text processing
+    if claimed["job_type"] == "process_document":
+        try:
+            job_repo.enqueue_document(
+                doc_id=doc_id,
+                source_id=claimed["source_id"],
+                job_type="vector_index_document",
+            )
+            logger.debug("Vector job enqueued for doc %s", doc_id)
+        except Exception:
+            logger.exception("Failed to enqueue vector job for doc %s", doc_id)
+
     return True
 
 

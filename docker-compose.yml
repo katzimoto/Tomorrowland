@@ -99,6 +99,28 @@ services:
       - files_data:/data
       - ./data:/data/mounted:ro
 
+  vector-worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    environment: *app-environment
+    command: python -m services.pipeline.vector_worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    logging:
+      driver: json-file
+    volumes:
+      - files_data:/data
+      - ./data:/data/mounted:ro
+
   frontend:
     build:
       context: .
