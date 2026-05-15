@@ -82,7 +82,7 @@ class QdrantSearchClient:
                 must=[FieldCondition(key="group_id", match=MatchAny(any=group_ids))]
             )
 
-        results = self._client.search(
+        results = self._client.search(  # type: ignore[attr-defined]
             collection_name=COLLECTION_NAME,
             query_vector=vector,
             query_filter=query_filter,
