@@ -49,7 +49,7 @@ from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.repository import IntelligenceRepository
 from services.intelligence.worker import IntelligenceWorker
 from services.permissions.enforcer import assert_doc_access, require_admin
-from services.pipeline.worker import PipelineWorker
+from services.pipeline.jobs import PipelineJobRepository
 from services.preview.service import PreviewService
 from services.rag.models import QuestionRequest
 from services.rag.service import RagService
@@ -62,7 +62,7 @@ from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
 from shared.correlation import get_correlation_id
-from shared.db import db_uuid, to_uuid
+from shared.db import to_uuid
 from shared.metrics import (
     MetricsRegistry,
     current_metrics,
@@ -670,55 +670,17 @@ def create_app(
                 raise HTTPException(status_code=400, detail=detail) from exc
 
             doc_repo = DocumentRepository(connection)
-            translator = app.state.translator or LibreTranslateClient(
-                base_url=app.state.settings.libretranslate_url
-            )
-            es_client = app.state.es_client or ElasticsearchSearchClient(
-                hosts=[app.state.settings.elastic_url]
-            )
-            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
-            )
+            job_repo = PipelineJobRepository(connection)
 
-            worker = PipelineWorker(
-                document_repository=doc_repo,
-                extractor_registry=ExtractorRegistry(),
-                translator=translator,
-                encoder=build_encoder(app.state.settings),
-                es_client=es_client,
-                qdrant_client=qdrant_client,
-                alert_matcher=(
-                    AlertMatcher(
-                        repository=AlertRepository(connection),
-                        encoder=build_encoder(app.state.settings),
-                        default_threshold=default_alert_threshold(connection),
-                    )
-                    if alerts_check_on_ingest(connection)
-                    else None
-                ),
-                metrics=app.state.metrics,
-            )
-
+            results: dict[str, int] = {
+                "discovered": 0,
+                "created": 0,
+                "skipped": 0,
+                "enqueued": 0,
+                "failed_discovery": 0,
+                "failed_enqueue": 0,
+            }
             source_language = source_row.get("source_language")
-            results: dict[str, int] = {"indexed": 0, "skipped": 0, "failed": 0}
-
-            def _record_sync_dlq(
-                doc_id: UUID | None,
-                message: str,
-            ) -> None:
-                connection.execute(
-                    sa.text(
-                        """
-                        INSERT INTO dlq (id, doc_id, error_message, status)
-                        VALUES (:id, :doc_id, :error_message, 'pending')
-                        """
-                    ),
-                    {
-                        "id": db_uuid(uuid4()),
-                        "doc_id": db_uuid(doc_id) if doc_id is not None else None,
-                        "error_message": message,
-                    },
-                )
 
             connector_type = str(source_row["type"])
             try:
@@ -741,12 +703,12 @@ def create_app(
                 raise HTTPException(status_code=502, detail=detail) from exc
 
             for item in documents:
-                doc_id_for_dlq: UUID | None = None
-                try:
-                    app.state.metrics.ingestion_documents_total.labels(
-                        safe_label_value(connector_type), "discovered"
-                    ).inc()
+                results["discovered"] += 1
+                app.state.metrics.ingestion_documents_total.labels(
+                    safe_label_value(connector_type), "discovered"
+                ).inc()
 
+                try:
                     doc = doc_repo.create(
                         source_id=source_id,
                         external_id=item.external_id,
@@ -765,44 +727,51 @@ def create_app(
                         ).inc()
                         continue
 
-                    doc_id_for_dlq = doc.id
+                    results["created"] += 1
                     try:
-                        worker.process_document(doc.id, pre_extracted_text=item.text_content)
-                        results["indexed"] += 1
+                        job_repo.enqueue_document(
+                            doc_id=doc.id,
+                            source_id=source_id,
+                            content_text=item.text_content,
+                        )
+                        results["enqueued"] += 1
                         app.state.metrics.ingestion_documents_total.labels(
                             safe_label_value(connector_type), "success"
                         ).inc()
                     except Exception:
-                        results["failed"] += 1
+                        results["failed_enqueue"] += 1
                         app.state.metrics.ingestion_documents_total.labels(
                             safe_label_value(connector_type), "failure"
                         ).inc()
-                        _record_sync_dlq(doc.id, "Document processing failed")
                 except Exception:
-                    results["failed"] += 1
+                    results["failed_discovery"] += 1
                     app.state.metrics.ingestion_documents_total.labels(
                         safe_label_value(connector_type), "failure"
                     ).inc()
-                    _record_sync_dlq(doc_id_for_dlq, "Document creation or discovery failed")
                 finally:
                     if connector_type == "smb" and item.path:
                         with suppress(OSError):
                             os.unlink(item.path)
 
-            sync_outcome = "failure" if results["failed"] else "success"
+            sync_outcome = (
+                "failed"
+                if results["failed_discovery"] > 0 and results["discovered"] == 0
+                else "partial_failure"
+                if results["failed_enqueue"] > 0 or results["failed_discovery"] > 0
+                else "success"
+            )
             app.state.metrics.ingestion_syncs_total.labels(
                 safe_label_value(connector_type), sync_outcome
             ).inc()
-            status = "failed" if results["failed"] else "success"
             _record_source_sync_state(
                 connection,
                 source_id,
-                status=status,
-                indexed=results["indexed"],
+                status=sync_outcome,
+                indexed=results["enqueued"],
                 skipped=results["skipped"],
-                failed=results["failed"],
+                failed=results["failed_discovery"] + results["failed_enqueue"],
             )
-            return {"status": status, **results}
+            return {"status": sync_outcome, **results}
 
     @app.post("/search", response_model=SearchResponse)
     def search(
