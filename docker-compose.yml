@@ -173,7 +173,7 @@ services:
     restart: unless-stopped
     environment:
       MEILI_MASTER_KEY: ${MEILISEARCH_MASTER_KEY:-}
-      MEILI_ENV: ${APP_ENV:-prod}
+      MEILI_ENV: ${MEILISEARCH_ENV:-production}
     ports:
       - "${MEILISEARCH_PORT:-7700}:7700"
     healthcheck:
