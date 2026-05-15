@@ -77,6 +77,7 @@ def engine() -> Engine:
                 content_text TEXT,
                 content_path TEXT,
                 content_sha256 TEXT,
+                translated_text TEXT,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
@@ -455,6 +456,67 @@ def test_mark_succeeded_on_non_running_is_noop(engine: Engine) -> None:
             {"id": job_id.hex},
         ).scalar()
         assert status == "pending"
+
+
+def test_get_payload_translated_text_is_none_by_default(engine: Engine) -> None:
+    with engine.begin() as conn:
+        source_id = uuid4()
+        doc_id = uuid4()
+        conn.execute(
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
+            {"id": source_id.hex, "name": "test", "type": "folder"},
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
+                "VALUES (:id, :source_id, :eid, :source, :mime)"
+            ),
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },
+        )
+
+        repo = PipelineJobRepository(conn)
+        repo.enqueue_document(doc_id, source_id, content_text="raw text")
+
+        payload = repo.get_payload(doc_id)
+        assert payload is not None
+        assert payload["translated_text"] is None
+
+
+def test_update_translated_text_persists_value(engine: Engine) -> None:
+    with engine.begin() as conn:
+        source_id = uuid4()
+        doc_id = uuid4()
+        conn.execute(
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
+            {"id": source_id.hex, "name": "test", "type": "folder"},
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
+                "VALUES (:id, :source_id, :eid, :source, :mime)"
+            ),
+            {
+                "id": doc_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },
+        )
+
+        repo = PipelineJobRepository(conn)
+        repo.enqueue_document(doc_id, source_id, content_text="raw text")
+        repo.update_translated_text(doc_id, "translated content")
+
+        payload = repo.get_payload(doc_id)
+        assert payload is not None
+        assert payload["translated_text"] == "translated content"
 
 
 def test_end_to_end(engine: Engine) -> None:

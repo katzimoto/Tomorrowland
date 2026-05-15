@@ -328,7 +328,7 @@ class PipelineJobRepository:
             self._connection.execute(
                 sa.text(
                     """
-                SELECT doc_id, content_text, content_path, content_sha256
+                SELECT doc_id, content_text, content_path, content_sha256, translated_text
                 FROM document_payloads
                 WHERE doc_id = :doc_id
             """
@@ -344,9 +344,28 @@ class PipelineJobRepository:
                 "content_text": row["content_text"],
                 "content_path": row["content_path"],
                 "content_sha256": row["content_sha256"],
+                "translated_text": row["translated_text"],
             }
             if row
             else None
+        )
+
+    def update_translated_text(self, doc_id: UUID, translated_text: str) -> None:
+        """Persist the pipeline-translated text for later use by the index-worker."""
+        self._connection.execute(
+            sa.text(
+                """
+                UPDATE document_payloads
+                SET translated_text = :translated_text,
+                    updated_at = :updated_at
+                WHERE doc_id = :doc_id
+            """
+            ),
+            {
+                "doc_id": db_uuid(doc_id),
+                "translated_text": translated_text,
+                "updated_at": datetime.now(UTC),
+            },
         )
 
     def count_by_status(self) -> dict[tuple[str, str], int]:
