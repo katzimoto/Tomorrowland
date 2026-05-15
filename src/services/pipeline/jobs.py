@@ -77,15 +77,13 @@ class PipelineJobRepository:
         instead of creating a duplicate.
         """
         existing = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT id FROM pipeline_jobs
                 WHERE doc_id = :doc_id
                   AND job_type = :job_type
                   AND status IN ('pending', 'running', 'retry')
                 LIMIT 1
-            """
-            ),
+            """),
             {"doc_id": db_uuid(doc_id), "job_type": job_type},
         ).scalar()
         if existing:
@@ -97,16 +95,14 @@ class PipelineJobRepository:
             run_after = now
         try:
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     INSERT INTO pipeline_jobs
                         (id, doc_id, source_id, job_type, status, priority,
                          max_attempts, run_after, created_at, updated_at)
                     VALUES
                         (:id, :doc_id, :source_id, :job_type, 'pending', :priority,
                          :max_attempts, :run_after, :created_at, :updated_at)
-                """
-                ),
+                """),
                 {
                     "id": db_uuid(job_id),
                     "doc_id": db_uuid(doc_id),
@@ -121,23 +117,20 @@ class PipelineJobRepository:
             )
         except IntegrityError:
             existing = self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT id FROM pipeline_jobs
                     WHERE doc_id = :doc_id
                       AND job_type = :job_type
                       AND status IN ('pending', 'running', 'retry')
                     LIMIT 1
-                """
-                ),
+                """),
                 {"doc_id": db_uuid(doc_id), "job_type": job_type},
             ).scalar()
             return to_uuid(existing)
 
         if content_text is not None or content_path is not None:
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     INSERT INTO document_payloads
                         (doc_id, content_text, content_path, content_sha256,
                          created_at, updated_at)
@@ -149,8 +142,7 @@ class PipelineJobRepository:
                         content_path = EXCLUDED.content_path,
                         content_sha256 = EXCLUDED.content_sha256,
                         updated_at = :updated_at
-                """
-                ),
+                """),
                 {
                     "doc_id": db_uuid(doc_id),
                     "content_text": content_text,
@@ -182,8 +174,7 @@ class PipelineJobRepository:
 
         lock_clause = "FOR UPDATE SKIP LOCKED" if not _is_sqlite(self._connection) else ""
 
-        stmt = sa.text(
-            f"""
+        stmt = sa.text(f"""
             SELECT id, doc_id, source_id, job_type, priority, attempts,
                    max_attempts, stage, last_error, run_after
             FROM pipeline_jobs
@@ -193,8 +184,7 @@ class PipelineJobRepository:
             ORDER BY priority DESC, created_at ASC
             LIMIT 1
             {lock_clause}
-        """
-        )
+        """)
         if job_types:
             stmt = stmt.bindparams(sa.bindparam("job_types", expanding=True))
         row = self._connection.execute(stmt, params).mappings().first()
@@ -204,8 +194,7 @@ class PipelineJobRepository:
 
         now = datetime.now(UTC)
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE pipeline_jobs
                 SET status = 'running',
                     locked_by = :locked_by,
@@ -213,8 +202,7 @@ class PipelineJobRepository:
                     attempts = attempts + 1,
                     updated_at = :updated_at
                 WHERE id = :id AND status IN ('pending', 'retry')
-            """
-            ),
+            """),
             {
                 "id": row["id"],
                 "locked_by": locker_id,
@@ -241,13 +229,11 @@ class PipelineJobRepository:
     def mark_running_stage(self, job_id: UUID, stage: str) -> None:
         """Update the current processing stage of a running job."""
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE pipeline_jobs
                 SET stage = :stage, updated_at = :updated_at
                 WHERE id = :id AND status = 'running'
-            """
-            ),
+            """),
             {
                 "id": db_uuid(job_id),
                 "stage": stage,
@@ -258,16 +244,14 @@ class PipelineJobRepository:
     def mark_succeeded(self, job_id: UUID) -> None:
         """Mark a running job as succeeded."""
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE pipeline_jobs
                 SET status = 'succeeded',
                     locked_by = NULL,
                     locked_at = NULL,
                     updated_at = :updated_at
                 WHERE id = :id AND status = 'running'
-            """
-            ),
+            """),
             {"id": db_uuid(job_id), "updated_at": datetime.now(UTC)},
         )
 
@@ -281,8 +265,7 @@ class PipelineJobRepository:
         """Mark a running job for retry with a sanitized error and backoff."""
         now = datetime.now(UTC)
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE pipeline_jobs
                 SET status = 'retry',
                     last_error = :last_error,
@@ -291,8 +274,7 @@ class PipelineJobRepository:
                     locked_at = NULL,
                     updated_at = :updated_at
                 WHERE id = :id AND status = 'running'
-            """
-            ),
+            """),
             {
                 "id": db_uuid(job_id),
                 "last_error": _sanitize_error(error, stage=stage),
@@ -304,8 +286,7 @@ class PipelineJobRepository:
     def mark_dead_letter(self, job_id: UUID, error: str | BaseException) -> None:
         """Move a running job to dead-letter state (final failure)."""
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE pipeline_jobs
                 SET status = 'dead_letter',
                     last_error = :last_error,
@@ -313,8 +294,7 @@ class PipelineJobRepository:
                     locked_at = NULL,
                     updated_at = :updated_at
                 WHERE id = :id AND status = 'running'
-            """
-            ),
+            """),
             {
                 "id": db_uuid(job_id),
                 "last_error": _sanitize_error(error, stage="process"),
@@ -326,13 +306,11 @@ class PipelineJobRepository:
         """Return the stored document payload for a doc_id."""
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                 SELECT doc_id, content_text, content_path, content_sha256, translated_text
                 FROM document_payloads
                 WHERE doc_id = :doc_id
-            """
-                ),
+            """),
                 {"doc_id": db_uuid(doc_id)},
             )
             .mappings()
@@ -350,36 +328,15 @@ class PipelineJobRepository:
             else None
         )
 
-    def update_content_text(self, doc_id: UUID, content_text: str) -> None:
-        """Persist the extracted document text so downstream workers (e.g. translation-worker)
-        can read raw content from the DB without re-running file extraction."""
-        self._connection.execute(
-            sa.text(
-                """
-                UPDATE document_payloads
-                SET content_text = :content_text,
-                    updated_at = :updated_at
-                WHERE doc_id = :doc_id
-            """
-            ),
-            {
-                "doc_id": db_uuid(doc_id),
-                "content_text": content_text,
-                "updated_at": datetime.now(UTC),
-            },
-        )
-
     def update_translated_text(self, doc_id: UUID, translated_text: str) -> None:
         """Persist the pipeline-translated text for later use by the index-worker."""
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE document_payloads
                 SET translated_text = :translated_text,
                     updated_at = :updated_at
                 WHERE doc_id = :doc_id
-            """
-            ),
+            """),
             {
                 "doc_id": db_uuid(doc_id),
                 "translated_text": translated_text,
@@ -393,13 +350,11 @@ class PipelineJobRepository:
         Used to populate queue-depth gauges for operator visibility.
         """
         rows = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT status, job_type, COUNT(*) AS cnt
                 FROM pipeline_jobs
                 GROUP BY status, job_type
-                """
-            )
+                """)
         ).fetchall()
         return {(row[0], row[1]): row[2] for row in rows}
 
@@ -411,8 +366,7 @@ class PipelineJobRepository:
         """
         cutoff = datetime.now(UTC) - timedelta(seconds=max_age_seconds)
         result = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE pipeline_jobs
                 SET status = 'pending',
                     locked_by = NULL,
@@ -421,8 +375,7 @@ class PipelineJobRepository:
                 WHERE status = 'running'
                   AND locked_at IS NOT NULL
                   AND locked_at <= :cutoff
-            """
-            ),
+            """),
             {"cutoff": cutoff, "updated_at": datetime.now(UTC)},
         )
         return result.rowcount if result.rowcount is not None else 0

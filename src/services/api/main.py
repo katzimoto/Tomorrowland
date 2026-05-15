@@ -42,7 +42,10 @@ from services.comments.models import CommentCreateRequest, CommentUpdateRequest
 from services.comments.repository import CommentRepository
 from services.connectors.factory import build_connector, connector_types
 from services.documents.models import DocumentRow, DocumentSource
-from services.documents.repository import DocumentRepository, TranslationVersionRepository
+from services.documents.repository import (
+    DocumentRepository,
+    TranslationVersionRepository,
+)
 from services.extraction.registry import ExtractorRegistry
 from services.health import HealthResponse, health
 from services.intelligence.ollama_client import OllamaClient
@@ -156,7 +159,10 @@ def _sanitize_source_error(message: str, source_row: Any | None = None) -> str:
 
 def _classify_connection_error(
     exc: Exception, connector_type: str, source_row: Any | None = None
-) -> tuple[Literal["ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"], str]:
+) -> tuple[
+    Literal["ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"],
+    str,
+]:
     """Classify a connector error into status type and sanitized message."""
     message = str(exc).lower()
     if connector_type in ("smb", "folder"):
@@ -188,8 +194,7 @@ def _record_source_sync_state(
 ) -> None:
     """Persist the latest admin sync summary for an ingestion source."""
     connection.execute(
-        sa.text(
-            """
+        sa.text("""
             UPDATE ingestion_sources
             SET last_sync_status = :status,
                 last_sync_indexed = :indexed,
@@ -199,8 +204,7 @@ def _record_source_sync_state(
                 last_sync_at = :synced_at,
                 updated_at = :synced_at
             WHERE id = :id
-            """
-        ),
+            """),
         {
             "id": source_id.hex,
             "status": status,
@@ -228,12 +232,10 @@ def _audit_log(
             safe_label_value(action), safe_label_value(resource_type)
         ).inc()
     connection.execute(
-        sa.text(
-            """
+        sa.text("""
             INSERT INTO audit_log (id, user_id, action, resource_type, resource_id, details)
             VALUES (:id, :user_id, :action, :resource_type, :resource_id, :details)
-            """
-        ),
+            """),
         {
             "id": uuid4().hex,
             "user_id": user_id.hex if user_id else None,
@@ -634,7 +636,9 @@ def create_app(
         return health("api")
 
     @app.get("/admin/readiness", response_model=None)
-    def admin_readiness(user: Annotated[TokenPayload, Depends(current_user)]) -> ReadinessResponse:
+    def admin_readiness(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> ReadinessResponse:
         require_admin(user)
         readiness: ReadinessResponse = app.state.readiness_checker.check()
         return readiness
@@ -663,7 +667,9 @@ def create_app(
         return UserResponse.from_token(user)
 
     @app.get("/admin/health")
-    def admin_health(user: Annotated[TokenPayload, Depends(current_user)]) -> dict[str, str]:
+    def admin_health(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, str]:
         require_admin(user)
         return {"status": "ok"}
 
@@ -783,9 +789,11 @@ def create_app(
             sync_outcome = (
                 "failed"
                 if results["failed_discovery"] > 0 and results["discovered"] == 0
-                else "partial_failure"
-                if results["failed_enqueue"] > 0 or results["failed_discovery"] > 0
-                else "success"
+                else (
+                    "partial_failure"
+                    if results["failed_enqueue"] > 0 or results["failed_discovery"] > 0
+                    else "success"
+                )
             )
             app.state.metrics.ingestion_syncs_total.labels(
                 safe_label_value(connector_type), sync_outcome
@@ -1752,12 +1760,10 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             rows = connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT id, email, display_name, auth_source, is_admin, created_at
                     FROM users ORDER BY created_at DESC
-                    """
-                )
+                    """)
             ).mappings()
             return [
                 {
@@ -1838,12 +1844,10 @@ def create_app(
         with app.state.engine.begin() as connection:
             row = (
                 connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                     SELECT id, email, display_name, auth_source, is_admin, created_at
                     FROM users WHERE id = :id
-                    """
-                    ),
+                    """),
                     {"id": user_id.hex},
                 )
                 .mappings()
@@ -1853,15 +1857,13 @@ def create_app(
                 raise HTTPException(status_code=404, detail="User not found")
             groups = (
                 connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                     SELECT g.id, g.name
                     FROM user_groups ug
                     JOIN groups g ON g.id = ug.group_id
                     WHERE ug.user_id = :user_id
                     ORDER BY g.name
-                    """
-                    ),
+                    """),
                     {"user_id": user_id.hex},
                 )
                 .mappings()
@@ -1889,15 +1891,13 @@ def create_app(
             auth_repo.set_user_groups(user_id, request.group_names)
             groups = (
                 connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                     SELECT g.id, g.name
                     FROM user_groups ug
                     JOIN groups g ON g.id = ug.group_id
                     WHERE ug.user_id = :user_id
                     ORDER BY g.name
-                    """
-                    ),
+                    """),
                     {"user_id": user_id.hex},
                 )
                 .mappings()
@@ -2146,7 +2146,10 @@ def create_app(
         require_admin(user)
         return app.state.settings.supported_translation_source_languages_list
 
-    @app.post("/admin/sources/{source_id}/test-connection", response_model=ConnectionTestResult)
+    @app.post(
+        "/admin/sources/{source_id}/test-connection",
+        response_model=ConnectionTestResult,
+    )
     def admin_test_source_connection(
         source_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
@@ -2174,15 +2177,13 @@ def create_app(
             except Exception as exc:
                 status, error = _classify_connection_error(exc, connector_type, source_row)
                 connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                         UPDATE ingestion_sources
                         SET last_validation_status = :status,
                             last_validation_error = :error,
                             last_validated_at = :checked_at
                         WHERE id = :id
-                        """
-                    ),
+                        """),
                     {
                         "id": source_id.hex,
                         "status": status,
@@ -2199,15 +2200,13 @@ def create_app(
 
             details: dict[str, Any] = {"config_valid": True}
             connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     UPDATE ingestion_sources
                     SET last_validation_status = 'ok',
                         last_validation_error = NULL,
                         last_validated_at = :checked_at
                     WHERE id = :id
-                    """
-                ),
+                    """),
                 {
                     "id": source_id.hex,
                     "checked_at": checked_at,
@@ -2227,15 +2226,13 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             rows = connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT id, name, type, path, source_language, enabled, created_at,
                            last_sync_status, last_sync_indexed, last_sync_skipped,
                            last_sync_failed, last_sync_error, last_sync_at,
                            last_validation_status, last_validation_error, last_validated_at
                     FROM ingestion_sources ORDER BY created_at DESC
-                    """
-                )
+                    """)
             ).mappings()
             return [
                 {
@@ -2268,16 +2265,14 @@ def create_app(
         with app.state.engine.begin() as connection:
             row = (
                 connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                     SELECT id, name, type, path, source_language, enabled, created_at,
                            config,
                            last_sync_status, last_sync_indexed, last_sync_skipped,
                            last_sync_failed, last_sync_error, last_sync_at,
                            last_validation_status, last_validation_error, last_validated_at
                     FROM ingestion_sources WHERE id = :id
-                    """
-                    ),
+                    """),
                     {"id": source_id.hex},
                 )
                 .mappings()
@@ -2296,15 +2291,13 @@ def create_app(
 
             permissions = (
                 connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                     SELECT g.id, g.name
                     FROM source_permissions sp
                     JOIN groups g ON g.id = sp.group_id
                     WHERE sp.source_id = :source_id
                     ORDER BY g.name
-                    """
-                    ),
+                    """),
                     {"source_id": source_id.hex},
                 )
                 .mappings()
@@ -2378,14 +2371,12 @@ def create_app(
         with app.state.engine.begin() as connection:
             source_id = uuid4()
             connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     INSERT INTO ingestion_sources
                         (id, name, type, path, source_language, enabled, config)
                     VALUES
                         (:id, :name, :type, :path, :source_language, :enabled, :config)
-                    """
-                ),
+                    """),
                 {
                     "id": source_id.hex,
                     "name": request.name,
@@ -2456,12 +2447,10 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     DELETE FROM source_permissions
                     WHERE source_id = :source_id AND group_id = :group_id
-                    """
-                ),
+                    """),
                 {"source_id": source_id.hex, "group_id": group_id.hex},
             )
             _audit_log(
@@ -2500,13 +2489,11 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     UPDATE system_config
                     SET value = :value, updated_at = CURRENT_TIMESTAMP, updated_by = :user_id
                     WHERE key = :key
-                    """
-                ),
+                    """),
                 {
                     "key": key,
                     "value": request.value,
@@ -2547,13 +2534,11 @@ def create_app(
         with app.state.engine.begin() as connection:
             for key, value in SYSTEM_CONFIG_DEFAULTS.items():
                 connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                         UPDATE system_config
                         SET value = :value, updated_at = CURRENT_TIMESTAMP, updated_by = :user_id
                         WHERE key = :key
-                        """
-                    ),
+                        """),
                     {"key": key, "value": value, "user_id": user.sub.hex},
                 )
             _audit_log(connection, user.sub, "reset", "system_config")
@@ -2566,12 +2551,10 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             rows = connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT id, doc_id, error_message, retry_count, status, created_at, updated_at
                     FROM dlq ORDER BY created_at DESC
-                    """
-                )
+                    """)
             ).mappings()
             return [
                 DlqItem(
@@ -2594,14 +2577,12 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             result = connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     UPDATE dlq
                     SET status = 'retried', retry_count = retry_count + 1,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = :id AND status = 'pending'
-                    """
-                ),
+                    """),
                 {"id": dlq_id.hex},
             )
             if result.rowcount == 0:
@@ -2616,12 +2597,10 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             rows = connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT id, user_id, action, resource_type, resource_id, details, created_at
                     FROM audit_log ORDER BY created_at DESC LIMIT 100
-                    """
-                )
+                    """)
             ).mappings()
             return [
                 {

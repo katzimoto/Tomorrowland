@@ -14,6 +14,7 @@ class ElasticsearchSearchClient:
 
     def __init__(self, hosts: list[str] | None = None) -> None:
         self._client = Elasticsearch(hosts=hosts or ["http://localhost:9200"])
+        self.create_index_if_not_exists()
 
     def create_index_if_not_exists(self) -> None:
         """Create the document index with mappings if it does not exist.
