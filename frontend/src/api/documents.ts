@@ -28,6 +28,18 @@ export interface DocumentPreview {
   metadata: Record<string, unknown>;
   snippet: string;
   view_count: number;
+  version_number?: number | null;
+  is_latest?: boolean | null;
+  latest_document_id?: string | null;
+  has_newer_version?: boolean | null;
+}
+
+export interface DocumentVersion {
+  doc_id: string;
+  version_number: number;
+  is_latest: boolean;
+  title: string | null;
+  created_at: string;
 }
 
 export interface DocumentSummary {
@@ -95,6 +107,10 @@ export interface TranslationVersion {
   status: TranslationVersionStatus;
   target_language: string;
   requested_at: string;
+}
+
+export function listDocumentVersions(docId: string): Promise<DocumentVersion[]> {
+  return api.get<DocumentVersion[]>(`/documents/${docId}/versions`);
 }
 
 export function getPreview(docId: string, translationVersionId?: string): Promise<DocumentPreview> {

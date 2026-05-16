@@ -27,7 +27,8 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
   const hasAny =
     (filters.file_type?.length ?? 0) > 0 ||
     (filters.translation_quality?.length ?? 0) > 0 ||
-    !!filters.date_from;
+    !!filters.date_from ||
+    !!filters.include_older_versions;
 
   function toggleFileType(value: string) {
     const cur = filters.file_type ?? [];
@@ -87,6 +88,17 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
             </label>
           ))}
         </div>
+      </div>
+
+      <div className={styles.section}>
+        <label className={styles.option}>
+          <input
+            type="checkbox"
+            checked={!!filters.include_older_versions}
+            onChange={(e) => onChange({ ...filters, include_older_versions: e.target.checked || undefined })}
+          />
+          {t.filters.includeOlderVersions}
+        </label>
       </div>
 
       {hasAny && (

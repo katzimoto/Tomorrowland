@@ -16,6 +16,8 @@ from services.extraction.registry import ExtractorRegistry
 from services.intelligence.worker import IntelligenceWorker
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.encoder import TextEncoder
+from services.search.meili_provider import MeilisearchSearchProvider
+from services.search.meili_types import ChunkMetadata, SearchChunkRecord
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.correlation import get_correlation_id
@@ -42,6 +44,7 @@ class PipelineWorker:
         encoder: TextEncoder,
         es_client: ElasticsearchSearchClient,
         qdrant_client: QdrantSearchClient,
+        meili_provider: MeilisearchSearchProvider | None = None,
         intelligence_worker: IntelligenceWorker | None = None,
         alert_matcher: AlertMatcher | None = None,
         metrics: MetricsRegistry | None = None,
@@ -52,6 +55,7 @@ class PipelineWorker:
         self._encoder = encoder
         self._es = es_client
         self._qdrant = qdrant_client
+        self._meili = meili_provider
         self._intelligence = intelligence_worker
         self._alert_matcher = alert_matcher
         self._metrics = metrics
@@ -161,7 +165,44 @@ class PipelineWorker:
             )
             self._metrics.search_index_documents.labels("elasticsearch").inc()
 
-        # 5. Index chunks in Qdrant. Vector indexing is degraded/best-effort
+        # 5. Index chunks in Meilisearch when configured. This mirrors the
+        #    backfill record shape so live ingestion and reindex agree.
+        if self._meili is not None:
+            try:
+                meili_records = [
+                    SearchChunkRecord.from_parts(
+                        document_id=str(doc_id),
+                        chunk_index=idx,
+                        title=doc.title or "",
+                        content=chunk_text_content,
+                        allowed_group_ids=allowed_group_ids,
+                        metadata=ChunkMetadata(
+                            source=doc.source,
+                            mime_type=doc.mime_type,
+                            file_name=Path(doc.path).name if doc.path else None,
+                            language=doc.source_language,
+                        ),
+                        content_en=translated,
+                    )
+                    for idx, chunk_text_content in enumerate(chunks)
+                ]
+                if meili_records:
+                    start = time.perf_counter()
+                    self._meili.index_batch(meili_records)
+                    if self._metrics is not None:
+                        self._metrics.search_backend_duration_seconds.labels(
+                            "meilisearch", "index"
+                        ).observe(time.perf_counter() - start)
+                        self._metrics.search_index_documents.labels("meilisearch").inc()
+            except Exception as exc:
+                logger.error(
+                    "Meilisearch indexing failed for doc_id=%s error_type=%s correlation=%s",
+                    doc_id,
+                    exc.__class__.__name__,
+                    get_correlation_id(),
+                )
+
+        # 6. Index chunks in Qdrant. Vector indexing is degraded/best-effort
         #    relative to text indexing: failures are logged safely but do not
         #    turn a text-indexed document into a failed document.
         try:
@@ -195,12 +236,12 @@ class PipelineWorker:
                 get_correlation_id(),
             )
 
-        # 6. Update status after text indexing has succeeded. Vector indexing may
-        #    be degraded; a future async job model should persist stage-specific
-        #    retry state for vector failures.
+        # 7. Update status after text indexing has succeeded. Vector/Meilisearch
+        #    indexing may be degraded; a future async job model should persist
+        #    stage-specific retry state for those failures.
         self._doc_repo.update_indexed(doc_id, "indexed", translation_quality)
 
-        # 7. Intelligence (best-effort, never blocking)
+        # 8. Intelligence (best-effort, never blocking)
         if self._intelligence is not None and translation_quality in ("fast", "high"):
             try:
                 self._intelligence.process_document(doc.id, translated)
@@ -211,7 +252,7 @@ class PipelineWorker:
                     get_correlation_id(),
                 )
 
-        # 8. Alert matching (best-effort, never blocking)
+        # 9. Alert matching (best-effort, never blocking)
         if self._alert_matcher is not None:
             try:
                 self._alert_matcher.match_document(doc, translated)

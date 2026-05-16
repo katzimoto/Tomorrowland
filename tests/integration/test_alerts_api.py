@@ -18,6 +18,14 @@ from shared.config import Settings
 TEST_JWT_SECRET = "x" * 32
 
 
+def _settings() -> Settings:
+    return Settings(
+        app_env="test",
+        auth_provider="local",
+        jwt_secret=TEST_JWT_SECRET,
+    )
+
+
 def _token(client: TestClient, email: str) -> str:
     login = client.post("/auth/login", json={"email": email, "password": "secret"})
     assert login.status_code == 200
@@ -72,9 +80,7 @@ def _create_doc(engine: Engine, group_name: str, path: str) -> UUID:
 
 def test_subscription_crud(migrated_engine: Engine) -> None:
     _setup_users(migrated_engine)
-    client = TestClient(
-        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
-    )
+    client = TestClient(create_app(migrated_engine, _settings()))
     token = _token(client, "user@example.com")
 
     created = client.post(
@@ -109,14 +115,7 @@ def test_subscription_crud(migrated_engine: Engine) -> None:
 def test_subscription_feature_flag_disabled(migrated_engine: Engine) -> None:
     _setup_users(migrated_engine)
     client = TestClient(
-        create_app(
-            migrated_engine,
-            Settings(
-                auth_provider="local",
-                jwt_secret=TEST_JWT_SECRET,
-                feature_subscriptions=False,
-            ),
-        )
+        create_app(migrated_engine, _settings().model_copy(update={"feature_subscriptions": False}))
     )
     token = _token(client, "user@example.com")
 
@@ -134,9 +133,7 @@ def test_alert_trigger_creates_access_filtered_notification(
     doc_path.write_text("procurement fraud")
     doc_id = _create_doc(migrated_engine, "users", str(doc_path))
 
-    client = TestClient(
-        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
-    )
+    client = TestClient(create_app(migrated_engine, _settings()))
     user_token = _token(client, "user@example.com")
     outsider_token = _token(client, "outsider@example.com")
     admin_token = _token(client, "admin@example.com")
@@ -181,9 +178,7 @@ def test_mark_notification_read(migrated_engine: Engine, tmp_path: Path) -> None
     doc_path.write_text("security update")
     doc_id = _create_doc(migrated_engine, "users", str(doc_path))
 
-    client = TestClient(
-        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
-    )
+    client = TestClient(create_app(migrated_engine, _settings()))
     user_token = _token(client, "user@example.com")
     admin_token = _token(client, "admin@example.com")
     client.post(

@@ -287,6 +287,7 @@ class SearchRequest(BaseModel):
     top_k: int = Field(default=20, ge=1, le=100)
     page: int = 1
     page_size: int = Field(default=20, ge=1, le=100)
+    include_older_versions: bool = False
 
 
 class SearchResultItem(BaseModel):
@@ -305,6 +306,10 @@ class SearchResultItem(BaseModel):
     score: float
     updated_at: str
     indexed_at: str
+    version_number: int | None = None
+    is_latest: bool | None = None
+    latest_document_id: str | None = None
+    has_newer_version: bool | None = None
 
 
 class SearchResponse(BaseModel):
@@ -322,9 +327,13 @@ class PreviewResponse(BaseModel):
     title: str | None = None
     mime_type: str
     translation_quality: str | None = None
-    snippet: str | None = None
     view_count: int = 0
     metadata: dict[str, Any]
+    snippet: str
+    version_number: int | None = None
+    is_latest: bool | None = None
+    latest_document_id: str | None = None
+    has_newer_version: bool | None = None
 
 
 class ConnectionTestResult(BaseModel):
@@ -715,6 +724,22 @@ def create_app(
             }
             source_language = source_row.get("source_language")
 
+            def _record_sync_dlq(
+                doc_id: UUID | None,
+                message: str,
+            ) -> None:
+                connection.execute(
+                    sa.text("""
+                        INSERT INTO dlq (id, doc_id, error_message, status)
+                        VALUES (:id, :doc_id, :error_message, 'pending')
+                        """),
+                    {
+                        "id": db_uuid(uuid4()),
+                        "doc_id": db_uuid(doc_id) if doc_id is not None else None,
+                        "error_message": message,
+                    },
+                )
+
             connector_type = str(source_row["type"])
             try:
                 documents = connector.fetch_documents()
@@ -845,14 +870,19 @@ def create_app(
         app.state.metrics.search_backend_duration_seconds.labels("elasticsearch", "search").observe(
             time.perf_counter() - backend_start
         )
-
+        logger.debug(f"The elastic search client returned {bm25_results}")
         vector_results: list[SearchResult] = []
         try:
+            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+                url=app.state.settings.qdrant_url
+            )
+            encoder = build_encoder(app.state.settings)
             query_vector = encoder.encode(request.query)
             backend_start = time.perf_counter()
             vector_results = qdrant_client.search(
                 vector=query_vector, group_ids=search_group_ids, limit=50
             )
+            logger.debug(f"The word vector returned {vector_results}")
             app.state.metrics.search_backend_duration_seconds.labels("qdrant", "search").observe(
                 time.perf_counter() - backend_start
             )
@@ -863,7 +893,7 @@ def create_app(
                 exc.__class__.__name__,
                 get_correlation_id(),
             )
-            app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
+        app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
 
         with app.state.engine.begin() as connection:
             vector_row = connection.execute(
@@ -896,10 +926,26 @@ def create_app(
                 bm25_weight=1.0,
             )
 
+        # Filter out older versions unless explicitly requested
+        if not request.include_older_versions:
+            all_merged_ids: list[UUID] = []
+            for r in merged:
+                with suppress(ValueError):
+                    all_merged_ids.append(UUID(r.doc_id))
+            if all_merged_ids:
+                with app.state.engine.begin() as connection:
+                    _doc_repo = DocumentRepository(connection)
+                    non_latest: set[str] = {
+                        str(doc.id)
+                        for doc in _doc_repo.list_by_ids(all_merged_ids)
+                        if not doc.is_latest
+                    }
+                merged = [r for r in merged if r.doc_id not in non_latest]
+
         start = (request.page - 1) * request.page_size
         end = start + request.page_size
         page = merged[start:end]
-
+        logger.info(f"The search result are {page}")
         # Enrich page with document metadata from the database
         doc_ids: list[UUID] = []
         for r in page:
@@ -907,11 +953,19 @@ def create_app(
                 doc_ids.append(UUID(r.doc_id))
 
         docs: dict[str, DocumentRow] = {}
+        family_current: dict[UUID, UUID] = {}
         if doc_ids:
             with app.state.engine.begin() as connection:
                 doc_repo = DocumentRepository(connection)
                 for doc in doc_repo.list_by_ids(doc_ids):
                     docs[str(doc.id)] = doc
+                non_latest_family_ids = [
+                    d.version_family_id
+                    for d in docs.values()
+                    if d.version_family_id and not d.is_latest
+                ]
+                if non_latest_family_ids:
+                    family_current = doc_repo.get_family_current_doc_ids(non_latest_family_ids)
 
         now = datetime.now(UTC).isoformat()
         results: list[SearchResultItem] = []
@@ -941,6 +995,15 @@ def create_app(
             tags = metadata.get("tags", [])
             if isinstance(tags, str):
                 tags = [tags]
+
+            if doc_row.is_latest:
+                latest_doc_id: str | None = str(doc_row.id)
+            elif doc_row.version_family_id:
+                latest_raw = family_current.get(doc_row.version_family_id)
+                latest_doc_id = str(latest_raw) if latest_raw else None
+            else:
+                latest_doc_id = None
+
             results.append(
                 SearchResultItem(
                     doc_id=r.doc_id,
@@ -956,6 +1019,10 @@ def create_app(
                     score=r.score,
                     updated_at=_fmt_dt(doc_row.updated_at) or now,
                     indexed_at=_fmt_dt(doc_row.created_at) or now,
+                    version_number=doc_row.version_number,
+                    is_latest=doc_row.is_latest,
+                    latest_document_id=latest_doc_id,
+                    has_newer_version=not doc_row.is_latest,
                 )
             )
 
@@ -992,6 +1059,25 @@ def create_app(
             app.state.metrics.preview_requests_total.labels(
                 mime_family(result["mime_type"]), "success"
             ).inc()
+
+            doc_repo = DocumentRepository(connection)
+            doc_row = doc_repo.get_by_id(doc_id)
+
+            version_number: int | None = None
+            is_latest_val: bool | None = None
+            latest_document_id: str | None = None
+            has_newer_version: bool | None = None
+            if doc_row is not None:
+                version_number = doc_row.version_number
+                is_latest_val = doc_row.is_latest
+                has_newer_version = not doc_row.is_latest
+                if doc_row.is_latest:
+                    latest_document_id = str(doc_row.id)
+                elif doc_row.version_family_id:
+                    family_map = doc_repo.get_family_current_doc_ids([doc_row.version_family_id])
+                    raw = family_map.get(doc_row.version_family_id)
+                    latest_document_id = str(raw) if raw else None
+
             return PreviewResponse(
                 doc_id=result["doc_id"],
                 title=result["title"],
@@ -1000,6 +1086,10 @@ def create_app(
                 metadata=result["metadata"],
                 snippet=result["snippet"],
                 view_count=result["view_count"],
+                version_number=version_number,
+                is_latest=is_latest_val,
+                latest_document_id=latest_document_id,
+                has_newer_version=has_newer_version,
             )
 
     @app.get("/me/activity")
@@ -1071,6 +1161,28 @@ def create_app(
                     "status": v["status"],
                     "target_language": v["target_language"],
                     "requested_at": _fmt_dt(v["requested_at"]),
+                }
+                for v in versions
+            ]
+
+    @app.get("/documents/{doc_id}/versions")
+    def list_document_versions(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, Any]]:
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(doc_id, user, auth_repo)
+
+            doc_repo = DocumentRepository(connection)
+            versions = doc_repo.list_versions_in_family(doc_id)
+            return [
+                {
+                    "doc_id": str(v.id),
+                    "version_number": v.version_number,
+                    "is_latest": v.is_latest,
+                    "title": v.title,
+                    "created_at": _fmt_dt(v.created_at),
                 }
                 for v in versions
             ]
@@ -1689,20 +1801,29 @@ def create_app(
             extractor = ExtractorRegistry()
             text = extractor.extract(Path(doc.path), doc.mime_type)
 
-            intelligence_repo = IntelligenceRepository(connection)
-            ollama_client = OllamaClient(
-                base_url=app.state.settings.ollama_url,
-                model=app.state.settings.ollama_model,
-            )
-            es_client = app.state.es_client or ElasticsearchSearchClient(
-                hosts=[app.state.settings.elastic_url]
-            )
-            worker = IntelligenceWorker(
-                repository=intelligence_repo,
-                ollama_client=ollama_client,
-                es_client=es_client,
-            )
-            worker.process_document(doc_id, text)
+            try:
+                intelligence_repo = IntelligenceRepository(connection)
+                ollama_client = app.state.ollama_client or OllamaClient(
+                    base_url=app.state.settings.ollama_url,
+                    model=app.state.settings.ollama_model,
+                )
+                es_client = app.state.es_client or ElasticsearchSearchClient(
+                    hosts=[app.state.settings.elastic_url]
+                )
+                worker = IntelligenceWorker(
+                    repository=intelligence_repo,
+                    ollama_client=ollama_client,
+                    es_client=es_client,
+                )
+                worker.process_document(doc_id, text)
+            except Exception as exc:
+                logger.warning(
+                    "Intelligence trigger degraded route=/admin/intelligence/%s/trigger "
+                    "error_type=%s correlation_id=%s",
+                    doc_id,
+                    exc.__class__.__name__,
+                    get_correlation_id(),
+                )
 
             return {"doc_id": str(doc_id), "triggered": True}
 

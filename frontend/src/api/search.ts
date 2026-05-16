@@ -10,6 +10,7 @@ export interface SearchFilters {
   tags?: string[];
   language?: string;
   translation_quality?: string[];
+  include_older_versions?: boolean;
 }
 
 export interface SearchResult {
@@ -27,6 +28,10 @@ export interface SearchResult {
   updated_at: string;
   indexed_at: string;
   why?: Array<{ kind: string; label: string }>;
+  version_number?: number;
+  is_latest?: boolean;
+  latest_document_id?: string;
+  has_newer_version?: boolean;
 }
 
 export interface SearchResponse {
@@ -41,5 +46,12 @@ export function search(
   filters: SearchFilters = {},
   top_k = 20,
 ): Promise<SearchResponse> {
-  return api.post<SearchResponse>("/search", { query, mode, filters, top_k });
+  const { include_older_versions, ...backendFilters } = filters;
+  return api.post<SearchResponse>("/search", {
+    query,
+    mode,
+    filters: backendFilters,
+    top_k,
+    include_older_versions: include_older_versions ?? false,
+  });
 }

@@ -1,5 +1,6 @@
 import { FileText, Image, Archive, Mail, File, Info, Eye } from "lucide-react";
 import { Badge } from "@/components/primitives/Badge";
+import { VersionBadge } from "@/features/documents/VersionBadge";
 import type { SearchResult } from "@/api/search";
 import styles from "./ResultRow.module.css";
 
@@ -63,6 +64,9 @@ export function ResultRow({ result, id, selected = false, onClick, onSelect, onP
           ))}
           {extraTags > 0 && (
             <Badge variant="neutral">+{extraTags}</Badge>
+          )}
+          {result.version_number != null && result.is_latest != null && (
+            <VersionBadge versionNumber={result.version_number} isLatest={result.is_latest} />
           )}
           {result.translation_quality && (
             <Badge variant="translation">

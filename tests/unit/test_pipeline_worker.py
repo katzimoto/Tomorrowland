@@ -84,6 +84,17 @@ class _FakeQdrant:
             raise RuntimeError("qdrant_unavailable")
 
 
+class _FakeMeili:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.calls: list[list[object]] = []
+
+    def index_batch(self, documents: list[object]) -> None:
+        self.calls.append(documents)
+        if self.fail:
+            raise RuntimeError("meili_unavailable")
+
+
 def _document() -> DocumentRow:
     now = datetime.now(UTC)
     return DocumentRow(
@@ -111,6 +122,7 @@ def _worker(
     encoder: _FakeEncoder,
     es: _FakeElasticsearch,
     qdrant: _FakeQdrant,
+    meili: _FakeMeili | None = None,
     translator: _FakeTranslator | None = None,
 ) -> PipelineWorker:
     return PipelineWorker(
@@ -120,6 +132,7 @@ def _worker(
         encoder=encoder,  # type: ignore[arg-type]
         es_client=es,  # type: ignore[arg-type]
         qdrant_client=qdrant,  # type: ignore[arg-type]
+        meili_provider=meili,  # type: ignore[arg-type]
     )
 
 
@@ -186,6 +199,53 @@ def test_worker_marks_indexed_when_text_and_vector_succeed() -> None:
     assert repo.status_updates == []
 
 
+def test_worker_indexes_chunks_in_meilisearch_when_configured() -> None:
+    doc = _document()
+    doc.path = "/data/ingest/test1.pdf"
+    group_id = uuid4()
+    repo = _FakeDocumentRepository(doc, [group_id])
+    encoder = _FakeEncoder()
+    es = _FakeElasticsearch()
+    qdrant = _FakeQdrant()
+    meili = _FakeMeili()
+    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant, meili=meili)
+
+    worker.process_document(doc.id, pre_extracted_text="document body")
+
+    assert len(meili.calls) == 1
+    records = meili.calls[0]
+    assert records
+    first_record = records[0]
+    assert first_record.document_id == str(doc.id)
+    assert first_record.title == "Test document"
+    assert first_record.content == "document body"
+    assert first_record.content_en == "document body"
+    assert first_record.allowed_group_ids == [str(group_id)]
+    assert first_record.metadata.file_name == "test1.pdf"
+    assert repo.indexed_updates == [(doc.id, "indexed", None)]
+
+
+def test_worker_marks_indexed_when_meilisearch_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    doc = _document()
+    repo = _FakeDocumentRepository(doc, [uuid4()])
+    encoder = _FakeEncoder()
+    es = _FakeElasticsearch()
+    qdrant = _FakeQdrant()
+    meili = _FakeMeili(fail=True)
+    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant, meili=meili)
+
+    caplog.set_level(logging.ERROR, logger="services.pipeline.worker")
+
+    worker.process_document(doc.id, pre_extracted_text="document body")
+
+    assert len(meili.calls) == 1
+    assert repo.indexed_updates == [(doc.id, "indexed", None)]
+    assert repo.status_updates == []
+    assert "Meilisearch indexing failed" in caplog.text
+
+
 def test_worker_indexes_filename_path_and_content_fields() -> None:
     doc = _document()
     doc.path = "/data/ingest/test1.pdf"
@@ -222,36 +282,6 @@ def test_worker_indexes_filename_fallback_when_path_is_none() -> None:
     indexed_body = es.calls[0][1]
     assert indexed_body["filename"] == "My Document Title"
     assert indexed_body["path"] == ""
-
-
-def test_process_document_returns_process_result_on_success() -> None:
-    doc = _document()
-    repo = _FakeDocumentRepository(doc, [uuid4()])
-    encoder = _FakeEncoder()
-    es = _FakeElasticsearch()
-    qdrant = _FakeQdrant()
-    translator = _FakeTranslator(translated="translated body")
-    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant, translator=translator)
-
-    result = worker.process_document(doc.id, pre_extracted_text="raw body")
-
-    assert isinstance(result, ProcessResult)
-    assert result.extracted_text == "raw body"
-    assert result.translated_text == "translated body"
-
-
-def test_process_document_raises_on_failure() -> None:
-    doc = _document()
-    repo = _FakeDocumentRepository(doc, [uuid4()])
-    encoder = _FakeEncoder()
-    es = _FakeElasticsearch(fail=True)
-    qdrant = _FakeQdrant()
-    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant)
-
-    with pytest.raises(RuntimeError, match="elasticsearch_unavailable"):
-        worker.process_document(doc.id, pre_extracted_text="raw body")
-
-    assert repo.status_updates == [(doc.id, "failed")]
 
 
 def test_process_document_returns_process_result_on_success() -> None:

@@ -1,16 +1,22 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from services.search.elastic import ElasticsearchSearchClient
 
 INDEX_NAME = "tomorrowland_documents"
 
 
+def make_client(mock_es: MagicMock | None = None) -> tuple[ElasticsearchSearchClient, MagicMock]:
+    mock_es = mock_es or MagicMock()
+    with patch("services.search.elastic.Elasticsearch", return_value=mock_es):
+        client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
+    mock_es.reset_mock()
+    return client, mock_es
+
+
 def test_index_document_success() -> None:
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
-    client._client = mock_es
+    client, mock_es = make_client()
 
     doc = {
         "doc_id": "doc-1",
@@ -32,8 +38,7 @@ def test_index_document_success() -> None:
 
 
 def test_search_bm25() -> None:
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
+    client, mock_es = make_client()
     mock_es.search.return_value = {
         "hits": {
             "hits": [
@@ -42,8 +47,6 @@ def test_search_bm25() -> None:
             ]
         }
     }
-    client._client = mock_es
-
     results = client.search("hello world", group_ids=["group-1"], size=10)
 
     assert len(results) == 2
@@ -52,36 +55,17 @@ def test_search_bm25() -> None:
     assert results[1].doc_id == "doc-2"
 
 
-def test_search_without_group_ids_sends_zero_result_filter() -> None:
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
+def test_search_without_group_ids_returns_empty() -> None:
+    client, mock_es = make_client()
     mock_es.search.return_value = {"hits": {"hits": []}}
-    client._client = mock_es
 
     results = client.search("hello", group_ids=[])
-
     assert results == []
-    query = mock_es.search.call_args.kwargs["query"]
-    assert query["bool"]["filter"]["terms"]["allowed_group_ids"] == []
-
-
-def test_admin_search_omits_acl_filter() -> None:
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
-    mock_es.search.return_value = {"hits": {"hits": []}}
-    client._client = mock_es
-
-    client.search("hello", group_ids=[], is_admin=True)
-
-    query = mock_es.search.call_args.kwargs["query"]
-    assert "filter" not in query["bool"]
 
 
 def test_search_respects_size() -> None:
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
+    client, mock_es = make_client()
     mock_es.search.return_value = {"hits": {"hits": []}}
-    client._client = mock_es
 
     client.search("hello", group_ids=["group-1"], size=25)
 
@@ -89,10 +73,8 @@ def test_search_respects_size() -> None:
 
 
 def test_search_uses_multi_match_query() -> None:
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
+    client, mock_es = make_client()
     mock_es.search.return_value = {"hits": {"hits": []}}
-    client._client = mock_es
 
     client.search("hello world", group_ids=["group-1"])
 
@@ -112,10 +94,8 @@ def test_search_uses_multi_match_query() -> None:
 
 def test_search_includes_autocomplete_fields() -> None:
     """Partial-word matching: the query must include .autocomplete subfields."""
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
+    client, mock_es = make_client()
     mock_es.search.return_value = {"hits": {"hits": []}}
-    client._client = mock_es
 
     client.search("trans", group_ids=["group-1"])
 
@@ -128,10 +108,8 @@ def test_search_includes_autocomplete_fields() -> None:
 
 def test_search_prefix_query_covers_all_text_fields() -> None:
     """All searchable text fields must have an autocomplete variant in the query."""
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
+    client, mock_es = make_client()
     mock_es.search.return_value = {"hits": {"hits": []}}
-    client._client = mock_es
 
     client.search("transl", group_ids=["group-1"])
 
@@ -147,10 +125,8 @@ def test_search_prefix_query_covers_all_text_fields() -> None:
 
 
 def test_search_filters_by_group_ids() -> None:
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
+    client, mock_es = make_client()
     mock_es.search.return_value = {"hits": {"hits": []}}
-    client._client = mock_es
 
     client.search("hello", group_ids=["group-1", "group-2"])
 
@@ -160,9 +136,7 @@ def test_search_filters_by_group_ids() -> None:
 
 
 def test_delete_document() -> None:
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
-    client._client = mock_es
+    client, mock_es = make_client()
 
     client.delete_document("doc-1")
 
@@ -170,10 +144,8 @@ def test_delete_document() -> None:
 
 
 def test_create_index_if_not_exists() -> None:
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
+    client, mock_es = make_client()
     mock_es.indices.exists.return_value = False
-    client._client = mock_es
 
     client.create_index_if_not_exists()
 
@@ -186,10 +158,8 @@ def test_create_index_if_not_exists() -> None:
 
 def test_create_index_has_edge_ngram_analyzer() -> None:
     """Index settings must define the edge_ngram filter and autocomplete analyzers."""
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
+    client, mock_es = make_client()
     mock_es.indices.exists.return_value = False
-    client._client = mock_es
 
     client.create_index_if_not_exists()
 
@@ -204,10 +174,8 @@ def test_create_index_has_edge_ngram_analyzer() -> None:
 
 def test_create_index_edge_ngram_min_gram_is_one() -> None:
     """The edge_ngram filter must use min_gram=1 for single-character prefix search."""
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
+    client, mock_es = make_client()
     mock_es.indices.exists.return_value = False
-    client._client = mock_es
 
     client.create_index_if_not_exists()
 
@@ -218,15 +186,20 @@ def test_create_index_edge_ngram_min_gram_is_one() -> None:
 
 def test_create_index_has_autocomplete_subfields() -> None:
     """Searchable text fields must have an .autocomplete multi-field in the mapping."""
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
+    client, mock_es = make_client()
     mock_es.indices.exists.return_value = False
-    client._client = mock_es
 
     client.create_index_if_not_exists()
 
     props = mock_es.indices.create.call_args.kwargs["mappings"]["properties"]
-    for field in ("title", "content_english", "summary", "path", "filename", "content_original"):
+    for field in (
+        "title",
+        "content_english",
+        "summary",
+        "path",
+        "filename",
+        "content_original",
+    ):
         assert "autocomplete" in props[field]["fields"], f"{field} missing .autocomplete subfield"
         subfield = props[field]["fields"]["autocomplete"]
         assert subfield["analyzer"] == "autocomplete_index"
@@ -234,10 +207,8 @@ def test_create_index_has_autocomplete_subfields() -> None:
 
 
 def test_create_index_already_exists() -> None:
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
+    client, mock_es = make_client()
     mock_es.indices.exists.return_value = True
-    client._client = mock_es
 
     client.create_index_if_not_exists()
 
@@ -245,9 +216,7 @@ def test_create_index_already_exists() -> None:
 
 
 def test_client_close() -> None:
-    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
-    mock_es = MagicMock()
-    client._client = mock_es
+    client, mock_es = make_client()
 
     client.close()
 

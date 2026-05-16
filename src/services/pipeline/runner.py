@@ -246,10 +246,20 @@ def run_loop(
 
 if __name__ == "__main__":
     from services.search.factory import build_encoder
+    from services.search.meili_provider import MeilisearchSearchProvider
     from shared.config import Settings
 
     settings = Settings()
     engine = create_engine(settings.postgres_url)
+    meili_provider = None
+    if settings.feature_meilisearch_search or settings.feature_meilisearch_shadow_index:
+        import meilisearch
+
+        meili_client = meilisearch.Client(
+            settings.meilisearch_url,
+            api_key=settings.meilisearch_master_key,
+        )
+        meili_provider = MeilisearchSearchProvider(meili_client)
 
     with engine.begin() as conn:
         doc_repo = DocumentRepository(conn)
@@ -266,6 +276,7 @@ if __name__ == "__main__":
             encoder=encoder,
             es_client=es_client,
             qdrant_client=qdrant_client,
+            meili_provider=meili_provider,
         )
 
         run_loop(job_repo, worker, worker_id="pipeline-worker")

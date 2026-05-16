@@ -803,7 +803,9 @@ def test_nested_groups_list_users_empty(migrated_engine: Engine) -> None:
 
     # Create group
     group = client.post(
-        "/admin/groups", json={"name": "alpha"}, headers={"Authorization": f"Bearer {token}"}
+        "/admin/groups",
+        json={"name": "alpha"},
+        headers={"Authorization": f"Bearer {token}"},
     ).json()
 
     resp = client.get(
@@ -819,7 +821,9 @@ def test_nested_groups_add_and_list_users(migrated_engine: Engine) -> None:
     client, token = _make_client(migrated_engine)
 
     group = client.post(
-        "/admin/groups", json={"name": "beta"}, headers={"Authorization": f"Bearer {token}"}
+        "/admin/groups",
+        json={"name": "beta"},
+        headers={"Authorization": f"Bearer {token}"},
     ).json()
     group_id = group["id"]
 
@@ -842,7 +846,9 @@ def test_nested_groups_remove_user(migrated_engine: Engine) -> None:
     client, token = _make_client(migrated_engine)
 
     group = client.post(
-        "/admin/groups", json={"name": "gamma"}, headers={"Authorization": f"Bearer {token}"}
+        "/admin/groups",
+        json={"name": "gamma"},
+        headers={"Authorization": f"Bearer {token}"},
     ).json()
     group_id = group["id"]
     client.post(
@@ -869,10 +875,14 @@ def test_nested_groups_add_and_list_children(migrated_engine: Engine) -> None:
     client, token = _make_client(migrated_engine)
 
     parent = client.post(
-        "/admin/groups", json={"name": "parent"}, headers={"Authorization": f"Bearer {token}"}
+        "/admin/groups",
+        json={"name": "parent"},
+        headers={"Authorization": f"Bearer {token}"},
     ).json()
     child = client.post(
-        "/admin/groups", json={"name": "child"}, headers={"Authorization": f"Bearer {token}"}
+        "/admin/groups",
+        json={"name": "child"},
+        headers={"Authorization": f"Bearer {token}"},
     ).json()
 
     add_resp = client.post(
@@ -894,10 +904,14 @@ def test_nested_groups_remove_child(migrated_engine: Engine) -> None:
     client, token = _make_client(migrated_engine)
 
     parent = client.post(
-        "/admin/groups", json={"name": "rp"}, headers={"Authorization": f"Bearer {token}"}
+        "/admin/groups",
+        json={"name": "rp"},
+        headers={"Authorization": f"Bearer {token}"},
     ).json()
     child = client.post(
-        "/admin/groups", json={"name": "rc"}, headers={"Authorization": f"Bearer {token}"}
+        "/admin/groups",
+        json={"name": "rc"},
+        headers={"Authorization": f"Bearer {token}"},
     ).json()
     client.post(
         f"/admin/groups/{parent['id']}/children",
@@ -923,13 +937,19 @@ def test_nested_groups_cycle_rejection(migrated_engine: Engine) -> None:
     client, token = _make_client(migrated_engine)
 
     a = client.post(
-        "/admin/groups", json={"name": "ca"}, headers={"Authorization": f"Bearer {token}"}
+        "/admin/groups",
+        json={"name": "ca"},
+        headers={"Authorization": f"Bearer {token}"},
     ).json()
     b = client.post(
-        "/admin/groups", json={"name": "cb"}, headers={"Authorization": f"Bearer {token}"}
+        "/admin/groups",
+        json={"name": "cb"},
+        headers={"Authorization": f"Bearer {token}"},
     ).json()
     c = client.post(
-        "/admin/groups", json={"name": "cc"}, headers={"Authorization": f"Bearer {token}"}
+        "/admin/groups",
+        json={"name": "cc"},
+        headers={"Authorization": f"Bearer {token}"},
     ).json()
 
     # a -> b -> c
@@ -959,7 +979,9 @@ def test_nested_groups_self_membership_rejected(migrated_engine: Engine) -> None
     client, token = _make_client(migrated_engine)
 
     g = client.post(
-        "/admin/groups", json={"name": "self"}, headers={"Authorization": f"Bearer {token}"}
+        "/admin/groups",
+        json={"name": "self"},
+        headers={"Authorization": f"Bearer {token}"},
     ).json()
 
     resp = client.post(

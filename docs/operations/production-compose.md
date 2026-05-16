@@ -781,6 +781,94 @@ Tracked examples intentionally use placeholder secrets. If `docker compose confi
 still shows `change-me-*` values after you edited `.env`, confirm the file is in
 the repository root and that the variable names match `.env.example` exactly.
 
+## Upgrade Notes — Document Versioning
+
+Document versioning lands in the `feature/document-versioning` release track
+(#201 / #202 / #203 / #204 / #205 / #236). These notes apply when upgrading
+from a release without versioning to one that includes it.
+
+### What the migration does
+
+The `alembic upgrade head` step adds:
+
+- A new `document_version_families` table that groups versions of the same
+  source file under a stable `source_id + external_id` key.
+- Three new columns on `documents`: `version_family_id`, `version_number`,
+  and `is_latest`.
+- A backfill that assigns every existing document `version_number = 1` and
+  `is_latest = TRUE` and links it into a new family row.
+
+No existing document rows are deleted or overwritten. All pre-upgrade documents
+become "version 1 of their own family" and remain fully accessible.
+
+### Behavior change after upgrade
+
+Before the upgrade, re-syncing a changed file at the same source path caused a
+`duplicate key` error and stopped sync. After the upgrade:
+
+- **Unchanged file re-sync**: skipped as already current; no new version created.
+- **Changed file re-sync**: a new version is created for the same source item;
+  the old version is preserved and remains viewable.
+- **Admin sync results**: changed files now appear as
+  "Created 1 new version for an existing document" rather than a sync error.
+
+### Backup before upgrading
+
+Take a database backup before running the migration:
+
+```bash
+docker compose down
+# back up postgres_data volume or use pg_dump
+docker compose run --rm migrate
+docker compose up --build -d
+```
+
+The Alembic `downgrade` function is available but is **destructive** when
+multiple document versions already exist (it cannot restore the old unique
+constraint if more than one row per source item is present). Use a volume
+backup or `pg_dump` snapshot for rollback, not Alembic downgrade.
+
+### Reindex caution
+
+If you trigger a full reindex of Elasticsearch or Qdrant after the upgrade,
+ensure the migration and backfill have completed first. Reindexing before
+`is_latest` and `version_family_id` are populated may cause older versions to
+be indexed without the `is_latest = false` flag, making them appear in
+latest-only search results.
+
+To verify the backfill succeeded before reindexing:
+
+```bash
+docker compose exec postgres psql -U "${POSTGRES_USER:-postgres}" \
+  "${POSTGRES_DB:-app}" -c \
+  "SELECT COUNT(*) FROM documents WHERE version_family_id IS NULL;"
+# Expected: 0
+```
+
+### Search behavior after upgrade
+
+Default search (`include_older_versions` unchecked) returns only the latest
+version of each document. Existing search behavior is unchanged for single-version
+documents — they are all "latest". A new "Include older versions" checkbox in the
+search UI appears once #205 is deployed; it defaults to unchecked.
+
+### Version history and preview
+
+- Viewing any document shows version metadata: version number and whether it is
+  the latest.
+- Viewing an older version displays a warning banner and a link to the latest.
+- A version history list is available from the preview page.
+
+### Retention and deletion of old versions
+
+Old versions are **not automatically deleted**. Storage consumption grows as
+files are re-synced with changed content. A retention/deletion policy for old
+versions is not included in this release track and is tracked as future work.
+
+Operators can manually remove old version `documents` rows if needed, but must
+also remove the corresponding Elasticsearch and Qdrant entries by `document_id`
+to avoid stale search results.
+
 ## Current Limitations
 
 - Long-running worker containers are not present yet; ingestion and intelligence
@@ -798,3 +886,8 @@ the repository root and that the variable names match `.env.example` exactly.
   mounted SMB/CIFS shares can also be ingested through the folder connector.
 - Legacy Office support for `.doc`, `.xls`, and `.ppt` remains deferred to Phase
   09.
+- Document versioning does not yet implement tombstones or soft-deletion for
+  source files that are removed from the source. Deleted files leave existing
+  document rows and index entries in place.
+- Retention or automatic expiry of older document versions is not implemented;
+  old version rows must be cleaned up manually if storage is a concern.

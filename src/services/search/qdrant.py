@@ -109,16 +109,16 @@ class QdrantSearchClient:
                 must=[FieldCondition(key="group_id", match=MatchAny(any=group_ids))]
             )
 
-        results = self._client.search(
+        response = self._client.query_points(
             collection_name=self._collection_name,
-            query_vector=vector,
+            query=vector,
             query_filter=query_filter,
             limit=limit,
             with_payload=True,
         )
 
         search_results: list[SearchResult] = []
-        for point in results:
+        for point in response.points:
             payload = point.payload or {}
             search_results.append(
                 SearchResult(

@@ -10,6 +10,7 @@ import { measurePerformance } from "@/lib/performanceTelemetry";
 import { DocumentToolbar } from "./DocumentToolbar";
 import { PreviewPane } from "./PreviewPane";
 import { InsightPane } from "./InsightPane";
+import { VersionBanner } from "./VersionBanner";
 import styles from "./DocumentPage.module.css";
 
 export function DocumentPage() {
@@ -59,6 +60,7 @@ export function DocumentPage() {
       measurePerformance("preview.load", () =>
         getPreview(docId, selectedVersionId),
       ),
+    staleTime: 2 * 60_000,
   });
 
   if (isLoading) {
@@ -94,6 +96,9 @@ export function DocumentPage() {
         selectedVersionId={selectedVersionId}
         onVersionChange={setSelectedVersionId}
       />
+      {preview.has_newer_version && preview.latest_document_id && (
+        <VersionBanner latestDocumentId={preview.latest_document_id} />
+      )}
       <div className={styles.body}>
         <div className={styles.previewCol}>
           <PreviewPane preview={preview} />

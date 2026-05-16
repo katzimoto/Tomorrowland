@@ -77,6 +77,7 @@ export interface Translations {
     typeImage: string;
     transFast: string;
     transHigh: string;
+    includeOlderVersions: string;
   };
   document: {
     notFoundTitle: string;
@@ -94,6 +95,16 @@ export interface Translations {
     tabAnnotations: string;
     tabComments: string;
     tabSubscriptions: string;
+    tabVersions: string;
+    versionLatest: string;
+    versionOlder: string;
+    versionBannerTitle: string;
+    versionBannerLink: string;
+    versionsLoading: string;
+    versionsFailedTitle: string;
+    versionsFailedBody: string;
+    versionsEmpty: string;
+    versionLabel: (n: number) => string;
     summaryLoading: string;
     summaryFailedTitle: string;
     summaryFailedBody: string;
@@ -362,6 +373,7 @@ export const en: Translations = {
     typeImage: "Image",
     transFast: "Fast translation",
     transHigh: "High quality",
+    includeOlderVersions: "Include older versions",
   },
   document: {
     notFoundTitle: "Document not found",
@@ -379,6 +391,16 @@ export const en: Translations = {
     tabAnnotations: "Annotations",
     tabComments: "Comments",
     tabSubscriptions: "Subscriptions",
+    tabVersions: "Versions",
+    versionLatest: "Latest",
+    versionOlder: "Older version",
+    versionBannerTitle: "A newer version of this document is available.",
+    versionBannerLink: "View latest version",
+    versionsLoading: "Loading…",
+    versionsFailedTitle: "Failed to load version history",
+    versionsFailedBody: "Could not reach the server.",
+    versionsEmpty: "No version history available.",
+    versionLabel: (n) => `Version ${n}`,
     summaryLoading: "Loading…",
     summaryFailedTitle: "Failed to load summary",
     summaryFailedBody: "Could not reach the server.",

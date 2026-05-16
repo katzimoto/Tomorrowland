@@ -79,9 +79,9 @@ def test_upsert_chunks_dimension_mismatch() -> None:
 def test_search_vector() -> None:
     client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
     mock_qdrant = MagicMock()
-    mock_qdrant.search.return_value = [
-        MagicMock(id="doc-1-0", score=0.95, payload={"doc_id": "doc-1", "text": "hello"}),
-        MagicMock(id="doc-1-1", score=0.85, payload={"doc_id": "doc-1", "text": "world"}),
+    mock_qdrant.query_points.return_value.points = [
+        MagicMock(score=0.95, payload={"doc_id": "doc-1", "text": "hello"}),
+        MagicMock(score=0.85, payload={"doc_id": "doc-1", "text": "world"}),
     ]
     client._client = mock_qdrant
 
@@ -103,7 +103,7 @@ def test_search_dimension_mismatch() -> None:
 def test_search_without_group_ids_returns_empty() -> None:
     client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
     mock_qdrant = MagicMock()
-    mock_qdrant.search.return_value = []
+    mock_qdrant.query_points.return_value.points = []
     client._client = mock_qdrant
 
     results = client.search(vector=[0.1] * 384, group_ids=[])
@@ -113,12 +113,12 @@ def test_search_without_group_ids_returns_empty() -> None:
 def test_search_respects_limit() -> None:
     client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
     mock_qdrant = MagicMock()
-    mock_qdrant.search.return_value = []
+    mock_qdrant.query_points.return_value.points = []
     client._client = mock_qdrant
 
     client.search(vector=[0.1] * 384, group_ids=["group-1"], limit=25)
 
-    assert mock_qdrant.search.call_args.kwargs["limit"] == 25
+    assert mock_qdrant.query_points.call_args.kwargs["limit"] == 25
 
 
 def test_delete_by_doc_id() -> None:

@@ -12,6 +12,17 @@ DocumentStatus = Literal["pending", "indexed", "deleted", "failed"]
 DocumentSource = Literal["folder", "nifi", "confluence", "jira", "smb"]
 
 
+class DocumentVersionFamily(BaseModel):
+    """Row model for the document_version_families table."""
+
+    id: UUID
+    source_id: UUID
+    external_id: str
+    current_document_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+
 class DocumentRow(BaseModel):
     """Row model for the documents table."""
 
@@ -27,6 +38,9 @@ class DocumentRow(BaseModel):
     translation_quality: str | None = None
     status: DocumentStatus = "pending"
     content_sha256: str | None = None
+    version_family_id: UUID | None = None
+    version_number: int = 1
+    is_latest: bool = True
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime

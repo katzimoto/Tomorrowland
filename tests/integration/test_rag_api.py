@@ -20,6 +20,15 @@ from shared.config import Settings
 TEST_JWT_SECRET = "x" * 32
 
 
+def _settings(**overrides: object) -> Settings:
+    return Settings(
+        app_env="test",
+        auth_provider="local",
+        jwt_secret=TEST_JWT_SECRET,
+        **overrides,
+    )
+
+
 def _admin_token(client: TestClient) -> str:
     login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
     assert login.status_code == 200
@@ -79,7 +88,7 @@ def test_qa_returns_answer_and_citations(migrated_engine: Engine) -> None:
     client = TestClient(
         create_app(
             migrated_engine,
-            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            _settings(),
             qdrant_client=mock_qdrant,
         )
     )
@@ -117,7 +126,7 @@ def test_qa_no_groups_returns_empty(migrated_engine: Engine) -> None:
     client = TestClient(
         create_app(
             migrated_engine,
-            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            _settings(),
         )
     )
     login = client.post("/auth/login", json={"email": "nogroup@example.com", "password": "secret"})
@@ -144,7 +153,7 @@ def test_qa_no_chunks_found(migrated_engine: Engine) -> None:
     client = TestClient(
         create_app(
             migrated_engine,
-            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            _settings(),
             qdrant_client=mock_qdrant,
         )
     )
@@ -167,7 +176,7 @@ def test_qa_empty_question_returns_422(migrated_engine: Engine) -> None:
     client = TestClient(
         create_app(
             migrated_engine,
-            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            _settings(),
         )
     )
     token = _admin_token(client)
@@ -201,7 +210,7 @@ def test_qa_ollama_failure_returns_fallback(migrated_engine: Engine) -> None:
     client = TestClient(
         create_app(
             migrated_engine,
-            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            _settings(),
             qdrant_client=mock_qdrant,
             ollama_client=mock_ollama,
         )
@@ -238,7 +247,7 @@ def test_qa_top_k_limits_chunks(migrated_engine: Engine) -> None:
     client = TestClient(
         create_app(
             migrated_engine,
-            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            _settings(),
             qdrant_client=mock_qdrant,
         )
     )
@@ -261,11 +270,7 @@ def test_qa_disabled_by_settings_returns_404(migrated_engine: Engine) -> None:
     client = TestClient(
         create_app(
             migrated_engine,
-            Settings(
-                auth_provider="local",
-                jwt_secret=TEST_JWT_SECRET,
-                feature_rag_qa=False,
-            ),
+            _settings(feature_rag_qa=False),
         )
     )
     token = _admin_token(client)
@@ -291,7 +296,7 @@ def test_qa_disabled_by_system_config_returns_404(migrated_engine: Engine) -> No
     client = TestClient(
         create_app(
             migrated_engine,
-            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            _settings(),
         )
     )
     token = _admin_token(client)

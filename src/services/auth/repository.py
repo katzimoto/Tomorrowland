@@ -251,8 +251,12 @@ class AuthRepository:
             return False
         effective = set(user.groups) | set(self.get_effective_group_ids(user.groups))
         rows = self._connection.execute(
-            sa.text("SELECT group_id FROM source_permissions WHERE source_id = :sid"),
-            {"sid": db_uuid(source_id)},
+            sa.text("""
+                SELECT group_id
+                FROM source_permissions
+                WHERE source_id = :source_id
+                """),
+            {"source_id": db_uuid(source_id)},
         ).scalars()
         return bool({to_uuid(r) for r in rows}.intersection(effective))
 
