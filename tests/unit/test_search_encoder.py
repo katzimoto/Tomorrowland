@@ -5,6 +5,11 @@ import pytest
 from services.search.encoder import DeterministicTestEncoder
 
 
+def test_encoder_dimension_is_384() -> None:
+    encoder = DeterministicTestEncoder()
+    assert encoder.dimension == 384
+
+
 def test_encoder_returns_384_dimensions() -> None:
     encoder = DeterministicTestEncoder()
     vec = encoder.encode("hello world")

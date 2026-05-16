@@ -834,10 +834,11 @@ def create_app(
         es_client = app.state.es_client or ElasticsearchSearchClient(
             hosts=[app.state.settings.elastic_url]
         )
-        qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-            url=app.state.settings.qdrant_url
-        )
         encoder = build_encoder(app.state.settings)
+        qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+            url=app.state.settings.qdrant_url,
+            dimension=encoder.dimension,
+        )
 
         backend_start = time.perf_counter()
         bm25_results = es_client.search(request.query, group_ids=search_group_ids, size=50)
@@ -1147,13 +1148,15 @@ def create_app(
             if not group_ids:
                 return {"doc_id": str(doc_id), "related": []}
 
+            encoder = build_encoder(app.state.settings)
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
+                url=app.state.settings.qdrant_url,
+                dimension=encoder.dimension,
             )
             service = RelatedService(
                 repository=RelatedRepository(connection),
                 qdrant_client=qdrant_client,
-                encoder=build_encoder(app.state.settings),
+                encoder=encoder,
             )
             try:
                 related = service.related_documents(
@@ -1189,13 +1192,15 @@ def create_app(
                 _auth_repo = AuthRepository(connection)
                 _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
                 group_ids = [str(g) for g in _effective]
+            encoder = build_encoder(app.state.settings)
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
+                url=app.state.settings.qdrant_url,
+                dimension=encoder.dimension,
             )
             service = RelatedService(
                 repository=RelatedRepository(connection),
                 qdrant_client=qdrant_client,
-                encoder=build_encoder(app.state.settings),
+                encoder=encoder,
             )
             try:
                 return service.expertise(topic=topic, group_ids=group_ids)
@@ -1602,10 +1607,11 @@ def create_app(
                 _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
                 group_ids = [str(g) for g in _effective]
 
-            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
-            )
             encoder = build_encoder(app.state.settings)
+            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+                url=app.state.settings.qdrant_url,
+                dimension=encoder.dimension,
+            )
             ollama_client = app.state.ollama_client or OllamaClient(
                 base_url=app.state.settings.ollama_url,
                 model=app.state.settings.ollama_model,
