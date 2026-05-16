@@ -29,6 +29,15 @@ export interface Translations {
     genericError: string;
     signIn: string;
     signInLabel: string;
+    signUp: string;
+    signUpLink: string;
+    signUpTitle: string;
+    displayName: string;
+    confirmPassword: string;
+    passwordMismatch: string;
+    duplicateEmail: string;
+    signUpSuccess: string;
+    signInLink: string;
   };
   search: {
     title: string;
@@ -246,9 +255,22 @@ export interface Translations {
     colType: string;
     colLang: string;
     colEnabled: string;
+    colLastSync: string;
     colActions: string;
     syncBtn: string;
-    syncResult: (indexed: number, skipped: number, failed: number) => string;
+    testConnectionBtn: string;
+    testConnectionOk: string;
+    testConnectionError: string;
+    neverSynced: string;
+    syncStatusSuccess: string;
+    syncStatusPartialFailure: string;
+    syncStatusFailed: string;
+    lastSynced: (value: string) => string;
+    syncResult: (enqueued: number, skipped: number, failed: number) => string;
+    syncStarted: (name: string) => string;
+    syncCompleted: (enqueued: number, skipped: number, failed: number) => string;
+    syncPartialFailure: (failed: number) => string;
+    syncFailed: string;
     dialogTitle: string;
     nameLabel: string;
     namePlaceholder: string;
@@ -303,6 +325,15 @@ export const en: Translations = {
     genericError: "Something went wrong. Try again.",
     signIn: "Sign in",
     signInLabel: "Sign in",
+    signUp: "Sign up",
+    signUpLink: "Don't have an account? Sign up",
+    signUpTitle: "Create an account",
+    displayName: "Display name",
+    confirmPassword: "Confirm password",
+    passwordMismatch: "Passwords do not match",
+    duplicateEmail: "An account with this email already exists",
+    signUpSuccess: "Account created. You are now signed in.",
+    signInLink: "Already have an account? Sign in",
   },
   search: {
     title: "Search",
@@ -520,10 +551,25 @@ export const en: Translations = {
     colType: "Type",
     colLang: "Language",
     colEnabled: "Enabled",
+    colLastSync: "Last sync",
     colActions: "Actions",
     syncBtn: "Sync",
-    syncResult: (indexed, skipped, failed) =>
-      `Indexed: ${indexed}  Skipped: ${skipped}  Failed: ${failed}`,
+    testConnectionBtn: "Test",
+    testConnectionOk: "Connection settings look valid.",
+    testConnectionError: "Connection test failed.",
+    neverSynced: "Never synced",
+    syncStatusSuccess: "Success",
+    syncStatusPartialFailure: "Partial failure",
+    syncStatusFailed: "Failed",
+    lastSynced: (value) => `Last run: ${value}`,
+    syncResult: (enqueued, skipped, failed) =>
+      `Indexed: ${enqueued}  Skipped: ${skipped}  Failed: ${failed}`,
+    syncStarted: (name) => `Sync started for ${name}.`,
+    syncCompleted: (enqueued, skipped, failed) =>
+      `Sync completed. Indexed ${enqueued} document${enqueued !== 1 ? "s" : ""}. Skipped ${skipped}. Failed ${failed}.`,
+    syncPartialFailure: (failed) =>
+      `Sync completed with failures. ${failed} document${failed !== 1 ? "s" : ""} failed. Check the source configuration.`,
+    syncFailed: "Sync failed. Check the source configuration or retry later.",
     dialogTitle: "Add Source",
     nameLabel: "Name",
     namePlaceholder: "e.g. Legal Documents",

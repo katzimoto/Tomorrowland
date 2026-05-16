@@ -59,6 +59,18 @@
   font-size: var(--font-size-body);
 }
 
+.switchLink {
+  width: 100%;
+  text-align: center;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.switchLink a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
 .langRow {
   width: 100%;
   display: flex;

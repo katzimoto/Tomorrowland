@@ -34,6 +34,19 @@ export async function login(email: string, password: string): Promise<void> {
   authStorage.setToken(res.access_token);
 }
 
+export async function signUp(
+  email: string,
+  password: string,
+  displayName?: string,
+): Promise<void> {
+  const res = await api.post<LoginResponse>(
+    "/auth/signup",
+    { email, password, display_name: displayName },
+    { skipAuthRedirect: true },
+  );
+  authStorage.setToken(res.access_token);
+}
+
 export async function logout(): Promise<void> {
   try {
     await api.post<void>("/auth/logout", {});

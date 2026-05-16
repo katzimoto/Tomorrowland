@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor, act, render as tlRender } from "@testing-library/react";
+import {
+  screen,
+  waitFor,
+  act,
+  render as tlRender,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@/test/render";
 import { ToastProvider } from "@/components/primitives/Toast";
@@ -24,10 +29,42 @@ vi.mock("@/api/documents");
 
 beforeEach(() => {
   vi.mocked(documentsApi.getTranslationVersions).mockResolvedValue([
-    { version_id: "v1", version_number: 1, label: "Manual EN", quality: "high", status: "available", target_language: "en", requested_at: "2024-01-01T00:00:00Z" },
-    { version_id: "v2", version_number: 2, label: "Manual EN v2", quality: "high", status: "pending", target_language: "en", requested_at: "2024-02-01T00:00:00Z" },
-    { version_id: "v3", version_number: 3, label: "Manual EN v3", quality: "high", status: "available", target_language: "en", requested_at: "2024-03-01T00:00:00Z" },
-    { version_id: "v4", version_number: 4, label: "Manual EN v4", quality: "high", status: "running", target_language: "en", requested_at: "2024-04-01T00:00:00Z" },
+    {
+      version_id: "v1",
+      version_number: 1,
+      label: "Manual EN",
+      quality: "high",
+      status: "available",
+      target_language: "en",
+      requested_at: "2024-01-01T00:00:00Z",
+    },
+    {
+      version_id: "v2",
+      version_number: 2,
+      label: "Manual EN v2",
+      quality: "high",
+      status: "pending",
+      target_language: "en",
+      requested_at: "2024-02-01T00:00:00Z",
+    },
+    {
+      version_id: "v3",
+      version_number: 3,
+      label: "Manual EN v3",
+      quality: "high",
+      status: "available",
+      target_language: "en",
+      requested_at: "2024-03-01T00:00:00Z",
+    },
+    {
+      version_id: "v4",
+      version_number: 4,
+      label: "Manual EN v4",
+      quality: "high",
+      status: "running",
+      target_language: "en",
+      requested_at: "2024-04-01T00:00:00Z",
+    },
   ]);
 });
 
@@ -40,9 +77,13 @@ describe("TranslationVersionSelector", () => {
         onSelect={vi.fn()}
       />
     );
-    const select = await screen.findByRole("combobox", { name: "Translation version" });
+    const select = await screen.findByRole("combobox", {
+      name: "Translation version",
+    });
     expect(select).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Manual EN" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Manual EN" })
+    ).toBeInTheDocument();
   });
 
   it("marks pending and running versions as disabled", async () => {
@@ -53,8 +94,12 @@ describe("TranslationVersionSelector", () => {
         onSelect={vi.fn()}
       />
     );
-    const pendingOption = await screen.findByRole("option", { name: /Manual EN v2/ });
-    const runningOption = await screen.findByRole("option", { name: /Manual EN v4/ });
+    const pendingOption = await screen.findByRole("option", {
+      name: /Manual EN v2/,
+    });
+    const runningOption = await screen.findByRole("option", {
+      name: /Manual EN v4/,
+    });
     expect(pendingOption).toBeDisabled();
     expect(runningOption).toBeDisabled();
   });
@@ -67,7 +112,9 @@ describe("TranslationVersionSelector", () => {
         onSelect={vi.fn()}
       />
     );
-    const availableOption = await screen.findByRole("option", { name: "Manual EN v3" });
+    const availableOption = await screen.findByRole("option", {
+      name: "Manual EN v3",
+    });
     expect(availableOption).not.toBeDisabled();
   });
 
@@ -88,10 +135,26 @@ describe("TranslationVersionSelector", () => {
     // First call returns a pending version; second call returns it as available.
     vi.mocked(documentsApi.getTranslationVersions)
       .mockResolvedValueOnce([
-        { version_id: "v1", version_number: 1, label: "In Progress", quality: "high", status: "pending", target_language: "en", requested_at: "2024-01-01T00:00:00Z" },
+        {
+          version_id: "v1",
+          version_number: 1,
+          label: "In Progress",
+          quality: "high",
+          status: "pending",
+          target_language: "en",
+          requested_at: "2024-01-01T00:00:00Z",
+        },
       ])
       .mockResolvedValueOnce([
-        { version_id: "v1", version_number: 1, label: "In Progress", quality: "high", status: "available", target_language: "en", requested_at: "2024-01-01T00:00:00Z" },
+        {
+          version_id: "v1",
+          version_number: 1,
+          label: "In Progress",
+          quality: "high",
+          status: "available",
+          target_language: "en",
+          requested_at: "2024-01-01T00:00:00Z",
+        },
       ]);
 
     render(
@@ -113,21 +176,39 @@ describe("TranslationVersionSelector", () => {
   it("auto-selects latest available version when translation transitions from pending to available", async () => {
     const onSelect = vi.fn();
     const qc = new QueryClient({
-      defaultOptions: { queries: { retry: false, staleTime: Infinity, refetchOnWindowFocus: false } },
+      defaultOptions: {
+        queries: {
+          retry: false,
+          staleTime: Infinity,
+          refetchOnWindowFocus: false,
+        },
+      },
     });
 
     const pendingVersion: TranslationVersion = {
-      version_id: "v1", version_number: 1, label: "Manual EN", quality: "high",
-      status: "pending", target_language: "en", requested_at: "2024-01-01T00:00:00Z",
+      version_id: "v1",
+      version_number: 1,
+      label: "Manual EN",
+      quality: "high",
+      status: "pending",
+      target_language: "en",
+      requested_at: "2024-01-01T00:00:00Z",
     };
-    const availableVersion: TranslationVersion = { ...pendingVersion, status: "available" };
+    const availableVersion: TranslationVersion = {
+      ...pendingVersion,
+      status: "available",
+    };
 
     // Pre-seed cache with pending version so the selector renders without a network call
     qc.setQueryData(["doc-translation-versions", "doc-auto"], [pendingVersion]);
 
     renderWithClient(
-      <TranslationVersionSelector docId="doc-auto" selectedVersionId={undefined} onSelect={onSelect} />,
-      qc,
+      <TranslationVersionSelector
+        docId="doc-auto"
+        selectedVersionId={undefined}
+        onSelect={onSelect}
+      />,
+      qc
     );
 
     // Component renders with pending version; hadInProgressRef becomes true
@@ -135,37 +216,65 @@ describe("TranslationVersionSelector", () => {
 
     // Simulate a poll result arriving (version now available)
     act(() => {
-      qc.setQueryData(["doc-translation-versions", "doc-auto"], [availableVersion]);
+      qc.setQueryData(
+        ["doc-translation-versions", "doc-auto"],
+        [availableVersion]
+      );
     });
 
     // useEffect detects the transition and auto-selects the newly available version
     await waitFor(() => {
       expect(onSelect).toHaveBeenCalledWith("v1");
     });
+    await new Promise((r) => setTimeout(r, 50));
   });
 
   it("does not auto-select when user has already manually selected a version", async () => {
     const onSelect = vi.fn();
     const qc = new QueryClient({
-      defaultOptions: { queries: { retry: false, staleTime: Infinity, refetchOnWindowFocus: false } },
+      defaultOptions: {
+        queries: {
+          retry: false,
+          staleTime: Infinity,
+          refetchOnWindowFocus: false,
+        },
+      },
     });
 
     const pendingVersion: TranslationVersion = {
-      version_id: "v1", version_number: 1, label: "Manual EN", quality: "high",
-      status: "pending", target_language: "en", requested_at: "2024-01-01T00:00:00Z",
+      version_id: "v1",
+      version_number: 1,
+      label: "Manual EN",
+      quality: "high",
+      status: "pending",
+      target_language: "en",
+      requested_at: "2024-01-01T00:00:00Z",
     };
-    const availableVersion: TranslationVersion = { ...pendingVersion, status: "available" };
+    const availableVersion: TranslationVersion = {
+      ...pendingVersion,
+      status: "available",
+    };
 
-    qc.setQueryData(["doc-translation-versions", "doc-manual"], [pendingVersion]);
+    qc.setQueryData(
+      ["doc-translation-versions", "doc-manual"],
+      [pendingVersion]
+    );
 
     renderWithClient(
       // selectedVersionId is set — user already picked a version, auto-select must not fire
-      <TranslationVersionSelector docId="doc-manual" selectedVersionId="already-selected" onSelect={onSelect} />,
-      qc,
+      <TranslationVersionSelector
+        docId="doc-manual"
+        selectedVersionId="already-selected"
+        onSelect={onSelect}
+      />,
+      qc
     );
 
     act(() => {
-      qc.setQueryData(["doc-translation-versions", "doc-manual"], [availableVersion]);
+      qc.setQueryData(
+        ["doc-translation-versions", "doc-manual"],
+        [availableVersion]
+      );
     });
 
     await new Promise((r) => setTimeout(r, 50));

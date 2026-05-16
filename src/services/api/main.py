@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager, suppress
@@ -27,7 +28,13 @@ from services.annotations.repository import AnnotationRepository
 from services.api.readiness import ReadinessChecker, ReadinessResponse
 from services.auth.jwt import JwtService
 from services.auth.ldap import LdapAuthenticator
-from services.auth.models import LoginRequest, LoginResponse, TokenPayload, UserResponse
+from services.auth.models import (
+    LoginRequest,
+    LoginResponse,
+    SignUpRequest,
+    TokenPayload,
+    UserResponse,
+)
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.auth.service import AuthService
@@ -45,7 +52,7 @@ from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.repository import IntelligenceRepository
 from services.intelligence.worker import IntelligenceWorker
 from services.permissions.enforcer import assert_doc_access, require_admin
-from services.pipeline.worker import PipelineWorker
+from services.pipeline.jobs import PipelineJobRepository
 from services.preview.service import PreviewService
 from services.rag.models import QuestionRequest
 from services.rag.service import RagService
@@ -54,6 +61,7 @@ from services.related.service import RelatedService
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.factory import build_encoder
 from services.search.hybrid import SearchResult, merge_results
+from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
@@ -113,6 +121,100 @@ def _config_bool(value: Any, default: bool) -> bool:
     if isinstance(value, str):
         return value.lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+_SENSITIVE_CONFIG_KEYS = frozenset(
+    {
+        "api_token",
+        "password",
+        "token",
+        "secret",
+        "client_secret",
+        "api_key",
+        "private_key",
+    }
+)
+
+
+def _source_config(value: Any) -> dict[str, Any]:
+    """Return a source config dict without exposing invalid JSON to callers."""
+    try:
+        parsed = _parse_json(value)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _sanitize_source_error(message: str, source_row: Any | None = None) -> str:
+    """Redact connector secrets from an operator-facing source error message."""
+    sanitized = message or "Source operation failed"
+    if source_row is not None:
+        config = _source_config(source_row.get("config"))
+        for key, value in config.items():
+            if key.lower() in _SENSITIVE_CONFIG_KEYS and value not in (None, ""):
+                sanitized = sanitized.replace(str(value), "[redacted]")
+    sanitized = re.sub(r"//([^:/\s]+):([^@/\s]+)@", r"//[redacted]:[redacted]@", sanitized)
+    return sanitized
+
+
+def _classify_connection_error(
+    exc: Exception, connector_type: str, source_row: Any | None = None
+) -> tuple[
+    Literal["ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"],
+    str,
+]:
+    """Classify a connector error into status type and sanitized message."""
+    message = str(exc).lower()
+    if connector_type in ("smb", "folder"):
+        if "does not exist" in message or "not found" in message or "unreachable" in message:
+            return ("unreachable", _sanitize_source_error(str(exc), source_row))
+        if "permission" in message or "access denied" in message:
+            return ("permission_denied", _sanitize_source_error(str(exc), source_row))
+    if connector_type in ("confluence", "jira"):
+        if "401" in message or "unauthorized" in message or "auth" in message:
+            return ("auth_failed", _sanitize_source_error(str(exc), source_row))
+        if "403" in message or "forbidden" in message:
+            return ("permission_denied", _sanitize_source_error(str(exc), source_row))
+        if "connection" in message or "timeout" in message or "refused" in message:
+            return ("unreachable", _sanitize_source_error(str(exc), source_row))
+    if "requires" in message or "missing" in message or "invalid" in message:
+        return ("config_invalid", _sanitize_source_error(str(exc), source_row))
+    return ("config_invalid", _sanitize_source_error(str(exc), source_row))
+
+
+def _record_source_sync_state(
+    connection: sa.Connection,
+    source_id: UUID,
+    *,
+    status: str,
+    indexed: int = 0,
+    skipped: int = 0,
+    failed: int = 0,
+    error: str | None = None,
+) -> None:
+    """Persist the latest admin sync summary for an ingestion source."""
+    connection.execute(
+        sa.text("""
+            UPDATE ingestion_sources
+            SET last_sync_status = :status,
+                last_sync_indexed = :indexed,
+                last_sync_skipped = :skipped,
+                last_sync_failed = :failed,
+                last_sync_error = :error,
+                last_sync_at = :synced_at,
+                updated_at = :synced_at
+            WHERE id = :id
+            """),
+        {
+            "id": source_id.hex,
+            "status": status,
+            "indexed": indexed,
+            "skipped": skipped,
+            "failed": failed,
+            "error": error,
+            "synced_at": datetime.now(UTC),
+        },
+    )
 
 
 def _audit_log(
@@ -225,13 +327,23 @@ class PreviewResponse(BaseModel):
     title: str | None = None
     mime_type: str
     translation_quality: str | None = None
+    view_count: int = 0
     metadata: dict[str, Any]
     snippet: str
-    view_count: int
     version_number: int | None = None
     is_latest: bool | None = None
     latest_document_id: str | None = None
     has_newer_version: bool | None = None
+
+
+class ConnectionTestResult(BaseModel):
+    """Source connection validation result."""
+
+    source_id: str
+    status: Literal["ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"]
+    checked_at: str
+    details: dict[str, Any] | None = None
+    error: str | None = None
 
 
 class CreateUserRequest(BaseModel):
@@ -261,10 +373,37 @@ class CreateSourceRequest(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class UpdateSourceRequest(BaseModel):
+    """Admin update source request."""
+
+    name: str | None = None
+    source_language: str | None = None
+    enabled: bool | None = None
+    config: dict[str, Any] | None = None
+
+
 class GrantPermissionRequest(BaseModel):
     """Admin grant permission request."""
 
     group_id: str
+
+
+class AdminUpdateUserGroupsRequest(BaseModel):
+    """Admin update user group memberships request."""
+
+    group_names: list[str]
+
+
+class AddUserToGroupRequest(BaseModel):
+    """Admin add user to group request."""
+
+    user_id: str
+
+
+class AddChildGroupRequest(BaseModel):
+    """Admin add child group request."""
+
+    child_group_id: str
 
 
 class UpdateConfigRequest(BaseModel):
@@ -316,11 +455,29 @@ def create_app(
     app.state.qdrant_client = qdrant_client
     app.state.ollama_client = ollama_client
 
+    if app.state.settings.feature_meilisearch_search:
+        import meilisearch
+
+        meili_client = meilisearch.Client(
+            app.state.settings.meilisearch_url,
+            api_key=app.state.settings.meilisearch_master_key,
+        )
+        app.state.meili_provider = MeilisearchSearchProvider(
+            meili_client,
+            metrics=app.state.metrics,
+        )
+    else:
+        app.state.meili_provider = None
+
     with app.state.engine.begin() as connection:
-        admins_id = connection.execute(
-            sa.text("SELECT id FROM groups WHERE name = 'admins'"),
-        ).scalar()
-        app.state.admins_group_id = str(admins_id) if admins_id else None
+        try:
+            admins_id = connection.execute(
+                sa.text("SELECT id FROM groups WHERE name = 'admins'"),
+            ).scalar()
+            app.state.admins_group_id = str(admins_id) if admins_id else None
+        except Exception:
+            app.state.admins_group_id = None
+
     app.state.readiness_checker = ReadinessChecker(
         engine=app.state.engine,
         settings=app.state.settings,
@@ -471,6 +628,18 @@ def create_app(
             )
             return service.authenticate(request.email, request.password)
 
+    @app.post("/auth/signup", response_model=LoginResponse)
+    def signup(request: SignUpRequest) -> LoginResponse:
+        with repository_context() as repository:
+            service = AuthService(
+                repository=repository,
+                jwt_service=jwt_service(),
+                auth_provider=app.state.settings.auth_provider,
+                ldap_authenticator=app.state.ldap_authenticator,
+                metrics=app.state.metrics,
+            )
+            return service.register(request.email, request.password, request.display_name)
+
     @app.get("/health")
     def app_health() -> HealthResponse:
         return health("api")
@@ -536,40 +705,24 @@ def create_app(
                 connector = build_connector(source_row)
                 connector.validate()
             except ValueError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
+                detail = _sanitize_source_error(str(exc), source_row)
+                _record_source_sync_state(
+                    connection, source_id, status="failed", failed=1, error=detail
+                )
+                raise HTTPException(status_code=400, detail=detail) from exc
 
             doc_repo = DocumentRepository(connection)
-            translator = app.state.translator or LibreTranslateClient(
-                base_url=app.state.settings.libretranslate_url
-            )
-            es_client = app.state.es_client or ElasticsearchSearchClient(
-                hosts=[app.state.settings.elastic_url]
-            )
-            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
-            )
+            job_repo = PipelineJobRepository(connection)
 
-            worker = PipelineWorker(
-                document_repository=doc_repo,
-                extractor_registry=ExtractorRegistry(),
-                translator=translator,
-                encoder=build_encoder(app.state.settings),
-                es_client=es_client,
-                qdrant_client=qdrant_client,
-                alert_matcher=(
-                    AlertMatcher(
-                        repository=AlertRepository(connection),
-                        encoder=build_encoder(app.state.settings),
-                        default_threshold=default_alert_threshold(connection),
-                    )
-                    if alerts_check_on_ingest(connection)
-                    else None
-                ),
-                metrics=app.state.metrics,
-            )
-
+            results: dict[str, int] = {
+                "discovered": 0,
+                "created": 0,
+                "skipped": 0,
+                "enqueued": 0,
+                "failed_discovery": 0,
+                "failed_enqueue": 0,
+            }
             source_language = source_row.get("source_language")
-            results: dict[str, int] = {"indexed": 0, "skipped": 0, "failed": 0}
 
             def _record_sync_dlq(
                 doc_id: UUID | None,
@@ -589,62 +742,96 @@ def create_app(
 
             connector_type = str(source_row["type"])
             try:
-                for item in connector.fetch_documents():
-                    doc_id_for_dlq: UUID | None = None
-                    try:
+                documents = connector.fetch_documents()
+            except NotImplementedError as exc:
+                detail = _sanitize_source_error(str(exc), source_row)
+                _record_source_sync_state(
+                    connection, source_id, status="failed", failed=1, error=detail
+                )
+                raise HTTPException(status_code=400, detail=detail) from exc
+            except Exception as exc:
+                detail = _sanitize_source_error(
+                    "Sync failed while reading source documents. "
+                    "Check connector settings and source availability.",
+                    source_row,
+                )
+                _record_source_sync_state(
+                    connection, source_id, status="failed", failed=1, error=detail
+                )
+                raise HTTPException(status_code=502, detail=detail) from exc
+
+            for item in documents:
+                results["discovered"] += 1
+                app.state.metrics.ingestion_documents_total.labels(
+                    safe_label_value(connector_type), "discovered"
+                ).inc()
+
+                try:
+                    doc = doc_repo.create(
+                        source_id=source_id,
+                        external_id=item.external_id,
+                        source=cast("DocumentSource", source_row["type"]),
+                        mime_type=item.mime_type,
+                        path=item.path,
+                        title=item.title,
+                        source_language=item.source_language or source_language,
+                        sha256=item.sha256,
+                        metadata=item.metadata,
+                    )
+                    if doc is None:
+                        results["skipped"] += 1
                         app.state.metrics.ingestion_documents_total.labels(
-                            safe_label_value(connector_type), "discovered"
+                            safe_label_value(connector_type), "skipped"
                         ).inc()
+                        continue
 
-                        doc = doc_repo.create(
+                    results["created"] += 1
+                    try:
+                        job_repo.enqueue_document(
+                            doc_id=doc.id,
                             source_id=source_id,
-                            external_id=item.external_id,
-                            source=cast("DocumentSource", source_row["type"]),
-                            mime_type=item.mime_type,
-                            path=item.path,
-                            title=item.title,
-                            source_language=item.source_language or source_language,
-                            sha256=item.sha256,
-                            metadata=item.metadata,
+                            content_text=item.text_content,
                         )
-                        if doc is None:
-                            results["skipped"] += 1
-                            app.state.metrics.ingestion_documents_total.labels(
-                                safe_label_value(connector_type), "skipped"
-                            ).inc()
-                            continue
-
-                        doc_id_for_dlq = doc.id
-                        try:
-                            worker.process_document(doc.id, pre_extracted_text=item.text_content)
-                            results["indexed"] += 1
-                            app.state.metrics.ingestion_documents_total.labels(
-                                safe_label_value(connector_type), "success"
-                            ).inc()
-                        except Exception:
-                            results["failed"] += 1
-                            app.state.metrics.ingestion_documents_total.labels(
-                                safe_label_value(connector_type), "failure"
-                            ).inc()
-                            _record_sync_dlq(doc.id, "Document processing failed")
+                        results["enqueued"] += 1
+                        app.state.metrics.ingestion_documents_total.labels(
+                            safe_label_value(connector_type), "success"
+                        ).inc()
                     except Exception:
-                        results["failed"] += 1
+                        results["failed_enqueue"] += 1
                         app.state.metrics.ingestion_documents_total.labels(
                             safe_label_value(connector_type), "failure"
                         ).inc()
-                        _record_sync_dlq(doc_id_for_dlq, "Document creation or discovery failed")
-                    finally:
-                        if connector_type == "smb" and item.path:
-                            with suppress(OSError):
-                                os.unlink(item.path)
-            except Exception:
-                raise HTTPException(status_code=502, detail="Source enumeration failed") from None
+                except Exception:
+                    results["failed_discovery"] += 1
+                    app.state.metrics.ingestion_documents_total.labels(
+                        safe_label_value(connector_type), "failure"
+                    ).inc()
+                finally:
+                    if connector_type == "smb" and item.path:
+                        with suppress(OSError):
+                            os.unlink(item.path)
 
-            sync_outcome = "failure" if results["failed"] else "success"
+            sync_outcome = (
+                "failed"
+                if results["failed_discovery"] > 0 and results["discovered"] == 0
+                else (
+                    "partial_failure"
+                    if results["failed_enqueue"] > 0 or results["failed_discovery"] > 0
+                    else "success"
+                )
+            )
             app.state.metrics.ingestion_syncs_total.labels(
                 safe_label_value(connector_type), sync_outcome
             ).inc()
-            return results
+            _record_source_sync_state(
+                connection,
+                source_id,
+                status=sync_outcome,
+                indexed=results["enqueued"],
+                skipped=results["skipped"],
+                failed=results["failed_discovery"] + results["failed_enqueue"],
+            )
+            return {"status": sync_outcome, **results}
 
     @app.post("/search", response_model=SearchResponse)
     def search(
@@ -661,13 +848,21 @@ def create_app(
             )
             return SearchResponse(results=[], total=0)
 
-        if app.state.admins_group_id in group_ids:
+        if app.state.admins_group_id in group_ids or user.is_admin:
             search_group_ids: list[str] = []
         else:
-            search_group_ids = group_ids
+            with app.state.engine.begin() as _conn:
+                _auth_repo = AuthRepository(_conn)
+                _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+            search_group_ids = [str(g) for g in _effective]
 
         es_client = app.state.es_client or ElasticsearchSearchClient(
             hosts=[app.state.settings.elastic_url]
+        )
+        encoder = build_encoder(app.state.settings)
+        qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+            url=app.state.settings.qdrant_url,
+            dimension=encoder.dimension,
         )
 
         backend_start = time.perf_counter()
@@ -700,13 +895,28 @@ def create_app(
             )
         app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
 
-        # TODO: read weights from system_config in Phase 04
+        with app.state.engine.begin() as connection:
+            vector_row = connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = 'search.vector_weight'"),
+            ).scalar()
+            bm25_row = connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = 'search.bm25_weight'"),
+            ).scalar()
+            try:
+                vector_weight = float(vector_row) if vector_row is not None else 0.7
+            except (TypeError, ValueError):
+                vector_weight = 0.7
+            try:
+                bm25_weight = float(bm25_row) if bm25_row is not None else 0.3
+            except (TypeError, ValueError):
+                bm25_weight = 0.3
+
         if vector_results:
             merged = merge_results(
                 bm25_results=bm25_results,
                 vector_results=vector_results,
-                vector_weight=0.7,
-                bm25_weight=0.3,
+                vector_weight=vector_weight,
+                bm25_weight=bm25_weight,
             )
         else:
             merged = merge_results(
@@ -1050,13 +1260,15 @@ def create_app(
             if not group_ids:
                 return {"doc_id": str(doc_id), "related": []}
 
+            encoder = build_encoder(app.state.settings)
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
+                url=app.state.settings.qdrant_url,
+                dimension=encoder.dimension,
             )
             service = RelatedService(
                 repository=RelatedRepository(connection),
                 qdrant_client=qdrant_client,
-                encoder=build_encoder(app.state.settings),
+                encoder=encoder,
             )
             try:
                 related = service.related_documents(
@@ -1084,16 +1296,23 @@ def create_app(
             raise HTTPException(status_code=422, detail="Topic must not be empty")
         with app.state.engine.begin() as connection:
             require_expertise_enabled(connection)
-            group_ids = [str(group_id) for group_id in user.groups]
-            if not group_ids:
+            if not user.groups:
                 return []
+            if user.is_admin:
+                group_ids: list[str] = []
+            else:
+                _auth_repo = AuthRepository(connection)
+                _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+                group_ids = [str(g) for g in _effective]
+            encoder = build_encoder(app.state.settings)
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
+                url=app.state.settings.qdrant_url,
+                dimension=encoder.dimension,
             )
             service = RelatedService(
                 repository=RelatedRepository(connection),
                 qdrant_client=qdrant_client,
-                encoder=build_encoder(app.state.settings),
+                encoder=encoder,
             )
             try:
                 return service.expertise(topic=topic, group_ids=group_ids)
@@ -1472,8 +1691,8 @@ def create_app(
         if not app.state.settings.feature_rag_qa:
             raise HTTPException(status_code=404, detail="RAG Q&A is disabled")
 
-        group_ids = [str(g) for g in user.groups]
-        if not group_ids:
+        base_group_ids = [str(g) for g in user.groups]
+        if not base_group_ids:
             return {
                 "question": request.question,
                 "answer": "You do not belong to any groups with document access.",
@@ -1493,10 +1712,18 @@ def create_app(
             if flag_row and not _config_bool(flag_row["value"], default=True):
                 raise HTTPException(status_code=404, detail="RAG Q&A is disabled")
 
-            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
-            )
+            if user.is_admin:
+                group_ids: list[str] = []
+            else:
+                _auth_repo = AuthRepository(connection)
+                _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+                group_ids = [str(g) for g in _effective]
+
             encoder = build_encoder(app.state.settings)
+            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+                url=app.state.settings.qdrant_url,
+                dimension=encoder.dimension,
+            )
             ollama_client = app.state.ollama_client or OllamaClient(
                 base_url=app.state.settings.ollama_url,
                 model=app.state.settings.ollama_model,
@@ -1726,6 +1953,86 @@ def create_app(
             ).mappings()
             return [{"id": str(to_uuid(row["id"])), "name": row["name"]} for row in rows]
 
+    @app.get("/admin/users/{user_id}")
+    def admin_get_user(
+        user_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            row = (
+                connection.execute(
+                    sa.text("""
+                    SELECT id, email, display_name, auth_source, is_admin, created_at
+                    FROM users WHERE id = :id
+                    """),
+                    {"id": user_id.hex},
+                )
+                .mappings()
+                .first()
+            )
+            if row is None:
+                raise HTTPException(status_code=404, detail="User not found")
+            groups = (
+                connection.execute(
+                    sa.text("""
+                    SELECT g.id, g.name
+                    FROM user_groups ug
+                    JOIN groups g ON g.id = ug.group_id
+                    WHERE ug.user_id = :user_id
+                    ORDER BY g.name
+                    """),
+                    {"user_id": user_id.hex},
+                )
+                .mappings()
+                .all()
+            )
+            return {
+                "id": str(to_uuid(row["id"])),
+                "email": row["email"],
+                "display_name": row["display_name"],
+                "auth_source": row["auth_source"],
+                "is_admin": row["is_admin"],
+                "created_at": _fmt_dt(row["created_at"]),
+                "groups": [{"id": str(to_uuid(g["id"])), "name": g["name"]} for g in groups],
+            }
+
+    @app.put("/admin/users/{user_id}/groups")
+    def admin_set_user_groups(
+        user_id: UUID,
+        request: AdminUpdateUserGroupsRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, list[dict[str, str]]]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            auth_repo.set_user_groups(user_id, request.group_names)
+            groups = (
+                connection.execute(
+                    sa.text("""
+                    SELECT g.id, g.name
+                    FROM user_groups ug
+                    JOIN groups g ON g.id = ug.group_id
+                    WHERE ug.user_id = :user_id
+                    ORDER BY g.name
+                    """),
+                    {"user_id": user_id.hex},
+                )
+                .mappings()
+                .all()
+            )
+            _audit_log(
+                connection,
+                user.sub,
+                "update",
+                "user",
+                str(user_id),
+                {"groups": list(request.group_names)},
+            )
+            return {
+                "groups": [{"id": str(to_uuid(g["id"])), "name": g["name"]} for g in groups],
+            }
+
     @app.post("/admin/groups", status_code=201)
     def admin_create_group(
         request: CreateGroupRequest,
@@ -1738,12 +2045,297 @@ def create_app(
             _audit_log(connection, user.sub, "create", "group", str(group_id))
             return {"id": str(group_id), "name": request.name}
 
+    @app.get("/admin/groups/{group_id}/users")
+    def admin_list_group_users(
+        group_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, Any]]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            group_row = connection.execute(
+                sa.text("SELECT id FROM groups WHERE id = :id"),
+                {"id": db_uuid(group_id)},
+            ).first()
+            if group_row is None:
+                raise HTTPException(status_code=404, detail="Group not found")
+            rows = (
+                connection.execute(
+                    sa.text("""
+                        SELECT u.id, u.email, u.display_name
+                        FROM user_groups ug
+                        JOIN users u ON u.id = ug.user_id
+                        WHERE ug.group_id = :group_id
+                        ORDER BY u.email
+                    """),
+                    {"group_id": db_uuid(group_id)},
+                )
+                .mappings()
+                .all()
+            )
+            return [
+                {
+                    "id": str(to_uuid(r["id"])),
+                    "email": r["email"],
+                    "display_name": r["display_name"],
+                }  # noqa: E501
+                for r in rows
+            ]
+
+    @app.post("/admin/groups/{group_id}/users", status_code=201)
+    def admin_add_user_to_group(
+        group_id: UUID,
+        request: AddUserToGroupRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, str]:
+        require_admin(user)
+        user_id = UUID(request.user_id)
+        with app.state.engine.begin() as connection:
+            group_row = connection.execute(
+                sa.text("SELECT id FROM groups WHERE id = :id"),
+                {"id": db_uuid(group_id)},
+            ).first()
+            if group_row is None:
+                raise HTTPException(status_code=404, detail="Group not found")
+            try:
+                with connection.begin_nested():
+                    connection.execute(
+                        sa.text(
+                            "INSERT INTO user_groups (user_id, group_id)"
+                            " VALUES (:user_id, :group_id)"
+                        ),
+                        {"user_id": db_uuid(user_id), "group_id": db_uuid(group_id)},
+                    )
+            except sa.exc.IntegrityError:
+                pass
+            _audit_log(
+                connection,
+                user.sub,
+                "add_user_to_group",
+                "group",
+                str(group_id),
+                {"user_id": str(user_id)},
+            )
+            return {"group_id": str(group_id), "user_id": str(user_id)}
+
+    @app.delete("/admin/groups/{group_id}/users/{user_id}", status_code=204)
+    def admin_remove_user_from_group(
+        group_id: UUID,
+        user_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> None:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            group_row = connection.execute(
+                sa.text("SELECT id FROM groups WHERE id = :id"),
+                {"id": db_uuid(group_id)},
+            ).first()
+            if group_row is None:
+                raise HTTPException(status_code=404, detail="Group not found")
+            connection.execute(
+                sa.text(
+                    "DELETE FROM user_groups WHERE user_id = :user_id AND group_id = :group_id"
+                ),
+                {"user_id": db_uuid(user_id), "group_id": db_uuid(group_id)},
+            )
+            _audit_log(
+                connection,
+                user.sub,
+                "remove_user_from_group",
+                "group",
+                str(group_id),
+                {"user_id": str(user_id)},
+            )
+
+    @app.get("/admin/groups/{group_id}/children")
+    def admin_list_group_children(
+        group_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, str]]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            group_row = connection.execute(
+                sa.text("SELECT id FROM groups WHERE id = :id"),
+                {"id": db_uuid(group_id)},
+            ).first()
+            if group_row is None:
+                raise HTTPException(status_code=404, detail="Group not found")
+            rows = (
+                connection.execute(
+                    sa.text("""
+                        SELECT g.id, g.name
+                        FROM group_memberships gm
+                        JOIN groups g ON g.id = gm.child_group_id
+                        WHERE gm.parent_group_id = :group_id
+                        ORDER BY g.name
+                    """),
+                    {"group_id": db_uuid(group_id)},
+                )
+                .mappings()
+                .all()
+            )
+            return [{"id": str(to_uuid(r["id"])), "name": r["name"]} for r in rows]
+
+    @app.post("/admin/groups/{group_id}/children", status_code=201)
+    def admin_add_child_group(
+        group_id: UUID,
+        request: AddChildGroupRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, str]:
+        require_admin(user)
+        child_id = UUID(request.child_group_id)
+        with app.state.engine.begin() as connection:
+            for gid in (group_id, child_id):
+                if (
+                    connection.execute(
+                        sa.text("SELECT id FROM groups WHERE id = :id"),
+                        {"id": db_uuid(gid)},
+                    ).first()
+                    is None
+                ):
+                    raise HTTPException(status_code=404, detail="Group not found")
+            auth_repo = AuthRepository(connection)
+            if auth_repo._group_would_create_cycle(group_id, child_id):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Adding this group would create a circular membership.",
+                )
+            try:
+                with connection.begin_nested():
+                    connection.execute(
+                        sa.text(
+                            "INSERT INTO group_memberships (parent_group_id, child_group_id)"
+                            " VALUES (:parent, :child)"
+                        ),
+                        {"parent": db_uuid(group_id), "child": db_uuid(child_id)},
+                    )
+            except sa.exc.IntegrityError:
+                pass
+            _audit_log(
+                connection,
+                user.sub,
+                "add_child_group",
+                "group",
+                str(group_id),
+                {"child_group_id": str(child_id)},
+            )
+            return {"group_id": str(group_id), "child_group_id": str(child_id)}
+
+    @app.delete("/admin/groups/{group_id}/children/{child_id}", status_code=204)
+    def admin_remove_child_group(
+        group_id: UUID,
+        child_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> None:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            group_row = connection.execute(
+                sa.text("SELECT id FROM groups WHERE id = :id"),
+                {"id": db_uuid(group_id)},
+            ).first()
+            if group_row is None:
+                raise HTTPException(status_code=404, detail="Group not found")
+            connection.execute(
+                sa.text(
+                    "DELETE FROM group_memberships"
+                    " WHERE parent_group_id = :parent AND child_group_id = :child"
+                ),
+                {"parent": db_uuid(group_id), "child": db_uuid(child_id)},
+            )
+            _audit_log(
+                connection,
+                user.sub,
+                "remove_child_group",
+                "group",
+                str(group_id),
+                {"child_group_id": str(child_id)},
+            )
+
     @app.get("/admin/connector-types")
     def admin_connector_types(
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> list[dict[str, Any]]:
         require_admin(user)
         return connector_types()
+
+    @app.get("/admin/source-languages")
+    def admin_source_languages(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[str]:
+        require_admin(user)
+        return app.state.settings.supported_translation_source_languages_list  # type: ignore[no-any-return]
+
+    @app.post(
+        "/admin/sources/{source_id}/test-connection",
+        response_model=ConnectionTestResult,
+    )
+    def admin_test_source_connection(
+        source_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> ConnectionTestResult:
+        """Validate a source configuration and reachability."""
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            source_row = (
+                connection.execute(
+                    sa.text("SELECT * FROM ingestion_sources WHERE id = :id"),
+                    {"id": source_id.hex},
+                )
+                .mappings()
+                .first()
+            )
+            if source_row is None:
+                raise HTTPException(status_code=404, detail="Source not found")
+
+            connector_type = str(source_row["type"])
+            checked_at = datetime.now(UTC).isoformat()
+
+            try:
+                connector = build_connector(source_row)
+                connector.validate()
+            except Exception as exc:
+                status, error = _classify_connection_error(exc, connector_type, source_row)
+                connection.execute(
+                    sa.text("""
+                        UPDATE ingestion_sources
+                        SET last_validation_status = :status,
+                            last_validation_error = :error,
+                            last_validated_at = :checked_at
+                        WHERE id = :id
+                        """),
+                    {
+                        "id": source_id.hex,
+                        "status": status,
+                        "error": error,
+                        "checked_at": checked_at,
+                    },
+                )
+                return ConnectionTestResult(
+                    source_id=str(source_id),
+                    status=status,
+                    checked_at=checked_at,
+                    error=error,
+                )
+
+            details: dict[str, Any] = {"config_valid": True}
+            connection.execute(
+                sa.text("""
+                    UPDATE ingestion_sources
+                    SET last_validation_status = 'ok',
+                        last_validation_error = NULL,
+                        last_validated_at = :checked_at
+                    WHERE id = :id
+                    """),
+                {
+                    "id": source_id.hex,
+                    "checked_at": checked_at,
+                },
+            )
+            return ConnectionTestResult(
+                source_id=str(source_id),
+                status="ok",
+                checked_at=checked_at,
+                details=details,
+            )
 
     @app.get("/admin/sources")
     def admin_list_sources(
@@ -1753,7 +2345,10 @@ def create_app(
         with app.state.engine.begin() as connection:
             rows = connection.execute(
                 sa.text("""
-                    SELECT id, name, type, path, source_language, enabled, created_at
+                    SELECT id, name, type, path, source_language, enabled, created_at,
+                           last_sync_status, last_sync_indexed, last_sync_skipped,
+                           last_sync_failed, last_sync_error, last_sync_at,
+                           last_validation_status, last_validation_error, last_validated_at
                     FROM ingestion_sources ORDER BY created_at DESC
                     """)
             ).mappings()
@@ -1766,9 +2361,124 @@ def create_app(
                     "source_language": row["source_language"],
                     "enabled": row["enabled"],
                     "created_at": _fmt_dt(row["created_at"]),
+                    "last_sync_status": row.get("last_sync_status"),
+                    "last_sync_indexed": row.get("last_sync_indexed"),
+                    "last_sync_skipped": row.get("last_sync_skipped"),
+                    "last_sync_failed": row.get("last_sync_failed"),
+                    "last_sync_error": row.get("last_sync_error"),
+                    "last_sync_at": _fmt_dt(row.get("last_sync_at")),
+                    "last_validation_status": row.get("last_validation_status"),
+                    "last_validation_error": row.get("last_validation_error"),
+                    "last_validated_at": _fmt_dt(row.get("last_validated_at")),
                 }
                 for row in rows
             ]
+
+    @app.get("/admin/sources/{source_id}")
+    def admin_get_source(
+        source_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            row = (
+                connection.execute(
+                    sa.text("""
+                    SELECT id, name, type, path, source_language, enabled, created_at,
+                           config,
+                           last_sync_status, last_sync_indexed, last_sync_skipped,
+                           last_sync_failed, last_sync_error, last_sync_at,
+                           last_validation_status, last_validation_error, last_validated_at
+                    FROM ingestion_sources WHERE id = :id
+                    """),
+                    {"id": source_id.hex},
+                )
+                .mappings()
+                .first()
+            )
+            if row is None:
+                raise HTTPException(status_code=404, detail="Source not found")
+
+            config = _source_config(row.get("config"))
+            masked_config: dict[str, Any] = {}
+            for key, value in config.items():
+                if key.lower() in _SENSITIVE_CONFIG_KEYS:
+                    masked_config[key] = "••••••••"
+                else:
+                    masked_config[key] = value
+
+            permissions = (
+                connection.execute(
+                    sa.text("""
+                    SELECT g.id, g.name
+                    FROM source_permissions sp
+                    JOIN groups g ON g.id = sp.group_id
+                    WHERE sp.source_id = :source_id
+                    ORDER BY g.name
+                    """),
+                    {"source_id": source_id.hex},
+                )
+                .mappings()
+                .all()
+            )
+
+            return {
+                "id": str(to_uuid(row["id"])),
+                "name": row["name"],
+                "type": row["type"],
+                "path": row["path"],
+                "source_language": row["source_language"],
+                "enabled": row["enabled"],
+                "created_at": _fmt_dt(row["created_at"]),
+                "config": masked_config,
+                "last_sync_status": row.get("last_sync_status"),
+                "last_sync_indexed": row.get("last_sync_indexed"),
+                "last_sync_skipped": row.get("last_sync_skipped"),
+                "last_sync_failed": row.get("last_sync_failed"),
+                "last_sync_error": row.get("last_sync_error"),
+                "last_sync_at": _fmt_dt(row.get("last_sync_at")),
+                "last_validation_status": row.get("last_validation_status"),
+                "last_validation_error": row.get("last_validation_error"),
+                "last_validated_at": _fmt_dt(row.get("last_validated_at")),
+                "groups": [{"id": str(to_uuid(p["id"])), "name": p["name"]} for p in permissions],
+            }
+
+    @app.put("/admin/sources/{source_id}")
+    def admin_update_source(
+        source_id: UUID,
+        request: UpdateSourceRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            existing = connection.execute(
+                sa.text("SELECT id FROM ingestion_sources WHERE id = :id"),
+                {"id": source_id.hex},
+            ).scalar()
+            if existing is None:
+                raise HTTPException(status_code=404, detail="Source not found")
+
+            updates: list[str] = []
+            params: dict[str, Any] = {"id": source_id.hex}
+            if request.name is not None:
+                updates.append("name = :name")
+                params["name"] = request.name
+            if request.source_language is not None:
+                updates.append("source_language = :source_language")
+                params["source_language"] = request.source_language
+            if request.enabled is not None:
+                updates.append("enabled = :enabled")
+                params["enabled"] = request.enabled
+            if request.config is not None:
+                updates.append("config = :config")
+                params["config"] = json.dumps(request.config)
+            if updates:
+                connection.execute(
+                    sa.text(f"UPDATE ingestion_sources SET {', '.join(updates)} WHERE id = :id"),
+                    params,
+                )
+            _audit_log(connection, user.sub, "update", "source", str(source_id))
+            return {"id": str(source_id)}
 
     @app.post("/admin/sources", status_code=201)
     def admin_create_source(
@@ -1795,11 +2505,9 @@ def create_app(
                     "config": json.dumps(request.config),
                 },
             )
-
             auth_repo = AuthRepository(connection)
             admins_group_id = auth_repo.ensure_group("admins")
             auth_repo.grant_source_to_group(source_id, admins_group_id)
-
             _audit_log(
                 connection,
                 user.sub,
@@ -1815,7 +2523,16 @@ def create_app(
                 "path": request.path,
                 "source_language": request.source_language,
                 "enabled": request.enabled,
-                "config": request.config,
+                "created_at": None,
+                "last_sync_status": None,
+                "last_sync_indexed": None,
+                "last_sync_skipped": None,
+                "last_sync_failed": None,
+                "last_sync_error": None,
+                "last_sync_at": None,
+                "last_validation_status": None,
+                "last_validation_error": None,
+                "last_validated_at": None,
             }
 
     @app.post("/admin/sources/{source_id}/permissions", status_code=201)

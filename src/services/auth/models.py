@@ -38,6 +38,14 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class SignUpRequest(BaseModel):
+    """Sign-up request body."""
+
+    email: str
+    password: str
+    display_name: str | None = None
+
+
 class LoginResponse(BaseModel):
     """Login response body."""
 

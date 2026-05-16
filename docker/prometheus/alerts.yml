@@ -82,3 +82,12 @@ groups:
         annotations:
           summary: Tomorrowland dependency readiness is degraded
           description: A dependency readiness probe has reported unavailable for 5 minutes.
+
+      - alert: TomorrowlandSearchPermissionFilterMissing
+        expr: increase(tomorrowland_search_permission_filter_applied_total{result="missing"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Search permission filter missing for non-admin user
+          description: A Meilisearch search request did not apply an ACL permission filter. This is a potential data exposure path.

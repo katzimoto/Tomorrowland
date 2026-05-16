@@ -11,6 +11,19 @@ from prometheus_client.platform_collector import PlatformCollector
 from prometheus_client.process_collector import ProcessCollector
 from starlette.requests import Request
 
+PIPELINE_JOB_DURATION_BUCKETS: Final[tuple[float, ...]] = (
+    0.1,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+    30.0,
+    60.0,
+    120.0,
+    300.0,
+    600.0,
+)
 HTTP_DURATION_BUCKETS: Final[tuple[float, ...]] = (
     0.005,
     0.01,
@@ -208,6 +221,12 @@ class MetricsRegistry:
             ("backend",),
             registry=self.registry,
         )
+        self.search_permission_filter_applied_total = Counter(
+            "tomorrowland_search_permission_filter_applied_total",
+            "Meilisearch search ACL filter outcome by result.",
+            ("result",),
+            registry=self.registry,
+        )
         self.translation_requests_total = Counter(
             "tomorrowland_translation_requests_total",
             "Translation requests by kind and outcome.",
@@ -306,6 +325,61 @@ class MetricsRegistry:
             "tomorrowland_notifications_total",
             "Notification events by event type and outcome.",
             ("event", "outcome"),
+            registry=self.registry,
+        )
+        self.worker_heartbeat_timestamp_seconds = Gauge(
+            "tomorrowland_worker_heartbeat_timestamp_seconds",
+            "Unix timestamp of the last worker loop heartbeat by worker type and stable worker ID.",
+            ("worker_type", "worker_id"),
+            registry=self.registry,
+        )
+        self.pipeline_queue_depth = Gauge(
+            "tomorrowland_pipeline_queue_depth",
+            "Pipeline job queue depth by status and job type.",
+            ("status", "job_type"),
+            registry=self.registry,
+        )
+        self.pipeline_jobs_claimed_total = Counter(
+            "tomorrowland_pipeline_jobs_claimed_total",
+            "Pipeline jobs claimed from the queue by worker type and job type.",
+            ("worker_type", "job_type"),
+            registry=self.registry,
+        )
+        self.pipeline_jobs_succeeded_total = Counter(
+            "tomorrowland_pipeline_jobs_succeeded_total",
+            "Pipeline jobs completed successfully by worker type and job type.",
+            ("worker_type", "job_type"),
+            registry=self.registry,
+        )
+        self.pipeline_jobs_retried_total = Counter(
+            "tomorrowland_pipeline_jobs_retried_total",
+            "Pipeline jobs scheduled for retry by worker type and job type.",
+            ("worker_type", "job_type"),
+            registry=self.registry,
+        )
+        self.pipeline_jobs_dead_lettered_total = Counter(
+            "tomorrowland_pipeline_jobs_dead_lettered_total",
+            "Pipeline jobs moved to dead-letter state by worker type and job type.",
+            ("worker_type", "job_type"),
+            registry=self.registry,
+        )
+        self.pipeline_jobs_stale_lock_reaped_total = Counter(
+            "tomorrowland_pipeline_jobs_stale_lock_reaped_total",
+            "Stale-locked pipeline jobs reset to pending by worker type.",
+            ("worker_type",),
+            registry=self.registry,
+        )
+        self.pipeline_job_duration_seconds = Histogram(
+            "tomorrowland_pipeline_job_duration_seconds",
+            "Pipeline job processing duration in seconds by worker type, job type, stage, outcome.",
+            ("worker_type", "job_type", "stage", "outcome"),
+            buckets=PIPELINE_JOB_DURATION_BUCKETS,
+            registry=self.registry,
+        )
+        self.worker_loop_errors_total = Counter(
+            "tomorrowland_worker_loop_errors_total",
+            "Unhandled worker loop errors by worker type and safe error type.",
+            ("worker_type", "error_type"),
             registry=self.registry,
         )
         self.build_info.labels(

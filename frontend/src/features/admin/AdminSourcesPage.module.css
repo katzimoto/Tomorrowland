@@ -70,8 +70,25 @@
 }
 
 .syncResult {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font-size: var(--font-size-meta);
   margin-top: var(--space-1);
+}
+
+.syncSummary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.mutedMeta {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
 }
 
 .syncOk { color: var(--color-success); }
@@ -143,4 +160,158 @@
   display: flex;
   gap: var(--space-3);
   padding-top: var(--space-2);
+}
+
+/* ── Detail page ── */
+.section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+.section h2 {
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-section-title);
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-primary);
+}
+
+.dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--font-size-body);
+  margin: 0;
+}
+
+.dl dt {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-meta);
+}
+
+.dl dd {
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.error {
+  color: var(--color-danger);
+}
+
+.groupList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.groupItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.removeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+  font-size: 10px;
+}
+
+.removeBtn:hover {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.warning {
+  font-size: var(--font-size-meta);
+  color: var(--color-warning);
+  margin: var(--space-2) 0;
+}
+
+.addGroupRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-2);
+}
+
+.input {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  font-family: inherit;
+  width: 100%;
+}
+
+.input:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Wizard ── */
+.wizardSteps {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.wizardStepActive {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-meta);
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-3);
+}
+
+.typeCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+}
+
+.typeCard:hover {
+  border-color: var(--color-primary);
+}
+
+.typeCardActive {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.groupCheckLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  cursor: pointer;
+  font-size: var(--font-size-body);
 }

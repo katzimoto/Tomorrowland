@@ -60,6 +60,7 @@ third_party_images=(
   "docker.elastic.co/elasticsearch/elasticsearch:8.14.3"
   "qdrant/qdrant:v1.10.1"
   "ollama/ollama:latest"
+  "getmeili/meilisearch:v1.9"
 )
 all_images=(
   "$backend_airgap_image"

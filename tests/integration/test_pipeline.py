@@ -91,14 +91,14 @@ def test_sync_now_indexes_document(
     )
 
     assert response.status_code == 200
-    assert response.json()["indexed"] == 1
+    assert response.json()["enqueued"] == 1
     assert response.json()["skipped"] == 0
 
-    # Verify document status in DB
+    # Verify document was created in DB
     with migrated_engine.connect() as connection:
         row = (
             connection.execute(
-                sa.text("SELECT status, translation_quality FROM documents WHERE source_id = :id"),
+                sa.text("SELECT id FROM documents WHERE source_id = :id"),
                 {"id": source_id},
             )
             .mappings()
@@ -106,18 +106,6 @@ def test_sync_now_indexes_document(
         )
 
     assert row is not None
-    assert row["status"] == "indexed"
-    assert row["translation_quality"] == "fast"
-
-    # Verify ES and Qdrant were called
-    mock_es.index_document.assert_called_once()
-    mock_qdrant.upsert_chunks.assert_called_once()
-    with migrated_engine.begin() as connection:
-        admin_group_id = AuthRepository(connection).ensure_group("admins")
-    indexed_doc = mock_es.index_document.call_args.args[1]
-    assert indexed_doc["allowed_group_ids"] == [str(admin_group_id)]
-    qdrant_chunks = mock_qdrant.upsert_chunks.call_args.args[0]
-    assert qdrant_chunks[0]["group_id"] == [str(admin_group_id)]
 
 
 def test_sync_now_matches_alert_subscriptions(
@@ -173,9 +161,7 @@ def test_sync_now_matches_alert_subscriptions(
     )
 
     assert response.status_code == 200
-    with migrated_engine.begin() as connection:
-        count = connection.execute(sa.text("SELECT COUNT(*) FROM alert_notifications")).scalar_one()
-    assert count == 1
+    # Alert matching is now done by the pipeline worker, not during sync-now
 
 
 def test_sync_now_skips_duplicate(
@@ -213,7 +199,7 @@ def test_sync_now_skips_duplicate(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r1.status_code == 200
-    assert r1.json()["indexed"] == 1
+    assert r1.json()["enqueued"] == 1
 
     # Second ingestion should skip
     r2 = client.post(
@@ -221,7 +207,7 @@ def test_sync_now_skips_duplicate(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r2.status_code == 200
-    assert r2.json()["indexed"] == 0
+    assert r2.json()["enqueued"] == 0
     assert r2.json()["skipped"] == 1
 
 
@@ -261,12 +247,13 @@ def test_sync_now_translation_failure_still_indexes(
     )
 
     assert response.status_code == 200
-    assert response.json()["indexed"] == 1
+    assert response.json()["enqueued"] == 1
 
+    # Document is created and enqueued; translation happens in the pipeline worker
     with migrated_engine.connect() as connection:
         row = (
             connection.execute(
-                sa.text("SELECT status, translation_quality FROM documents WHERE source_id = :id"),
+                sa.text("SELECT id FROM documents WHERE source_id = :id"),
                 {"id": source_id},
             )
             .mappings()
@@ -274,8 +261,6 @@ def test_sync_now_translation_failure_still_indexes(
         )
 
     assert row is not None
-    assert row["status"] == "indexed"
-    assert row["translation_quality"] is None
 
 
 def test_sync_now_pipeline_failure_sets_failed_status(
@@ -292,7 +277,6 @@ def test_sync_now_pipeline_failure_sets_failed_status(
     source_id = _create_folder_source(migrated_engine, source_folder)
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.index_document.side_effect = RuntimeError("ES down")
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.return_value = "Bonjour le monde"
@@ -314,12 +298,15 @@ def test_sync_now_pipeline_failure_sets_failed_status(
     )
 
     assert response.status_code == 200
-    assert response.json()["failed"] == 1
+    assert response.json()["enqueued"] == 1
+    assert response.json()["failed_enqueue"] == 0
+    assert response.json()["failed_discovery"] == 0
 
+    # Document is created and enqueued; pipeline worker handles full processing
     with migrated_engine.connect() as connection:
         row = (
             connection.execute(
-                sa.text("SELECT status FROM documents WHERE source_id = :id"),
+                sa.text("SELECT id FROM documents WHERE source_id = :id"),
                 {"id": source_id},
             )
             .mappings()
@@ -327,7 +314,6 @@ def test_sync_now_pipeline_failure_sets_failed_status(
         )
 
     assert row is not None
-    assert row["status"] == "failed"
 
 
 def test_sync_now_forbids_non_admin(
@@ -508,11 +494,7 @@ def test_sync_now_with_pre_extracted_text(
         )
 
     assert response.status_code == 200
-    assert response.json()["indexed"] == 1
-
-    mock_es.index_document.assert_called_once()
-    indexed_doc = mock_es.index_document.call_args.args[1]
-    assert "NiFi" in indexed_doc["content_english"]
+    assert response.json()["enqueued"] == 1
 
 
 def test_sync_now_middle_item_failure_continues_sync(
@@ -572,7 +554,6 @@ def test_sync_now_middle_item_failure_continues_sync(
             )
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.index_document.side_effect = [None, RuntimeError("ES down"), None]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.side_effect = lambda text, **_: text
@@ -595,15 +576,12 @@ def test_sync_now_middle_item_failure_continues_sync(
 
     assert response.status_code == 200
     data = response.json()
-    assert data["indexed"] == 2
+    assert data["enqueued"] == 3
+    assert data["discovered"] == 3
+    assert data["created"] == 3
     assert data["skipped"] == 0
-    assert data["failed"] == 1
-    assert mock_es.index_document.call_count == 3
-
-    # Verify DLQ recorded the failed item
-    with migrated_engine.connect() as connection:
-        dlq_count = connection.execute(sa.text("SELECT COUNT(*) FROM dlq")).scalar_one()
-    assert dlq_count == 1
+    assert data["failed_enqueue"] == 0
+    assert data["failed_discovery"] == 0
 
 
 def test_sync_now_document_creation_failure_continues_sync(
@@ -700,14 +678,10 @@ def test_sync_now_document_creation_failure_continues_sync(
 
     assert response.status_code == 200
     data = response.json()
-    assert data["indexed"] == 2
+    assert data["enqueued"] == 2
     assert data["skipped"] == 0
-    assert data["failed"] == 1
-
-    # Verify DLQ recorded the failed item
-    with migrated_engine.connect() as connection:
-        dlq_count = connection.execute(sa.text("SELECT COUNT(*) FROM dlq")).scalar_one()
-    assert dlq_count == 1
+    assert data["failed_discovery"] == 1
+    assert data["failed_enqueue"] == 0
 
 
 def test_sync_now_connector_enumeration_failure_returns_safe_error(
@@ -727,7 +701,7 @@ def test_sync_now_connector_enumeration_failure_returns_safe_error(
             ),
             {
                 "id": source_id.hex,
-                "config": '{"base_url":"http://nifi","flow_id":"x","api_token":"t"}',
+                "config": '{"base_url":"http://nifi","flow_id":"x","api_token":"super-secret-key"}',
             },
         )
 
@@ -753,8 +727,9 @@ def test_sync_now_connector_enumeration_failure_returns_safe_error(
 
     assert response.status_code == 502
     detail = response.json()["detail"]
-    assert "Source enumeration failed" in detail
+    assert "Sync failed while reading source documents" in detail
     assert "cannot authenticate" not in detail.lower()
+    assert "super-secret-key" not in detail.lower()
 
 
 def test_sync_now_smb_cleanup_on_item_failure(
@@ -808,7 +783,6 @@ def test_sync_now_smb_cleanup_on_item_failure(
             )
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.index_document.side_effect = [RuntimeError("ES down"), None]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.side_effect = lambda text, **_: text
@@ -834,8 +808,9 @@ def test_sync_now_smb_cleanup_on_item_failure(
 
     assert response.status_code == 200
     data = response.json()
-    assert data["indexed"] == 1
-    assert data["failed"] == 1
+    assert data["enqueued"] == 2
+    assert data["failed_enqueue"] == 0
+    assert data["failed_discovery"] == 0
     assert mock_unlink.call_count == 2
     paths = {call.args[0] for call in mock_unlink.call_args_list}
     assert paths == {"/tmp/staged_001.txt", "/tmp/staged_002.txt"}

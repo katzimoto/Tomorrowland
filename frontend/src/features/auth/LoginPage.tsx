@@ -104,6 +104,10 @@ export function LoginPage() {
           </Button>
         </form>
 
+        <p className={styles.switchLink}>
+          <a href="/signup">{t.auth.signUpLink}</a>
+        </p>
+
         <div className={styles.langRow}>
           <LanguageSelector />
         </div>

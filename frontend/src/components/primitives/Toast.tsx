@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { CheckCircle, AlertCircle, Info, X } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Info, X } from "lucide-react";
 import { IconButton } from "./IconButton";
 import { ToastContext, type ToastKind } from "./ToastContext";
 import styles from "./Toast.module.css";
@@ -35,6 +35,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               {toast.kind === "success" && <CheckCircle size={16} />}
               {toast.kind === "error" && <AlertCircle size={16} />}
               {toast.kind === "info" && <Info size={16} />}
+              {toast.kind === "warning" && <AlertTriangle size={16} />}
             </span>
             <span className={styles.message}>{toast.message}</span>
             <IconButton label="Dismiss" size="sm" onClick={() => dismiss(toast.id)}>

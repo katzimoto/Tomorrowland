@@ -91,7 +91,9 @@ class PreviewService:
         # Auto-enrich: queue for high-quality translation when view threshold is crossed
         self._maybe_auto_enrich(doc_id, view_count, row["translation_quality"])
 
-        snippet = self._generate_snippet(row["path"], row["mime_type"], translation_version_id)
+        snippet = self._generate_snippet(
+            doc_id, row["path"], row["mime_type"], translation_version_id
+        )
 
         return {
             "doc_id": str(doc_id),
@@ -105,23 +107,76 @@ class PreviewService:
 
     def _generate_snippet(
         self,
+        doc_id: UUID,
         file_path: str | None,
         mime_type: str,
         translation_version_id: UUID | None = None,
     ) -> str:
-        """Return a truncated preview snippet for a document."""
-        # If a specific translation version is requested and available, use it
-        if translation_version_id is not None:
+        """Return a truncated preview snippet for a document.
+
+        When *translation_version_id* is provided, renders that version
+        only if it is ``available`` and belongs to the same document.
+        When omitted, resolves the latest available translation for the
+        document (ordered by highest ``version_number``). Falls back to
+        the original document extraction when no available translation
+        exists.
+        """
+        # Determine which translation version to use
+        version_id = translation_version_id
+
+        if version_id is not None:
+            # Verify the requested version is available and belongs to
+            # the same doc_id (prevent cross-document version leaks).
             version_row = (
                 self._connection.execute(
                     sa.text(
                         """
-                        SELECT translated_text, status
-                        FROM document_translation_versions
-                        WHERE id = :id AND status = 'available'
+                        SELECT dv.translated_text, dv.doc_id
+                        FROM document_translation_versions dv
+                        WHERE dv.id = :id AND dv.status = 'available'
                         """
                     ),
-                    {"id": db_uuid(translation_version_id)},
+                    {"id": db_uuid(version_id)},
+                )
+                .mappings()
+                .first()
+            )
+            if version_row is None or version_row["doc_id"] != db_uuid(doc_id):
+                version_id = None
+
+        if version_id is None:
+            # Resolve the latest available translation for this document
+            latest_row = (
+                self._connection.execute(
+                    sa.text(
+                        """
+                        SELECT id, translated_text
+                        FROM document_translation_versions
+                        WHERE doc_id = :doc_id AND status = 'available'
+                        ORDER BY version_number DESC
+                        LIMIT 1
+                        """
+                    ),
+                    {"doc_id": db_uuid(doc_id)},
+                )
+                .mappings()
+                .first()
+            )
+            if latest_row and latest_row["translated_text"]:
+                version_id = UUID(latest_row["id"])
+
+        # If we have a resolved version, render from translated text
+        if version_id is not None:
+            version_row = (
+                self._connection.execute(
+                    sa.text(
+                        """
+                        SELECT translated_text
+                        FROM document_translation_versions
+                        WHERE id = :id
+                        """
+                    ),
+                    {"id": db_uuid(version_id)},
                 )
                 .mappings()
                 .first()
@@ -130,6 +185,7 @@ class PreviewService:
                 text: str = version_row["translated_text"]
                 return text[:SNIPPET_LENGTH]
 
+        # Fall back to original document extraction
         if file_path is None:
             return ""
 

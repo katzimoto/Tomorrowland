@@ -116,26 +116,58 @@ def test_admin_source_creation_accepts_smb(migrated_engine: Engine) -> None:
     assert source_type == "smb"
 
 
+def test_admin_source_languages_endpoint_returns_configured_languages(
+    migrated_engine: Engine,
+) -> None:
+    _setup_admin(migrated_engine)
+    settings = Settings(
+        auth_provider="local",
+        jwt_secret=TEST_JWT_SECRET,
+        supported_translation_source_languages="en,he,fr",
+    )
+    client = TestClient(create_app(migrated_engine, settings))
+    token = _admin_token(client)
+
+    response = client.get("/admin/source-languages", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    assert response.json() == ["en", "he", "fr"]
+
+
+def test_admin_source_languages_endpoint_default_includes_major_languages(
+    migrated_engine: Engine,
+) -> None:
+    _setup_admin(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.get("/admin/source-languages", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "en" in data
+    assert "he" in data
+    assert "ar" in data
+
+
 def test_db_constraints_allow_smb_source_and_document(migrated_engine: Engine) -> None:
     with migrated_engine.begin() as connection:
         source_id = "00112233445566778899aabbccddeeff"
         doc_id = "11112233445566778899aabbccddeeff"
         connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO ingestion_sources (id, name, type, source_language)
                 VALUES (:id, 'SMB', 'smb', 'en')
-                """
-            ),
+                """),
             {"id": source_id},
         )
         connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO documents (id, source_id, external_id, source, mime_type)
                 VALUES (:id, :source_id, 'smb://fileserver/share/a.txt', 'smb', 'text/plain')
-                """
-            ),
+                """),
             {"id": doc_id, "source_id": source_id},
         )
 

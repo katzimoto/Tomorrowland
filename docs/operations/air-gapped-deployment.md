@@ -325,6 +325,79 @@ preview/download, permissions, and translation can still work. Features that
 call Ollama, including Q&A/RAG and summaries routed through the local model,
 should be treated as degraded until the model is loaded.
 
+### Embedding model vs generation model
+
+Tomorrowland uses two distinct Ollama models:
+
+- **`OLLAMA_MODEL`** — generation/chat model used for Q&A, summaries, tags, and
+  local intelligence. This is the model loaded by the Ollama model bundle.
+- **`EMBEDDING_MODEL`** — embedding model used for vector search and RAG
+  retrieval. This model produces vector embeddings that enable semantic search
+  and similar-document discovery.
+
+Both models must be loaded into Ollama for full functionality. The embedding
+model is typically a smaller, specialized model such as `nomic-embed-text` or
+`mxbai-embed-large`. The `.env` and `.env.airgap.example` files document the
+available configuration options:
+
+```env
+# Generation/chat model
+OLLAMA_MODEL=mistral
+
+# Embedding model (vector search)
+EMBEDDING_PROVIDER=ollama
+EMBEDDING_MODEL=nomic-embed-text
+EMBEDDING_DIMENSION=768
+```
+
+#### Air-gapped embedding model loading
+
+The Ollama model bundle includes both generation and embedding models. Load the
+bundle as described above. To verify the embedding model is available:
+
+```bash
+curl -s http://localhost:11434/api/tags | grep -q "$EMBEDDING_MODEL" \
+  && echo "Embedding model available" \
+  || echo "Embedding model not found"
+```
+
+#### Qdrant collection isolation
+
+Since vector safety (#184/#197), each embedding dimension creates an isolated
+Qdrant collection named `documents_v{dimension}` (e.g. `documents_v768`). When
+the embedding model or dimension changes, a new collection is created
+automatically on first search/upsert. Old collections are preserved for
+rollback but are not automatically deleted.
+
+#### Degraded behavior without an embedding model
+
+If the embedding provider is unavailable or no embedding model is configured:
+
+- **Semantic search mode** returns zero results.
+- **Keyword and hybrid search** continue to work via Elasticsearch.
+- **RAG retrieval** is degraded (no vector-based similarity).
+- **Ingestion** still indexes documents for keyword search; vector indexing is
+  skipped gracefully.
+
+#### Reindex after model change
+
+When changing the embedding model, provider, or dimension:
+
+1. Update `EMBEDDING_MODEL`, `EMBEDDING_PROVIDER`, and/or `EMBEDDING_DIMENSION`
+   in `.env`.
+2. Restart the stack: `docker compose down && docker compose up -d`.
+3. The new-dimension Qdrant collection is created lazily on first use.
+4. Reindex existing documents to populate the new collection (see the upgrade
+   doc for the reindex procedure).
+
+#### Warning: production vs test embeddings
+
+The `EMBEDDING_PROVIDER=deterministic-test` setting is designed for automated
+testing and development environments only. **Do not use it in production.**
+Deterministic-test vectors produce low-quality embeddings that will degrade
+search and RAG results. Production deployments must use `EMBEDDING_PROVIDER=ollama`
+with a real embedding model.
+
 ## Configure source connectors
 
 Source definitions are created after login from the admin UI or admin API. Store

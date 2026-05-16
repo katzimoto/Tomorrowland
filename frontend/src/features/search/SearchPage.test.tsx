@@ -21,11 +21,15 @@ const navigateMock = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   useSearch: routerMocks.useSearch,
   useNavigate: () => navigateMock,
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
 }));
 
 vi.mock("@/api/search");
-vi.mock("@/api/documents", () => ({ getPreview: vi.fn(() => Promise.resolve({ doc_id: "doc-1" })) }));
+vi.mock("@/api/documents", () => ({
+  getPreview: vi.fn(() => Promise.resolve({ doc_id: "doc-1" })),
+}));
 
 const mockResults = [
   {
@@ -90,7 +94,9 @@ describe("SearchPage", () => {
     render(<SearchPage />);
     expect(screen.getByRole("button", { name: "Hybrid" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Keyword" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Semantic" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Semantic" })
+    ).toBeInTheDocument();
   });
 
   it("shows empty start state before any query", () => {
@@ -106,7 +112,12 @@ describe("SearchPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     await waitFor(() => {
-      expect(searchApi.search).toHaveBeenCalledWith("vendor risk", "hybrid", {}, 20);
+      expect(searchApi.search).toHaveBeenCalledWith(
+        "vendor risk",
+        "hybrid",
+        {},
+        20
+      );
     });
     expect(navigateMock).toHaveBeenCalledWith({
       to: "/search",
@@ -125,7 +136,12 @@ describe("SearchPage", () => {
     });
 
     await waitFor(() => {
-      expect(searchApi.search).toHaveBeenCalledWith("vendor risk", "hybrid", {}, 20);
+      expect(searchApi.search).toHaveBeenCalledWith(
+        "vendor risk",
+        "hybrid",
+        {},
+        20
+      );
     });
   });
 
@@ -136,7 +152,9 @@ describe("SearchPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => {
-      expect(screen.getByText("Vendor Risk Assessment 2024")).toBeInTheDocument();
+      expect(
+        screen.getByText("Vendor Risk Assessment 2024")
+      ).toBeInTheDocument();
     });
   });
 
@@ -150,7 +168,7 @@ describe("SearchPage", () => {
     await waitFor(() => {
       const events = getPerformanceTelemetryEvents();
       expect(events.map((event) => event.name)).toEqual(
-        expect.arrayContaining(["search.request", "search.firstResult"]),
+        expect.arrayContaining(["search.request", "search.firstResult"])
       );
       const serialized = JSON.stringify(events);
       expect(serialized).not.toContain("vendor risk secret query");
@@ -172,16 +190,26 @@ describe("SearchPage", () => {
 
   it("keeps previous results visible while a new search refetches", async () => {
     vi.mocked(searchApi.search)
-      .mockResolvedValueOnce({ results: mockResults, total: 1, query: "vendor risk" })
+      .mockResolvedValueOnce({
+        results: mockResults,
+        total: 1,
+        query: "vendor risk",
+      })
       .mockImplementationOnce(() => new Promise(() => undefined));
 
     render(<SearchPage />);
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "vendor risk" } });
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
-    expect(await screen.findByText("Vendor Risk Assessment 2024")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Vendor Risk Assessment 2024")
+    ).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "supplier risk" } });
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "supplier risk" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     expect(screen.getByText("Vendor Risk Assessment 2024")).toBeInTheDocument();
@@ -190,7 +218,9 @@ describe("SearchPage", () => {
 
   it("prefetches document preview on result hover", async () => {
     render(<SearchPage />);
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "vendor risk" } });
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     const result = await screen.findByText("Vendor Risk Assessment 2024");
@@ -212,7 +242,9 @@ describe("SearchPage", () => {
 
   it("moves the accessible selected result with keyboard shortcuts", async () => {
     render(<SearchPage />);
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "vendor risk" } });
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await screen.findByText("Vendor Risk Assessment 2024");
 
@@ -220,17 +252,26 @@ describe("SearchPage", () => {
     results.focus();
     fireEvent.keyDown(results, { key: "j" });
 
-    expect(screen.getByRole("option", { name: /Supplier Security Notes/ })).toHaveAttribute("aria-selected", "true");
-    expect(results).toHaveAttribute("aria-activedescendant", "search-result-doc-2");
+    expect(
+      screen.getByRole("option", { name: /Supplier Security Notes/ })
+    ).toHaveAttribute("aria-selected", "true");
+    expect(results).toHaveAttribute(
+      "aria-activedescendant",
+      "search-result-doc-2"
+    );
 
     fireEvent.keyDown(results, { key: "ArrowUp" });
 
-    expect(screen.getByRole("option", { name: /Vendor Risk Assessment 2024/ })).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("option", { name: /Vendor Risk Assessment 2024/ })
+    ).toHaveAttribute("aria-selected", "true");
   });
 
   it("opens the selected result with Enter", async () => {
     render(<SearchPage />);
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "vendor risk" } });
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await screen.findByText("Vendor Risk Assessment 2024");
 
@@ -239,12 +280,17 @@ describe("SearchPage", () => {
     fireEvent.keyDown(results, { key: "ArrowDown" });
     fireEvent.keyDown(results, { key: "Enter" });
 
-    expect(navigateMock).toHaveBeenCalledWith({ to: "/doc/$docId", params: { docId: "doc-2" } });
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: "/doc/$docId",
+      params: { docId: "doc-2" },
+    });
   });
 
   it("opens quick preview with Space and closes it with Escape", async () => {
     render(<SearchPage />);
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "vendor risk" } });
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await screen.findByText("Vendor Risk Assessment 2024");
 
@@ -252,26 +298,36 @@ describe("SearchPage", () => {
     results.focus();
     fireEvent.keyDown(results, { key: " " });
 
-    expect(screen.getByRole("dialog", { name: "Vendor Risk Assessment 2024" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Vendor Risk Assessment 2024" })
+    ).toBeInTheDocument();
 
     fireEvent.keyDown(results, { key: "Escape" });
 
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    );
     await waitFor(() => expect(results).toHaveFocus());
   });
 
   it("renders 'Include older versions' checkbox unchecked by default", () => {
     render(<SearchPage />);
-    const cb = screen.getByRole("checkbox", { name: /include older versions/i });
+    const cb = screen.getByRole("checkbox", {
+      name: /include older versions/i,
+    });
     expect(cb).not.toBeChecked();
   });
 
   it("sends include_older_versions flag when checkbox is checked and search runs", async () => {
     render(<SearchPage />);
-    const cb = screen.getByRole("checkbox", { name: /include older versions/i });
+    const cb = screen.getByRole("checkbox", {
+      name: /include older versions/i,
+    });
     fireEvent.click(cb);
 
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "vendor risk" } });
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     await waitFor(() => {
@@ -279,9 +335,131 @@ describe("SearchPage", () => {
         "vendor risk",
         "hybrid",
         expect.objectContaining({ include_older_versions: true }),
-        20,
+        20
       );
     });
+  });
+
+  it("keeps previous results visible while a new search refetches", async () => {
+    vi.mocked(searchApi.search)
+      .mockResolvedValueOnce({
+        results: mockResults,
+        total: 1,
+        query: "vendor risk",
+      })
+      .mockImplementationOnce(() => new Promise(() => undefined));
+
+    render(<SearchPage />);
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(
+      await screen.findByText("Vendor Risk Assessment 2024")
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "supplier risk" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(screen.getByText("Vendor Risk Assessment 2024")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Updating results");
+  });
+
+  it("prefetches document preview on result hover", async () => {
+    render(<SearchPage />);
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    const result = await screen.findByText("Vendor Risk Assessment 2024");
+    fireEvent.mouseEnter(result.closest('[role="option"]')!);
+
+    await waitFor(() => expect(getPreview).toHaveBeenCalledWith("doc-1"));
+  });
+
+  it("focuses the search input with the slash shortcut", async () => {
+    const user = userEvent.setup();
+    render(<SearchPage />);
+    const searchBox = screen.getByRole("searchbox");
+    searchBox.blur();
+
+    await user.keyboard("/");
+
+    expect(searchBox).toHaveFocus();
+  });
+
+  it("moves the accessible selected result with keyboard shortcuts", async () => {
+    render(<SearchPage />);
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Vendor Risk Assessment 2024");
+
+    const results = screen.getByRole("listbox", { name: "Search results" });
+    results.focus();
+    fireEvent.keyDown(results, { key: "j" });
+
+    expect(
+      screen.getByRole("option", { name: /Supplier Security Notes/ })
+    ).toHaveAttribute("aria-selected", "true");
+    expect(results).toHaveAttribute(
+      "aria-activedescendant",
+      "search-result-doc-2"
+    );
+
+    fireEvent.keyDown(results, { key: "ArrowUp" });
+
+    expect(
+      screen.getByRole("option", { name: /Vendor Risk Assessment 2024/ })
+    ).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("opens the selected result with Enter", async () => {
+    render(<SearchPage />);
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Vendor Risk Assessment 2024");
+
+    const results = screen.getByRole("listbox", { name: "Search results" });
+    results.focus();
+    fireEvent.keyDown(results, { key: "ArrowDown" });
+    fireEvent.keyDown(results, { key: "Enter" });
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: "/doc/$docId",
+      params: { docId: "doc-2" },
+    });
+  });
+
+  it("opens quick preview with Space and closes it with Escape", async () => {
+    render(<SearchPage />);
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Vendor Risk Assessment 2024");
+
+    const results = screen.getByRole("listbox", { name: "Search results" });
+    results.focus();
+    fireEvent.keyDown(results, { key: " " });
+
+    expect(
+      screen.getByRole("dialog", { name: "Vendor Risk Assessment 2024" })
+    ).toBeInTheDocument();
+
+    fireEvent.keyDown(results, { key: "Escape" });
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    );
+    await waitFor(() => expect(results).toHaveFocus());
   });
 
   it("shows empty state when no results", async () => {
