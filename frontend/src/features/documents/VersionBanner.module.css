@@ -1,0 +1,24 @@
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--page-padding-desktop);
+  background: #fef3c7;
+  border-bottom: 1px solid #fde68a;
+  font-size: var(--font-size-meta);
+}
+
+.text {
+  flex: 1;
+  color: #92400e;
+}
+
+.link {
+  color: #92400e;
+  font-weight: 600;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+.link:hover {
+  color: #78350f;
+}

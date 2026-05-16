@@ -6,8 +6,10 @@ import {
   getSummary, getEntities, getTags, getRelated,
   listComments, createComment, updateComment, deleteComment,
   listAnnotations, createAnnotation, deleteAnnotation,
+  listDocumentVersions,
   type Comment, type CommentListResponse, type DocAnnotation,
 } from "@/api/documents";
+import { VersionBadge } from "./VersionBadge";
 import { Badge } from "@/components/primitives/Badge";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
@@ -34,6 +36,7 @@ export function InsightPane({ docId }: InsightPaneProps) {
     { id: "annotations", label: t.insight.tabAnnotations },
     { id: "comments", label: t.insight.tabComments },
     { id: "subscriptions", label: t.insight.tabSubscriptions },
+    { id: "versions", label: t.insight.tabVersions },
   ];
 
   return (
@@ -51,6 +54,7 @@ export function InsightPane({ docId }: InsightPaneProps) {
         {activeTab === "annotations" && <AnnotationsTab docId={docId} />}
         {activeTab === "comments" && <CommentsTab docId={docId} />}
         {activeTab === "subscriptions" && <SubscriptionsStub />}
+        {activeTab === "versions" && <VersionsTab docId={docId} />}
       </div>
     </div>
   );
@@ -436,5 +440,34 @@ function SubscriptionsStub() {
       title={t.insight.subscriptionsTitle}
       body={t.insight.subscriptionsBody}
     />
+  );
+}
+
+function VersionsTab({ docId }: { docId: string }) {
+  const t = useT();
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["doc-versions", docId],
+    staleTime: 2 * 60_000,
+    queryFn: () => listDocumentVersions(docId),
+  });
+
+  if (isLoading) return <div className={styles.loadingStack}><SkeletonRow compact count={2} /></div>;
+  if (isError) return <EmptyState title={t.insight.versionsFailedTitle} body={t.insight.versionsFailedBody} />;
+  if (!data?.length) return <EmptyState title={t.insight.versionsEmpty} body="" />;
+
+  return (
+    <ul className={styles.relatedList}>
+      {data.map((v) => (
+        <li key={v.doc_id}>
+          <Link to="/doc/$docId" params={{ docId: v.doc_id }} className={styles.relatedLink}>
+            <span className={styles.relatedTitle}>
+              {v.title ?? t.insight.versionLabel(v.version_number)}
+            </span>
+            <VersionBadge versionNumber={v.version_number} isLatest={v.is_latest} />
+            <span className={styles.entityCount}>{new Date(v.created_at).toLocaleDateString()}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
