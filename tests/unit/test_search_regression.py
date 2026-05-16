@@ -50,12 +50,15 @@ def test_no_direct_encoder_construction_outside_factory() -> None:
     assert not hits, "Forbidden direct encoder construction found in:\n" + "\n".join(hits)
 
 
-def test_main_py_uses_build_encoder() -> None:
-    """Regression: main.py must wire encoders through build_encoder, never directly."""
-    main_py = REPO_ROOT / "src" / "services" / "api" / "main.py"
-    assert main_py.exists()
-    text = main_py.read_text(encoding="utf-8")
-    assert "build_encoder" in text, "main.py should import and use build_encoder"
-    assert "DeterministicTestEncoder(" not in text
-    assert "OllamaEmbeddingEncoder(" not in text
-    assert "MockEncoder(" not in text
+def test_api_routers_use_build_encoder() -> None:
+    """Regression: API routers must wire encoders through build_encoder, never directly."""
+    routers_dir = REPO_ROOT / "src" / "services" / "api" / "routers"
+    assert routers_dir.exists(), "routers directory must exist"
+    router_files = list(routers_dir.rglob("*.py"))
+    assert router_files, "routers directory must contain .py files"
+
+    all_text = "\n".join(p.read_text(encoding="utf-8") for p in router_files)
+    assert "build_encoder" in all_text, "API routers should import and use build_encoder"
+    assert "DeterministicTestEncoder(" not in all_text
+    assert "OllamaEmbeddingEncoder(" not in all_text
+    assert "MockEncoder(" not in all_text

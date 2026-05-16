@@ -477,7 +477,8 @@ def test_sync_now_with_pre_extracted_text(
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.return_value = "Stub document body from NiFi."
 
-    with patch("services.api.main.build_connector", return_value=_StubConnector()):
+    _ingestion = "services.api.routers.admin.ingestion"
+    with patch(f"{_ingestion}.build_connector", return_value=_StubConnector()):
         client = TestClient(
             create_app(
                 migrated_engine,
@@ -558,7 +559,8 @@ def test_sync_now_middle_item_failure_continues_sync(
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.side_effect = lambda text, **_: text
 
-    with patch("services.api.main.build_connector", return_value=_StubConnector()):
+    _ingestion = "services.api.routers.admin.ingestion"
+    with patch(f"{_ingestion}.build_connector", return_value=_StubConnector()):
         client = TestClient(
             create_app(
                 migrated_engine,
@@ -657,9 +659,10 @@ def test_sync_now_document_creation_failure_continues_sync(
             raise RuntimeError("DB error")
         return _real_create(self, *args, **kwargs)
 
+    _ingestion = "services.api.routers.admin.ingestion"
     with (
-        patch("services.api.main.build_connector", return_value=_StubConnector()),
-        patch("services.api.main.DocumentRepository.create", _fake_create),
+        patch(f"{_ingestion}.build_connector", return_value=_StubConnector()),
+        patch(f"{_ingestion}.DocumentRepository.create", _fake_create),
     ):
         client = TestClient(
             create_app(
@@ -712,7 +715,8 @@ def test_sync_now_connector_enumeration_failure_returns_safe_error(
         def fetch_documents(self):  # type: ignore[override]
             raise RuntimeError("cannot authenticate to source")
 
-    with patch("services.api.main.build_connector", return_value=_BrokenConnector()):
+    _ingestion = "services.api.routers.admin.ingestion"
+    with patch(f"{_ingestion}.build_connector", return_value=_BrokenConnector()):
         client = TestClient(
             create_app(
                 migrated_engine,
@@ -787,9 +791,10 @@ def test_sync_now_smb_cleanup_on_item_failure(
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.side_effect = lambda text, **_: text
 
+    _ingestion = "services.api.routers.admin.ingestion"
     with (
-        patch("services.api.main.build_connector", return_value=_SmbConnector()),
-        patch("services.api.main.os.unlink") as mock_unlink,
+        patch(f"{_ingestion}.build_connector", return_value=_SmbConnector()),
+        patch(f"{_ingestion}.os.unlink") as mock_unlink,
     ):
         client = TestClient(
             create_app(

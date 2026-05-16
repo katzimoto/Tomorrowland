@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
 import services.api.main as api_main
+import services.api.routers.admin.ingestion as ingestion_router
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.connectors.base import ConnectorDocument
@@ -162,7 +163,9 @@ def test_sync_now_persists_connector_metadata(
         source_id = _create_source(connection)
         auth_repo.grant_source_to_group(source_id, admin_group_id)
 
-    monkeypatch.setattr(api_main, "build_connector", lambda _source_row: _MetadataConnector())
+    monkeypatch.setattr(
+        ingestion_router, "build_connector", lambda _source_row: _MetadataConnector()
+    )
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)

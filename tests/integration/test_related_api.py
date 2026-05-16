@@ -259,8 +259,14 @@ def test_expertise_rejects_blank_topic_without_testclient(migrated_engine: Engin
     app = create_app(migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32))
     route = next(route for route in app.routes if route.path == "/expertise")
 
+    mock_request = MagicMock()
+    mock_request.app = app
     try:
-        route.endpoint(user=_user(migrated_engine, "admin@example.com"), topic="   ")
+        route.endpoint(
+            request=mock_request,
+            user=_user(migrated_engine, "admin@example.com"),
+            topic="   ",
+        )
     except HTTPException as exc:
         assert exc.status_code == 422
     else:

@@ -475,7 +475,7 @@ def test_search_encoder_failure_returns_bm25_only(
         def encode(self, text: str) -> list[float]:
             raise RuntimeError("Ollama is down")
 
-    with patch("services.api.main.build_encoder", return_value=BrokenEncoder()):
+    with patch("services.api.routers.search.build_encoder", return_value=BrokenEncoder()):
         client = TestClient(
             create_app(
                 migrated_engine,
@@ -625,7 +625,7 @@ def test_related_documents_degraded_on_encoder_failure(
             {"path": path, "id": doc_id},
         )
 
-    with patch("services.api.main.build_encoder", return_value=BrokenEncoder()):
+    with patch("services.api.routers.documents.build_encoder", return_value=BrokenEncoder()):
         client = TestClient(
             create_app(
                 migrated_engine,
@@ -663,7 +663,7 @@ def test_expertise_degraded_on_encoder_failure(
         def encode(self, text: str) -> list[float]:
             raise RuntimeError("Ollama is down")
 
-    with patch("services.api.main.build_encoder", return_value=BrokenEncoder()):
+    with patch("services.api.routers.documents.build_encoder", return_value=BrokenEncoder()):
         client = TestClient(
             create_app(
                 migrated_engine,
