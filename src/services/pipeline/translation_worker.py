@@ -1,12 +1,9 @@
-"""Durable pipeline job runner that claims jobs from the queue and processes them.
+"""Translation worker that processes ``translate_document`` jobs.
 
-A single iteration performs:
-
-1. Claim one ready ``pipeline_job`` via ``PipelineJobRepository.claim_next``.
-2. Return early when no job is available.
-3. Load the durable document payload from ``document_payloads``.
-4. Call the existing ``PipelineWorker.process_document``.
-5. Mark the job as succeeded, retry, or dead-letter based on outcome.
+Claims durable translation jobs from the queue, reads raw ``content_text``
+from ``document_payloads``, translates via LibreTranslate, and persists
+``translated_text`` back to the payload table so the index-worker can
+consume it without re-running translation.
 """
 
 from __future__ import annotations
@@ -15,41 +12,37 @@ import logging
 import time
 from uuid import UUID
 
-from sqlalchemy import create_engine
-
 from services.documents.repository import DocumentRepository
-from services.extraction.registry import ExtractorRegistry
 from services.pipeline.jobs import PipelineJobRepository
-from services.pipeline.worker import PipelineWorker
-from services.search.elastic import ElasticsearchSearchClient
-from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.metrics import MetricsRegistry
 
 logger = logging.getLogger(__name__)
 
-_WORKER_TYPE = "pipeline"
+_WORKER_TYPE = "translation"
 _REAP_INTERVAL_SECONDS = 60.0
 
 
-def run_once(
+def run_translation_once(
     job_repo: PipelineJobRepository,
-    worker: PipelineWorker,
-    worker_id: str = "worker-default",
+    doc_repo: DocumentRepository,
+    translator: LibreTranslateClient,
+    worker_id: str = "translation-worker",
     metrics: MetricsRegistry | None = None,
 ) -> bool:
-    """Claim one job, process it, and mark it done.
+    """Claim one ``translate_document`` job, translate, and persist result.
 
     Args:
         job_repo: Queue repository for claiming and updating jobs.
-        worker: Pipeline worker for document processing.
+        doc_repo: Document repository for loading document metadata.
+        translator: LibreTranslate client.
         worker_id: Identifier stamped on claimed jobs (for stale-lock tracking).
         metrics: Optional metrics registry; pass ``None`` to disable instrumentation.
 
     Returns:
-        ``True`` if a job was claimed and processed, ``False`` if no job was available.
+        ``True`` if a job was claimed and processed, ``False`` if none available.
     """
-    claimed = job_repo.claim_next(worker_id)
+    claimed = job_repo.claim_next(worker_id, job_types=["translate_document"])
     if claimed is None:
         return False
 
@@ -58,27 +51,34 @@ def run_once(
     job_type: str = claimed["job_type"]
     attempts: int = claimed["attempts"]
     max_attempts: int = claimed["max_attempts"]
+    source_id: UUID = claimed["source_id"]
 
     if metrics is not None:
         metrics.pipeline_jobs_claimed_total.labels(
             worker_type=_WORKER_TYPE, job_type=job_type
         ).inc()
 
-    # Load durable payload
-    payload = job_repo.get_payload(doc_id)
-    pre_extracted_text: str | None = payload["content_text"] if payload else None
-
-    job_repo.mark_running_stage(job_id, "process")
+    job_repo.mark_running_stage(job_id, "translate")
 
     start = time.monotonic()
-    process_result = None
     try:
-        process_result = worker.process_document(doc_id, pre_extracted_text=pre_extracted_text)
+        doc = doc_repo.get_by_id(doc_id)
+        if doc is None:
+            raise ValueError(f"Document {doc_id} not found")
+
+        payload = job_repo.get_payload(doc_id)
+        content_text = (payload["content_text"] if payload else None) or ""
+        if not content_text:
+            raise ValueError(f"No content_text for document {doc_id}")
+
+        translated = translator.translate(content_text, source_lang=doc.source_language)
+        job_repo.update_translated_text(doc_id, translated)
+
     except Exception as exc:
         elapsed = time.monotonic() - start
         error_type = type(exc).__name__
         if attempts < max_attempts:
-            job_repo.mark_retry(job_id, exc, stage="process")
+            job_repo.mark_retry(job_id, exc, stage="translate")
             if metrics is not None:
                 metrics.pipeline_jobs_retried_total.labels(
                     worker_type=_WORKER_TYPE, job_type=job_type
@@ -86,11 +86,11 @@ def run_once(
                 metrics.pipeline_job_duration_seconds.labels(
                     worker_type=_WORKER_TYPE,
                     job_type=job_type,
-                    stage="process",
+                    stage="translate",
                     outcome="retried",
                 ).observe(elapsed)
             logger.info(
-                "pipeline job retried: worker_id=%s job_type=%s job_id=%s "
+                "translation job retried: worker_id=%s job_type=%s job_id=%s "
                 "attempt=%d max_attempts=%d error_type=%s",
                 worker_id,
                 job_type,
@@ -108,11 +108,11 @@ def run_once(
                 metrics.pipeline_job_duration_seconds.labels(
                     worker_type=_WORKER_TYPE,
                     job_type=job_type,
-                    stage="process",
+                    stage="translate",
                     outcome="dead_lettered",
                 ).observe(elapsed)
             logger.warning(
-                "pipeline job dead-lettered: worker_id=%s job_type=%s job_id=%s "
+                "translation job dead-lettered: worker_id=%s job_type=%s job_id=%s "
                 "attempts=%d error_type=%s",
                 worker_id,
                 job_type,
@@ -131,67 +131,44 @@ def run_once(
         metrics.pipeline_job_duration_seconds.labels(
             worker_type=_WORKER_TYPE,
             job_type=job_type,
-            stage="process",
+            stage="translate",
             outcome="succeeded",
         ).observe(elapsed)
     logger.info(
-        "pipeline job succeeded: worker_id=%s job_type=%s job_id=%s attempt=%d",
+        "translation job succeeded: worker_id=%s job_type=%s job_id=%s attempt=%d",
         worker_id,
         job_type,
         job_id,
         attempts,
     )
 
-    # Persist extracted and translated text after successful processing so downstream
-    # workers (translation-worker, index-worker) can operate from IDs only.
-    if job_type == "process_document" and process_result is not None:
-        try:
-            job_repo.update_content_text(doc_id, process_result.extracted_text)
-        except Exception:
-            logger.exception(
-                "failed to persist extracted text: worker_id=%s error_type=PersistError",
-                worker_id,
-            )
-        try:
-            job_repo.update_translated_text(doc_id, process_result.translated_text)
-        except Exception:
-            logger.exception(
-                "failed to persist translated text: worker_id=%s error_type=PersistError",
-                worker_id,
-            )
-
-    # Enqueue vector indexing job after successful text processing
-    if job_type == "process_document":
-        try:
-            job_repo.enqueue_document(
-                doc_id=doc_id,
-                source_id=claimed["source_id"],
-                job_type="vector_index_document",
-            )
-            logger.debug("vector job enqueued: worker_id=%s doc_id=%s", worker_id, doc_id)
-        except Exception:
-            logger.exception(
-                "failed to enqueue vector job: worker_id=%s error_type=EnqueueError",
-                worker_id,
-            )
+    try:
+        job_repo.enqueue_document(
+            doc_id=doc_id,
+            source_id=source_id,
+            job_type="index_document",
+        )
+        logger.debug("index job enqueued: worker_id=%s doc_id=%s", worker_id, doc_id)
+    except Exception:
+        logger.exception(
+            "failed to enqueue index job: worker_id=%s error_type=EnqueueError",
+            worker_id,
+        )
 
     return True
 
 
-def run_loop(
+def run_translation_loop(
     job_repo: PipelineJobRepository,
-    worker: PipelineWorker,
-    worker_id: str = "worker-default",
+    doc_repo: DocumentRepository,
+    translator: LibreTranslateClient,
+    worker_id: str = "translation-worker",
     poll_interval: float = 1.0,
     metrics: MetricsRegistry | None = None,
 ) -> None:
-    """Run ``run_once`` in a loop until interrupted.
-
-    Emits a heartbeat gauge and queue-depth snapshot each iteration.
-    Reaps stale locks every ``_REAP_INTERVAL_SECONDS`` seconds.
-    """
+    """Run ``run_translation_once`` in a loop until interrupted."""
     logger.info(
-        "pipeline worker started: worker_id=%s poll_interval=%.1f",
+        "translation worker started: worker_id=%s poll_interval=%.1f",
         worker_id,
         poll_interval,
     )
@@ -217,13 +194,19 @@ def run_loop(
                             worker_type=_WORKER_TYPE
                         ).inc(reaped)
                     logger.info(
-                        "stale pipeline locks reaped: worker_id=%s count=%d",
+                        "stale translation locks reaped: worker_id=%s count=%d",
                         worker_id,
                         reaped,
                     )
 
             try:
-                ran = run_once(job_repo, worker, worker_id=worker_id, metrics=metrics)
+                ran = run_translation_once(
+                    job_repo,
+                    doc_repo,
+                    translator,
+                    worker_id=worker_id,
+                    metrics=metrics,
+                )
             except Exception as exc:
                 error_type = type(exc).__name__
                 if metrics is not None:
@@ -231,7 +214,7 @@ def run_loop(
                         worker_type=_WORKER_TYPE, error_type=error_type
                     ).inc()
                 logger.exception(
-                    "unhandled pipeline loop error: worker_id=%s error_type=%s",
+                    "unhandled translation loop error: worker_id=%s error_type=%s",
                     worker_id,
                     error_type,
                 )
@@ -241,31 +224,20 @@ def run_loop(
             if not ran:
                 time.sleep(poll_interval)
     except KeyboardInterrupt:
-        logger.info("pipeline worker shutting down: worker_id=%s", worker_id)
+        logger.info("translation worker shutting down: worker_id=%s", worker_id)
 
 
 if __name__ == "__main__":
-    from services.search.factory import build_encoder
+    from sqlalchemy import create_engine
+
     from shared.config import Settings
 
     settings = Settings()
     engine = create_engine(settings.postgres_url)
 
     with engine.begin() as conn:
-        doc_repo = DocumentRepository(conn)
-        es_client = ElasticsearchSearchClient(hosts=[settings.elastic_url])
-        qdrant_client = QdrantSearchClient(url=settings.qdrant_url)
-        translator = LibreTranslateClient(base_url=settings.libretranslate_url)
-        encoder = build_encoder(settings)
-
         job_repo = PipelineJobRepository(conn)
-        worker = PipelineWorker(
-            document_repository=doc_repo,
-            extractor_registry=ExtractorRegistry(),
-            translator=translator,
-            encoder=encoder,
-            es_client=es_client,
-            qdrant_client=qdrant_client,
-        )
+        doc_repo = DocumentRepository(conn)
+        translator = LibreTranslateClient(base_url=settings.libretranslate_url)
 
-        run_loop(job_repo, worker, worker_id="pipeline-worker")
+        run_translation_loop(job_repo, doc_repo, translator, worker_id="translation-worker")

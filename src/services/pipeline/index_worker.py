@@ -1,55 +1,49 @@
-"""Durable pipeline job runner that claims jobs from the queue and processes them.
+"""Index worker that processes ``index_document`` jobs.
 
-A single iteration performs:
-
-1. Claim one ready ``pipeline_job`` via ``PipelineJobRepository.claim_next``.
-2. Return early when no job is available.
-3. Load the durable document payload from ``document_payloads``.
-4. Call the existing ``PipelineWorker.process_document``.
-5. Mark the job as succeeded, retry, or dead-letter based on outcome.
+Claims durable index jobs from the queue, reads ``content_text`` and
+``translated_text`` from ``document_payloads``, and indexes the document into
+Elasticsearch. After successful text indexing, enqueues a
+``vector_index_document`` job for the vector-worker to pick up.
 """
 
 from __future__ import annotations
 
 import logging
 import time
+from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import create_engine
-
 from services.documents.repository import DocumentRepository
-from services.extraction.registry import ExtractorRegistry
 from services.pipeline.jobs import PipelineJobRepository
-from services.pipeline.worker import PipelineWorker
 from services.search.elastic import ElasticsearchSearchClient
-from services.search.qdrant import QdrantSearchClient
-from services.translation.client import LibreTranslateClient
 from shared.metrics import MetricsRegistry
 
 logger = logging.getLogger(__name__)
 
-_WORKER_TYPE = "pipeline"
+_WORKER_TYPE = "index"
 _REAP_INTERVAL_SECONDS = 60.0
 
 
-def run_once(
+def run_index_once(
     job_repo: PipelineJobRepository,
-    worker: PipelineWorker,
-    worker_id: str = "worker-default",
+    doc_repo: DocumentRepository,
+    es_client: ElasticsearchSearchClient,
+    worker_id: str = "index-worker",
     metrics: MetricsRegistry | None = None,
 ) -> bool:
-    """Claim one job, process it, and mark it done.
+    """Claim one ``index_document`` job and index it into Elasticsearch.
 
     Args:
         job_repo: Queue repository for claiming and updating jobs.
-        worker: Pipeline worker for document processing.
+        doc_repo: Document repository for document metadata and group IDs.
+        es_client: Elasticsearch client for text indexing.
         worker_id: Identifier stamped on claimed jobs (for stale-lock tracking).
         metrics: Optional metrics registry; pass ``None`` to disable instrumentation.
 
     Returns:
-        ``True`` if a job was claimed and processed, ``False`` if no job was available.
+        ``True`` if a job was claimed and processed, ``False`` if none available.
     """
-    claimed = job_repo.claim_next(worker_id)
+    claimed = job_repo.claim_next(worker_id, job_types=["index_document"])
     if claimed is None:
         return False
 
@@ -58,27 +52,52 @@ def run_once(
     job_type: str = claimed["job_type"]
     attempts: int = claimed["attempts"]
     max_attempts: int = claimed["max_attempts"]
+    source_id: UUID = claimed["source_id"]
 
     if metrics is not None:
         metrics.pipeline_jobs_claimed_total.labels(
             worker_type=_WORKER_TYPE, job_type=job_type
         ).inc()
 
-    # Load durable payload
-    payload = job_repo.get_payload(doc_id)
-    pre_extracted_text: str | None = payload["content_text"] if payload else None
-
-    job_repo.mark_running_stage(job_id, "process")
+    job_repo.mark_running_stage(job_id, "index")
 
     start = time.monotonic()
-    process_result = None
     try:
-        process_result = worker.process_document(doc_id, pre_extracted_text=pre_extracted_text)
+        doc = doc_repo.get_by_id(doc_id)
+        if doc is None:
+            raise ValueError(f"Document {doc_id} not found")
+
+        allowed_group_ids = [str(gid) for gid in doc_repo.source_group_ids(source_id)]
+
+        payload = job_repo.get_payload(doc_id)
+        content_original = (payload["content_text"] if payload else None) or ""
+        content_english = (payload["translated_text"] if payload else None) or content_original
+        translation_quality: str | None = "fast" if content_english != content_original else None
+
+        es_client.index_document(
+            str(doc_id),
+            {
+                "doc_id": str(doc_id),
+                "path": doc.path or "",
+                "filename": Path(doc.path).name if doc.path else doc.title or "",
+                "content_original": content_original,
+                "content_english": content_english,
+                "title": doc.title or "",
+                "summary": "",
+                "tags": [],
+                "metadata": doc.metadata,
+                "allowed_group_ids": allowed_group_ids,
+            },
+        )
+
+        doc_repo.update_indexed(doc_id, "indexed", translation_quality)
+
     except Exception as exc:
         elapsed = time.monotonic() - start
         error_type = type(exc).__name__
+        doc_repo.update_status(doc_id, "failed")
         if attempts < max_attempts:
-            job_repo.mark_retry(job_id, exc, stage="process")
+            job_repo.mark_retry(job_id, exc, stage="index")
             if metrics is not None:
                 metrics.pipeline_jobs_retried_total.labels(
                     worker_type=_WORKER_TYPE, job_type=job_type
@@ -86,11 +105,11 @@ def run_once(
                 metrics.pipeline_job_duration_seconds.labels(
                     worker_type=_WORKER_TYPE,
                     job_type=job_type,
-                    stage="process",
+                    stage="index",
                     outcome="retried",
                 ).observe(elapsed)
             logger.info(
-                "pipeline job retried: worker_id=%s job_type=%s job_id=%s "
+                "index job retried: worker_id=%s job_type=%s job_id=%s "
                 "attempt=%d max_attempts=%d error_type=%s",
                 worker_id,
                 job_type,
@@ -108,11 +127,11 @@ def run_once(
                 metrics.pipeline_job_duration_seconds.labels(
                     worker_type=_WORKER_TYPE,
                     job_type=job_type,
-                    stage="process",
+                    stage="index",
                     outcome="dead_lettered",
                 ).observe(elapsed)
             logger.warning(
-                "pipeline job dead-lettered: worker_id=%s job_type=%s job_id=%s "
+                "index job dead-lettered: worker_id=%s job_type=%s job_id=%s "
                 "attempts=%d error_type=%s",
                 worker_id,
                 job_type,
@@ -131,67 +150,44 @@ def run_once(
         metrics.pipeline_job_duration_seconds.labels(
             worker_type=_WORKER_TYPE,
             job_type=job_type,
-            stage="process",
+            stage="index",
             outcome="succeeded",
         ).observe(elapsed)
     logger.info(
-        "pipeline job succeeded: worker_id=%s job_type=%s job_id=%s attempt=%d",
+        "index job succeeded: worker_id=%s job_type=%s job_id=%s attempt=%d",
         worker_id,
         job_type,
         job_id,
         attempts,
     )
 
-    # Persist extracted and translated text after successful processing so downstream
-    # workers (translation-worker, index-worker) can operate from IDs only.
-    if job_type == "process_document" and process_result is not None:
-        try:
-            job_repo.update_content_text(doc_id, process_result.extracted_text)
-        except Exception:
-            logger.exception(
-                "failed to persist extracted text: worker_id=%s error_type=PersistError",
-                worker_id,
-            )
-        try:
-            job_repo.update_translated_text(doc_id, process_result.translated_text)
-        except Exception:
-            logger.exception(
-                "failed to persist translated text: worker_id=%s error_type=PersistError",
-                worker_id,
-            )
-
-    # Enqueue vector indexing job after successful text processing
-    if job_type == "process_document":
-        try:
-            job_repo.enqueue_document(
-                doc_id=doc_id,
-                source_id=claimed["source_id"],
-                job_type="vector_index_document",
-            )
-            logger.debug("vector job enqueued: worker_id=%s doc_id=%s", worker_id, doc_id)
-        except Exception:
-            logger.exception(
-                "failed to enqueue vector job: worker_id=%s error_type=EnqueueError",
-                worker_id,
-            )
+    try:
+        job_repo.enqueue_document(
+            doc_id=doc_id,
+            source_id=source_id,
+            job_type="vector_index_document",
+        )
+        logger.debug("vector job enqueued: worker_id=%s doc_id=%s", worker_id, doc_id)
+    except Exception:
+        logger.exception(
+            "failed to enqueue vector job: worker_id=%s error_type=EnqueueError",
+            worker_id,
+        )
 
     return True
 
 
-def run_loop(
+def run_index_loop(
     job_repo: PipelineJobRepository,
-    worker: PipelineWorker,
-    worker_id: str = "worker-default",
+    doc_repo: DocumentRepository,
+    es_client: ElasticsearchSearchClient,
+    worker_id: str = "index-worker",
     poll_interval: float = 1.0,
     metrics: MetricsRegistry | None = None,
 ) -> None:
-    """Run ``run_once`` in a loop until interrupted.
-
-    Emits a heartbeat gauge and queue-depth snapshot each iteration.
-    Reaps stale locks every ``_REAP_INTERVAL_SECONDS`` seconds.
-    """
+    """Run ``run_index_once`` in a loop until interrupted."""
     logger.info(
-        "pipeline worker started: worker_id=%s poll_interval=%.1f",
+        "index worker started: worker_id=%s poll_interval=%.1f",
         worker_id,
         poll_interval,
     )
@@ -217,13 +213,19 @@ def run_loop(
                             worker_type=_WORKER_TYPE
                         ).inc(reaped)
                     logger.info(
-                        "stale pipeline locks reaped: worker_id=%s count=%d",
+                        "stale index locks reaped: worker_id=%s count=%d",
                         worker_id,
                         reaped,
                     )
 
             try:
-                ran = run_once(job_repo, worker, worker_id=worker_id, metrics=metrics)
+                ran = run_index_once(
+                    job_repo,
+                    doc_repo,
+                    es_client,
+                    worker_id=worker_id,
+                    metrics=metrics,
+                )
             except Exception as exc:
                 error_type = type(exc).__name__
                 if metrics is not None:
@@ -231,7 +233,7 @@ def run_loop(
                         worker_type=_WORKER_TYPE, error_type=error_type
                     ).inc()
                 logger.exception(
-                    "unhandled pipeline loop error: worker_id=%s error_type=%s",
+                    "unhandled index loop error: worker_id=%s error_type=%s",
                     worker_id,
                     error_type,
                 )
@@ -241,31 +243,20 @@ def run_loop(
             if not ran:
                 time.sleep(poll_interval)
     except KeyboardInterrupt:
-        logger.info("pipeline worker shutting down: worker_id=%s", worker_id)
+        logger.info("index worker shutting down: worker_id=%s", worker_id)
 
 
 if __name__ == "__main__":
-    from services.search.factory import build_encoder
+    from sqlalchemy import create_engine
+
     from shared.config import Settings
 
     settings = Settings()
     engine = create_engine(settings.postgres_url)
 
     with engine.begin() as conn:
+        job_repo = PipelineJobRepository(conn)
         doc_repo = DocumentRepository(conn)
         es_client = ElasticsearchSearchClient(hosts=[settings.elastic_url])
-        qdrant_client = QdrantSearchClient(url=settings.qdrant_url)
-        translator = LibreTranslateClient(base_url=settings.libretranslate_url)
-        encoder = build_encoder(settings)
 
-        job_repo = PipelineJobRepository(conn)
-        worker = PipelineWorker(
-            document_repository=doc_repo,
-            extractor_registry=ExtractorRegistry(),
-            translator=translator,
-            encoder=encoder,
-            es_client=es_client,
-            qdrant_client=qdrant_client,
-        )
-
-        run_loop(job_repo, worker, worker_id="pipeline-worker")
+        run_index_loop(job_repo, doc_repo, es_client, worker_id="index-worker")
