@@ -252,11 +252,12 @@ export interface Translations {
     testConnectionError: string;
     neverSynced: string;
     syncStatusSuccess: string;
+    syncStatusPartialFailure: string;
     syncStatusFailed: string;
     lastSynced: (value: string) => string;
-    syncResult: (indexed: number, skipped: number, failed: number) => string;
+    syncResult: (enqueued: number, skipped: number, failed: number) => string;
     syncStarted: (name: string) => string;
-    syncCompleted: (indexed: number, skipped: number, failed: number) => string;
+    syncCompleted: (enqueued: number, skipped: number, failed: number) => string;
     syncPartialFailure: (failed: number) => string;
     syncFailed: string;
     dialogTitle: string;
@@ -536,13 +537,14 @@ export const en: Translations = {
     testConnectionError: "Connection test failed.",
     neverSynced: "Never synced",
     syncStatusSuccess: "Success",
+    syncStatusPartialFailure: "Partial failure",
     syncStatusFailed: "Failed",
     lastSynced: (value) => `Last run: ${value}`,
-    syncResult: (indexed, skipped, failed) =>
-      `Indexed: ${indexed}  Skipped: ${skipped}  Failed: ${failed}`,
+    syncResult: (enqueued, skipped, failed) =>
+      `Indexed: ${enqueued}  Skipped: ${skipped}  Failed: ${failed}`,
     syncStarted: (name) => `Sync started for ${name}.`,
-    syncCompleted: (indexed, skipped, failed) =>
-      `Sync completed. Indexed ${indexed} document${indexed !== 1 ? "s" : ""}. Skipped ${skipped}. Failed ${failed}.`,
+    syncCompleted: (enqueued, skipped, failed) =>
+      `Sync completed. Indexed ${enqueued} document${enqueued !== 1 ? "s" : ""}. Skipped ${skipped}. Failed ${failed}.`,
     syncPartialFailure: (failed) =>
       `Sync completed with failures. ${failed} document${failed !== 1 ? "s" : ""} failed. Check the source configuration.`,
     syncFailed: "Sync failed. Check the source configuration or retry later.",

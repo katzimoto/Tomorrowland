@@ -30,6 +30,7 @@
 .success .icon { color: var(--color-success); }
 .error .icon { color: var(--color-danger); }
 .info .icon { color: var(--color-primary); }
+.warning .icon { color: var(--color-warning); }
 
 @keyframes slideIn {
   from { transform: translateX(110%); opacity: 0; }

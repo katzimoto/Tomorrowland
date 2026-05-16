@@ -254,13 +254,14 @@ export const he: Translations = {
     testConnectionError: "בדיקת החיבור נכשלה.",
     neverSynced: "טרם סונכרן",
     syncStatusSuccess: "הצלחה",
+    syncStatusPartialFailure: "כישלון חלקי",
     syncStatusFailed: "נכשל",
     lastSynced: (value: string) => `הרצה אחרונה: ${value}`,
-    syncResult: (indexed: number, skipped: number, failed: number) =>
-      `אינדקס: ${indexed}  דילוג: ${skipped}  נכשל: ${failed}`,
+    syncResult: (enqueued: number, skipped: number, failed: number) =>
+      `אינדקס: ${enqueued}  דילוג: ${skipped}  נכשל: ${failed}`,
     syncStarted: (name: string) => `תחילת סנכרון עבור ${name}.`,
-    syncCompleted: (indexed: number, skipped: number, failed: number) =>
-      `הסנכרון הושלם. אונדקס ${indexed} מסמכים. דילוג: ${skipped}. נכשל: ${failed}.`,
+    syncCompleted: (enqueued: number, skipped: number, failed: number) =>
+      `הסנכרון הושלם. אונדקס ${enqueued} מסמכים. דילוג: ${skipped}. נכשל: ${failed}.`,
     syncPartialFailure: (failed: number) =>
       `הסנכרון הושלם עם שגיאות. ${failed} מסמכים נכשלו. בדוק את תצורת המקור.`,
     syncFailed: "הסנכרון נכשל. בדוק את תצורת המקור או נסה שוב מאוחר יותר.",

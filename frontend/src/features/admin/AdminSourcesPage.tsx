@@ -105,10 +105,13 @@ export function AdminSourcesPage() {
       );
       setSyncResults((r) => ({ ...r, [sourceId]: result }));
       qc.invalidateQueries({ queryKey: ["sources"] });
-      if (result.failed > 0) {
-        showToast("error", t.admin.syncPartialFailure(result.failed));
+      const totalFailed = result.failed_discovery + result.failed_enqueue;
+      if (result.status === "failed") {
+        showToast("error", t.admin.syncFailed);
+      } else if (result.status === "partial_failure" || totalFailed > 0) {
+        showToast("warning", t.admin.syncPartialFailure(totalFailed));
       } else {
-        showToast("success", t.admin.syncCompleted(result.indexed, result.skipped, result.failed));
+        showToast("success", t.admin.syncCompleted(result.enqueued, result.skipped, totalFailed));
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Sync failed";
@@ -138,24 +141,35 @@ export function AdminSourcesPage() {
     if (result === "syncing") return null;
     const liveResult = typeof result === "object" ? result : undefined;
     const errorResult = typeof result === "string" ? result : undefined;
-    const indexed = liveResult?.indexed ?? src.last_sync_indexed;
+    const enqueued = liveResult?.enqueued ?? src.last_sync_indexed;
     const skipped = liveResult?.skipped ?? src.last_sync_skipped;
-    const failed = liveResult?.failed ?? src.last_sync_failed;
+    const totalFailed = liveResult
+      ? liveResult.failed_discovery + liveResult.failed_enqueue
+      : src.last_sync_failed;
     const status = liveResult?.status ?? src.last_sync_status;
     const error = errorResult ?? (status === "failed" ? src.last_sync_error : null);
 
-    if (indexed === null && skipped === null && failed === null && !error) {
+    if (enqueued === null && skipped === null && totalFailed === null && !error) {
       return <span className={styles.mutedMeta}>{t.admin.neverSynced}</span>;
     }
+
+    const badgeVariant =
+      status === "failed" ? "danger" : status === "partial_failure" ? "warning" : "success";
+    const badgeLabel =
+      status === "failed"
+        ? t.admin.syncStatusFailed
+        : status === "partial_failure"
+          ? t.admin.syncStatusPartialFailure
+          : t.admin.syncStatusSuccess;
 
     return (
       <div className={styles.syncSummary}>
         {status && (
-          <Badge variant={status === "failed" ? "danger" : "success"}>
-            {status === "failed" ? t.admin.syncStatusFailed : t.admin.syncStatusSuccess}
+          <Badge variant={badgeVariant}>
+            {badgeLabel}
           </Badge>
         )}
-        <span>{t.admin.syncResult(indexed ?? 0, skipped ?? 0, failed ?? 0)}</span>
+        <span>{t.admin.syncResult(enqueued ?? 0, skipped ?? 0, totalFailed ?? 0)}</span>
         {src.last_sync_at && <span>{t.admin.lastSynced(formatDateTime(src.last_sync_at))}</span>}
         {error && <span className={styles.syncError}>{error}</span>}
       </div>

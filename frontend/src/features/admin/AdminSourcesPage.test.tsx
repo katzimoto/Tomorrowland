@@ -71,9 +71,12 @@ beforeEach(() => {
   });
   vi.mocked(adminApi.adminApi.syncSource).mockResolvedValue({
     status: "success",
-    indexed: 1,
+    discovered: 1,
+    created: 1,
     skipped: 0,
-    failed: 0,
+    enqueued: 1,
+    failed_discovery: 0,
+    failed_enqueue: 0,
   });
 });
 
@@ -117,9 +120,12 @@ describe("AdminSourcesPage", () => {
     ]);
     vi.mocked(adminApi.adminApi.syncSource).mockResolvedValue({
       status: "success",
-      indexed: 3,
+      discovered: 3,
+      created: 3,
       skipped: 0,
-      failed: 0,
+      enqueued: 3,
+      failed_discovery: 0,
+      failed_enqueue: 0,
     });
 
     render(<AdminSourcesPage />);
@@ -168,5 +174,82 @@ describe("AdminSourcesPage", () => {
 
     expect(await screen.findByText(/Source path does not exist/i)).toBeInTheDocument();
     expect(await screen.findByText(/Sync failed/i)).toBeInTheDocument();
+  });
+
+  it("shows green Success badge and Sync completed toast on status: success", async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminApi.adminApi.listSources).mockResolvedValue([
+      { ...sourceDefaults, id: "src-1", name: "Good Source", type: "folder" },
+    ]);
+    vi.mocked(adminApi.adminApi.syncSource).mockResolvedValue({
+      status: "success",
+      discovered: 5,
+      created: 5,
+      skipped: 1,
+      enqueued: 5,
+      failed_discovery: 0,
+      failed_enqueue: 0,
+    });
+
+    render(<AdminSourcesPage />);
+
+    await screen.findByText("Good Source");
+    await user.click(screen.getByRole("button", { name: /^sync$/i }));
+
+    expect(await screen.findByText("Success")).toBeInTheDocument();
+    expect(await screen.findByText(/Indexed: 5/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Sync completed/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Partial failure/i)).not.toBeInTheDocument();
+  });
+
+  it("shows warning Partial failure badge and warning toast on status: partial_failure", async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminApi.adminApi.listSources).mockResolvedValue([
+      { ...sourceDefaults, id: "src-2", name: "Partial Source", type: "folder" },
+    ]);
+    vi.mocked(adminApi.adminApi.syncSource).mockResolvedValue({
+      status: "partial_failure",
+      discovered: 4,
+      created: 3,
+      skipped: 0,
+      enqueued: 3,
+      failed_discovery: 1,
+      failed_enqueue: 0,
+    });
+
+    render(<AdminSourcesPage />);
+
+    await screen.findByText("Partial Source");
+    await user.click(screen.getByRole("button", { name: /^sync$/i }));
+
+    expect(await screen.findByText("Partial failure")).toBeInTheDocument();
+    expect(await screen.findByText(/Sync completed with failures/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Success$/i)).not.toBeInTheDocument();
+  });
+
+  it("shows danger Failed badge and error toast on status: failed", async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminApi.adminApi.listSources).mockResolvedValue([
+      { ...sourceDefaults, id: "src-3", name: "Failed Source", type: "folder" },
+    ]);
+    vi.mocked(adminApi.adminApi.syncSource).mockResolvedValue({
+      status: "failed",
+      discovered: 0,
+      created: 0,
+      skipped: 0,
+      enqueued: 0,
+      failed_discovery: 2,
+      failed_enqueue: 0,
+    });
+
+    render(<AdminSourcesPage />);
+
+    await screen.findByText("Failed Source");
+    await user.click(screen.getByRole("button", { name: /^sync$/i }));
+
+    expect(await screen.findByText(/^Failed$/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Sync failed/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Success$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Partial failure/i)).not.toBeInTheDocument();
   });
 });

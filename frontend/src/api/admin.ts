@@ -44,10 +44,13 @@ export interface CreateSourcePayload {
 }
 
 export interface SyncResult {
-  status: "success" | "failed";
-  indexed: number;
+  status: "success" | "partial_failure" | "failed";
+  discovered: number;
+  created: number;
   skipped: number;
-  failed: number;
+  enqueued: number;
+  failed_discovery: number;
+  failed_enqueue: number;
 }
 
 export interface SourceTestResult {
