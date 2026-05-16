@@ -203,6 +203,10 @@ class SearchResultItem(BaseModel):
     score: float
     updated_at: str
     indexed_at: str
+    version_number: int | None = None
+    is_latest: bool | None = None
+    latest_document_id: str | None = None
+    has_newer_version: bool | None = None
 
 
 class SearchResponse(BaseModel):
@@ -223,6 +227,10 @@ class PreviewResponse(BaseModel):
     metadata: dict[str, Any]
     snippet: str
     view_count: int
+    version_number: int | None = None
+    is_latest: bool | None = None
+    latest_document_id: str | None = None
+    has_newer_version: bool | None = None
 
 
 class CreateUserRequest(BaseModel):
@@ -718,11 +726,19 @@ def create_app(
                 doc_ids.append(UUID(r.doc_id))
 
         docs: dict[str, DocumentRow] = {}
+        family_current: dict[UUID, UUID] = {}
         if doc_ids:
             with app.state.engine.begin() as connection:
                 doc_repo = DocumentRepository(connection)
                 for doc in doc_repo.list_by_ids(doc_ids):
                     docs[str(doc.id)] = doc
+                non_latest_family_ids = [
+                    d.version_family_id
+                    for d in docs.values()
+                    if d.version_family_id and not d.is_latest
+                ]
+                if non_latest_family_ids:
+                    family_current = doc_repo.get_family_current_doc_ids(non_latest_family_ids)
 
         now = datetime.now(UTC).isoformat()
         results: list[SearchResultItem] = []
@@ -752,6 +768,15 @@ def create_app(
             tags = metadata.get("tags", [])
             if isinstance(tags, str):
                 tags = [tags]
+
+            if doc_row.is_latest:
+                latest_doc_id: str | None = str(doc_row.id)
+            elif doc_row.version_family_id:
+                latest_raw = family_current.get(doc_row.version_family_id)
+                latest_doc_id = str(latest_raw) if latest_raw else None
+            else:
+                latest_doc_id = None
+
             results.append(
                 SearchResultItem(
                     doc_id=r.doc_id,
@@ -767,6 +792,10 @@ def create_app(
                     score=r.score,
                     updated_at=_fmt_dt(doc_row.updated_at) or now,
                     indexed_at=_fmt_dt(doc_row.created_at) or now,
+                    version_number=doc_row.version_number,
+                    is_latest=doc_row.is_latest,
+                    latest_document_id=latest_doc_id,
+                    has_newer_version=not doc_row.is_latest,
                 )
             )
 
@@ -803,6 +832,25 @@ def create_app(
             app.state.metrics.preview_requests_total.labels(
                 mime_family(result["mime_type"]), "success"
             ).inc()
+
+            doc_repo = DocumentRepository(connection)
+            doc_row = doc_repo.get_by_id(doc_id)
+
+            version_number: int | None = None
+            is_latest_val: bool | None = None
+            latest_document_id: str | None = None
+            has_newer_version: bool | None = None
+            if doc_row is not None:
+                version_number = doc_row.version_number
+                is_latest_val = doc_row.is_latest
+                has_newer_version = not doc_row.is_latest
+                if doc_row.is_latest:
+                    latest_document_id = str(doc_row.id)
+                elif doc_row.version_family_id:
+                    family_map = doc_repo.get_family_current_doc_ids([doc_row.version_family_id])
+                    raw = family_map.get(doc_row.version_family_id)
+                    latest_document_id = str(raw) if raw else None
+
             return PreviewResponse(
                 doc_id=result["doc_id"],
                 title=result["title"],
@@ -811,6 +859,10 @@ def create_app(
                 metadata=result["metadata"],
                 snippet=result["snippet"],
                 view_count=result["view_count"],
+                version_number=version_number,
+                is_latest=is_latest_val,
+                latest_document_id=latest_document_id,
+                has_newer_version=has_newer_version,
             )
 
     @app.get("/me/activity")
