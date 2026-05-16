@@ -11,6 +11,10 @@ from services.search.encoder import OllamaEmbeddingEncoder
 class TestOllamaEmbeddingEncoder:
     """Unit tests for OllamaEmbeddingEncoder with mocked HTTP responses."""
 
+    def test_dimension_property(self) -> None:
+        encoder = OllamaEmbeddingEncoder("http://ollama:11434", dimension=512)
+        assert encoder.dimension == 512
+
     @patch("services.search.encoder.httpx.post")
     def test_encode_returns_vector(self, mock_post: MagicMock) -> None:
         mock_post.return_value = self._response({"embeddings": [[0.1, 0.2, 0.3]]})

@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
 class TextEncoder(Protocol):
     """Protocol for text-to-vector encoders."""
 
+    @property
+    def dimension(self) -> int:
+        """Return the vector dimension produced by this encoder."""
+        ...
+
     def encode(self, text: str) -> list[float]:
         """Return a vector for *text*."""
         ...
@@ -31,6 +36,10 @@ class DeterministicTestEncoder:
     intended for use in tests and CI only. It must not be used in production
     without an explicit unsafe override.
     """
+
+    @property
+    def dimension(self) -> int:
+        return DIMENSIONS
 
     def encode(self, text: str) -> list[float]:
         """Return a 384-dimensional vector for *text*."""
@@ -70,11 +79,17 @@ class OllamaEmbeddingEncoder:
         self,
         base_url: str,
         model: str = "nomic-embed-text",
+        dimension: int = 768,
         timeout: float = 60.0,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
+        self._dimension = dimension
         self._timeout = timeout
+
+    @property
+    def dimension(self) -> int:
+        return self._dimension
 
     def encode(self, text: str) -> list[float]:
         """Return a vector for *text* via Ollama."""

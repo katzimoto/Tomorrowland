@@ -15,24 +15,47 @@ from qdrant_client.models import (
 
 from services.search.hybrid import SearchResult
 
-COLLECTION_NAME = "tomorrowland_chunks"
+COLLECTION_NAME_PREFIX = "tomorrowland_chunks"
 
 
 class QdrantSearchClient:
     """Thin wrapper around the Qdrant client for vector (semantic) search."""
 
-    def __init__(self, url: str = "http://localhost:6333") -> None:
+    def __init__(
+        self,
+        url: str = "http://localhost:6333",
+        dimension: int = 384,
+    ) -> None:
         self._client = QdrantClient(url=url)
+        self._dimension = dimension
+        self._collection_name = f"{COLLECTION_NAME_PREFIX}_{dimension}"
 
-    def create_collection_if_not_exists(self, vector_size: int = 384) -> None:
+    @property
+    def collection_name(self) -> str:
+        return self._collection_name
+
+    @property
+    def dimension(self) -> int:
+        return self._dimension
+
+    def create_collection_if_not_exists(self) -> None:
         """Create the chunk collection if it does not exist."""
-        if self._client.collection_exists(collection_name=COLLECTION_NAME):
+        if self._client.collection_exists(collection_name=self._collection_name):
             return
 
         self._client.create_collection(
-            collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+            collection_name=self._collection_name,
+            vectors_config=VectorParams(size=self._dimension, distance=Distance.COSINE),
         )
+
+    def _ensure_vector_dimension(self, vector: list[float]) -> None:
+        """Raise if *vector* dimension does not match the collection dimension."""
+        if len(vector) != self._dimension:
+            raise ValueError(
+                f"Vector dimension mismatch: expected {self._dimension}, "
+                f"got {len(vector)}. "
+                f"Ensure the encoder and Qdrant collection use the same dimension."
+            )
 
     def upsert_chunks(self, chunks: list[dict[str, Any]]) -> None:
         """Upsert chunk vectors into Qdrant.
@@ -50,10 +73,12 @@ class QdrantSearchClient:
 
         points: list[PointStruct] = []
         for chunk in chunks:
+            vector: list[float] = chunk["vector"]
+            self._ensure_vector_dimension(vector)
             points.append(
                 PointStruct(
                     id=chunk["chunk_id"],
-                    vector=chunk["vector"],
+                    vector=vector,
                     payload={
                         "doc_id": chunk["doc_id"],
                         "group_id": chunk["group_id"],
@@ -63,7 +88,7 @@ class QdrantSearchClient:
                 )
             )
 
-        self._client.upsert(collection_name=COLLECTION_NAME, points=points)
+        self._client.upsert(collection_name=self._collection_name, points=points)
 
     def search(
         self,
@@ -76,6 +101,8 @@ class QdrantSearchClient:
         When *group_ids* is empty (admins-group user), no permission
         filter is applied, giving the caller global document access.
         """
+        self._ensure_vector_dimension(vector)
+
         query_filter = None
         if group_ids:
             query_filter = Filter(
@@ -83,7 +110,7 @@ class QdrantSearchClient:
             )
 
         results = self._client.search(
-            collection_name=COLLECTION_NAME,
+            collection_name=self._collection_name,
             query_vector=vector,
             query_filter=query_filter,
             limit=limit,
@@ -106,7 +133,7 @@ class QdrantSearchClient:
     def delete_by_doc_id(self, doc_id: str) -> None:
         """Remove all chunks belonging to *doc_id*."""
         self._client.delete(
-            collection_name=COLLECTION_NAME,
+            collection_name=self._collection_name,
             points_selector=Filter(
                 must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))]
             ),

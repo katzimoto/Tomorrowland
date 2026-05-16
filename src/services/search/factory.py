@@ -42,6 +42,7 @@ def build_encoder(
         return OllamaEmbeddingEncoder(
             base_url=base_url,
             model=settings.embedding_model,
+            dimension=settings.embedding_dimension,
         )
 
     raise ValueError(f"Unknown embedding provider: {provider}")
