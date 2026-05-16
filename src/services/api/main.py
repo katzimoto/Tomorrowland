@@ -938,6 +938,28 @@ def create_app(
                 for v in versions
             ]
 
+    @app.get("/documents/{doc_id}/versions")
+    def list_document_versions(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, Any]]:
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(doc_id, user, auth_repo)
+
+            doc_repo = DocumentRepository(connection)
+            versions = doc_repo.list_versions_in_family(doc_id)
+            return [
+                {
+                    "doc_id": str(v.id),
+                    "version_number": v.version_number,
+                    "is_latest": v.is_latest,
+                    "title": v.title,
+                    "created_at": _fmt_dt(v.created_at),
+                }
+                for v in versions
+            ]
+
     @app.get("/documents/{doc_id}/summary")
     def get_summary(
         doc_id: UUID,

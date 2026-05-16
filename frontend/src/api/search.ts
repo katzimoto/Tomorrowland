@@ -27,6 +27,10 @@ export interface SearchResult {
   updated_at: string;
   indexed_at: string;
   why?: Array<{ kind: string; label: string }>;
+  version_number?: number;
+  is_latest?: boolean;
+  latest_document_id?: string;
+  has_newer_version?: boolean;
 }
 
 export interface SearchResponse {
