@@ -22,7 +22,7 @@ export function CommentItem({ docId, comment, currentUser }: CommentItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const queryClient = useQueryClient();
-  const canManage = currentUser?.is_admin || currentUser?.user_id === comment.author_id;
+  const canManage = comment.can_edit || comment.can_delete;
   const longComment = comment.body.length > COLLAPSE_AT;
   const body = !expanded && longComment ? `${comment.body.slice(0, COLLAPSE_AT)}…` : comment.body;
   const remove = useMutation({
@@ -56,8 +56,8 @@ export function CommentItem({ docId, comment, currentUser }: CommentItemProps) {
           {longComment && <Button type="button" variant="ghost" size="sm" onClick={() => setExpanded((value) => !value)}>{expanded ? "Show less" : "Show more"}</Button>}
           {canManage && (
             <div className={styles.actions}>
-              <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>Edit</Button>
-              <Button type="button" variant="danger" size="sm" onClick={() => remove.mutate()} loading={remove.isPending}>Delete</Button>
+              {comment.can_edit && <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>Edit</Button>}
+              {comment.can_delete && <Button type="button" variant="danger" size="sm" onClick={() => remove.mutate()} loading={remove.isPending}>Delete</Button>}
             </div>
           )}
         </>

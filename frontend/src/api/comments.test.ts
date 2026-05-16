@@ -28,7 +28,7 @@ test("maps the backend comments envelope and query params", async () => {
   });
 
   await expect(listComments("d1", { limit: 10, offset: 5, sort: "-created_at" })).resolves.toEqual([
-    { id: "c1", doc_id: "d1", author_id: "u1", author_name: "Ari", author: undefined, body: "Hello", created_at: "2026-05-01T10:00:00Z", updated_at: "2026-05-01T11:00:00Z" },
+    { id: "c1", doc_id: "d1", author_id: "u1", author_name: "Ari", author: undefined, body: "Hello", created_at: "2026-05-01T10:00:00Z", updated_at: "2026-05-01T11:00:00Z", can_edit: false, can_delete: false },
   ]);
   expect(get).toHaveBeenCalledWith("/documents/d1/comments?limit=10&skip=5&sort=newest");
 });

@@ -1237,6 +1237,8 @@ def create_app(
                             str(to_uuid(c["edited_by_id"])) if c["edited_by_id"] else None
                         ),
                         "deleted_at": _fmt_dt(c["deleted_at"]),
+                        "can_edit": repo.can_edit(to_uuid(c["id"]), user.sub, user.is_admin),
+                        "can_delete": repo.can_delete(to_uuid(c["id"]), user.sub, user.is_admin),
                     }
                     for c in comments
                 ],
@@ -1258,12 +1260,15 @@ def create_app(
             repo = CommentRepository(connection)
             comment = repo.create(doc_id, user.sub, request.body)
             app.state.metrics.comments_total.labels("create", "success").inc()
+            comment_id = to_uuid(comment["id"])
             return {
-                "id": str(to_uuid(comment["id"])),
+                "id": str(comment_id),
                 "doc_id": str(to_uuid(comment["doc_id"])),
                 "author_id": str(to_uuid(comment["author_id"])),
                 "body": comment["body"],
                 "created_at": _fmt_dt(comment["created_at"]),
+                "can_edit": repo.can_edit(comment_id, user.sub, user.is_admin),
+                "can_delete": repo.can_delete(comment_id, user.sub, user.is_admin),
             }
 
     @app.patch("/documents/{doc_id}/comments/{comment_id}")
@@ -1299,6 +1304,8 @@ def create_app(
                 "edited_by_id": (
                     str(to_uuid(updated["edited_by_id"])) if updated["edited_by_id"] else None
                 ),
+                "can_edit": repo.can_edit(comment_id, user.sub, user.is_admin),
+                "can_delete": repo.can_delete(comment_id, user.sub, user.is_admin),
             }
 
     @app.delete("/documents/{doc_id}/comments/{comment_id}", status_code=204)
