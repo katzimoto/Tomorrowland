@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import email
+from email import policy
+from email.header import decode_header
+from email.errors import MessageError
+from html.parser import HTMLParser
 from pathlib import Path
 
 
@@ -10,21 +14,119 @@ class EmlExtractor:
     """Extract text from .eml files including headers and body."""
 
     def extract(self, path: Path) -> str:
-        """Return subject, from, to, and body text."""
+        """Return a best-effort extraction of headers, body text, and attachments.
+
+        The extractor attempts to:
+        - Decode all headers (RFC2047) and include them in the output.
+        - Extract `text/plain` parts and decode them.
+        - Extract `text/html` parts and convert them to plain text.
+        - List attachments with filename, content type, and size in bytes.
+        """
         try:
             raw = path.read_bytes()
-            msg = email.message_from_bytes(raw)
-            texts: list[str] = []
-            for header in ("Subject", "From", "To", "Date"):
-                value = msg.get(header)
-                if value:
-                    texts.append(f"{header}: {value}")
+            msg = email.message_from_bytes(raw, policy=policy.default)
+
+            def _decode_header(value: str | None) -> str:
+                if not value:
+                    return ""
+                try:
+                    parts = decode_header(value)
+                    decoded = []
+                    for fragment, enc in parts:
+                        if isinstance(fragment, bytes):
+                            decoded.append(
+                                fragment.decode(enc or "utf-8", errors="replace")
+                            )
+                        else:
+                            decoded.append(fragment)
+                    return "".join(decoded)
+                except Exception:
+                    return str(value)
+
+            class _HTMLToText(HTMLParser):
+                def __init__(self) -> None:
+                    super().__init__(convert_charrefs=True)
+                    self._parts: list[str] = []
+
+                def handle_data(self, data: str) -> None:
+                    self._parts.append(data)
+
+                def get_text(self) -> str:
+                    return "".join(self._parts)
+
+            headers: list[str] = []
+            for name, value in msg.items():
+                headers.append(f"{name}: {_decode_header(value)}")
+
+            body_parts: list[str] = []
+            attachments: list[str] = []
+
             for part in msg.walk():
+                # Skip container/multipart nodes
+                if part.is_multipart():
+                    continue
+
                 ctype = part.get_content_type()
-                if ctype in {"text/plain", "text/html"}:
-                    payload = part.get_payload(decode=True)
-                    if isinstance(payload, bytes):
-                        texts.append(payload.decode("utf-8", errors="replace"))
-            return "\n\n".join(texts)
+                disposition = (
+                    part.get_content_disposition()
+                )  # 'inline', 'attachment', or None
+                filename = part.get_filename()
+
+                try:
+                    payload = part.get_content()
+                except (MessageError, KeyError):
+                    # Fallback to raw payload decode
+                    raw_payload = part.get_payload(decode=True)
+                    if isinstance(raw_payload, bytes):
+                        payload = raw_payload.decode(
+                            part.get_content_charset("utf-8"), errors="replace"
+                        )
+                    else:
+                        payload = raw_payload or ""
+
+                if filename or disposition == "attachment":
+                    raw_bytes = part.get_payload(decode=True) or b""
+                    size = (
+                        len(raw_bytes)
+                        if isinstance(raw_bytes, (bytes, bytearray))
+                        else 0
+                    )
+                    fname = filename or "(unknown)"
+                    attachments.append(f"{fname} ({ctype}, {size} bytes)")
+                    continue
+
+                if ctype == "text/plain":
+                    if isinstance(payload, str):
+                        body_parts.append(payload)
+                    elif isinstance(payload, (bytes, bytearray)):
+                        body_parts.append(
+                            payload.decode(
+                                part.get_content_charset("utf-8"), errors="replace"
+                            )
+                        )
+                elif ctype == "text/html":
+                    html_text = ""
+                    if isinstance(payload, str):
+                        html_text = payload
+                    elif isinstance(payload, (bytes, bytearray)):
+                        html_text = payload.decode(
+                            part.get_content_charset("utf-8"), errors="replace"
+                        )
+                    parser = _HTMLToText()
+                    parser.feed(html_text)
+                    body_parts.append(parser.get_text())
+
+            sections: list[str] = []
+            if headers:
+                sections.append("Headers:\n" + "\n".join(headers))
+            if body_parts:
+                sections.append("Body:\n" + "\n\n".join(body_parts))
+            if attachments:
+                sections.append("Attachments:\n" + "\n".join(attachments))
+
+            return "\n\n".join(sections)
         except (OSError, UnicodeDecodeError):
+            return ""
+        except Exception:
+            # Be conservative: never raise during extraction
             return ""
