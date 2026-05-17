@@ -32,3 +32,6 @@ tmp/
 .idea/
 .vscode/
 *.swp
+.claude/
+.claude-flow/
+.mcp.json
