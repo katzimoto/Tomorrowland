@@ -74,7 +74,9 @@ describe("TranslationVersionSelector", () => {
       <TranslationVersionSelector
         docId="doc-1"
         selectedVersionId={undefined}
+        showOriginal={false}
         onSelect={vi.fn()}
+        onShowOriginalChange={vi.fn()}
       />
     );
     const select = await screen.findByRole("combobox", {
@@ -91,7 +93,9 @@ describe("TranslationVersionSelector", () => {
       <TranslationVersionSelector
         docId="doc-1"
         selectedVersionId={undefined}
+        showOriginal={false}
         onSelect={vi.fn()}
+        onShowOriginalChange={vi.fn()}
       />
     );
     const pendingOption = await screen.findByRole("option", {
@@ -109,7 +113,9 @@ describe("TranslationVersionSelector", () => {
       <TranslationVersionSelector
         docId="doc-1"
         selectedVersionId={undefined}
+        showOriginal={false}
         onSelect={vi.fn()}
+        onShowOriginalChange={vi.fn()}
       />
     );
     const availableOption = await screen.findByRole("option", {
@@ -124,7 +130,9 @@ describe("TranslationVersionSelector", () => {
       <TranslationVersionSelector
         docId="doc-1"
         selectedVersionId={undefined}
+        showOriginal={false}
         onSelect={vi.fn()}
+        onShowOriginalChange={vi.fn()}
       />
     );
     await new Promise((r) => setTimeout(r, 50));
@@ -159,9 +167,11 @@ describe("TranslationVersionSelector", () => {
 
     render(
       <TranslationVersionSelector
-        docId="doc-2"
+        docId="doc-1"
         selectedVersionId={undefined}
+        showOriginal={false}
         onSelect={vi.fn()}
+        onShowOriginalChange={vi.fn()}
       />
     );
 
@@ -206,7 +216,9 @@ describe("TranslationVersionSelector", () => {
       <TranslationVersionSelector
         docId="doc-auto"
         selectedVersionId={undefined}
+        showOriginal={false}
         onSelect={onSelect}
+        onShowOriginalChange={vi.fn()}
       />,
       qc
     );
@@ -266,7 +278,9 @@ describe("TranslationVersionSelector", () => {
       <TranslationVersionSelector
         docId="doc-initial"
         selectedVersionId={undefined}
+        showOriginal={false}
         onSelect={onSelect}
+        onShowOriginalChange={vi.fn()}
       />,
       qc
     );
@@ -304,7 +318,9 @@ describe("TranslationVersionSelector", () => {
       <TranslationVersionSelector
         docId="doc-revisit"
         selectedVersionId={undefined}
+        showOriginal={false}
         onSelect={onSelect}
+        onShowOriginalChange={vi.fn()}
       />,
       qc
     );
@@ -321,7 +337,9 @@ describe("TranslationVersionSelector", () => {
             <TranslationVersionSelector
               docId="doc-revisit"
               selectedVersionId={undefined}
+              showOriginal={false}
               onSelect={onSelect}
+              onShowOriginalChange={vi.fn()}
             />
           </ToastProvider>
         </QueryClientProvider>
@@ -369,7 +387,9 @@ describe("TranslationVersionSelector", () => {
       <TranslationVersionSelector
         docId="doc-manual"
         selectedVersionId="already-selected"
+        showOriginal={false}
         onSelect={onSelect}
+        onShowOriginalChange={vi.fn()}
       />,
       qc
     );

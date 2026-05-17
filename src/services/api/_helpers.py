@@ -33,6 +33,14 @@ def _fmt_dt(value: Any) -> str | None:
     return str(value.isoformat())
 
 
+def _translation_score(quality: str | None) -> float:
+    if quality == "high":
+        return 1.0
+    if quality == "fast":
+        return 0.5
+    return 0.0
+
+
 def _parse_json(value: Any) -> Any:
     if value is None:
         return None

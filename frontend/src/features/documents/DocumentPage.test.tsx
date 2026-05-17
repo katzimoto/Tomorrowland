@@ -19,6 +19,7 @@ const mockPreview: documentsApi.DocumentPreview = {
   title: "Vendor Risk Assessment 2024",
   mime_type: "text/plain",
   translation_quality: "fast",
+  translation_score: 0.5,
   metadata: {},
   snippet: "This document covers vendor risk.",
   view_count: 3,

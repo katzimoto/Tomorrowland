@@ -19,6 +19,7 @@ export function DocumentPage() {
   const [selectedVersionId, setSelectedVersionId] = useState<
     string | undefined
   >(undefined);
+  const [showOriginal, setShowOriginal] = useState(false);
   const qc = useQueryClient();
   const hadInProgressRef = useRef(false);
 
@@ -39,6 +40,7 @@ export function DocumentPage() {
   useEffect(() => {
     if (!versions) return;
     if (selectedVersionId !== undefined) return;
+    if (showOriginal) return;
     if (versions.some((v) => v.status === "pending" || v.status === "running")) {
       hadInProgressRef.current = true;
       return;
@@ -47,7 +49,7 @@ export function DocumentPage() {
       hadInProgressRef.current = false;
       qc.invalidateQueries({ queryKey: ["doc-preview", docId] });
     }
-  }, [versions, selectedVersionId, docId, qc]);
+  }, [versions, selectedVersionId, showOriginal, docId, qc]);
 
   const {
     data: preview,
@@ -55,10 +57,10 @@ export function DocumentPage() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ["doc-preview", docId, selectedVersionId],
+    queryKey: ["doc-preview", docId, selectedVersionId, showOriginal],
     queryFn: () =>
       measurePerformance("preview.load", () =>
-        getPreview(docId, selectedVersionId),
+        getPreview(docId, selectedVersionId, showOriginal),
       ),
     staleTime: 2 * 60_000,
   });
@@ -94,7 +96,9 @@ export function DocumentPage() {
       <DocumentToolbar
         preview={preview}
         selectedVersionId={selectedVersionId}
+        showOriginal={showOriginal}
         onVersionChange={setSelectedVersionId}
+        onShowOriginalChange={setShowOriginal}
       />
       {preview.has_newer_version && preview.latest_document_id && (
         <VersionBanner latestDocumentId={preview.latest_document_id} />

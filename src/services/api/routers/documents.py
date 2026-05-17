@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 
 from services.api._helpers import (
     _fmt_dt,
+    _translation_score,
     related_docs_limit,
     require_expertise_enabled,
     require_related_docs_enabled,
@@ -44,6 +45,7 @@ def preview(
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
     translation_version_id: UUID | None = None,
+    show_original: bool = False,
 ) -> PreviewResponse:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
@@ -51,7 +53,10 @@ def preview(
 
         preview_service = PreviewService(connection)
         result = preview_service.get_preview(
-            document_id, user.sub, translation_version_id=translation_version_id
+            document_id,
+            user.sub,
+            translation_version_id=translation_version_id,
+            show_original=show_original,
         )
         if not result:
             request.app.state.metrics.preview_requests_total.labels("unknown", "failure").inc()
@@ -84,6 +89,7 @@ def preview(
             title=result["title"],
             mime_type=result["mime_type"],
             translation_quality=result["translation_quality"],
+            translation_score=_translation_score(result["translation_quality"]),
             metadata=result["metadata"],
             snippet=result["snippet"],
             view_count=result["view_count"],

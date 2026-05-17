@@ -42,12 +42,15 @@ class PreviewService:
         document_id: UUID,
         user_id: UUID,
         translation_version_id: UUID | None = None,
+        show_original: bool = False,
     ) -> dict[str, Any]:
         """Return preview metadata, snippet, and view count for *document_id*.
 
         Also records a view by *user_id* if not already present.
         If *translation_version_id* is provided and the version is available,
         the snippet is rendered from the stored translated text.
+        When *show_original* is True, skip all translation resolution and
+        render from the original file extraction.
         """
 
         row = (
@@ -88,7 +91,11 @@ class PreviewService:
         self._maybe_auto_enrich(document_id, view_count, row["translation_quality"])
 
         snippet = self._generate_snippet(
-            document_id, row["path"], row["mime_type"], translation_version_id
+            document_id,
+            row["path"],
+            row["mime_type"],
+            translation_version_id,
+            show_original=show_original,
         )
 
         return {
@@ -107,6 +114,7 @@ class PreviewService:
         file_path: str | None,
         mime_type: str,
         translation_version_id: UUID | None = None,
+        show_original: bool = False,
     ) -> str:
         """Return a truncated preview snippet for a document.
 
@@ -116,9 +124,11 @@ class PreviewService:
         document (ordered by highest ``version_number``). Falls back to
         the original document extraction when no available translation
         exists.
+        When *show_original* is True, skip the resolved version entirely and
+        always fall through to the original file extraction.
         """
         # Determine which translation version to use
-        version_id = translation_version_id
+        version_id = translation_version_id if not show_original else None
 
         if version_id is not None:
             # Verify the requested version is available and belongs to
@@ -138,7 +148,7 @@ class PreviewService:
             if version_row is None or version_row["document_id"] != db_uuid(document_id):
                 version_id = None
 
-        if version_id is None:
+        if version_id is None and not show_original:
             # Resolve the latest available translation for this document
             latest_row = (
                 self._connection.execute(

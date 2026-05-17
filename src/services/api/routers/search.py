@@ -10,7 +10,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, Request
 
-from services.api._helpers import _fmt_dt
+from services.api._helpers import _fmt_dt, _translation_score
 from services.api.main import current_user
 from services.api.schemas import SearchRequest, SearchResponse, SearchResultItem
 from services.auth.models import TokenPayload
@@ -216,6 +216,7 @@ def search(
                     mime_type="application/octet-stream",
                     tags=[],
                     translation_quality=None,
+                    translation_score=0.0,
                     score=r.score,
                     updated_at=now,
                     indexed_at=now,
@@ -248,6 +249,7 @@ def search(
                 mime_type=doc_row.mime_type,
                 tags=list(tags),
                 translation_quality=doc_row.translation_quality,
+                translation_score=_translation_score(doc_row.translation_quality),
                 score=r.score,
                 updated_at=_fmt_dt(doc_row.updated_at) or now,
                 indexed_at=_fmt_dt(doc_row.created_at) or now,

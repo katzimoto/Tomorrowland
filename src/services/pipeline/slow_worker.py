@@ -110,7 +110,7 @@ class SlowWorker:
             )
 
             # 4. Chunk and index (reuse legacy indexing)
-            self._index_document(doc, translated)
+            self._index_document(doc, translated, original=text)
 
             # 5. Update document summary quality
             self._doc_repo.update_translation_quality(doc.id, "high")
@@ -130,39 +130,60 @@ class SlowWorker:
         translated = self._translator.translate(text, source_lang=doc.source_language)
 
         # 3. Chunk and index
-        self._index_document(doc, translated)
+        self._index_document(doc, translated, original=text)
 
         # 4. Update quality and status
         self._doc_repo.update_indexed(doc.id, "indexed", "high")
 
-    def _index_document(self, doc: Any, translated: str) -> None:
-        """Chunk, embed, and index a translated document."""
+    def _index_document(self, doc: Any, translated: str, original: str = "") -> None:
+        """Chunk, embed, and index a document (both original and translated)."""
         document_id = doc.id
-        chunks = chunk_text(translated)
         allowed_group_ids = [
             str(group_id) for group_id in self._doc_repo.source_group_ids(doc.source_id)
         ]
 
-        # Encode + build Qdrant points
+        # Build Qdrant points for both original and translated chunks
         qdrant_chunks: list[dict[str, Any]] = []
-        for idx, chunk_text_content in enumerate(chunks):
+
+        def _build_chunk(
+            chunk_text_content: str,
+            idx: int,
+            *,
+            lang: str | None,
+            suffix: str,
+        ) -> dict[str, Any]:
             vector = self._encoder.encode(chunk_text_content)
+            entry: dict[str, Any] = {
+                "chunk_id": f"{document_id}-{suffix}-{idx}",
+                "document_id": str(document_id),
+                "group_id": allowed_group_ids,
+                "chunk_index": idx,
+                "text": chunk_text_content,
+                "vector": vector,
+            }
+            if lang:
+                entry["language"] = lang
+            return entry
+
+        if original:
+            for idx, chunk_text_content in enumerate(chunk_text(original)):
+                qdrant_chunks.append(
+                    _build_chunk(chunk_text_content, idx, lang=doc.source_language, suffix="orig")
+                )
+
+        for idx, chunk_text_content in enumerate(chunk_text(translated)):
             qdrant_chunks.append(
-                {
-                    "chunk_id": f"{document_id}-{idx}",
-                    "document_id": str(document_id),
-                    "group_id": allowed_group_ids,
-                    "chunk_index": idx,
-                    "text": chunk_text_content,
-                    "vector": vector,
-                }
+                _build_chunk(chunk_text_content, idx, lang=doc.target_language, suffix="trans")
             )
 
-        # Index full document in Elasticsearch
+        # Index full document in Elasticsearch (preserve original text on re-index)
         self._es.index_document(
             str(document_id),
             {
                 "document_id": str(document_id),
+                "path": doc.path or "",
+                "filename": Path(doc.path).name if doc.path else doc.title or "",
+                "content_original": original or translated,
                 "content_english": translated,
                 "title": doc.title or "",
                 "summary": "",
@@ -174,7 +195,7 @@ class SlowWorker:
 
         # Index chunks in Qdrant
         if qdrant_chunks:
-            self._qdrant.upsert_chunks(qdrant_chunks)
+            self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
 
         if self._alert_matcher is not None:
             self._alert_matcher.match_document(doc, translated)

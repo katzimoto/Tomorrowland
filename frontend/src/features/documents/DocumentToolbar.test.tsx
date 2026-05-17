@@ -34,7 +34,9 @@ describe("DocumentToolbar", () => {
       <DocumentToolbar
         preview={mockPreview}
         selectedVersionId={undefined}
+        showOriginal={false}
         onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
       />
     );
     expect(
@@ -47,7 +49,9 @@ describe("DocumentToolbar", () => {
       <DocumentToolbar
         preview={mockPreview}
         selectedVersionId={undefined}
+        showOriginal={false}
         onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
       />
     );
     expect(
@@ -60,7 +64,9 @@ describe("DocumentToolbar", () => {
       <DocumentToolbar
         preview={mockPreview}
         selectedVersionId={undefined}
+        showOriginal={false}
         onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
       />
     );
     expect(screen.getByRole("link", { name: /download/i })).toHaveAttribute(
@@ -74,7 +80,9 @@ describe("DocumentToolbar", () => {
       <DocumentToolbar
         preview={mockPreview}
         selectedVersionId={undefined}
+        showOriginal={false}
         onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
       />
     );
     expect(
@@ -87,7 +95,9 @@ describe("DocumentToolbar", () => {
       <DocumentToolbar
         preview={{ ...mockPreview, translation_quality: "high" }}
         selectedVersionId={undefined}
+        showOriginal={false}
         onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
       />
     );
     expect(
@@ -100,7 +110,9 @@ describe("DocumentToolbar", () => {
       <DocumentToolbar
         preview={mockPreview}
         selectedVersionId={undefined}
+        showOriginal={false}
         onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
       />
     );
     expect(screen.getByText("Fast translation")).toBeInTheDocument();

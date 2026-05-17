@@ -13,13 +13,17 @@ import styles from "./DocumentToolbar.module.css";
 interface DocumentToolbarProps {
   preview: DocumentPreview;
   selectedVersionId: string | undefined;
+  showOriginal: boolean;
   onVersionChange: (versionId: string | undefined) => void;
+  onShowOriginalChange: (showOriginal: boolean) => void;
 }
 
 export function DocumentToolbar({
   preview,
   selectedVersionId,
+  showOriginal,
   onVersionChange,
+  onShowOriginalChange,
 }: DocumentToolbarProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -51,7 +55,9 @@ export function DocumentToolbar({
           <TranslationVersionSelector
             docId={preview.document_id}
             selectedVersionId={selectedVersionId}
+            showOriginal={showOriginal}
             onSelect={onVersionChange}
+            onShowOriginalChange={onShowOriginalChange}
           />
           {preview.translation_quality !== "high" && (
             <Button

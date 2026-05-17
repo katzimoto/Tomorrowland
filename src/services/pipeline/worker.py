@@ -215,12 +215,21 @@ class PipelineWorker:
         # 6. Index chunks in Qdrant. Vector indexing is degraded/best-effort
         #    relative to text indexing: failures are logged safely but do not
         #    turn a text-indexed document into a failed document.
+        #    Both original and translated text are chunked and indexed so that
+        #    vector search can match in either language.
         try:
             qdrant_chunks: list[dict[str, Any]] = []
-            for idx, chunk_text_content in enumerate(chunks):
+
+            def _build_chunk(
+                chunk_text_content: str,
+                idx: int,
+                *,
+                lang: str | None,
+                suffix: str,
+            ) -> dict[str, Any]:
                 vector = self._encoder.encode(chunk_text_content)
-                chunk_entry: dict[str, Any] = {
-                    "chunk_id": f"{document_id}-{idx}",
+                entry: dict[str, Any] = {
+                    "chunk_id": f"{document_id}-{suffix}-{idx}",
                     "document_id": str(document_id),
                     "group_id": allowed_group_ids,
                     "chunk_index": idx,
@@ -229,10 +238,22 @@ class PipelineWorker:
                     "source_id": str(doc.source_id),
                 }
                 if doc.title:
-                    chunk_entry["title"] = doc.title
-                if doc.source_language:
-                    chunk_entry["source_language"] = doc.source_language
-                qdrant_chunks.append(chunk_entry)
+                    entry["title"] = doc.title
+                if lang:
+                    entry["language"] = lang
+                return entry
+
+            # Original language chunks
+            for idx, chunk_text_content in enumerate(chunk_text(text)):
+                qdrant_chunks.append(
+                    _build_chunk(chunk_text_content, idx, lang=doc.source_language, suffix="orig")
+                )
+
+            # Translated chunks (when translation differs from original)
+            for idx, chunk_text_content in enumerate(chunks):
+                qdrant_chunks.append(
+                    _build_chunk(chunk_text_content, idx, lang=doc.target_language, suffix="trans")
+                )
 
             if qdrant_chunks:
                 start = time.perf_counter()

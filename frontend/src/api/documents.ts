@@ -25,6 +25,7 @@ export interface DocumentPreview {
   title: string | null;
   mime_type: string;
   translation_quality: "fast" | "high" | null;
+  translation_score: number;
   metadata: Record<string, unknown>;
   snippet: string;
   view_count: number;
@@ -113,9 +114,16 @@ export function listDocumentVersions(docId: string): Promise<DocumentVersion[]> 
   return api.get<DocumentVersion[]>(`/documents/${docId}/versions`);
 }
 
-export function getPreview(docId: string, translationVersionId?: string): Promise<DocumentPreview> {
-  const qs = translationVersionId ? `?translation_version_id=${translationVersionId}` : "";
-  return api.get<DocumentPreview>(`/preview/${docId}${qs}`);
+export function getPreview(
+  docId: string,
+  translationVersionId?: string,
+  original?: boolean,
+): Promise<DocumentPreview> {
+  const params = new URLSearchParams();
+  if (translationVersionId) params.set("translation_version_id", translationVersionId);
+  if (original) params.set("show_original", "true");
+  const qs = params.toString();
+  return api.get<DocumentPreview>(`/preview/${docId}${qs ? `?${qs}` : ""}`);
 }
 
 export function getTranslationVersions(docId: string): Promise<TranslationVersion[]> {

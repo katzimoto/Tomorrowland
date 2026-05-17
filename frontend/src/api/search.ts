@@ -24,6 +24,7 @@ export interface SearchResult {
   mime_type: string;
   tags: string[];
   translation_quality: "fast" | "high" | null;
+  translation_score: number;
   score: number;
   updated_at: string;
   indexed_at: string;

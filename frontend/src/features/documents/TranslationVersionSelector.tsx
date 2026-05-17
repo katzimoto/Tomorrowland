@@ -8,7 +8,9 @@ const POLL_INTERVAL_MS = 5000;
 interface TranslationVersionSelectorProps {
   docId: string;
   selectedVersionId: string | undefined;
+  showOriginal: boolean;
   onSelect: (versionId: string | undefined) => void;
+  onShowOriginalChange: (showOriginal: boolean) => void;
 }
 
 function isSelectableTranslationVersion(status: TranslationVersion["status"]): boolean {
@@ -22,7 +24,9 @@ function hasInProgressVersions(versions: TranslationVersion[]): boolean {
 export function TranslationVersionSelector({
   docId,
   selectedVersionId,
+  showOriginal,
   onSelect,
+  onShowOriginalChange,
 }: TranslationVersionSelectorProps) {
   const hadInProgressRef = useRef(false);
   const initialSelectDoneRef = useRef(false);
@@ -42,6 +46,7 @@ export function TranslationVersionSelector({
   useEffect(() => {
     if (!versions) return;
     if (selectedVersionId !== undefined) return;
+    if (showOriginal) return;
     if (hasInProgressVersions(versions)) {
       hadInProgressRef.current = true;
       return;
@@ -60,20 +65,31 @@ export function TranslationVersionSelector({
       initialSelectDoneRef.current = true;
       onSelect(latestAvailable.version_id);
     }
-  }, [versions, selectedVersionId, onSelect]);
+  }, [versions, selectedVersionId, showOriginal, onSelect]);
 
   if (!versions?.length) return null;
+
+  const currentValue = showOriginal ? "__original__" : (selectedVersionId ?? "");
 
   return (
     <label className={styles.wrapper}>
       <span className={styles.label}>Version</span>
       <select
         className={styles.select}
-        value={selectedVersionId ?? ""}
-        onChange={(e) => onSelect(e.target.value || undefined)}
+        value={currentValue}
+        onChange={(e) => {
+          const val = e.target.value;
+          if (val === "__original__") {
+            onShowOriginalChange(true);
+          } else {
+            onShowOriginalChange(false);
+            onSelect(val || undefined);
+          }
+        }}
         aria-label="Translation version"
       >
         <option value="">Latest</option>
+        <option value="__original__">Original</option>
         {versions.map((v: TranslationVersion) => {
           const isSelectable = isSelectableTranslationVersion(v.status);
           return (

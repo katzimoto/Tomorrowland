@@ -26,6 +26,7 @@ class SearchResultItem(BaseModel):
     mime_type: str
     tags: list[str] = Field(default_factory=list)
     translation_quality: str | None = None
+    translation_score: float = 0.0
     score: float
     updated_at: str
     indexed_at: str
@@ -46,6 +47,7 @@ class PreviewResponse(BaseModel):
     title: str | None = None
     mime_type: str
     translation_quality: str | None = None
+    translation_score: float = 0.0
     view_count: int = 0
     metadata: dict[str, Any]
     snippet: str
