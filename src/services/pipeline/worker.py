@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import tempfile
 import time
@@ -92,7 +93,12 @@ class PipelineWorker:
             self._doc_repo.update_status(document_id, "failed")
             raise
 
-    def _run(self, document_id: UUID, pre_extracted_text: str | None = None) -> ProcessResult:
+    def _run(
+        self,
+        document_id: UUID,
+        pre_extracted_text: str | None = None,
+        _seen: frozenset[str] | None = None,
+    ) -> ProcessResult:
         doc = self._doc_repo.get_by_id(document_id)
         if doc is None:
             raise ValueError(f"Document {document_id} not found")
@@ -267,8 +273,9 @@ class PipelineWorker:
                     get_correlation_id(),
                 )
 
-        # 10. Process email attachments as child documents (best-effort).
-        #     Only runs when the extractor for this MIME type exposes extract_attachments().
+        # 10. Process email/archive attachments as child documents (best-effort).
+        #     _seen tracks SHA-256 hashes of content already processed in this
+        #     call chain to break circular references (e.g. ZIP-A → ZIP-B → ZIP-A).
         if doc.path is not None:
             extractor = self._extractor.get(doc.mime_type)
             if extractor is not None and hasattr(extractor, "extract_attachments"):
@@ -276,7 +283,7 @@ class PipelineWorker:
                     attachments: list[AttachmentData] = extractor.extract_attachments(
                         Path(doc.path)
                     )
-                    self._process_attachments(document_id, doc, attachments)
+                    self._process_attachments(document_id, doc, attachments, _seen or frozenset())
                 except Exception:
                     logger.exception(
                         "Attachment extraction failed for document_id=%s correlation=%s",
@@ -291,9 +298,20 @@ class PipelineWorker:
         parent_id: UUID,
         parent_doc: Any,
         attachments: list[AttachmentData],
+        _seen: frozenset[str],
     ) -> None:
         """Create a child document and run the pipeline for each attachment."""
         for att in attachments:
+            sha256 = hashlib.sha256(att.data).hexdigest()
+            if sha256 in _seen:
+                logger.debug(
+                    "Skipping duplicate attachment filename=%s parent_id=%s sha256=%s",
+                    att.filename,
+                    parent_id,
+                    sha256,
+                )
+                continue
+
             # Skip attachment types we cannot extract text from
             if self._extractor.get(att.mime_type) is None:
                 logger.debug(
@@ -310,7 +328,9 @@ class PipelineWorker:
                     tmp.write(att.data)
                     tmp_path = tmp.name
 
-                child_external_id = f"{parent_doc.external_id}::attachment::{att.filename}"
+                child_external_id = (
+                    f"{parent_doc.external_id}::attachment::{att.filename}::{sha256[:12]}"
+                )
                 child_doc = self._doc_repo.create(
                     source_id=parent_doc.source_id,
                     external_id=child_external_id,
@@ -327,7 +347,7 @@ class PipelineWorker:
                     continue
 
                 try:
-                    self._run(child_doc.id)
+                    self._run(child_doc.id, _seen=_seen | {sha256})
                     logger.info(
                         "Attachment processed: parent_id=%s child_id=%s filename=%s",
                         parent_id,
