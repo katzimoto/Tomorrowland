@@ -201,14 +201,10 @@ class AlertRepository:
         created = bool(result.rowcount)
         metrics = current_metrics()
         if metrics is not None:
-            metrics.notifications_total.labels(
-                "create", "success" if created else "skipped"
-            ).inc()
+            metrics.notifications_total.labels("create", "success" if created else "skipped").inc()
         return created
 
-    def list_notifications(
-        self, user_id: UUID, unread_only: bool = True
-    ) -> list[dict[str, Any]]:
+    def list_notifications(self, user_id: UUID, unread_only: bool = True) -> list[dict[str, Any]]:
         """List notifications for a user."""
         read_filter = "AND n.read = false" if unread_only else ""
         rows = self._connection.execute(

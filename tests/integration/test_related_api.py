@@ -105,9 +105,7 @@ def test_related_documents_filters_dedupes_excludes_source_and_respects_limit(
     inaccessible_path.write_text("secret procurement")
 
     source_id = _create_doc(migrated_engine, "admins", str(source_path), "Source Doc")
-    related_id = _create_doc(
-        migrated_engine, "admins", str(related_path), "Related Doc"
-    )
+    related_id = _create_doc(migrated_engine, "admins", str(related_path), "Related Doc")
     second_id = _create_doc(migrated_engine, "admins", str(second_path), "Second Doc")
     inaccessible_id = _create_doc(
         migrated_engine, "outsiders", str(inaccessible_path), "Secret Doc"
@@ -126,9 +124,7 @@ def test_related_documents_filters_dedupes_excludes_source_and_respects_limit(
         )
         limit = int(
             connection.execute(
-                sa.text(
-                    "SELECT value FROM system_config WHERE key = 'search.related_docs_limit'"
-                )
+                sa.text("SELECT value FROM system_config WHERE key = 'search.related_docs_limit'")
             ).scalar_one()
         )
 
@@ -151,9 +147,7 @@ def test_related_documents_filters_dedupes_excludes_source_and_respects_limit(
             limit=limit,
         )
 
-    assert related == [
-        {"document_id": str(related_id), "title": "Related Doc", "score": 0.92}
-    ]
+    assert related == [{"document_id": str(related_id), "title": "Related Doc", "score": 0.92}]
 
 
 def test_expertise_ranks_weighted_signals_and_hides_private_evidence(
@@ -163,14 +157,10 @@ def test_expertise_ranks_weighted_signals_and_hides_private_evidence(
     _setup_users(migrated_engine)
     doc_path = tmp_path / "procurement.txt"
     doc_path.write_text("procurement risk")
-    document_id = _create_doc(
-        migrated_engine, "admins", str(doc_path), "Procurement Doc"
-    )
+    document_id = _create_doc(migrated_engine, "admins", str(doc_path), "Procurement Doc")
     other_path = tmp_path / "other.txt"
     other_path.write_text("procurement controls")
-    other_doc_id = _create_doc(
-        migrated_engine, "admins", str(other_path), "Controls Doc"
-    )
+    other_doc_id = _create_doc(migrated_engine, "admins", str(other_path), "Controls Doc")
     admin_group_ids = [
         str(group_id) for group_id in _user(migrated_engine, "admin@example.com").groups
     ]
@@ -263,9 +253,7 @@ def test_expertise_ranks_weighted_signals_and_hides_private_evidence(
 
 
 def test_related_routes_are_registered(migrated_engine: Engine) -> None:
-    app = create_app(
-        migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32)
-    )
+    app = create_app(migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32))
     paths = {route.path for route in app.routes}
 
     assert "/documents/{document_id}/related" in paths
@@ -276,9 +264,7 @@ def test_expertise_rejects_blank_topic_without_testclient(
     migrated_engine: Engine,
 ) -> None:
     _setup_users(migrated_engine)
-    app = create_app(
-        migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32)
-    )
+    app = create_app(migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32))
     route = next(route for route in app.routes if route.path == "/expertise")
 
     try:

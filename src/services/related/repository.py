@@ -38,9 +38,7 @@ class RelatedRepository:
         ).mappings()
         return {str(to_uuid(row["id"])): dict(row) for row in rows}
 
-    def expertise_signals(
-        self, doc_ids: list[str], group_ids: list[str]
-    ) -> list[dict[str, Any]]:
+    def expertise_signals(self, doc_ids: list[str], group_ids: list[str]) -> list[dict[str, Any]]:
         """Return per-user expertise signals for accessible matching documents."""
         if not doc_ids or not group_ids:
             return []
@@ -99,7 +97,8 @@ class RelatedRepository:
 
     def active_subscriptions(self) -> list[dict[str, Any]]:
         """Return enabled alert subscriptions with owner display names."""
-        rows = self._connection.execute(sa.text("""
+        rows = self._connection.execute(
+            sa.text("""
                 SELECT
                     s.id,
                     s.user_id,
@@ -109,7 +108,8 @@ class RelatedRepository:
                 FROM alert_subscriptions s
                 JOIN users u ON u.id = s.user_id
                 WHERE s.enabled = true
-                """)).mappings()
+                """)
+        ).mappings()
         return [
             {
                 **dict(row),
@@ -119,9 +119,7 @@ class RelatedRepository:
             for row in rows
         ]
 
-    def user_can_access_any(
-        self, user_id: UUID, doc_ids: list[str], group_ids: list[str]
-    ) -> bool:
+    def user_can_access_any(self, user_id: UUID, doc_ids: list[str], group_ids: list[str]) -> bool:
         """Return whether a user can access at least one document in *doc_ids*."""
         if not doc_ids or not group_ids:
             return False
@@ -151,8 +149,6 @@ class RelatedRepository:
 
 
 def _uuid_params(values: list[str], prefix: str = "id") -> tuple[dict[str, str], str]:
-    params = {
-        f"{prefix}_{index}": UUID(value).hex for index, value in enumerate(values)
-    }
+    params = {f"{prefix}_{index}": UUID(value).hex for index, value in enumerate(values)}
     placeholders = ", ".join(f":{prefix}_{index}" for index in range(len(values)))
     return params, placeholders

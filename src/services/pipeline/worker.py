@@ -77,15 +77,11 @@ class PipelineWorker:
         try:
             result = self._run(document_id, pre_extracted_text=pre_extracted_text)
             if self._metrics is not None:
-                self._metrics.pipeline_documents_total.labels(
-                    "document", "success"
-                ).inc()
+                self._metrics.pipeline_documents_total.labels("document", "success").inc()
             return result
         except Exception:
             if self._metrics is not None:
-                self._metrics.pipeline_documents_total.labels(
-                    "document", "failure"
-                ).inc()
+                self._metrics.pipeline_documents_total.labels("document", "failure").inc()
             logger.exception(
                 "Pipeline failed for document_id=%s correlation=%s",
                 document_id,
@@ -94,9 +90,7 @@ class PipelineWorker:
             self._doc_repo.update_status(document_id, "failed")
             raise
 
-    def _run(
-        self, document_id: UUID, pre_extracted_text: str | None = None
-    ) -> ProcessResult:
+    def _run(self, document_id: UUID, pre_extracted_text: str | None = None) -> ProcessResult:
         doc = self._doc_repo.get_by_id(document_id)
         if doc is None:
             raise ValueError(f"Document {document_id} not found")
@@ -168,9 +162,9 @@ class PipelineWorker:
         )
 
         if self._metrics is not None:
-            self._metrics.search_backend_duration_seconds.labels(
-                "elasticsearch", "index"
-            ).observe(time.perf_counter() - start)
+            self._metrics.search_backend_duration_seconds.labels("elasticsearch", "index").observe(
+                time.perf_counter() - start
+            )
             self._metrics.search_index_documents.labels("elasticsearch").inc()
 
         # 5. Index chunks in Meilisearch when configured. This mirrors the

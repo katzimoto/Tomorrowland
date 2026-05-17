@@ -45,11 +45,7 @@ def _sanitize_error(exc_or_msg: BaseException | str, stage: str = "") -> str:
     if isinstance(exc_or_msg, BaseException):
         tag = type(exc_or_msg).__name__
     elif isinstance(exc_or_msg, str):
-        tag = (
-            exc_or_msg.strip()
-            if exc_or_msg.strip() in _ALLOWED_ERROR_CATEGORIES
-            else "unknown"
-        )
+        tag = exc_or_msg.strip() if exc_or_msg.strip() in _ALLOWED_ERROR_CATEGORIES else "unknown"
     else:
         tag = "unknown"
     result = f"{tag}:{stage}" if stage else tag
@@ -176,9 +172,7 @@ class PipelineJobRepository:
             type_filter = "AND job_type IN :job_types"
             params["job_types"] = tuple(job_types)
 
-        lock_clause = (
-            "FOR UPDATE SKIP LOCKED" if not _is_sqlite(self._connection) else ""
-        )
+        lock_clause = "FOR UPDATE SKIP LOCKED" if not _is_sqlite(self._connection) else ""
 
         stmt = sa.text(f"""
             SELECT id, document_id, source_id, job_type, priority, attempts,
@@ -372,11 +366,13 @@ class PipelineJobRepository:
 
         Used to populate queue-depth gauges for operator visibility.
         """
-        rows = self._connection.execute(sa.text("""
+        rows = self._connection.execute(
+            sa.text("""
                 SELECT status, job_type, COUNT(*) AS cnt
                 FROM pipeline_jobs
                 GROUP BY status, job_type
-                """)).fetchall()
+                """)
+        ).fetchall()
         return {(row[0], row[1]): row[2] for row in rows}
 
     def reap_stale_locks(self, max_age_seconds: int = 300) -> int:

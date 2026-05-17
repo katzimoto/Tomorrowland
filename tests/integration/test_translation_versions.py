@@ -24,17 +24,13 @@ TEST_JWT_SECRET = "x" * 32
 
 
 def _admin_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "admin@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
     assert login.status_code == 200
     return login.json()["access_token"]
 
 
 def _user_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "user@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
     assert login.status_code == 200
     return login.json()["access_token"]
 
@@ -84,9 +80,7 @@ def _create_source_with_doc(
         assert doc is not None
         if translation_quality is not None:
             connection.execute(
-                sa.text(
-                    "UPDATE documents SET translation_quality = :quality WHERE id = :id"
-                ),
+                sa.text("UPDATE documents SET translation_quality = :quality WHERE id = :id"),
                 {"quality": translation_quality, "id": db_uuid(doc.id)},
             )
         return str(source_id), str(doc.id)
@@ -202,9 +196,7 @@ def test_preview_with_translation_version(
     test_file = files_root / "test.txt"
     test_file.write_text("Original content here.")
 
-    _source_id, document_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(test_file)
-    )
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     # Create an available version with translated text
     with migrated_engine.begin() as connection:
@@ -251,9 +243,7 @@ def test_preview_with_unavailable_version_falls_back(
     test_file = files_root / "test.txt"
     test_file.write_text("Original content here.")
 
-    _source_id, document_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(test_file)
-    )
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     # Create a pending version (not available)
     with migrated_engine.begin() as connection:
@@ -488,9 +478,7 @@ def test_preview_defaults_to_latest_available_translation(
     test_file = files_root / "test.txt"
     test_file.write_text("Original content here.")
 
-    _source_id, document_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(test_file)
-    )
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
@@ -544,9 +532,7 @@ def test_preview_default_falls_back_when_no_available_translation(
     test_file = files_root / "test.txt"
     test_file.write_text("Original content here.")
 
-    _source_id, document_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(test_file)
-    )
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
@@ -592,12 +578,8 @@ def test_preview_does_not_render_cross_document_translation_version(
     file_b = files_root / "b.txt"
     file_b.write_text("Document B content.")
 
-    _source_a, doc_a_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(file_a)
-    )
-    _source_b, doc_b_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(file_b)
-    )
+    _source_a, doc_a_id = _create_source_with_doc(migrated_engine, "users", path=str(file_a))
+    _source_b, doc_b_id = _create_source_with_doc(migrated_engine, "users", path=str(file_b))
 
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)

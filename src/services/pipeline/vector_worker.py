@@ -201,9 +201,7 @@ def run_vector_loop(
                 ).set_to_current_time()
                 counts = job_repo.count_by_status()
                 for (status, jt), count in counts.items():
-                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(
-                        count
-                    )
+                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(count)
 
             if now - last_reap >= _REAP_INTERVAL_SECONDS:
                 reaped = job_repo.reap_stale_locks()

@@ -20,9 +20,7 @@ class _FakeJobRepo:
         self.dead_lettered: list[UUID] = []
         self.enqueued: list[dict] = []
 
-    def claim_next(
-        self, worker_id: str, job_types: list[str] | None = None
-    ) -> dict | None:
+    def claim_next(self, worker_id: str, job_types: list[str] | None = None) -> dict | None:
         return self._job
 
     def mark_running_stage(self, job_id: UUID, stage: str) -> None:
@@ -31,9 +29,7 @@ class _FakeJobRepo:
     def mark_succeeded(self, job_id: UUID) -> None:
         self.succeeded.append(job_id)
 
-    def mark_retry(
-        self, job_id: UUID, error: object, *, stage: str = "process"
-    ) -> None:
+    def mark_retry(self, job_id: UUID, error: object, *, stage: str = "process") -> None:
         self.retried.append(job_id)
 
     def mark_dead_letter(self, job_id: UUID, error: object) -> None:
@@ -42,9 +38,7 @@ class _FakeJobRepo:
     def get_payload(self, document_id: UUID) -> dict | None:
         return self._payload
 
-    def enqueue_document(
-        self, *, document_id: UUID, source_id: UUID, job_type: str
-    ) -> UUID:
+    def enqueue_document(self, *, document_id: UUID, source_id: UUID, job_type: str) -> UUID:
         self.enqueued.append(
             {"document_id": document_id, "source_id": source_id, "job_type": job_type}
         )
@@ -74,9 +68,7 @@ class _FakeDoc:
 
 
 class _FakeDocRepo:
-    def __init__(
-        self, doc: _FakeDoc | None = None, group_ids: list[UUID] | None = None
-    ) -> None:
+    def __init__(self, doc: _FakeDoc | None = None, group_ids: list[UUID] | None = None) -> None:
         self._doc = doc
         self._group_ids = group_ids or []
         self.indexed_updates: list[tuple[UUID, str, str | None]] = []
@@ -108,9 +100,7 @@ class _FakeElasticsearch:
             raise RuntimeError("elasticsearch_unavailable")
 
 
-def _make_job(
-    *, document_id: UUID | None = None, source_id: UUID | None = None
-) -> dict:
+def _make_job(*, document_id: UUID | None = None, source_id: UUID | None = None) -> dict:
     now = datetime.now(UTC)
     return {
         "id": uuid4(),

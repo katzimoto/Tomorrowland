@@ -291,9 +291,7 @@ def test_process_document_returns_process_result_on_success() -> None:
     es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
     translator = _FakeTranslator(translated="translated body")
-    worker = _worker(
-        repo=repo, encoder=encoder, es=es, qdrant=qdrant, translator=translator
-    )
+    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant, translator=translator)
 
     result = worker.process_document(doc.id, pre_extracted_text="raw body")
 

@@ -21,17 +21,13 @@ TEST_JWT_SECRET = "x" * 32
 
 
 def _admin_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "admin@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
     assert login.status_code == 200
     return login.json()["access_token"]
 
 
 def _user_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "user@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
     assert login.status_code == 200
     return login.json()["access_token"]
 
@@ -81,9 +77,7 @@ def _create_source_with_doc(
         assert doc is not None
         if translation_quality is not None:
             connection.execute(
-                sa.text(
-                    "UPDATE documents SET translation_quality = :quality WHERE id = :id"
-                ),
+                sa.text("UPDATE documents SET translation_quality = :quality WHERE id = :id"),
                 {"quality": translation_quality, "id": db_uuid(doc.id)},
             )
         return str(source_id), str(doc.id)
@@ -295,9 +289,7 @@ def test_auto_enrich_fires_when_threshold_crossed(
         json={"email": "viewer4@example.com", "password": "secret"},
     )
     token = login.json()["access_token"]
-    response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     assert response.json()["view_count"] == 5
 
@@ -351,9 +343,7 @@ def test_auto_enrich_fires_exactly_once(
             json={"email": f"viewer{i}@example.com", "password": "secret"},
         )
         token = login.json()["access_token"]
-        client.get(
-            f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-        )
+        client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     # Quality should be "pending_high", not toggling back and forth
     with migrated_engine.begin() as connection:

@@ -179,9 +179,7 @@ def test_worker_stops_on_first_failure(
     content = "Some content"
 
     # Summary succeeds, entities fail
-    ollama_client.generate = MagicMock(
-        side_effect=["A summary", RuntimeError("Ollama failed")]
-    )
+    ollama_client.generate = MagicMock(side_effect=["A summary", RuntimeError("Ollama failed")])
 
     with migrated_engine.begin() as connection:
         repo = IntelligenceRepository(connection)

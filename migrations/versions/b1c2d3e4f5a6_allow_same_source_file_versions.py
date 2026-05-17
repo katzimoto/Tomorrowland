@@ -55,9 +55,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
         sa.ForeignKeyConstraint(["document_id"], ["documents.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["source_id"], ["ingestion_sources.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["source_id"], ["ingestion_sources.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint(
             "source_id",
             "external_id",
@@ -107,9 +105,7 @@ def downgrade() -> None:
             server_default=sa.func.now(),
         ),
         sa.ForeignKeyConstraint(["document_id"], ["documents.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["source_id"], ["ingestion_sources.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["source_id"], ["ingestion_sources.id"], ondelete="CASCADE"),
     )
     op.execute("""
         INSERT INTO ingested_files_v1 (sha256, document_id, source_id, ingested_at)

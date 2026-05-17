@@ -146,9 +146,7 @@ class SearchChunkRecord(BaseModel):
     @model_validator(mode="after")
     def _validate_required_security(self) -> SearchChunkRecord:
         if not self.allowed_group_ids and not self.is_admin_only:
-            raise ValueError(
-                "allowed_group_ids must not be empty unless is_admin_only is True"
-            )
+            raise ValueError("allowed_group_ids must not be empty unless is_admin_only is True")
         return self
 
     @staticmethod
@@ -215,9 +213,7 @@ class DocumentSearchQuery(BaseModel):
     q: str
     language: Literal["auto", "en", "he"] = "auto"
     filters: DocumentSearchFilters = Field(default_factory=DocumentSearchFilters)
-    sort: Literal[
-        "relevance", "updatedAt:desc", "createdAt:desc", "importedAt:desc"
-    ] = "relevance"
+    sort: Literal["relevance", "updatedAt:desc", "createdAt:desc", "importedAt:desc"] = "relevance"
     limit: int = Field(default=20, ge=1, le=100)
     offset: int = Field(default=0, ge=0)
 
@@ -243,8 +239,6 @@ class DocumentSearchResult(BaseModel):
     section_path: list[str] = Field(default_factory=list)
     snippet: str
 
-    metadata: DocumentSearchResultMetadata = Field(
-        default_factory=DocumentSearchResultMetadata
-    )
+    metadata: DocumentSearchResultMetadata = Field(default_factory=DocumentSearchResultMetadata)
     position: ChunkPosition
     score: float | None = None

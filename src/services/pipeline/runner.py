@@ -17,7 +17,7 @@ from uuid import UUID
 
 from sqlalchemy import create_engine
 
-from services.documents.repository import DocumentRepository
+from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from services.extraction.registry import ExtractorRegistry
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.worker import PipelineWorker
@@ -73,9 +73,7 @@ def run_once(
     start = time.monotonic()
     process_result = None
     try:
-        process_result = worker.process_document(
-            document_id, pre_extracted_text=pre_extracted_text
-        )
+        process_result = worker.process_document(document_id, pre_extracted_text=pre_extracted_text)
     except Exception as exc:
         elapsed = time.monotonic() - start
         error_type = type(exc).__name__
@@ -161,6 +159,36 @@ def run_once(
                 "failed to persist translated text: worker_id=%s error_type=PersistError",
                 worker_id,
             )
+        # Create a translation version record so the preview service and version
+        # selector can surface the ingestion translation. Without this, translated_text
+        # stays only in document_payloads and users see the original text.
+        if process_result.translated_text:
+            try:
+                doc = worker._doc_repo.get_by_id(document_id)
+                target_lang = doc.target_language if doc is not None else "en"
+                version_repo = TranslationVersionRepository(job_repo._connection)
+                existing = version_repo.find_pending_or_running(document_id, target_lang)
+                if existing is None:
+                    created = version_repo.create_version(
+                        document_id=document_id,
+                        label="Ingestion",
+                        quality="fast",
+                        request_type="ingestion",
+                        target_language=target_lang,
+                    )
+                    version_id = UUID(str(created["id"]))
+                else:
+                    version_id = UUID(str(existing["id"]))
+                version_repo.update_version_status(
+                    version_id,
+                    "available",
+                    translated_text=process_result.translated_text,
+                )
+            except Exception:
+                logger.exception(
+                    "failed to create translation version: worker_id=%s error_type=PersistError",
+                    worker_id,
+                )
 
     # Enqueue vector indexing job after successful text processing
     if job_type == "process_document":
@@ -212,9 +240,7 @@ def run_loop(
                 ).set_to_current_time()
                 counts = job_repo.count_by_status()
                 for (status, jt), count in counts.items():
-                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(
-                        count
-                    )
+                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(count)
 
             if now - last_reap >= _REAP_INTERVAL_SECONDS:
                 reaped = job_repo.reap_stale_locks()

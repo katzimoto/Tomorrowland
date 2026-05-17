@@ -84,13 +84,9 @@ def test_document_access_rejects_missing_or_ungranted_documents(
 # Nested group tests
 
 
-def _insert_group_membership(
-    connection: object, parent_id: object, child_id: object
-) -> None:
+def _insert_group_membership(connection: object, parent_id: object, child_id: object) -> None:
     connection.execute(  # type: ignore[attr-defined]
-        sa.text(
-            "INSERT INTO group_memberships (parent_group_id, child_group_id) VALUES (:p, :c)"
-        ),
+        sa.text("INSERT INTO group_memberships (parent_group_id, child_group_id) VALUES (:p, :c)"),
         {"p": db_uuid(parent_id), "c": db_uuid(child_id)},  # type: ignore[arg-type]
     )
 
@@ -113,9 +109,7 @@ def test_user_can_access_source_via_parent_group(migrated_engine: Engine) -> Non
         user_nested = repo.create_local_user(
             "nested@example.com", hash_password("x"), group_names=["child"]
         )
-        user_none = repo.create_local_user(
-            "none@example.com", hash_password("x"), group_names=[]
-        )
+        user_none = repo.create_local_user("none@example.com", hash_password("x"), group_names=[])
 
         assert repo.user_can_access_source(user_direct, source_id)
         assert repo.user_can_access_source(user_nested, source_id)

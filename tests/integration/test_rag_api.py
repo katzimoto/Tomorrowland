@@ -30,9 +30,7 @@ def _settings(**overrides: object) -> Settings:
 
 
 def _admin_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "admin@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
     assert login.status_code == 200
     return str(login.json()["access_token"])
 
@@ -131,9 +129,7 @@ def test_qa_no_groups_returns_empty(migrated_engine: Engine) -> None:
             _settings(),
         )
     )
-    login = client.post(
-        "/auth/login", json={"email": "nogroup@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "nogroup@example.com", "password": "secret"})
     assert login.status_code == 200
     token = str(login.json()["access_token"])
 
@@ -293,9 +289,7 @@ def test_qa_disabled_by_system_config_returns_404(migrated_engine: Engine) -> No
 
     with migrated_engine.begin() as connection:
         connection.execute(
-            sa.text(
-                "UPDATE system_config SET value = :value WHERE key = 'feature.rag_qa'"
-            ),
+            sa.text("UPDATE system_config SET value = :value WHERE key = 'feature.rag_qa'"),
             {"value": "false"},
         )
 

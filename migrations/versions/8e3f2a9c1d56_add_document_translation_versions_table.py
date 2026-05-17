@@ -109,10 +109,6 @@ def downgrade() -> None:
         "ix_translation_versions_requested_by",
         table_name="document_translation_versions",
     )
-    op.drop_index(
-        "ix_translation_versions_status", table_name="document_translation_versions"
-    )
-    op.drop_index(
-        "ix_translation_versions_doc_id", table_name="document_translation_versions"
-    )
+    op.drop_index("ix_translation_versions_status", table_name="document_translation_versions")
+    op.drop_index("ix_translation_versions_doc_id", table_name="document_translation_versions")
     op.drop_table("document_translation_versions")

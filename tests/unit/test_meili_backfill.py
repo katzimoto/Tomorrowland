@@ -156,9 +156,7 @@ def test_changed_chunks_are_indexed_to_shadow(mock_chunk: MagicMock) -> None:
 def test_per_document_failure_increments_count(mock_chunk: MagicMock) -> None:
     mock_chunk.side_effect = [ValueError("bad data"), ["chunk for doc2"]]
     doc1 = _mock_doc_row(document_id=_DOC_ID)
-    doc2 = _mock_doc_row(
-        document_id=str(uuid.UUID("dddddddd-0000-0000-0000-000000000001"))
-    )
+    doc2 = _mock_doc_row(document_id=str(uuid.UUID("dddddddd-0000-0000-0000-000000000001")))
     engine = _make_engine([[doc1, doc2]])
     provider = _mock_provider()
 
@@ -181,12 +179,8 @@ def test_summary_counts_mixed(mock_chunk: MagicMock) -> None:
     ]
 
     doc1 = _mock_doc_row(document_id=_DOC_ID)
-    doc2 = _mock_doc_row(
-        document_id=str(uuid.UUID("dddddddd-0000-0000-0000-000000000001"))
-    )
-    doc3 = _mock_doc_row(
-        document_id=str(uuid.UUID("eeeeeeee-0000-0000-0000-000000000001"))
-    )
+    doc2 = _mock_doc_row(document_id=str(uuid.UUID("dddddddd-0000-0000-0000-000000000001")))
+    doc3 = _mock_doc_row(document_id=str(uuid.UUID("eeeeeeee-0000-0000-0000-000000000001")))
     engine = _make_engine([[doc1, doc2, doc3]])
 
     # Override the translation mock to return None for doc3
@@ -194,9 +188,7 @@ def test_summary_counts_mixed(mock_chunk: MagicMock) -> None:
 
     def execute_with_no_translation_for_doc3(stmt: Any, parameters: Any = None) -> Any:
         text = str(stmt)
-        if "FROM document_translation_versions" in text and "eeeeeeee" in str(
-            parameters
-        ):
+        if "FROM document_translation_versions" in text and "eeeeeeee" in str(parameters):
             result: MagicMock = MagicMock()
             result.one_or_none.return_value = None
             return result

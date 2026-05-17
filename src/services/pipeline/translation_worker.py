@@ -148,9 +148,7 @@ def run_translation_once(
             source_id=source_id,
             job_type="index_document",
         )
-        logger.debug(
-            "index job enqueued: worker_id=%s document_id=%s", worker_id, document_id
-        )
+        logger.debug("index job enqueued: worker_id=%s document_id=%s", worker_id, document_id)
     except Exception:
         logger.exception(
             "failed to enqueue index job: worker_id=%s error_type=EnqueueError",
@@ -185,9 +183,7 @@ def run_translation_loop(
                 ).set_to_current_time()
                 counts = job_repo.count_by_status()
                 for (status, jt), count in counts.items():
-                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(
-                        count
-                    )
+                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(count)
 
             if now - last_reap >= _REAP_INTERVAL_SECONDS:
                 reaped = job_repo.reap_stale_locks()
@@ -244,6 +240,4 @@ if __name__ == "__main__":
         doc_repo = DocumentRepository(conn)
         translator = LibreTranslateClient(base_url=settings.libretranslate_url)
 
-        run_translation_loop(
-            job_repo, doc_repo, translator, worker_id="translation-worker"
-        )
+        run_translation_loop(job_repo, doc_repo, translator, worker_id="translation-worker")

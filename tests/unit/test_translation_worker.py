@@ -29,9 +29,7 @@ class _FakeJobRepo:
         self.translated_text_updates: list[tuple[UUID, str]] = []
         self.enqueued: list[dict] = []
 
-    def claim_next(
-        self, worker_id: str, job_types: list[str] | None = None
-    ) -> dict | None:
+    def claim_next(self, worker_id: str, job_types: list[str] | None = None) -> dict | None:
         self.claimed.append(worker_id)
         return self._job
 
@@ -41,9 +39,7 @@ class _FakeJobRepo:
     def mark_succeeded(self, job_id: UUID) -> None:
         self.succeeded.append(job_id)
 
-    def mark_retry(
-        self, job_id: UUID, error: object, *, stage: str = "process"
-    ) -> None:
+    def mark_retry(self, job_id: UUID, error: object, *, stage: str = "process") -> None:
         self.retried.append(job_id)
 
     def mark_dead_letter(self, job_id: UUID, error: object) -> None:
@@ -55,9 +51,7 @@ class _FakeJobRepo:
     def update_translated_text(self, document_id: UUID, translated_text: str) -> None:
         self.translated_text_updates.append((document_id, translated_text))
 
-    def enqueue_document(
-        self, *, document_id: UUID, source_id: UUID, job_type: str
-    ) -> UUID:
+    def enqueue_document(self, *, document_id: UUID, source_id: UUID, job_type: str) -> UUID:
         self.enqueued.append(
             {"document_id": document_id, "source_id": source_id, "job_type": job_type}
         )
@@ -96,9 +90,7 @@ class _FakeTranslator:
         return self._translated
 
 
-def _make_job(
-    *, document_id: UUID | None = None, source_id: UUID | None = None
-) -> dict:
+def _make_job(*, document_id: UUID | None = None, source_id: UUID | None = None) -> dict:
     now = datetime.now(UTC)
     return {
         "id": uuid4(),

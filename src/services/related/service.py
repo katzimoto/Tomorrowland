@@ -98,9 +98,7 @@ class RelatedService:
             group_ids=group_ids,
             limit=EXPERTISE_SEARCH_LIMIT,
         )
-        matching_docs = _dedupe_results(
-            results, exclude_doc_id=None, limit=EXPERTISE_SEARCH_LIMIT
-        )
+        matching_docs = _dedupe_results(results, exclude_doc_id=None, limit=EXPERTISE_SEARCH_LIMIT)
         doc_ids = [result.document_id for result in matching_docs]
         doc_scores = {result.document_id: result.score for result in matching_docs}
 
@@ -141,9 +139,7 @@ class RelatedService:
             ):
                 continue
             subscription_query = str(subscription["query"])
-            similarity = _cosine_similarity(
-                topic_vector, self._encoder.encode(subscription_query)
-            )
+            similarity = _cosine_similarity(topic_vector, self._encoder.encode(subscription_query))
             if not _topics_match(topic, subscription_query, similarity):
                 continue
             user_id = str(subscription["user_id"])
@@ -157,9 +153,7 @@ class RelatedService:
             aggregate.subscription_count += 1
             aggregate.score += SIGNAL_WEIGHTS["subscription"] * similarity
 
-        return [
-            _expertise_response(aggregate) for aggregate in _rank_aggregates(aggregates)
-        ]
+        return [_expertise_response(aggregate) for aggregate in _rank_aggregates(aggregates)]
 
 
 def _dedupe_results(
@@ -171,14 +165,9 @@ def _dedupe_results(
     for result in results:
         if not result.document_id or result.document_id == exclude_doc_id:
             continue
-        if (
-            result.document_id not in seen
-            or result.score > seen[result.document_id].score
-        ):
+        if result.document_id not in seen or result.score > seen[result.document_id].score:
             seen[result.document_id] = result
-    return sorted(seen.values(), key=lambda item: (-item.score, item.document_id))[
-        :limit
-    ]
+    return sorted(seen.values(), key=lambda item: (-item.score, item.document_id))[:limit]
 
 
 def _rank_aggregates(

@@ -4,6 +4,8 @@ from typing import Any
 
 from services.search.models import SearchResult
 
+__all__ = ["SearchResult", "merge_results"]
+
 
 def merge_results(
     bm25_results: list[SearchResult],
