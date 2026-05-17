@@ -95,9 +95,7 @@ class IntelligenceWorker:
 
     def _summarize(self, document_id: UUID, content: str) -> None:
         """Generate and store a document summary."""
-        prompt = self._build_prompt(
-            "llm.summarization_prompt", content, MAX_SUMMARIZE_CHARS
-        )
+        prompt = self._build_prompt("llm.summarization_prompt", content, MAX_SUMMARIZE_CHARS)
         summary = self._ollama.generate(prompt)
         model = self._ollama._model
 
@@ -107,9 +105,7 @@ class IntelligenceWorker:
 
     def _extract_entities(self, document_id: UUID, content: str) -> None:
         """Extract entities and store them with document links."""
-        prompt = self._build_prompt(
-            "llm.entity_extraction_prompt", content, MAX_ENTITY_CHARS
-        )
+        prompt = self._build_prompt("llm.entity_extraction_prompt", content, MAX_ENTITY_CHARS)
         result = self._ollama.generate(prompt)
         entities = self._ollama.parse_json_array(result)
 
@@ -131,14 +127,10 @@ class IntelligenceWorker:
 
         # Update ES with entity names
         entity_names = [
-            str(e.get("name", ""))
-            for e in entities
-            if isinstance(e, dict) and e.get("name")
+            str(e.get("name", "")) for e in entities if isinstance(e, dict) and e.get("name")
         ]
         self._update_es_field(document_id, "entities", entity_names)
-        logger.info(
-            "Extracted %d entities for document_id=%s", len(entities), document_id
-        )
+        logger.info("Extracted %d entities for document_id=%s", len(entities), document_id)
 
     def _auto_tag(self, document_id: UUID, content: str) -> None:
         """Generate tags and replace existing tags for the document."""
@@ -164,9 +156,7 @@ class IntelligenceWorker:
         if not base_prompt:
             # Fallback prompts when no config source
             fallbacks: dict[str, str] = {
-                "llm.summarization_prompt": (
-                    "Summarize the following document in 3-5 sentences."
-                ),
+                "llm.summarization_prompt": ("Summarize the following document in 3-5 sentences."),
                 "llm.entity_extraction_prompt": (
                     "Extract named entities (people, organizations, locations) as a JSON array."
                 ),

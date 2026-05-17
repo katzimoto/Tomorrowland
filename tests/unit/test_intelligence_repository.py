@@ -14,7 +14,8 @@ def engine(tmp_path) -> Engine:
     db_path = tmp_path / "test.db"
     eng = create_engine(f"sqlite:///{db_path}")
     with eng.begin() as conn:
-        conn.execute(sa.text("""
+        conn.execute(
+            sa.text("""
             CREATE TABLE document_summaries (
                 document_id TEXT PRIMARY KEY,
                 summary TEXT NOT NULL,
@@ -22,30 +23,37 @@ def engine(tmp_path) -> Engine:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE entities (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 type TEXT NOT NULL,
                 UNIQUE (name, type)
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE document_entities (
                 document_id TEXT NOT NULL,
                 entity_id TEXT NOT NULL,
                 frequency INTEGER NOT NULL DEFAULT 1,
                 PRIMARY KEY (document_id, entity_id)
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE document_tags (
                 document_id TEXT NOT NULL,
                 tag TEXT NOT NULL,
                 PRIMARY KEY (document_id, tag)
             )
-        """))
+        """)
+        )
     return eng
 
 

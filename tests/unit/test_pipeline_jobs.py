@@ -14,7 +14,8 @@ from services.pipeline.jobs import PipelineJobRepository
 def engine() -> Engine:
     eng = create_engine("sqlite://", echo=False)
     with eng.begin() as conn:
-        conn.execute(sa.text("""
+        conn.execute(
+            sa.text("""
             CREATE TABLE ingestion_sources (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -26,8 +27,10 @@ def engine() -> Engine:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE documents (
                 id TEXT PRIMARY KEY,
                 source_id TEXT NOT NULL REFERENCES ingestion_sources(id),
@@ -44,8 +47,10 @@ def engine() -> Engine:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE pipeline_jobs (
                 id TEXT PRIMARY KEY,
                 document_id TEXT NOT NULL REFERENCES documents(id),
@@ -63,8 +68,10 @@ def engine() -> Engine:
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE document_payloads (
                 document_id TEXT PRIMARY KEY REFERENCES documents(id),
                 content_text TEXT,
@@ -74,7 +81,8 @@ def engine() -> Engine:
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        """))
+        """)
+        )
     return eng
 
 
@@ -83,9 +91,7 @@ def test_creates_pending_job(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -108,9 +114,7 @@ def test_creates_pending_job(engine: Engine) -> None:
         assert isinstance(job_id, UUID)
 
         row = conn.execute(
-            sa.text(
-                "SELECT status, priority, max_attempts FROM pipeline_jobs WHERE id = :id"
-            ),
+            sa.text("SELECT status, priority, max_attempts FROM pipeline_jobs WHERE id = :id"),
             {"id": job_id.hex},
         ).one()
         assert row.status == "pending"
@@ -123,9 +127,7 @@ def test_duplicate_active_returns_existing(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -156,9 +158,7 @@ def test_completed_job_allows_new_enqueue(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -194,9 +194,7 @@ def test_claims_by_priority(engine: Engine) -> None:
         doc_low = uuid4()
         doc_high = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         for d in (doc_low, doc_high):
@@ -234,9 +232,7 @@ def test_retry_not_claimable_before_run_after(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -270,9 +266,7 @@ def test_mark_succeeded_updates_status(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -315,9 +309,7 @@ def test_mark_retry_schedules_backoff(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -342,9 +334,7 @@ def test_mark_retry_schedules_backoff(engine: Engine) -> None:
         repo.mark_retry(job_id, ValueError("boom"), retry_delay_seconds=60)
 
         row = conn.execute(
-            sa.text(
-                "SELECT status, last_error, run_after FROM pipeline_jobs WHERE id = :id"
-            ),
+            sa.text("SELECT status, last_error, run_after FROM pipeline_jobs WHERE id = :id"),
             {"id": job_id.hex},
         ).one()
         assert row.status == "retry"
@@ -364,9 +354,7 @@ def test_mark_dead_letter(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -403,9 +391,7 @@ def test_payload_store_and_load(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -443,9 +429,7 @@ def test_mark_succeeded_on_non_running_is_noop(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -479,9 +463,7 @@ def test_get_payload_translated_text_is_none_by_default(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -511,9 +493,7 @@ def test_update_content_text_persists_value(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -545,9 +525,7 @@ def test_update_translated_text_persists_value(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -578,9 +556,7 @@ def test_end_to_end(engine: Engine) -> None:
         source_id = uuid4()
         document_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -598,9 +574,7 @@ def test_end_to_end(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        job_id = repo.enqueue_document(
-            document_id, source_id, content_text="full lifecycle"
-        )
+        job_id = repo.enqueue_document(document_id, source_id, content_text="full lifecycle")
 
         claimed = repo.claim_next("worker1")
         assert claimed is not None

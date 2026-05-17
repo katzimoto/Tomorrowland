@@ -71,9 +71,7 @@ class BackfillService:
 
         return summary
 
-    def _fetch_indexed_documents(
-        self, conn: Connection, offset: int
-    ) -> list[dict[str, Any]]:
+    def _fetch_indexed_documents(self, conn: Connection, offset: int) -> list[dict[str, Any]]:
         rows = conn.execute(
             sa.text("""
                 SELECT id, source_id, source, path, mime_type, title,
@@ -115,9 +113,7 @@ class BackfillService:
                 metadata=ChunkMetadata(
                     source=doc_row.get("source"),
                     mime_type=doc_row.get("mime_type"),
-                    file_name=(
-                        Path(doc_row["path"]).name if doc_row.get("path") else None
-                    ),
+                    file_name=(Path(doc_row["path"]).name if doc_row.get("path") else None),
                     language=doc_row.get("source_language"),
                 ),
                 position_kwargs={},
@@ -125,9 +121,7 @@ class BackfillService:
             for idx, chunk_text_content in enumerate(chunks)
         ]
 
-        existing = self._provider.existing_chunk_checksums(
-            str(document_id), shadow=True
-        )
+        existing = self._provider.existing_chunk_checksums(str(document_id), shadow=True)
 
         to_index: list[SearchChunkRecord] = []
         for record in records:

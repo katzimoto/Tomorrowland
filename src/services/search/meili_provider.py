@@ -165,14 +165,10 @@ class MeilisearchSearchProvider:
     def index(self, document: SearchChunkRecord, *, shadow: bool = False) -> str:
         """Add or replace a single chunk record. Returns the task UID."""
         name = SHADOW_INDEX_NAME if shadow else INDEX_NAME
-        task = self._client.index(name).add_documents(
-            [document.model_dump()], primary_key="id"
-        )
+        task = self._client.index(name).add_documents([document.model_dump()], primary_key="id")
         return str(task.task_uid)
 
-    def index_batch(
-        self, documents: list[SearchChunkRecord], *, shadow: bool = False
-    ) -> str:
+    def index_batch(self, documents: list[SearchChunkRecord], *, shadow: bool = False) -> str:
         """Add or replace a batch of chunk records. Returns the task UID.
 
         Prefer this over repeated index() calls — Meilisearch processes a
@@ -228,9 +224,7 @@ class MeilisearchSearchProvider:
     # Stale chunk detection
     # ------------------------------------------------------------------
 
-    def existing_chunk_checksums(
-        self, document_id: str, *, shadow: bool = False
-    ) -> dict[str, str]:
+    def existing_chunk_checksums(self, document_id: str, *, shadow: bool = False) -> dict[str, str]:
         """Return {chunk_id: contentChecksum} for all indexed chunks of a document.
 
         Used to skip unchanged chunks during reindex of a single document.
@@ -250,9 +244,7 @@ class MeilisearchSearchProvider:
                 "attributesToRetrieve": ["id", "content_checksum"],
             },
         )
-        return {
-            hit["id"]: hit.get("content_checksum", "") for hit in result.get("hits", [])
-        }
+        return {hit["id"]: hit.get("content_checksum", "") for hit in result.get("hits", [])}
 
     # ------------------------------------------------------------------
     # Metrics
@@ -288,7 +280,7 @@ class MeilisearchSearchProvider:
             return []
 
         acl_filter = build_permission_filter(user)
-        user_filter = []  # _build_user_filter(query.filters)
+        user_filter: str = ""  # _build_user_filter(query.filters)
         combined_filter = compose_filters(acl_filter, user_filter)
 
         if not user.groups:
@@ -327,7 +319,7 @@ class MeilisearchSearchProvider:
         results = [
             SearchResult(
                 document_id=i.document_id,
-                score=i.score,
+                score=i.score or 0.0,
                 title=i.title,
                 chunk_text=i.snippet,
                 metadata=i.metadata.model_dump(),

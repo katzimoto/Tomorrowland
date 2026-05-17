@@ -19,9 +19,7 @@ TEST_JWT_SECRET = "x" * 32
 
 
 def _admin_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "admin@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
     assert login.status_code == 200
     return str(login.json()["access_token"])
 
@@ -441,9 +439,7 @@ def test_cannot_comment_on_inaccessible_doc(migrated_engine: Engine) -> None:
     document_id = _create_doc(migrated_engine, "admins")
 
     # Log in as regular user in "users" group
-    login = client.post(
-        "/auth/login", json={"email": "user@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
     assert login.status_code == 200
     user_token = str(login.json()["access_token"])
 

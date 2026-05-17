@@ -22,17 +22,13 @@ TEST_JWT_SECRET = "x" * 32
 
 
 def _admin_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "admin@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
     assert login.status_code == 200
     return login.json()["access_token"]
 
 
 def _user_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "user@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
     assert login.status_code == 200
     return login.json()["access_token"]
 
@@ -89,9 +85,7 @@ def test_search_returns_matching_documents(
 ) -> None:
     _setup_users(migrated_engine)
 
-    source_id, document_id = _create_source_with_doc(
-        migrated_engine, "users", "Hello Doc"
-    )
+    source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_es.search.return_value = [
@@ -204,8 +198,7 @@ def test_search_pagination(
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_es.search.return_value = [
-        SearchResult(document_id=f"doc-{i}", score=float(i), title=f"Doc {i}")
-        for i in range(5)
+        SearchResult(document_id=f"doc-{i}", score=float(i), title=f"Doc {i}") for i in range(5)
     ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = []
@@ -237,9 +230,7 @@ def test_preview_returns_authorized_document(
 ) -> None:
     _setup_users(migrated_engine)
 
-    _source_id, document_id = _create_source_with_doc(
-        migrated_engine, "users", "Preview Doc"
-    )
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Preview Doc")
 
     client = TestClient(
         create_app(
@@ -249,9 +240,7 @@ def test_preview_returns_authorized_document(
     )
     token = _user_token(client)
 
-    response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -292,9 +281,7 @@ def test_preview_forbids_unauthorized_document(
     )
     token = _user_token(client)
 
-    response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 403
 
@@ -341,9 +328,7 @@ def test_download_returns_file_bytes(
     )
     token = _user_token(client)
 
-    response = client.get(
-        f"/download/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/download/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     assert response.content == b"Hello world"
@@ -392,9 +377,7 @@ def test_download_blocks_path_traversal(
     )
     token = _user_token(client)
 
-    response = client.get(
-        f"/download/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/download/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 400
 
@@ -412,9 +395,7 @@ def test_preview_404_for_missing_document(
     )
     token = _user_token(client)
 
-    response = client.get(
-        f"/preview/{uuid4()}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{uuid4()}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 404
 
@@ -432,9 +413,7 @@ def test_download_404_for_missing_document(
     )
     token = _user_token(client)
 
-    response = client.get(
-        f"/download/{uuid4()}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/download/{uuid4()}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 404
 
@@ -488,9 +467,7 @@ def test_search_encoder_failure_returns_bm25_only(
     """When encoder fails, search should still return BM25 results."""
     _setup_users(migrated_engine)
 
-    source_id, document_id = _create_source_with_doc(
-        migrated_engine, "users", "Hello Doc"
-    )
+    source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_es.search.return_value = [
@@ -534,9 +511,7 @@ def test_search_qdrant_failure_returns_bm25_only(
     """When Qdrant fails, search should still return BM25 results."""
     _setup_users(migrated_engine)
 
-    source_id, document_id = _create_source_with_doc(
-        migrated_engine, "users", "Hello Doc"
-    )
+    source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_es.search.return_value = [
@@ -642,9 +617,7 @@ def test_related_documents_degraded_on_encoder_failure(
         def encode(self, text: str) -> list[float]:
             raise RuntimeError("Ollama is down")
 
-    _source_id, document_id = _create_source_with_doc(
-        migrated_engine, "users", "Related Doc"
-    )
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Related Doc")
 
     # Create a real file for extraction
     import tempfile

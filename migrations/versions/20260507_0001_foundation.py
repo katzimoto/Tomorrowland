@@ -40,9 +40,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
         sa.Column("last_login", sa.DateTime(timezone=True), nullable=True),
-        sa.CheckConstraint(
-            "auth_source IN ('local', 'ldap')", name="ck_users_auth_source"
-        ),
+        sa.CheckConstraint("auth_source IN ('local', 'ldap')", name="ck_users_auth_source"),
         sa.UniqueConstraint("email", name="uq_users_email"),
     )
 
@@ -132,9 +130,7 @@ def upgrade() -> None:
         sa.Column("target_language", sa.Text(), nullable=False, server_default="en"),
         sa.Column("translation_quality", sa.Text(), nullable=True),
         sa.Column("status", sa.Text(), nullable=False, server_default="pending"),
-        sa.Column(
-            "metadata", sa.JSON(), nullable=False, server_default=sa.text("'{}'")
-        ),
+        sa.Column("metadata", sa.JSON(), nullable=False, server_default=sa.text("'{}'")),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -159,9 +155,7 @@ def upgrade() -> None:
             "status IN ('pending', 'indexed', 'deleted', 'failed')",
             name="ck_documents_status",
         ),
-        sa.UniqueConstraint(
-            "source_id", "external_id", name="uq_documents_source_external"
-        ),
+        sa.UniqueConstraint("source_id", "external_id", name="uq_documents_source_external"),
     )
     op.create_index("ix_documents_source_id", "documents", ["source_id"])
     op.create_index("ix_documents_status", "documents", ["status"])

@@ -96,12 +96,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "uq_alert_notifications_subscription_doc", table_name="alert_notifications"
-    )
-    op.drop_index(
-        "ix_alert_notifications_user_read_created", table_name="alert_notifications"
-    )
+    op.drop_index("uq_alert_notifications_subscription_doc", table_name="alert_notifications")
+    op.drop_index("ix_alert_notifications_user_read_created", table_name="alert_notifications")
     op.drop_table("alert_notifications")
     op.drop_index("ix_alert_subscriptions_user_id", table_name="alert_subscriptions")
     op.drop_table("alert_subscriptions")

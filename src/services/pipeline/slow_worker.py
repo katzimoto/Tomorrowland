@@ -102,9 +102,7 @@ class SlowWorker:
             text = self._extractor.extract(Path(doc.path), doc.mime_type)
 
             # 2. Translate
-            translated = self._translator.translate(
-                text, source_lang=doc.source_language
-            )
+            translated = self._translator.translate(text, source_lang=doc.source_language)
 
             # 3. Store translated text on version
             self._version_repo.update_version_status(

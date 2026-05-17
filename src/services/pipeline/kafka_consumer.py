@@ -89,9 +89,7 @@ class DatabaseDeadLetterSink:
                     """),
                 {
                     "id": db_uuid(uuid4()),
-                    "document_id": (
-                        db_uuid(document_id) if document_id is not None else None
-                    ),
+                    "document_id": (db_uuid(document_id) if document_id is not None else None),
                     "error_message": error_message,
                 },
             )
@@ -214,9 +212,7 @@ class NiFiKafkaDrain:
                 raise ValueError("nifi_source_disabled")
             return row
 
-    def _create_document(
-        self, source_row: RowMapping, item: ConnectorDocument
-    ) -> UUID | None:
+    def _create_document(self, source_row: RowMapping, item: ConnectorDocument) -> UUID | None:
         with self._engine.begin() as connection:
             existing_id = connection.execute(
                 sa.text("""
@@ -235,8 +231,7 @@ class NiFiKafkaDrain:
                 mime_type=item.mime_type,
                 path=item.path,
                 title=item.title,
-                source_language=item.source_language
-                or source_row.get("source_language"),
+                source_language=item.source_language or source_row.get("source_language"),
                 sha256=item.sha256,
                 metadata=item.metadata,
             )
@@ -244,9 +239,7 @@ class NiFiKafkaDrain:
 
 
 def _source_row_by_key(connection: Connection, source_key: str) -> RowMapping | None:
-    rows = connection.execute(
-        sa.text("SELECT * FROM ingestion_sources WHERE type = 'nifi'")
-    )
+    rows = connection.execute(sa.text("SELECT * FROM ingestion_sources WHERE type = 'nifi'"))
     for row in rows.mappings():
         config = _parse_config(row.get("config"))
         if config.get("source_key") == source_key or row["name"] == source_key:
@@ -254,9 +247,7 @@ def _source_row_by_key(connection: Connection, source_key: str) -> RowMapping | 
     return None
 
 
-def _connector_config(
-    source_row: RowMapping, event: NiFiEventEnvelope
-) -> dict[str, Any]:
+def _connector_config(source_row: RowMapping, event: NiFiEventEnvelope) -> dict[str, Any]:
     config = _parse_config(source_row.get("config"))
     config["source_id"] = str(event.source_id or to_uuid(source_row["id"]))
     if event.source_key is not None:
@@ -284,9 +275,7 @@ def _safe_dlq_message(reason: DLQReason, event: NiFiEventEnvelope | None) -> str
 
 def _safe_token(value: object) -> str:
     text = str(value).lower()
-    return "".join(
-        char if char.isalnum() or char in {"_", "-"} else "_" for char in text
-    )[:96]
+    return "".join(char if char.isalnum() or char in {"_", "-"} else "_" for char in text)[:96]
 
 
 def _classified_reason(exc: BaseException) -> str:

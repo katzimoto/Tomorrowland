@@ -80,9 +80,7 @@ class PreviewService:
 
         # Get global view count
         view_count = self._connection.execute(
-            sa.text(
-                "SELECT COUNT(*) FROM document_views WHERE document_id = :document_id"
-            ),
+            sa.text("SELECT COUNT(*) FROM document_views WHERE document_id = :document_id"),
             {"document_id": db_uuid(document_id)},
         ).scalar_one()
 
@@ -137,9 +135,7 @@ class PreviewService:
                 .mappings()
                 .first()
             )
-            if version_row is None or version_row["document_id"] != db_uuid(
-                document_id
-            ):
+            if version_row is None or version_row["document_id"] != db_uuid(document_id):
                 version_id = None
 
         if version_id is None:
@@ -221,9 +217,7 @@ class PreviewService:
 
         threshold_row = (
             self._connection.execute(
-                sa.text(
-                    "SELECT value FROM system_config WHERE key = 'auto_enrich.threshold'"
-                ),
+                sa.text("SELECT value FROM system_config WHERE key = 'auto_enrich.threshold'"),
             )
             .mappings()
             .first()
@@ -306,12 +300,8 @@ class PreviewService:
     def _sanitize_html(raw: str) -> str:
         """Strip dangerous tags and attributes from HTML."""
         # Remove script and style tags with content
-        raw = re.sub(
-            r"<script[^>]*>.*?</script>", "", raw, flags=re.DOTALL | re.IGNORECASE
-        )
-        raw = re.sub(
-            r"<style[^>]*>.*?</style>", "", raw, flags=re.DOTALL | re.IGNORECASE
-        )
+        raw = re.sub(r"<script[^>]*>.*?</script>", "", raw, flags=re.DOTALL | re.IGNORECASE)
+        raw = re.sub(r"<style[^>]*>.*?</style>", "", raw, flags=re.DOTALL | re.IGNORECASE)
         # Remove event handlers
         raw = re.sub(r"\s*on\w+\s*=\s*['\"][^'\"]*['\"]", "", raw, flags=re.IGNORECASE)
         raw = re.sub(r"\s*on\w+\s*=\s*[^\s>]+", "", raw, flags=re.IGNORECASE)

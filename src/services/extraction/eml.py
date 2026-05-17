@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import email
 from email import policy
-from email.header import decode_header
 from email.errors import MessageError
+from email.header import decode_header
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -34,9 +34,7 @@ class EmlExtractor:
                     decoded = []
                     for fragment, enc in parts:
                         if isinstance(fragment, bytes):
-                            decoded.append(
-                                fragment.decode(enc or "utf-8", errors="replace")
-                            )
+                            decoded.append(fragment.decode(enc or "utf-8", errors="replace"))
                         else:
                             decoded.append(fragment)
                     return "".join(decoded)
@@ -67,9 +65,7 @@ class EmlExtractor:
                     continue
 
                 ctype = part.get_content_type()
-                disposition = (
-                    part.get_content_disposition()
-                )  # 'inline', 'attachment', or None
+                disposition = part.get_content_disposition()  # 'inline', 'attachment', or None
                 filename = part.get_filename()
 
                 try:
@@ -86,11 +82,7 @@ class EmlExtractor:
 
                 if filename or disposition == "attachment":
                     raw_bytes = part.get_payload(decode=True) or b""
-                    size = (
-                        len(raw_bytes)
-                        if isinstance(raw_bytes, (bytes, bytearray))
-                        else 0
-                    )
+                    size = len(raw_bytes) if isinstance(raw_bytes, (bytes, bytearray)) else 0
                     fname = filename or "(unknown)"
                     attachments.append(f"{fname} ({ctype}, {size} bytes)")
                     continue
@@ -100,9 +92,7 @@ class EmlExtractor:
                         body_parts.append(payload)
                     elif isinstance(payload, (bytes, bytearray)):
                         body_parts.append(
-                            payload.decode(
-                                part.get_content_charset("utf-8"), errors="replace"
-                            )
+                            payload.decode(part.get_content_charset("utf-8"), errors="replace")
                         )
                 elif ctype == "text/html":
                     html_text = ""

@@ -15,17 +15,13 @@ TEST_JWT_SECRET = "x" * 32
 
 
 def _admin_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "admin@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
     assert login.status_code == 200
     return login.json()["access_token"]
 
 
 def _user_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "user@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
     assert login.status_code == 200
     return login.json()["access_token"]
 
@@ -86,9 +82,7 @@ def test_preview_returns_snippet_and_view_count(
     test_file = files_root / "test.txt"
     test_file.write_text("Hello world, this is a test document for preview.")
 
-    _source_id, document_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(test_file)
-    )
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     client = TestClient(
         create_app(
@@ -98,9 +92,7 @@ def test_preview_returns_snippet_and_view_count(
     )
     token = _user_token(client)
 
-    response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -150,16 +142,12 @@ def test_preview_deduplicates_views(
     token = _user_token(client)
 
     # First preview
-    response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     assert response.json()["view_count"] == 1
 
     # Second preview by same user — should not increment
-    response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     assert response.json()["view_count"] == 1
 
@@ -184,9 +172,7 @@ def test_preview_truncates_long_text(
     long_text = "A" * 3000
     test_file.write_text(long_text)
 
-    _source_id, document_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(test_file)
-    )
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     client = TestClient(
         create_app(
@@ -196,9 +182,7 @@ def test_preview_truncates_long_text(
     )
     token = _user_token(client)
 
-    response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -230,9 +214,7 @@ def test_preview_sanitizes_html(
     )
     token = _user_token(client)
 
-    response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -272,9 +254,7 @@ def test_preview_archive_lists_filenames(
     )
     token = _user_token(client)
 
-    response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -315,9 +295,7 @@ def test_preview_tar_archive_lists_filenames(
     )
     token = _user_token(client)
 
-    response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -349,9 +327,7 @@ def test_me_activity_returns_view_history(
     token = _user_token(client)
 
     # Preview the document
-    response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
 
     # Get activity
@@ -426,9 +402,7 @@ def test_preview_returns_empty_snippet_for_missing_file(
     )
     token = _user_token(client)
 
-    response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()

@@ -113,7 +113,7 @@ class QdrantSearchClient:
             must_conditions.append(
                 FieldCondition(key="document_id", match=MatchValue(value=document_id))
             )
-        query_filter = Filter(must=must_conditions) if must_conditions else None
+        query_filter = Filter(must=list(must_conditions)) if must_conditions else None
 
         response = self._client.query_points(
             collection_name=self._collection_name,
@@ -141,11 +141,7 @@ class QdrantSearchClient:
         self._client.delete(
             collection_name=self._collection_name,
             points_selector=Filter(
-                must=[
-                    FieldCondition(
-                        key="document_id", match=MatchValue(value=document_id)
-                    )
-                ]
+                must=[FieldCondition(key="document_id", match=MatchValue(value=document_id))]
             ),
         )
 

@@ -34,9 +34,7 @@ class _FakeJobRepo:
     def mark_succeeded(self, job_id: UUID) -> None:
         self.succeeded = job_id
 
-    def mark_retry(
-        self, job_id: UUID, error: str | BaseException, stage: str = "process"
-    ) -> None:
+    def mark_retry(self, job_id: UUID, error: str | BaseException, stage: str = "process") -> None:
         self.retried = (job_id, error, stage)
 
     def mark_dead_letter(self, job_id: UUID, error: str | BaseException) -> None:
@@ -48,9 +46,7 @@ class _FakeJobRepo:
     def update_translated_text(self, document_id: UUID, translated_text: str) -> None:
         self.translated_text_updates.append((document_id, translated_text))
 
-    def enqueue_document(
-        self, *, document_id: UUID, source_id: UUID, job_type: str
-    ) -> UUID:
+    def enqueue_document(self, *, document_id: UUID, source_id: UUID, job_type: str) -> UUID:
         from uuid import uuid4
 
         job_id = uuid4()
@@ -177,9 +173,7 @@ class TestRunOnce:
         }
         worker = MagicMock()
         run_once(repo, worker)
-        worker.process_document.assert_called_once_with(
-            document_id, pre_extracted_text=None
-        )
+        worker.process_document.assert_called_once_with(document_id, pre_extracted_text=None)
 
     def test_persists_extracted_and_translated_text_after_successful_process_document(
         self,

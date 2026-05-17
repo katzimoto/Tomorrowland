@@ -40,9 +40,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.UniqueConstraint(
-            "document_id", "user_id", name="uq_document_views_doc_user"
-        ),
+        sa.UniqueConstraint("document_id", "user_id", name="uq_document_views_doc_user"),
     )
     op.create_index("ix_document_views_doc_id", "document_views", ["document_id"])
     op.create_index("ix_document_views_user_id", "document_views", ["user_id"])

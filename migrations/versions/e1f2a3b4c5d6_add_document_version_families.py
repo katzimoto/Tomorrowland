@@ -121,7 +121,7 @@ def upgrade() -> None:
                 {
                     "family_id": family_id,
                     "version_number": i,
-                    "is_latest": True if str(doc_id_val) == latest_doc_id else False,
+                    "is_latest": str(doc_id_val) == latest_doc_id,
                     "document_id": str(doc_id_val),
                 },
             )

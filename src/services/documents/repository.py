@@ -191,9 +191,7 @@ class DocumentRepository:
     def list_pending_enrichment(self) -> list[DocumentRow]:
         """List documents queued for high-quality translation."""
         rows = self._connection.execute(
-            sa.text(
-                "SELECT * FROM documents WHERE translation_quality = 'pending_high'"
-            ),
+            sa.text("SELECT * FROM documents WHERE translation_quality = 'pending_high'"),
         ).mappings()
         return [self._row_to_model(row) for row in rows]
 
@@ -358,9 +356,7 @@ class DocumentRepository:
             translation_quality=row["translation_quality"],
             status=cast("DocumentStatus", str(row["status"])),
             content_sha256=row.get("content_sha256"),
-            version_family_id=(
-                to_uuid(version_family_id_raw) if version_family_id_raw else None
-            ),
+            version_family_id=(to_uuid(version_family_id_raw) if version_family_id_raw else None),
             version_number=int(row.get("version_number") or 1),
             is_latest=bool(row.get("is_latest", True)),
             metadata=metadata,
@@ -411,9 +407,7 @@ class TranslationVersionRepository:
                     "quality": quality,
                     "request_type": request_type,
                     "target_language": target_language,
-                    "requested_by_id": (
-                        db_uuid(requested_by_id) if requested_by_id else None
-                    ),
+                    "requested_by_id": (db_uuid(requested_by_id) if requested_by_id else None),
                     "request_note": request_note,
                 },
             )

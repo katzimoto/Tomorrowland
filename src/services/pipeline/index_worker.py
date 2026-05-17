@@ -71,12 +71,8 @@ def run_index_once(
 
         payload = job_repo.get_payload(document_id)
         content_original = (payload["content_text"] if payload else None) or ""
-        content_english = (
-            payload["translated_text"] if payload else None
-        ) or content_original
-        translation_quality: str | None = (
-            "fast" if content_english != content_original else None
-        )
+        content_english = (payload["translated_text"] if payload else None) or content_original
+        translation_quality: str | None = "fast" if content_english != content_original else None
 
         es_client.index_document(
             str(document_id),
@@ -171,9 +167,7 @@ def run_index_once(
             source_id=source_id,
             job_type="vector_index_document",
         )
-        logger.debug(
-            "vector job enqueued: worker_id=%s document_id=%s", worker_id, document_id
-        )
+        logger.debug("vector job enqueued: worker_id=%s document_id=%s", worker_id, document_id)
     except Exception:
         logger.exception(
             "failed to enqueue vector job: worker_id=%s error_type=EnqueueError",
@@ -208,9 +202,7 @@ def run_index_loop(
                 ).set_to_current_time()
                 counts = job_repo.count_by_status()
                 for (status, jt), count in counts.items():
-                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(
-                        count
-                    )
+                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(count)
 
             if now - last_reap >= _REAP_INTERVAL_SECONDS:
                 reaped = job_repo.reap_stale_locks()

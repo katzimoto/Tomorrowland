@@ -126,9 +126,7 @@ def test_subscription_feature_flag_disabled(migrated_engine: Engine) -> None:
     )
     token = _token(client, "user@example.com")
 
-    response = client.get(
-        "/subscriptions", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get("/subscriptions", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 404
 
@@ -175,9 +173,7 @@ def test_alert_trigger_creates_access_filtered_notification(
     assert triggered.status_code == 200
     assert triggered.json()["notifications_created"] == 1
 
-    notifications = client.get(
-        "/notifications", headers={"Authorization": f"Bearer {user_token}"}
-    )
+    notifications = client.get("/notifications", headers={"Authorization": f"Bearer {user_token}"})
     assert notifications.status_code == 200
     assert len(notifications.json()) == 1
     notification = notifications.json()[0]
@@ -225,21 +221,14 @@ def test_mark_notification_read(migrated_engine: Engine, tmp_path: Path) -> None
     assert response.status_code == 200
     assert response.json()["read"] is True
     assert (
-        client.get(
-            "/notifications", headers={"Authorization": f"Bearer {user_token}"}
-        ).json()
-        == []
+        client.get("/notifications", headers={"Authorization": f"Bearer {user_token}"}).json() == []
     )
 
 
 def test_migration_creates_alert_tables(migrated_engine: Engine) -> None:
     inspector = sa.inspect(migrated_engine)
 
-    assert {"alert_subscriptions", "alert_notifications"} <= set(
-        inspector.get_table_names()
-    )
-    notification_indexes = {
-        index["name"] for index in inspector.get_indexes("alert_notifications")
-    }
+    assert {"alert_subscriptions", "alert_notifications"} <= set(inspector.get_table_names())
+    notification_indexes = {index["name"] for index in inspector.get_indexes("alert_notifications")}
     assert "ix_alert_notifications_user_read_created" in notification_indexes
     assert "uq_alert_notifications_subscription_doc" in notification_indexes

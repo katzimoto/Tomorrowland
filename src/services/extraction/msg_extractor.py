@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from html.parser import HTMLParser
 from pathlib import Path
 
 import extract_msg
-from html.parser import HTMLParser
 
 
 class MsgExtractor:
@@ -87,7 +87,7 @@ class MsgExtractor:
                 try:
                     if isinstance(raw, (bytes, bytearray)):
                         size = len(raw)
-                    elif hasattr(raw, "read"):
+                    elif raw is not None and hasattr(raw, "read"):
                         pos = raw.tell()
                         raw.seek(0, 2)
                         size = raw.tell()

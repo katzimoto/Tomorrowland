@@ -6,9 +6,7 @@ from services.search.hybrid import SearchResult, merge_results
 
 
 def test_merge_empty_results() -> None:
-    merged = merge_results(
-        bm25_results=[], vector_results=[], vector_weight=0.5, bm25_weight=0.5
-    )
+    merged = merge_results(bm25_results=[], vector_results=[], vector_weight=0.5, bm25_weight=0.5)
 
     assert merged == []
 
@@ -18,9 +16,7 @@ def test_merge_bm25_only() -> None:
         SearchResult(document_id="doc-1", score=1.5),
         SearchResult(document_id="doc-2", score=1.2),
     ]
-    merged = merge_results(
-        bm25_results=bm25, vector_results=[], vector_weight=0.5, bm25_weight=0.5
-    )
+    merged = merge_results(bm25_results=bm25, vector_results=[], vector_weight=0.5, bm25_weight=0.5)
 
     assert len(merged) == 2
     assert merged[0].document_id == "doc-1"
@@ -106,15 +102,9 @@ def test_merge_tie_breaking_by_doc_id() -> None:
 
 
 def test_merge_preserves_payload_fields() -> None:
-    bm25 = [
-        SearchResult(
-            document_id="doc-1", score=1.0, title="Title 1", chunk_text="chunk 1"
-        )
-    ]
+    bm25 = [SearchResult(document_id="doc-1", score=1.0, title="Title 1", chunk_text="chunk 1")]
     vector = [
-        SearchResult(
-            document_id="doc-1", score=0.9, title="Title 1 V", chunk_text="chunk 1 V"
-        )
+        SearchResult(document_id="doc-1", score=0.9, title="Title 1 V", chunk_text="chunk 1 V")
     ]
 
     merged = merge_results(

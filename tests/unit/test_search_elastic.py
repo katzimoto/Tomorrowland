@@ -202,9 +202,7 @@ def test_create_index_has_autocomplete_subfields() -> None:
         "filename",
         "content_original",
     ):
-        assert (
-            "autocomplete" in props[field]["fields"]
-        ), f"{field} missing .autocomplete subfield"
+        assert "autocomplete" in props[field]["fields"], f"{field} missing .autocomplete subfield"
         subfield = props[field]["fields"]["autocomplete"]
         assert subfield["analyzer"] == "autocomplete_index"
         assert subfield["search_analyzer"] == "autocomplete_search"

@@ -39,9 +39,7 @@ def _setup_admin(engine: Engine) -> None:
 
 
 def _admin_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "admin@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
     assert login.status_code == 200
     return str(login.json()["access_token"])
 
@@ -68,23 +66,18 @@ def test_connector_types_includes_smb() -> None:
     assert "smb" in types
     assert types["smb"]["label"] == "SMB"
     assert any(
-        field["key"] == "password" and field["sensitive"]
-        for field in types["smb"]["fields"]
+        field["key"] == "password" and field["sensitive"] for field in types["smb"]["fields"]
     )
 
 
 def test_admin_connector_types_endpoint_includes_smb(migrated_engine: Engine) -> None:
     _setup_admin(migrated_engine)
     client = TestClient(
-        create_app(
-            migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET)
-        )
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
     )
     token = _admin_token(client)
 
-    response = client.get(
-        "/admin/connector-types", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get("/admin/connector-types", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     assert "smb" in {item["type"] for item in response.json()}
@@ -93,9 +86,7 @@ def test_admin_connector_types_endpoint_includes_smb(migrated_engine: Engine) ->
 def test_admin_source_creation_accepts_smb(migrated_engine: Engine) -> None:
     _setup_admin(migrated_engine)
     client = TestClient(
-        create_app(
-            migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET)
-        )
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
     )
     token = _admin_token(client)
 
@@ -137,9 +128,7 @@ def test_admin_source_languages_endpoint_returns_configured_languages(
     client = TestClient(create_app(migrated_engine, settings))
     token = _admin_token(client)
 
-    response = client.get(
-        "/admin/source-languages", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get("/admin/source-languages", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     assert response.json() == ["en", "he", "fr"]
@@ -150,15 +139,11 @@ def test_admin_source_languages_endpoint_default_includes_major_languages(
 ) -> None:
     _setup_admin(migrated_engine)
     client = TestClient(
-        create_app(
-            migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET)
-        )
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
     )
     token = _admin_token(client)
 
-    response = client.get(
-        "/admin/source-languages", headers={"Authorization": f"Bearer {token}"}
-    )
+    response = client.get("/admin/source-languages", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
