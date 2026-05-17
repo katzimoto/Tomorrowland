@@ -86,19 +86,25 @@ def run_vector_once(
         qdrant_chunks: list[dict[str, Any]] = []
         for idx, chunk_text_content in enumerate(chunks):
             vector = encoder.encode(chunk_text_content)
-            qdrant_chunks.append(
-                {
-                    "chunk_id": f"{document_id}-{idx}",
-                    "document_id": str(document_id),
-                    "group_id": allowed_group_ids,
-                    "chunk_index": idx,
-                    "text": chunk_text_content,
-                    "vector": vector,
-                }
-            )
+            chunk_entry: dict[str, Any] = {
+                "chunk_id": f"{document_id}-{idx}",
+                "document_id": str(document_id),
+                "group_id": allowed_group_ids,
+                "chunk_index": idx,
+                "text": chunk_text_content,
+                "vector": vector,
+                "source_id": str(source_id),
+            }
+            if doc.title:
+                chunk_entry["title"] = doc.title
+            if doc.source_language:
+                chunk_entry["source_language"] = doc.source_language
+            qdrant_chunks.append(chunk_entry)
 
         if qdrant_chunks:
-            qdrant.upsert_chunks(qdrant_chunks)
+            # Delete stale chunks from previous indexing runs before upserting
+            # so re-indexed documents with fewer chunks don't leave orphaned points.
+            qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
 
     except Exception as exc:
         elapsed = time.monotonic() - start

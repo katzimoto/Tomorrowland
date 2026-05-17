@@ -92,6 +92,8 @@ def qa(
                 question=body.question,
                 group_ids=group_ids,
                 top_k=body.top_k,
+                document_id=body.document_id,
+                allow_all=user.is_admin,
             )
         except Exception as exc:
             logger.warning(
@@ -116,6 +118,8 @@ def qa(
                     "doc_title": c.doc_title,
                     "chunk_text": c.chunk_text,
                     "score": c.score,
+                    "chunk_index": c.chunk_index,
+                    "source_id": c.source_id,
                 }
                 for c in result.citations
             ],

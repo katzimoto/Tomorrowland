@@ -47,6 +47,7 @@ class RagService:
         group_ids: list[str],
         top_k: int = 5,
         document_id: str | None = None,
+        allow_all: bool = False,
     ) -> AnswerResponse:
         """Answer a question using RAG.
 
@@ -63,7 +64,9 @@ class RagService:
         request_start = time.perf_counter()
         # 1. Retrieve relevant chunks
         phase_start = time.perf_counter()
-        chunks = self._retrieve_chunks(question, group_ids, top_k, document_id=document_id)
+        chunks = self._retrieve_chunks(
+            question, group_ids, top_k, document_id=document_id, allow_all=allow_all
+        )
         if metrics is not None:
             metrics.rag_duration_seconds.labels("retrieval").observe(
                 time.perf_counter() - phase_start
@@ -116,6 +119,8 @@ class RagService:
                 doc_title=c.get("doc_title"),
                 chunk_text=c["chunk_text"],
                 score=c["score"],
+                chunk_index=c.get("chunk_index"),
+                source_id=c.get("source_id"),
             )
             for c in chunks
         ]
@@ -139,45 +144,70 @@ class RagService:
         group_ids: list[str],
         top_k: int,
         document_id: str | None = None,
+        allow_all: bool = False,
     ) -> list[dict[str, Any]]:
-        """Retrieve top-K chunks from Qdrant filtered by group_ids."""
+        """Retrieve top-K chunks from Qdrant filtered by group_ids.
+
+        Deduplication is performed at the chunk level (by chunk_id) so all
+        relevant chunks from a document are preserved, not just the highest
+        scorer per document.
+        """
         query_vector = self._encoder.encode(question)
         results = self._qdrant.search(
             vector=query_vector,
             group_ids=group_ids,
             limit=top_k,
             document_id=document_id,
+            allow_all=allow_all,
         )
 
-        # Deduplicate by document_id (keep highest score)
-        seen: dict[str, dict[str, Any]] = {}
+        # Deduplicate by chunk_id (from payload metadata) to avoid duplicate
+        # chunks while preserving all relevant chunks across documents.
+        seen_chunk_ids: set[str] = set()
+        unique_results = []
         for r in results:
-            document_id = r.document_id
-            if document_id not in seen or r.score > seen[document_id]["score"]:
-                seen[document_id] = {
-                    "document_id": document_id,
-                    "chunk_text": r.chunk_text or "",
-                    "score": r.score,
-                    "doc_title": None,
-                }
+            chunk_id = (r.metadata or {}).get("chunk_id") or f"{r.document_id}-unknown"
+            if chunk_id not in seen_chunk_ids:
+                seen_chunk_ids.add(chunk_id)
+                unique_results.append(r)
 
-        # Look up doc titles
+        # Look up doc titles once, keyed by document_id
         doc_repo = DocumentRepository(self._connection)
-        for document_id in seen:
-            doc = doc_repo.get_by_id(UUID(document_id))
-            if doc:
-                seen[document_id]["doc_title"] = doc.title
+        title_cache: dict[str, str | None] = {}
+        for r in unique_results:
+            if r.document_id not in title_cache:
+                doc = doc_repo.get_by_id(UUID(r.document_id))
+                title_cache[r.document_id] = doc.title if doc else None
 
-        # Return sorted by score descending
-        return sorted(seen.values(), key=lambda c: c["score"], reverse=True)
+        return [
+            {
+                "document_id": r.document_id,
+                "chunk_id": (r.metadata or {}).get("chunk_id"),
+                "chunk_index": (r.metadata or {}).get("chunk_index"),
+                "chunk_text": r.chunk_text or "",
+                "score": r.score,
+                "doc_title": title_cache.get(r.document_id),
+                "source_id": (r.metadata or {}).get("source_id"),
+                "source_language": (r.metadata or {}).get("source_language"),
+            }
+            for r in unique_results
+        ]
+
+    _MAX_CONTEXT_WORDS = 2_000
 
     def _assemble_context(self, chunks: list[dict[str, Any]]) -> str:
-        """Build a context string from retrieved chunks."""
+        """Build a context string from retrieved chunks, bounded by word count."""
         passages: list[str] = []
+        total_words = 0
         for i, chunk in enumerate(chunks, 1):
             title = chunk.get("doc_title") or "Untitled"
             text = chunk["chunk_text"]
-            passages.append(f"[{i}] {title}:\n{text}")
+            passage = f"[{i}] {title}:\n{text}"
+            passage_words = len(passage.split())
+            if total_words + passage_words > self._MAX_CONTEXT_WORDS and passages:
+                break
+            passages.append(passage)
+            total_words += passage_words
         return "\n\n".join(passages)
 
     def _build_prompt(self, question: str, context: str) -> str:

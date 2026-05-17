@@ -82,10 +82,13 @@ class _FakeQdrant:
         self.fail = fail
         self.calls: list[list[dict[str, object]]] = []
 
-    def upsert_chunks(self, chunks: list[dict[str, object]]) -> None:
+    def upsert_chunks(self, chunks: list[dict[str, object]], delete_existing: bool = False) -> None:
         self.calls.append(chunks)
         if self.fail:
             raise RuntimeError("qdrant_unavailable")
+
+    def delete_by_doc_id(self, document_id: str) -> None:
+        pass
 
 
 class _FakeMeili:

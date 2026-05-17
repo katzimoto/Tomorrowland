@@ -12,6 +12,8 @@ class Citation(BaseModel):
     doc_title: str | None = None
     chunk_text: str
     score: float
+    chunk_index: int | None = None
+    source_id: str | None = None
 
 
 class QuestionRequest(BaseModel):

@@ -219,20 +219,25 @@ class PipelineWorker:
             qdrant_chunks: list[dict[str, Any]] = []
             for idx, chunk_text_content in enumerate(chunks):
                 vector = self._encoder.encode(chunk_text_content)
-                qdrant_chunks.append(
-                    {
-                        "chunk_id": f"{document_id}-{idx}",
-                        "document_id": str(document_id),
-                        "group_id": allowed_group_ids,
-                        "chunk_index": idx,
-                        "text": chunk_text_content,
-                        "vector": vector,
-                    }
-                )
+                chunk_entry: dict[str, Any] = {
+                    "chunk_id": f"{document_id}-{idx}",
+                    "document_id": str(document_id),
+                    "group_id": allowed_group_ids,
+                    "chunk_index": idx,
+                    "text": chunk_text_content,
+                    "vector": vector,
+                    "source_id": str(doc.source_id),
+                }
+                if doc.title:
+                    chunk_entry["title"] = doc.title
+                if doc.source_language:
+                    chunk_entry["source_language"] = doc.source_language
+                qdrant_chunks.append(chunk_entry)
 
             if qdrant_chunks:
                 start = time.perf_counter()
-                self._qdrant.upsert_chunks(qdrant_chunks)
+                # delete_existing removes stale chunks from prior runs before writing new ones.
+                self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
                 if self._metrics is not None:
                     self._metrics.search_backend_duration_seconds.labels(
                         "qdrant", "upsert"
