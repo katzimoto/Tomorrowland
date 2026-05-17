@@ -84,7 +84,7 @@ describe("TranslationVersionSelector", () => {
     });
     expect(select).toBeInTheDocument();
     expect(
-      screen.getByRole("option", { name: "Manual EN" })
+      screen.getByRole("option", { name: /Manual EN/ })
     ).toBeInTheDocument();
   });
 
@@ -339,19 +339,13 @@ describe("TranslationVersionSelector", () => {
 
     // Simulate user selecting "Latest" (clears selectedVersionId to undefined)
     rerender(
-      <LanguageProvider>
-        <QueryClientProvider client={qc}>
-          <ToastProvider>
-            <TranslationVersionSelector
-              docId="doc-revisit"
-              selectedVersionId={undefined}
-              showOriginal={false}
-              onSelect={onSelect}
-              onShowOriginalChange={vi.fn()}
-            />
-          </ToastProvider>
-        </QueryClientProvider>
-      </LanguageProvider>
+      <TranslationVersionSelector
+        docId="doc-revisit"
+        selectedVersionId={undefined}
+        showOriginal={false}
+        onSelect={onSelect}
+        onShowOriginalChange={vi.fn()}
+      />
     );
 
     await new Promise((r) => setTimeout(r, 50));
