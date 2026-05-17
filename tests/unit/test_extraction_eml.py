@@ -1,10 +1,27 @@
 from __future__ import annotations
 
+import email
+import email.mime.application
+import email.mime.multipart
+import email.mime.text
 from pathlib import Path
 
 from services.extraction.eml import EmlExtractor
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
+
+
+def _build_eml_with_attachment(attachment_data: bytes, filename: str, ctype: str) -> bytes:
+    """Build a minimal multipart EML with one text body and one attachment."""
+    msg = email.mime.multipart.MIMEMultipart()
+    msg["Subject"] = "Test with attachment"
+    msg["From"] = "sender@example.com"
+    msg.attach(email.mime.text.MIMEText("body text", "plain"))
+    maintype, subtype = ctype.split("/", 1)
+    att = email.mime.application.MIMEApplication(attachment_data, _subtype=subtype, Name=filename)
+    att["Content-Disposition"] = f'attachment; filename="{filename}"'
+    msg.attach(att)
+    return msg.as_bytes()
 
 
 def test_eml_extractor_reads_headers_and_body() -> None:
@@ -31,3 +48,32 @@ def test_eml_extractor_returns_empty_for_missing_file() -> None:
     text = extractor.extract(FIXTURES / "nonexistent.eml")
 
     assert text == ""
+
+
+def test_eml_extract_attachments_returns_bytes(tmp_path: Path) -> None:
+    eml_bytes = _build_eml_with_attachment(b"PDF content here", "report.pdf", "application/pdf")
+    eml_file = tmp_path / "test.eml"
+    eml_file.write_bytes(eml_bytes)
+
+    extractor = EmlExtractor()
+    attachments = extractor.extract_attachments(eml_file)
+
+    assert len(attachments) == 1
+    assert attachments[0].filename == "report.pdf"
+    assert attachments[0].data == b"PDF content here"
+    assert attachments[0].mime_type == "application/pdf"
+
+
+def test_eml_extract_attachments_empty_for_no_attachments(tmp_path: Path) -> None:
+    eml_file = tmp_path / "plain.eml"
+    eml_file.write_text(
+        "Subject: No attachments\r\nContent-Type: text/plain\r\n\r\nbody",
+        encoding="utf-8",
+    )
+    extractor = EmlExtractor()
+    assert extractor.extract_attachments(eml_file) == []
+
+
+def test_eml_extract_attachments_empty_for_missing_file(tmp_path: Path) -> None:
+    extractor = EmlExtractor()
+    assert extractor.extract_attachments(tmp_path / "nonexistent.eml") == []

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import tempfile
 import time
 from contextlib import suppress
 from pathlib import Path
@@ -12,6 +13,7 @@ from uuid import UUID
 from services.alerts.service import AlertMatcher
 from services.chunking.splitter import chunk_text
 from services.documents.repository import DocumentRepository
+from services.extraction.base import AttachmentData
 from services.extraction.registry import ExtractorRegistry
 from services.intelligence.worker import IntelligenceWorker
 from services.search.elastic import ElasticsearchSearchClient
@@ -265,4 +267,85 @@ class PipelineWorker:
                     get_correlation_id(),
                 )
 
+        # 10. Process email attachments as child documents (best-effort).
+        #     Only runs when the extractor for this MIME type exposes extract_attachments().
+        if doc.path is not None:
+            extractor = self._extractor.get(doc.mime_type)
+            if extractor is not None and hasattr(extractor, "extract_attachments"):
+                try:
+                    attachments: list[AttachmentData] = extractor.extract_attachments(
+                        Path(doc.path)
+                    )
+                    self._process_attachments(document_id, doc, attachments)
+                except Exception:
+                    logger.exception(
+                        "Attachment extraction failed for document_id=%s correlation=%s",
+                        document_id,
+                        get_correlation_id(),
+                    )
+
         return ProcessResult(extracted_text=text, translated_text=translated)
+
+    def _process_attachments(
+        self,
+        parent_id: UUID,
+        parent_doc: Any,
+        attachments: list[AttachmentData],
+    ) -> None:
+        """Create a child document and run the pipeline for each attachment."""
+        for att in attachments:
+            # Skip attachment types we cannot extract text from
+            if self._extractor.get(att.mime_type) is None:
+                logger.debug(
+                    "Skipping attachment with unsupported mime_type=%s filename=%s parent_id=%s",
+                    att.mime_type,
+                    att.filename,
+                    parent_id,
+                )
+                continue
+            try:
+                with tempfile.NamedTemporaryFile(
+                    suffix=Path(att.filename).suffix or ".bin", delete=False
+                ) as tmp:
+                    tmp.write(att.data)
+                    tmp_path = tmp.name
+
+                child_external_id = f"{parent_doc.external_id}::attachment::{att.filename}"
+                child_doc = self._doc_repo.create(
+                    source_id=parent_doc.source_id,
+                    external_id=child_external_id,
+                    source=parent_doc.source,
+                    mime_type=att.mime_type,
+                    path=tmp_path,
+                    title=att.filename,
+                    source_language=parent_doc.source_language,
+                    metadata={"parent_document_id": str(parent_id)},
+                )
+                if child_doc is None:
+                    # Already ingested — dedup hit
+                    Path(tmp_path).unlink(missing_ok=True)
+                    continue
+
+                try:
+                    self._run(child_doc.id)
+                    logger.info(
+                        "Attachment processed: parent_id=%s child_id=%s filename=%s",
+                        parent_id,
+                        child_doc.id,
+                        att.filename,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Attachment pipeline failed: parent_id=%s filename=%s child_id=%s",
+                        parent_id,
+                        att.filename,
+                        child_doc.id,
+                    )
+                finally:
+                    Path(tmp_path).unlink(missing_ok=True)
+            except Exception:
+                logger.exception(
+                    "Failed to create child document for attachment: parent_id=%s filename=%s",
+                    parent_id,
+                    att.filename,
+                )

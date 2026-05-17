@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import mimetypes
 from html.parser import HTMLParser
 from pathlib import Path
 
 import extract_msg
+
+from services.extraction.base import AttachmentData
 
 
 class MsgExtractor:
@@ -112,3 +115,34 @@ class MsgExtractor:
             return "\n\n".join(sections)
         except Exception:
             return ""
+
+    def extract_attachments(self, path: Path) -> list[AttachmentData]:
+        """Return raw bytes for each attachment in the MSG file."""
+        try:
+            msg = extract_msg.Message(str(path))  # type: ignore[no-untyped-call]
+            result: list[AttachmentData] = []
+            for att in getattr(msg, "attachments", []) or []:
+                fname = (
+                    getattr(att, "longFilename", None)
+                    or getattr(att, "filename", None)
+                    or getattr(att, "shortFilename", None)
+                    or getattr(att, "name", None)
+                    or "attachment"
+                )
+                raw = (
+                    getattr(att, "data", None)
+                    or getattr(att, "data_obj", None)
+                    or getattr(att, "payload", None)
+                )
+                if not isinstance(raw, (bytes, bytearray)) or not raw:
+                    continue
+                ctype = (
+                    getattr(att, "content_type", None)
+                    or getattr(att, "mime_type", None)
+                    or mimetypes.guess_type(fname)[0]
+                    or "application/octet-stream"
+                )
+                result.append(AttachmentData(filename=fname, mime_type=ctype, data=bytes(raw)))
+            return result
+        except Exception:
+            return []

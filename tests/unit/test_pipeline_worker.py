@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
@@ -39,6 +40,9 @@ class _FakeDocumentRepository:
 class _FakeExtractor:
     def extract(self, *_args: object, **_kwargs: object) -> str:
         raise AssertionError("pre_extracted_text should bypass extraction")
+
+    def get(self, mime_type: str) -> object | None:
+        return None
 
 
 class _FakeTranslator:
@@ -312,3 +316,163 @@ def test_process_document_raises_on_failure() -> None:
         worker.process_document(doc.id, pre_extracted_text="raw body")
 
     assert repo.status_updates == [(doc.id, "failed")]
+
+
+# ---------------------------------------------------------------------------
+# Attachment processing tests
+# ---------------------------------------------------------------------------
+
+
+class _FakeAttachmentExtractor:
+    """Fake extractor that supports both extract() and extract_attachments()."""
+
+    def __init__(self, attachments: list[object]) -> None:
+        self._attachments = attachments
+
+    def extract(self, path: object) -> str:
+        return "attachment text content"
+
+    def extract_attachments(self, path: object) -> list[object]:
+        return self._attachments
+
+
+class _FakeExtractorRegistry:
+    """Fake registry that routes MIME types to concrete fakes."""
+
+    def __init__(
+        self,
+        *,
+        email_extractor: object | None = None,
+        attachment_extractor: object | None = None,
+    ) -> None:
+        self._email = email_extractor
+        self._attachment = attachment_extractor
+
+    def extract(self, path: object, mime_type: str) -> str:
+        if self._email is not None and mime_type == "message/rfc822":
+            return ""
+        return "text content"
+
+    def get(self, mime_type: str) -> object | None:
+        if mime_type == "message/rfc822":
+            return self._email
+        if mime_type == "text/plain":
+            return self._attachment
+        return None
+
+
+class _FakeDocumentRepositoryWithCreate(_FakeDocumentRepository):
+    def __init__(self, doc: DocumentRow, group_ids: list[UUID]) -> None:
+        super().__init__(doc, group_ids)
+        self.created_children: list[dict[str, object]] = []
+        self._child_doc: DocumentRow | None = None
+
+    def set_child_doc(self, child: DocumentRow) -> None:
+        self._child_doc = child
+
+    def create(self, **kwargs: object) -> DocumentRow | None:
+        self.created_children.append(dict(kwargs))
+        return self._child_doc
+
+    def get_by_id(self, document_id: UUID) -> DocumentRow | None:
+        if self._child_doc is not None and document_id == self._child_doc.id:
+            return self._child_doc
+        return super().get_by_id(document_id)
+
+
+def test_worker_skips_attachment_when_mime_not_supported(tmp_path: Path) -> None:
+    from services.extraction.base import AttachmentData
+
+    doc = _document()
+    doc.mime_type = "message/rfc822"
+    doc.path = str(tmp_path / "email.eml")
+    (tmp_path / "email.eml").write_bytes(b"")
+
+    att = AttachmentData(filename="image.png", mime_type="image/png", data=b"png_bytes")
+    email_extractor = _FakeAttachmentExtractor([att])
+    # image/png has no registered extractor → should be skipped
+    registry = _FakeExtractorRegistry(email_extractor=email_extractor, attachment_extractor=None)
+
+    repo = _FakeDocumentRepositoryWithCreate(doc, [uuid4()])
+    encoder = _FakeEncoder()
+    es = _FakeElasticsearch()
+    qdrant = _FakeQdrant()
+
+    worker = PipelineWorker(
+        document_repository=repo,  # type: ignore[arg-type]
+        extractor_registry=registry,  # type: ignore[arg-type]
+        translator=_FakeTranslator(),  # type: ignore[arg-type]
+        encoder=encoder,  # type: ignore[arg-type]
+        es_client=es,  # type: ignore[arg-type]
+        qdrant_client=qdrant,  # type: ignore[arg-type]
+    )
+
+    worker.process_document(doc.id, pre_extracted_text="email body text")
+
+    # No child documents created because image/png is not supported
+    assert repo.created_children == []
+
+
+def test_worker_creates_child_doc_for_supported_attachment(tmp_path: Path) -> None:
+    from services.extraction.base import AttachmentData
+
+    now = datetime.now(UTC)
+    doc = _document()
+    doc.mime_type = "message/rfc822"
+    doc.path = str(tmp_path / "email.eml")
+    (tmp_path / "email.eml").write_bytes(b"")
+
+    att = AttachmentData(filename="report.txt", mime_type="text/plain", data=b"report content")
+    email_extractor = _FakeAttachmentExtractor([att])
+    # text/plain IS supported → child doc should be created
+    registry = _FakeExtractorRegistry(
+        email_extractor=email_extractor,
+        attachment_extractor=_FakeAttachmentExtractor([]),  # no nested attachments
+    )
+
+    child_doc = DocumentRow(
+        id=uuid4(),
+        source_id=doc.source_id,
+        external_id=f"{doc.external_id}::attachment::report.txt",
+        source=doc.source,
+        path=str(tmp_path / "child.txt"),
+        mime_type="text/plain",
+        title="report.txt",
+        source_language=doc.source_language,
+        target_language="en",
+        status="pending",
+        content_sha256="",
+        metadata={"parent_document_id": str(doc.id)},
+        created_at=now,
+        updated_at=now,
+    )
+    (tmp_path / "child.txt").write_text("report content")
+
+    repo = _FakeDocumentRepositoryWithCreate(doc, [uuid4()])
+    repo.set_child_doc(child_doc)
+
+    encoder = _FakeEncoder()
+    es = _FakeElasticsearch()
+    qdrant = _FakeQdrant()
+
+    worker = PipelineWorker(
+        document_repository=repo,  # type: ignore[arg-type]
+        extractor_registry=registry,  # type: ignore[arg-type]
+        translator=_FakeTranslator(),  # type: ignore[arg-type]
+        encoder=encoder,  # type: ignore[arg-type]
+        es_client=es,  # type: ignore[arg-type]
+        qdrant_client=qdrant,  # type: ignore[arg-type]
+    )
+
+    worker.process_document(doc.id, pre_extracted_text="email body text")
+
+    assert len(repo.created_children) == 1
+    created = repo.created_children[0]
+    assert created["mime_type"] == "text/plain"
+    assert created["title"] == "report.txt"
+    assert "parent_document_id" in created["metadata"]  # type: ignore[operator]
+    assert created["metadata"]["parent_document_id"] == str(doc.id)  # type: ignore[index]
+    # Both parent and child should be indexed
+    indexed_ids = {upd[0] for upd in repo.indexed_updates}
+    assert doc.id in indexed_ids
+    assert child_doc.id in indexed_ids

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import email
+import mimetypes
 from email import policy
 from email.errors import MessageError
 from email.header import decode_header
 from html.parser import HTMLParser
 from pathlib import Path
+
+from services.extraction.base import AttachmentData
 
 
 class EmlExtractor:
@@ -120,3 +123,28 @@ class EmlExtractor:
         except Exception:
             # Be conservative: never raise during extraction
             return ""
+
+    def extract_attachments(self, path: Path) -> list[AttachmentData]:
+        """Return raw bytes for each non-inline attachment in the EML file."""
+        try:
+            raw = path.read_bytes()
+            msg = email.message_from_bytes(raw, policy=policy.default)
+            result: list[AttachmentData] = []
+            for part in msg.walk():
+                if part.is_multipart():
+                    continue
+                filename = part.get_filename()
+                disposition = part.get_content_disposition()
+                if not (filename or disposition == "attachment"):
+                    continue
+                data = part.get_payload(decode=True)
+                if not isinstance(data, (bytes, bytearray)) or not data:
+                    continue
+                fname = filename or "attachment"
+                declared_ctype = part.get_content_type() or ""
+                guessed = mimetypes.guess_type(fname)[0] or "application/octet-stream"
+                mime = declared_ctype or guessed
+                result.append(AttachmentData(filename=fname, mime_type=mime, data=bytes(data)))
+            return result
+        except Exception:
+            return []
