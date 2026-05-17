@@ -68,6 +68,16 @@ class DeterministicTestEncoder:
         return [self.encode(text) for text in texts]
 
 
+def _parse_ollama_error(response: httpx.Response) -> str | None:
+    """Extract the error message from an Ollama error response body."""
+    try:
+        body = response.json()
+        msg: object = body.get("error")
+        return str(msg) if msg else None
+    except Exception:
+        return None
+
+
 class OllamaEmbeddingEncoder:
     """Production encoder using Ollama's modern embedding endpoint.
 
@@ -117,11 +127,28 @@ class OllamaEmbeddingEncoder:
             self._model,
             len(texts),
         )
-        response = httpx.post(url, json=payload, timeout=self._timeout)
+        try:
+            response = httpx.post(url, json=payload, timeout=self._timeout)
+        except httpx.ConnectError:
+            raise RuntimeError(
+                f"Cannot connect to Ollama at {self._base_url}. "
+                f"Ensure Ollama is running and reachable."
+            ) from None
+        except httpx.TimeoutException:
+            raise RuntimeError(
+                f"Ollama request timed out after {self._timeout}s. "
+                f"Model '{self._model}' may still be loading."
+            ) from None
         if response.status_code == 404:
+            error_body = _parse_ollama_error(response)
+            if error_body and "not found" in error_body and "pull" in error_body:
+                raise RuntimeError(
+                    f"Ollama model '{self._model}' not found. "
+                    f"Try pulling it first: ollama pull {self._model}"
+                )
             raise RuntimeError(
                 f"Ollama model '{self._model}' does not support the /api/embed endpoint. "
-                f"Update Ollama or use a model that supports the modern embedding API."
+                f"Update Ollama or use a different model."
             )
         response.raise_for_status()
         data = response.json()
