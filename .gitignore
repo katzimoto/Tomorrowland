@@ -35,3 +35,6 @@ tmp/
 .claude/
 .claude-flow/
 .mcp.json
+.swarm/
+package.json
+package-lock.json

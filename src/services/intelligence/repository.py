@@ -1,4 +1,4 @@
-"""Database access for intelligence outputs (summaries, entities, tags)."""
+"""Database access for intelligence outputs (summaries, entities, tags, key points)."""
 
 from __future__ import annotations
 
@@ -147,6 +147,48 @@ class IntelligenceRepository:
                 SELECT tag FROM document_tags
                 WHERE document_id = :document_id
                 ORDER BY tag
+                """),
+            {"document_id": db_uuid(document_id)},
+        ).scalars()
+        return list(rows)
+
+    def upsert_key_points(self, document_id: UUID, points: list[str]) -> None:
+        """Replace all key points for a document with the given ordered list.
+
+        Position is assigned by list index (0-based).  Empty/whitespace-only
+        points are skipped.
+        """
+        self._connection.execute(
+            sa.text("DELETE FROM document_key_points WHERE document_id = :document_id"),
+            {"document_id": db_uuid(document_id)},
+        )
+        rows = [
+            {
+                "id": db_uuid(uuid4()),
+                "document_id": db_uuid(document_id),
+                "key_point": point.strip(),
+                "position": position,
+            }
+            for position, point in enumerate(points)
+            if isinstance(point, str) and point.strip()
+        ]
+        if not rows:
+            return
+        self._connection.execute(
+            sa.text("""
+                INSERT INTO document_key_points (id, document_id, key_point, position)
+                VALUES (:id, :document_id, :key_point, :position)
+                """),
+            rows,
+        )
+
+    def get_key_points(self, document_id: UUID) -> list[str]:
+        """Return all key points for a document, ordered by position."""
+        rows = self._connection.execute(
+            sa.text("""
+                SELECT key_point FROM document_key_points
+                WHERE document_id = :document_id
+                ORDER BY position
                 """),
             {"document_id": db_uuid(document_id)},
         ).scalars()
