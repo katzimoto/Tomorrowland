@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Any
 from uuid import UUID
@@ -18,6 +19,52 @@ logger = logging.getLogger(__name__)
 MAX_SUMMARIZE_CHARS = 8000
 MAX_ENTITY_CHARS = 6000
 MAX_TAG_CHARS = 4000
+MAX_KEY_POINTS_CHARS = 8000
+MAX_KEY_POINTS = 7
+MAX_KEY_POINT_LENGTH = 400
+
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(])")
+_HAS_DIGIT = re.compile(r"\d")
+_HAS_PROPER_NOUN = re.compile(r"(?<!^)(?<![.!?]\s)\b[A-Z][a-z]+")
+
+
+def _rule_based_key_points(text: str, max_points: int) -> list[str]:
+    """Extract up to *max_points* key sentences from *text* without an LLM.
+
+    Strategy: collect the first sentence of each paragraph as primary
+    candidates, then fill remaining slots with sentences that carry a digit or
+    a proper noun — a cheap proxy for factual density.
+    """
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    seen: set[str] = set()
+    points: list[str] = []
+
+    def _add(sentence: str) -> bool:
+        s = sentence.strip()[:MAX_KEY_POINT_LENGTH]
+        if s and s not in seen:
+            seen.add(s)
+            points.append(s)
+            return True
+        return False
+
+    for para in paragraphs:
+        sentences = _SENTENCE_SPLIT.split(para)
+        if sentences:
+            _add(sentences[0])
+        if len(points) >= max_points:
+            break
+
+    if len(points) < max_points:
+        for para in paragraphs:
+            for sentence in _SENTENCE_SPLIT.split(para):
+                if _HAS_DIGIT.search(sentence) or _HAS_PROPER_NOUN.search(sentence):
+                    _add(sentence)
+                if len(points) >= max_points:
+                    break
+            if len(points) >= max_points:
+                break
+
+    return points
 
 
 class IntelligenceWorker:
@@ -42,7 +89,7 @@ class IntelligenceWorker:
     def process_document(self, document_id: UUID, content: str) -> None:
         """Run enabled intelligence tasks for *document_id*.
 
-        Tasks run in order: summarize → extract_entities → auto_tag.
+        Tasks run in order: summarize → extract_entities → auto_tag → key_points.
         On any failure, log and stop processing further tasks for this doc.
         """
         tasks = self._enabled_tasks()
@@ -59,6 +106,8 @@ class IntelligenceWorker:
                     self._extract_entities(document_id, content)
                 elif task == "auto_tag":
                     self._auto_tag(document_id, content)
+                elif task == "key_points":
+                    self._extract_key_points(document_id, content)
                 if metrics is not None:
                     metrics.intelligence_tasks_total.labels(task, "success").inc()
                     metrics.intelligence_task_duration_seconds.labels(task).observe(
@@ -82,7 +131,7 @@ class IntelligenceWorker:
         """Return list of enabled task names from system_config."""
         if self._config is None:
             # Default: all tasks enabled when no config source provided
-            return ["summarize", "extract_entities", "auto_tag"]
+            return ["summarize", "extract_entities", "auto_tag", "key_points"]
 
         tasks: list[str] = []
         if self._config.get("feature.summarization", True):
@@ -91,6 +140,8 @@ class IntelligenceWorker:
             tasks.append("extract_entities")
         if self._config.get("feature.auto_tagging", True):
             tasks.append("auto_tag")
+        if self._config.get("feature.key_points", True):
+            tasks.append("key_points")
         return tasks
 
     def _summarize(self, document_id: UUID, content: str) -> None:
@@ -146,6 +197,44 @@ class IntelligenceWorker:
         self._repo.replace_tags(document_id, tags)
         self._update_es_field(document_id, "tags", tags)
         logger.info("Tagged document_id=%s with %d tags", document_id, len(tags))
+
+    def _extract_key_points(self, document_id: UUID, content: str) -> None:
+        """Extract a short ordered list of key bullet points for the document.
+
+        Rule-based by default: take the first sentence of each paragraph; if we
+        still have room, fill with sentences that carry digits or proper nouns
+        (a cheap "named-entity" proxy that does not require the LLM).
+        Optionally augment with the LLM when ``llm.key_points_prompt`` is
+        configured; LLM failures are caught and never abort the task.
+        """
+        truncated = content[:MAX_KEY_POINTS_CHARS]
+        points = _rule_based_key_points(truncated, MAX_KEY_POINTS)
+
+        llm_prompt = ""
+        if self._config is not None:
+            llm_prompt = str(self._config.get("llm.key_points_prompt", "") or "")
+        if llm_prompt:
+            try:
+                response = self._ollama.generate(f"{llm_prompt}\n\n{truncated}")
+                llm_points = self._ollama.parse_json_array(response)
+                normalized = [
+                    str(p).strip()[:MAX_KEY_POINT_LENGTH]
+                    for p in llm_points
+                    if isinstance(p, str) and str(p).strip()
+                ]
+                if normalized:
+                    points = normalized[:MAX_KEY_POINTS]
+            except Exception:
+                logger.warning(
+                    "LLM key_points augmentation failed for document_id=%s; "
+                    "falling back to rule-based output",
+                    document_id,
+                    exc_info=True,
+                )
+
+        self._repo.upsert_key_points(document_id, points)
+        self._update_es_field(document_id, "key_points", points)
+        logger.info("Extracted %d key points for document_id=%s", len(points), document_id)
 
     def _build_prompt(
         self,
