@@ -37,7 +37,8 @@ def search(
 ) -> SearchResponse:
     metrics_start = time.perf_counter()
     group_ids = [str(g) for g in user.groups]
-    if not group_ids:
+    is_admin = user.is_admin or http_request.app.state.admins_group_id in group_ids
+    if not group_ids and not is_admin:
         http_request.app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
         http_request.app.state.metrics.search_results_count.labels("hybrid").observe(0)
         http_request.app.state.metrics.search_duration_seconds.labels("hybrid").observe(
@@ -45,7 +46,7 @@ def search(
         )
         return SearchResponse(results=[], total=0)
 
-    if http_request.app.state.admins_group_id in group_ids or user.is_admin:
+    if is_admin:
         search_group_ids: list[str] = []
     else:
         with http_request.app.state.engine.begin() as _conn:
@@ -90,7 +91,9 @@ def search(
             )
 
             backend_start = time.perf_counter()
-            bm25_results = es_client.search(request.query, group_ids=search_group_ids, size=50)
+            bm25_results = es_client.search(
+                request.query, group_ids=search_group_ids, size=50, is_admin=is_admin
+            )
             http_request.app.state.metrics.search_backend_duration_seconds.labels(
                 "elasticsearch", "search"
             ).observe(time.perf_counter() - backend_start)
@@ -112,7 +115,7 @@ def search(
         query_vector = encoder.encode(request.query)
         backend_start = time.perf_counter()
         vector_results = qdrant_client.search(
-            vector=query_vector, group_ids=search_group_ids, limit=50
+            vector=query_vector, group_ids=search_group_ids, limit=50, allow_all=is_admin
         )
         logger.debug(f"The word vector returned {vector_results}")
         http_request.app.state.metrics.search_backend_duration_seconds.labels(
@@ -204,23 +207,12 @@ def search(
     for r in page:
         doc_row = docs.get(r.document_id)
         if doc_row is None:
-            results.append(
-                SearchResultItem(
-                    document_id=r.document_id,
-                    source_id="",
-                    external_id=None,
-                    title=r.title,
-                    snippet=r.chunk_text or "",
-                    source="unknown",
-                    source_label="Unknown",
-                    mime_type="application/octet-stream",
-                    tags=[],
-                    translation_quality=None,
-                    translation_score=0.0,
-                    score=r.score,
-                    updated_at=now,
-                    indexed_at=now,
-                )
+            # Orphaned Qdrant vector — document row was deleted but vector not yet purged.
+            # Drop silently to avoid leaking chunk_text after deletion.
+            logger.warning(
+                "Orphaned Qdrant vector skipped document_id=%s route=/search correlation=%s",
+                r.document_id,
+                get_correlation_id(),
             )
             continue
 

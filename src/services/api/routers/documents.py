@@ -376,7 +376,7 @@ def expertise(
             encoder=encoder,
         )
         try:
-            return service.expertise(topic=topic, group_ids=group_ids)
+            return service.expertise(topic=topic, group_ids=group_ids, allow_all=user.is_admin)
         except Exception as exc:
             logger.warning(
                 "Expertise degraded route=/expertise stage=vector_search "

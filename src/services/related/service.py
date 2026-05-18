@@ -96,13 +96,16 @@ class RelatedService:
             if result.document_id in metadata
         ][:limit]
 
-    def expertise(self, topic: str, group_ids: list[str]) -> list[dict[str, Any]]:
+    def expertise(
+        self, topic: str, group_ids: list[str], allow_all: bool = False
+    ) -> list[dict[str, Any]]:
         """Return users with activity related to a topic."""
         vector = self._encoder.encode(topic)
         results = self._qdrant.search(
             vector=vector,
             group_ids=group_ids,
             limit=EXPERTISE_SEARCH_LIMIT,
+            allow_all=allow_all,
         )
         matching_docs = _dedupe_results(results, exclude_doc_id=None, limit=EXPERTISE_SEARCH_LIMIT)
         doc_ids = [result.document_id for result in matching_docs]
