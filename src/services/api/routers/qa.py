@@ -80,12 +80,16 @@ def qa(
         )
         system_prompt = str(prompt_row["value"]) if prompt_row else None
 
+        settings = request.app.state.settings
         rag = RagService(
             qdrant_client=qdrant_client,
             encoder=encoder,
             ollama_client=ollama_client,
             connection=connection,
             system_prompt=system_prompt,
+            max_chunks=settings.rag_max_chunks,
+            max_tokens_context=settings.rag_max_tokens_context,
+            score_threshold=settings.rag_score_threshold,
         )
         try:
             result = rag.answer(
