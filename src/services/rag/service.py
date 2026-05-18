@@ -31,6 +31,9 @@ class RagService:
         ollama_client: OllamaClient,
         connection: Connection,
         system_prompt: str | None = None,
+        max_chunks: int = 5,
+        max_tokens_context: int = 2_000,
+        score_threshold: float = 0.0,
     ) -> None:
         self._qdrant = qdrant_client
         self._encoder = encoder
@@ -40,12 +43,15 @@ class RagService:
             "You are a knowledge assistant. Answer based only on the context provided. "
             "If the context does not contain the answer, say so."
         )
+        self._max_chunks = max_chunks
+        self._max_tokens_context = max_tokens_context
+        self._score_threshold = score_threshold
 
     def answer(
         self,
         question: str,
         group_ids: list[str],
-        top_k: int = 5,
+        top_k: int | None = None,
         document_id: str | None = None,
         allow_all: bool = False,
     ) -> AnswerResponse:
@@ -54,18 +60,24 @@ class RagService:
         Args:
             question: The user's question.
             group_ids: List of group IDs the user belongs to (for permission filtering).
-            top_k: Number of chunks to retrieve.
+            top_k: Number of chunks to retrieve. Falls back to ``max_chunks`` from
+                config when not provided.
             document_id: When set, restricts retrieval to chunks from this document.
 
         Returns:
             An AnswerResponse with the generated answer and citations.
         """
+        effective_top_k = top_k if top_k is not None else self._max_chunks
         metrics = current_metrics()
         request_start = time.perf_counter()
         # 1. Retrieve relevant chunks
         phase_start = time.perf_counter()
         chunks = self._retrieve_chunks(
-            question, group_ids, top_k, document_id=document_id, allow_all=allow_all
+            question,
+            group_ids,
+            effective_top_k,
+            document_id=document_id,
+            allow_all=allow_all,
         )
         if metrics is not None:
             metrics.rag_duration_seconds.labels("retrieval").observe(
@@ -150,7 +162,8 @@ class RagService:
 
         Deduplication is performed at the chunk level (by chunk_id) so all
         relevant chunks from a document are preserved, not just the highest
-        scorer per document.
+        scorer per document. Chunks scoring below ``score_threshold`` are
+        dropped before context assembly.
         """
         query_vector = self._encoder.encode(question)
         results = self._qdrant.search(
@@ -166,6 +179,8 @@ class RagService:
         seen_chunk_ids: set[str] = set()
         unique_results = []
         for r in results:
+            if r.score < self._score_threshold:
+                continue
             chunk_id = (r.metadata or {}).get("chunk_id") or f"{r.document_id}-unknown"
             if chunk_id not in seen_chunk_ids:
                 seen_chunk_ids.add(chunk_id)
@@ -193,10 +208,12 @@ class RagService:
             for r in unique_results
         ]
 
-    _MAX_CONTEXT_WORDS = 2_000
-
     def _assemble_context(self, chunks: list[dict[str, Any]]) -> str:
-        """Build a context string from retrieved chunks, bounded by word count."""
+        """Build a context string from retrieved chunks, bounded by word count.
+
+        Word count is used as a token-count approximation (1 word ≈ 1–1.3 tokens
+        for English; close enough for context-window guardrails).
+        """
         passages: list[str] = []
         total_words = 0
         for i, chunk in enumerate(chunks, 1):
@@ -204,7 +221,7 @@ class RagService:
             text = chunk["chunk_text"]
             passage = f"[{i}] {title}:\n{text}"
             passage_words = len(passage.split())
-            if total_words + passage_words > self._MAX_CONTEXT_WORDS and passages:
+            if total_words + passage_words > self._max_tokens_context and passages:
                 break
             passages.append(passage)
             total_words += passage_words
