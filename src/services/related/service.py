@@ -24,6 +24,8 @@ SIGNAL_WEIGHTS = {
     "annotation": 2.0,
     "subscription": 1.0,
 }
+RELATED_OVERLAP_BONUS_PER_MATCH = 0.1
+RELATED_OVERLAP_BONUS_CAP = 0.3
 
 
 @dataclass

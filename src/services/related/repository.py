@@ -17,6 +17,79 @@ class RelatedRepository:
     def __init__(self, connection: Connection) -> None:
         self._connection = connection
 
+    def get_document_text(self, document_id: UUID) -> str | None:
+        """Return stored text for a document, preferring summary over payload.
+
+        Used by related-document lookups to avoid re-extracting from disk on
+        every request. Returns None when nothing is stored.
+        """
+        summary_row = (
+            self._connection.execute(
+                sa.text("SELECT summary FROM document_summaries WHERE document_id = :document_id"),
+                {"document_id": db_uuid(document_id)},
+            )
+            .mappings()
+            .first()
+        )
+        if summary_row and summary_row["summary"]:
+            return str(summary_row["summary"])
+
+        payload_row = (
+            self._connection.execute(
+                sa.text(
+                    "SELECT content_text FROM document_payloads WHERE document_id = :document_id"
+                ),
+                {"document_id": db_uuid(document_id)},
+            )
+            .mappings()
+            .first()
+        )
+        if payload_row and payload_row["content_text"]:
+            return str(payload_row["content_text"])
+        return None
+
+    def get_document_tags_and_entities(self, doc_ids: list[str]) -> dict[str, dict[str, set[str]]]:
+        """Return tags and entity tokens for each document id (string UUID).
+
+        The entity token format is ``"<type>:<name>"`` so two docs sharing the
+        same person and the same organization both count as overlapping
+        entities. Missing documents map to empty sets.
+        """
+        if not doc_ids:
+            return {}
+        params, placeholders = _uuid_params(doc_ids)
+        result: dict[str, dict[str, set[str]]] = {
+            doc_id: {"tags": set(), "entities": set()} for doc_id in doc_ids
+        }
+
+        tag_rows = self._connection.execute(
+            sa.text(
+                f"SELECT document_id, tag FROM document_tags WHERE document_id IN ({placeholders})"
+            ),
+            params,
+        ).mappings()
+        for row in tag_rows:
+            key = str(to_uuid(row["document_id"]))
+            result.setdefault(key, {"tags": set(), "entities": set()})
+            result[key]["tags"].add(str(row["tag"]))
+
+        entity_rows = self._connection.execute(
+            sa.text(
+                f"""
+                SELECT de.document_id, e.name, e.type
+                FROM document_entities de
+                JOIN entities e ON e.id = de.entity_id
+                WHERE de.document_id IN ({placeholders})
+                """
+            ),
+            params,
+        ).mappings()
+        for row in entity_rows:
+            key = str(to_uuid(row["document_id"]))
+            result.setdefault(key, {"tags": set(), "entities": set()})
+            result[key]["entities"].add(f"{row['type']}:{row['name']}")
+        return result
+
     def document_metadata(
         self, doc_ids: list[str], group_ids: list[str]
     ) -> dict[str, dict[str, Any]]:
