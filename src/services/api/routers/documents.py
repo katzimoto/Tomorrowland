@@ -106,8 +106,8 @@ def preview(
 def me_activity(
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
-    skip: int = 0,
-    limit: int = 50,
+    skip: int = Query(default=0, ge=0, le=10000),
+    limit: int = Query(default=50, ge=1, le=200),
 ) -> list[dict[str, Any]]:
     with request.app.state.engine.begin() as connection:
         preview_service = PreviewService(connection)
@@ -357,7 +357,7 @@ def related_documents(
 def expertise(
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
-    topic: Annotated[str, Query(min_length=1)],
+    topic: Annotated[str, Query(min_length=1, max_length=500)],
 ) -> list[dict[str, Any]]:
     topic = topic.strip()
     if not topic:

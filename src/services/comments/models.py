@@ -26,10 +26,10 @@ class DocumentComment(BaseModel):
 class CommentCreateRequest(BaseModel):
     """Request body for creating a comment."""
 
-    body: str = Field(..., min_length=1)
+    body: str = Field(..., min_length=1, max_length=10000)
 
 
 class CommentUpdateRequest(BaseModel):
     """Request body for updating a comment."""
 
-    body: str = Field(..., min_length=1)
+    body: str = Field(..., min_length=1, max_length=10000)

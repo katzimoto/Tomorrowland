@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from services.api._helpers import _fmt_dt
 from services.api.main import current_user
@@ -22,9 +22,9 @@ def list_comments(
     document_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
-    skip: int = 0,
-    limit: int = 50,
-    sort: str = "newest",
+    skip: int = Query(default=0, ge=0, le=10000),
+    limit: int = Query(default=50, ge=1, le=200),
+    sort: str = Query(default="newest", max_length=10),
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)

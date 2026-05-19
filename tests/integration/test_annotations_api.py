@@ -643,6 +643,38 @@ def test_non_owner_gets_can_modify_false_on_list(migrated_engine: Engine) -> Non
     assert annotations[0]["can_modify"] is False
 
 
+def test_oversized_text_returns_422(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    resp = client.post(
+        f"/documents/{doc_id}/annotations",
+        json={"text": "x" * 5001},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_oversized_note_returns_422(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    resp = client.post(
+        f"/documents/{doc_id}/annotations",
+        json={"text": "valid text", "note": "x" * 2001},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
 def test_owner_gets_can_modify_true_on_update(migrated_engine: Engine) -> None:
     """Owner receives can_modify=true in the PUT response."""
     _setup_users(migrated_engine)

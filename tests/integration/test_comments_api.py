@@ -591,6 +591,52 @@ def test_update_comment_returns_can_edit_can_delete(migrated_engine: Engine) -> 
     assert data["can_delete"] is True
 
 
+def test_oversized_body_returns_422(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    resp = client.post(
+        f"/documents/{doc_id}/comments",
+        json={"body": "x" * 10001},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_excessive_limit_returns_422(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    resp = client.get(
+        f"/documents/{doc_id}/comments?limit=201",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_negative_skip_returns_422(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    resp = client.get(
+        f"/documents/{doc_id}/comments?skip=-1",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
 def test_admin_gets_can_edit_can_delete_on_others_comment(migrated_engine: Engine) -> None:
     """Admin always gets can_edit=true and can_delete=true regardless of authorship."""
     _setup_users(migrated_engine)

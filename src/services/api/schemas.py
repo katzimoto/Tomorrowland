@@ -6,11 +6,11 @@ from pydantic import BaseModel, Field
 
 
 class SearchRequest(BaseModel):
-    query: str
-    mode: str = "hybrid"
+    query: str = Field(..., max_length=500)
+    mode: str = Field(default="hybrid", max_length=20)
     filters: dict[str, Any] = Field(default_factory=dict)
     top_k: int = Field(default=20, ge=1, le=100)
-    page: int = 1
+    page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
     include_older_versions: bool = False
 
