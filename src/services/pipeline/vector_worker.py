@@ -311,7 +311,7 @@ if __name__ == "__main__":
     with engine.connect() as conn:
         job_repo = PipelineJobRepository(conn)
         encoder = build_encoder(settings)
-        qdrant = QdrantSearchClient(url=settings.qdrant_url)
+        qdrant = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
         doc_repo = DocumentRepository(conn)
         extractor = ExtractorRegistry()
 

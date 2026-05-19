@@ -261,6 +261,17 @@ def test_create_collection_already_exists() -> None:
     mock_qdrant.create_collection.assert_not_called()
 
 
+def test_qdrant_client_dimension_aligns_with_encoder() -> None:
+    """QdrantSearchClient built from encoder.dimension uses the matching collection."""
+    from services.search.encoder import DeterministicTestEncoder
+
+    encoder = DeterministicTestEncoder()
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=encoder.dimension)
+
+    assert client.dimension == encoder.dimension
+    assert client.collection_name == f"tomorrowland_chunks_{encoder.dimension}"
+
+
 def test_collection_name_includes_dimension() -> None:
     client_384 = QdrantSearchClient(url="http://localhost:6333", dimension=384)
     client_768 = QdrantSearchClient(url="http://localhost:6333", dimension=768)
@@ -314,6 +325,52 @@ def test_search_admin_with_document_id_filter() -> None:
     condition_keys = [c.key for c in query_filter.must]
     assert "group_id" not in condition_keys
     assert "document_id" in condition_keys
+
+
+def test_upsert_chunks_calls_create_collection_before_upsert() -> None:
+    """upsert_chunks must ensure the collection exists before any write."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.collection_exists.return_value = False
+    client._client = mock_qdrant
+
+    client.upsert_chunks([_MINIMAL_CHUNK])
+
+    mock_qdrant.collection_exists.assert_called_once_with(collection_name=COLLECTION_NAME)
+    mock_qdrant.create_collection.assert_called_once()
+    mock_qdrant.upsert.assert_called_once()
+
+
+def test_upsert_chunks_delete_existing_ensures_collection_before_delete() -> None:
+    """With delete_existing=True, create_collection_if_not_exists must run before delete."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.collection_exists.return_value = True
+    client._client = mock_qdrant
+
+    client.upsert_chunks([_MINIMAL_CHUNK], delete_existing=True)
+
+    mock_qdrant.collection_exists.assert_called()
+    # collection_exists is called by create_collection_if_not_exists first, then by delete_by_doc_id
+    collection_exists_idx = next(
+        i for i, c in enumerate(mock_qdrant.mock_calls) if "collection_exists" in str(c)
+    )
+    delete_idx = next(
+        i for i, c in enumerate(mock_qdrant.mock_calls) if "delete" in str(c)
+    )
+    assert collection_exists_idx < delete_idx
+
+
+def test_delete_by_doc_id_is_noop_when_collection_absent() -> None:
+    """delete_by_doc_id must not call delete when the collection does not exist."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.collection_exists.return_value = False
+    client._client = mock_qdrant
+
+    client.delete_by_doc_id("doc-missing")
+
+    mock_qdrant.delete.assert_not_called()
 
 
 def test_client_close() -> None:

@@ -307,9 +307,9 @@ if __name__ == "__main__":
     with engine.connect() as conn:
         doc_repo = DocumentRepository(conn)
         es_client = ElasticsearchSearchClient(hosts=[settings.elastic_url])
-        qdrant_client = QdrantSearchClient(url=settings.qdrant_url)
         translator = LibreTranslateClient(base_url=settings.libretranslate_url)
         encoder = build_encoder(settings)
+        qdrant_client = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
 
         job_repo = PipelineJobRepository(conn)
         worker = PipelineWorker(
