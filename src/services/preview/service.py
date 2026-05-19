@@ -111,6 +111,74 @@ class PreviewService:
             "view_count": view_count,
         }
 
+    def get_translated_text(
+        self,
+        document_id: UUID,
+        translation_version_id: UUID | None = None,
+    ) -> str | None:
+        """Resolve the full translated text for *document_id*.
+
+        When *translation_version_id* is provided and the version is
+        available and belongs to the same document, returns that version's
+        translated text.  When omitted, returns the latest available
+        translation.  Falls back to ``document_payloads.translated_text``
+        for documents processed before version records existed.
+        Returns ``None`` when no translation is found.
+        """
+        if translation_version_id is not None:
+            version_row = (
+                self._connection.execute(
+                    sa.text("""
+                        SELECT dv.translated_text, dv.document_id
+                        FROM document_translation_versions dv
+                        WHERE dv.id = :id AND dv.status = 'available'
+                        """),
+                    {"id": db_uuid(translation_version_id)},
+                )
+                .mappings()
+                .first()
+            )
+            if (
+                version_row is not None
+                and to_uuid(version_row["document_id"]) == document_id
+                and version_row["translated_text"]
+            ):
+                return version_row["translated_text"]
+
+        latest_row = (
+            self._connection.execute(
+                sa.text("""
+                    SELECT translated_text
+                    FROM document_translation_versions
+                    WHERE document_id = :document_id AND status = 'available'
+                    ORDER BY version_number DESC
+                    LIMIT 1
+                    """),
+                {"document_id": db_uuid(document_id)},
+            )
+            .mappings()
+            .first()
+        )
+        if latest_row and latest_row["translated_text"]:
+            return latest_row["translated_text"]
+
+        payload_row = (
+            self._connection.execute(
+                sa.text("""
+                    SELECT translated_text
+                    FROM document_payloads
+                    WHERE document_id = :document_id
+                    """),
+                {"document_id": db_uuid(document_id)},
+            )
+            .mappings()
+            .first()
+        )
+        if payload_row and payload_row["translated_text"]:
+            return payload_row["translated_text"]
+
+        return None
+
     def _generate_snippet(
         self,
         document_id: UUID,
@@ -131,70 +199,12 @@ class PreviewService:
         When *show_original* is True, skip all translation resolution and
         always fall through to the original file extraction.
         """
-        translated_text: str | None = None
-
         if not show_original:
-            if translation_version_id is not None:
-                # Verify the requested version is available and belongs to
-                # the same document_id (prevent cross-document version leaks).
-                version_row = (
-                    self._connection.execute(
-                        sa.text("""
-                            SELECT dv.translated_text, dv.document_id
-                            FROM document_translation_versions dv
-                            WHERE dv.id = :id AND dv.status = 'available'
-                            """),
-                        {"id": db_uuid(translation_version_id)},
-                    )
-                    .mappings()
-                    .first()
-                )
-                if (
-                    version_row is not None
-                    and to_uuid(version_row["document_id"]) == document_id
-                    and version_row["translated_text"]
-                ):
-                    translated_text = version_row["translated_text"]
-
-            if translated_text is None:
-                # Resolve the latest available translation for this document
-                latest_row = (
-                    self._connection.execute(
-                        sa.text("""
-                            SELECT translated_text
-                            FROM document_translation_versions
-                            WHERE document_id = :document_id AND status = 'available'
-                            ORDER BY version_number DESC
-                            LIMIT 1
-                            """),
-                        {"document_id": db_uuid(document_id)},
-                    )
-                    .mappings()
-                    .first()
-                )
-                if latest_row and latest_row["translated_text"]:
-                    translated_text = latest_row["translated_text"]
-
-            if translated_text is None:
-                # Fallback to document_payloads for documents processed before
-                # version records were created (legacy compatibility).
-                payload_row = (
-                    self._connection.execute(
-                        sa.text("""
-                            SELECT translated_text
-                            FROM document_payloads
-                            WHERE document_id = :document_id
-                            """),
-                        {"document_id": db_uuid(document_id)},
-                    )
-                    .mappings()
-                    .first()
-                )
-                if payload_row and payload_row["translated_text"]:
-                    translated_text = payload_row["translated_text"]
-
-        if translated_text:
-            return translated_text[:SNIPPET_LENGTH]
+            translated_text = self.get_translated_text(
+                document_id, translation_version_id=translation_version_id
+            )
+            if translated_text:
+                return translated_text[:SNIPPET_LENGTH]
 
         # Fall back to original document extraction
         if file_path is None:

@@ -70,7 +70,7 @@ export function DocumentToolbar({
             </Button>
           )}
           <a
-            href={getDownloadUrl(preview.document_id)}
+            href={getDownloadUrl(preview.document_id, selectedVersionId, showOriginal)}
             download
             className={styles.downloadLink}
           >

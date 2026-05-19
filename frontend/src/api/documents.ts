@@ -120,8 +120,16 @@ export function requestTranslation(docId: string): Promise<{ document_id: string
   return api.post(`/documents/${docId}/translate`, {});
 }
 
-export function getDownloadUrl(docId: string): string {
-  return `/api/download/${docId}`;
+export function getDownloadUrl(
+  docId: string,
+  translationVersionId?: string,
+  original?: boolean,
+): string {
+  const params = new URLSearchParams();
+  if (translationVersionId) params.set("translation_version_id", translationVersionId);
+  if (original) params.set("show_original", "true");
+  const qs = params.toString();
+  return `/api/download/${docId}${qs ? `?${qs}` : ""}`;
 }
 
 
