@@ -27,6 +27,7 @@ from services.documents.repository import (
 )
 from services.intelligence.repository import IntelligenceRepository
 from services.permissions.enforcer import assert_doc_access
+from services.pipeline.jobs import PipelineJobRepository
 from services.preview.service import PreviewService
 from services.related.repository import RelatedRepository
 from services.related.service import RelatedService
@@ -147,6 +148,13 @@ def request_translation(
             target_language=doc.target_language,
         )
         doc_repo.update_translation_quality(document_id, "pending_high")
+
+        job_repo = PipelineJobRepository(connection)
+        job_repo.enqueue_document(
+            document_id=document_id,
+            source_id=doc.source_id,
+            job_type="enrich_document",
+        )
 
         return {
             "document_id": str(document_id),
