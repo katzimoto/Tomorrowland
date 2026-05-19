@@ -296,6 +296,7 @@ services:
     environment:
       OLLAMA_HOST: http://ollama:11434
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
     depends_on:
       ollama:
         condition: service_healthy
@@ -304,6 +305,7 @@ services:
       - |
         set -eu
         ollama pull "$${EMBEDDING_MODEL}"
+        ollama pull "$${OLLAMA_MODEL}"
     logging:
       driver: json-file
 
