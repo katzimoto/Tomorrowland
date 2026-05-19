@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from unittest.mock import MagicMock, call
 
 import pytest
@@ -47,7 +48,7 @@ def test_upsert_chunks_success() -> None:
     assert call_args.kwargs["collection_name"] == COLLECTION_NAME
     points = call_args.kwargs["points"]
     assert len(points) == 2
-    assert points[0].id == "doc-1-0"
+    assert points[0].id == str(uuid.uuid5(uuid.NAMESPACE_DNS, "doc-1-0"))
     assert points[0].payload["document_id"] == "doc-1"
     assert points[0].payload["chunk_id"] == "doc-1-0"
 

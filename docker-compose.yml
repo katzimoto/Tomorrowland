@@ -298,8 +298,6 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1
     restart: unless-stopped
-    profiles:
-      - monitoring
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -321,8 +319,6 @@ services:
   grafana:
     image: grafana/grafana:11.1.4
     restart: unless-stopped
-    profiles:
-      - monitoring
     environment:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"

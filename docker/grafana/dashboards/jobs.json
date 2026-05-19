@@ -1,0 +1,431 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "DLQ pending",
+      "gridPos": { "x": 0, "y": 0, "w": 5, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "tomorrowland_dlq_pending",
+          "legendFormat": "dlq pending",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Jobs pending",
+      "gridPos": { "x": 5, "y": 0, "w": 5, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum(tomorrowland_pipeline_queue_depth{status=\"pending\"})",
+          "legendFormat": "pending",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Jobs running",
+      "gridPos": { "x": 10, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum(tomorrowland_pipeline_queue_depth{status=\"running\"})",
+          "legendFormat": "running",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Jobs dead-lettered",
+      "gridPos": { "x": 14, "y": 0, "w": 5, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum(tomorrowland_pipeline_queue_depth{status=\"dead_letter\"})",
+          "legendFormat": "dead-letter",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Worker loop errors/min",
+      "gridPos": { "x": 19, "y": 0, "w": 5, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum(rate(tomorrowland_worker_loop_errors_total[5m])) * 60",
+          "legendFormat": "errors/min",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Job throughput by outcome",
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum by (worker_type, job_type) (rate(tomorrowland_pipeline_jobs_claimed_total[5m]))",
+          "legendFormat": "claimed {{worker_type}}/{{job_type}}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum by (worker_type, job_type) (rate(tomorrowland_pipeline_jobs_succeeded_total[5m]))",
+          "legendFormat": "succeeded {{worker_type}}/{{job_type}}",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum by (worker_type, job_type) (rate(tomorrowland_pipeline_jobs_retried_total[5m]))",
+          "legendFormat": "retried {{worker_type}}/{{job_type}}",
+          "refId": "C"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum by (worker_type, job_type) (rate(tomorrowland_pipeline_jobs_dead_lettered_total[5m]))",
+          "legendFormat": "dead-lettered {{worker_type}}/{{job_type}}",
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Worker loop errors by type",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum by (worker_type, error_type) (rate(tomorrowland_worker_loop_errors_total[5m]))",
+          "legendFormat": "{{worker_type}} / {{error_type}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Dead-lettered jobs by worker + type",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum by (worker_type, job_type) (rate(tomorrowland_pipeline_jobs_dead_lettered_total[5m]))",
+          "legendFormat": "dead-lettered {{worker_type}}/{{job_type}}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum by (worker_type) (rate(tomorrowland_pipeline_jobs_stale_lock_reaped_total[5m]))",
+          "legendFormat": "stale-lock-reaped {{worker_type}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Job duration p95 by job type",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le, job_type, outcome) (rate(tomorrowland_pipeline_job_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95 {{job_type}} / {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Job duration p50 by job type",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "histogram_quantile(0.50, sum by (le, job_type, outcome) (rate(tomorrowland_pipeline_job_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50 {{job_type}} / {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Worker heartbeat staleness",
+      "gridPos": { "x": 0, "y": 28, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "time() - tomorrowland_worker_heartbeat_timestamp_seconds",
+          "legendFormat": "{{worker_type}} / {{worker_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 60 },
+              { "color": "red", "value": 300 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "DLQ records by reason",
+      "gridPos": { "x": 12, "y": 28, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum by (reason, source) (rate(tomorrowland_dlq_records_total[5m]))",
+          "legendFormat": "{{reason}} / {{source}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Queue depth by status and job type",
+      "gridPos": { "x": 0, "y": 36, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "tomorrowland-prometheus" },
+          "expr": "sum by (status, job_type) (tomorrowland_pipeline_queue_depth)",
+          "legendFormat": "{{status}} / {{job_type}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["tomorrowland", "provisioned"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Tomorrowland Jobs",
+  "uid": "tomorrowland-jobs",
+  "version": 1,
+  "weekStart": ""
+}

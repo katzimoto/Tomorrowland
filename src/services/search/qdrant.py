@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid as _uuid
 from typing import Any
 
 from qdrant_client import QdrantClient
@@ -103,9 +104,13 @@ class QdrantSearchClient:
                 payload["title"] = chunk["title"]
             if "source_language" in chunk:
                 payload["source_language"] = chunk["source_language"]
+            # Qdrant point IDs must be valid UUIDs or unsigned integers.
+            # chunk_id is a human-readable string (e.g. "<uuid>-orig-0") that
+            # is not itself a valid UUID, so derive a stable UUID5 from it.
+            point_id = str(_uuid.uuid5(_uuid.NAMESPACE_DNS, chunk["chunk_id"]))
             points.append(
                 PointStruct(
-                    id=chunk["chunk_id"],
+                    id=point_id,
                     vector=vector,
                     payload=payload,
                 )
