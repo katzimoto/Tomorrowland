@@ -96,8 +96,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-      ollama-models:
-        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
     logging:
       driver: json-file
     volumes:
@@ -118,8 +118,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-      ollama-models:
-        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
     logging:
       driver: json-file
     volumes:
@@ -274,7 +274,12 @@ services:
       - libretranslate_data:/home/libretranslate/.local
 
   ollama:
-    image: ollama/ollama:latest
+    build:
+      context: .
+      dockerfile: docker/ollama.Dockerfile
+      args:
+        OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
+        EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
     restart: unless-stopped
     environment:
       OLLAMA_MODELS: /root/.ollama/models
@@ -289,23 +294,6 @@ services:
       driver: json-file
     volumes:
       - ollama_data:/root/.ollama
-
-  ollama-models:
-    image: ollama/ollama:latest
-    restart: "no"
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
-    depends_on:
-      ollama:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -eu
-        ollama pull "$${EMBEDDING_MODEL}"
-    logging:
-      driver: json-file
 
   prometheus:
     image: prom/prometheus:v2.54.1
