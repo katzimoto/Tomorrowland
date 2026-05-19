@@ -95,7 +95,7 @@ export function AdminGroupDetailPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <Button variant="secondary" size="sm" onClick={() => navigate({ to: "/admin" })}>
+        <Button variant="secondary" size="sm" onClick={() => navigate({ to: "/admin/groups" })}>
           <ArrowLeft size={16} />
           Back
         </Button>

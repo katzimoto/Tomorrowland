@@ -77,6 +77,10 @@ class CreateGroupRequest(BaseModel):
     name: str
 
 
+class UpdateGroupRequest(BaseModel):
+    name: str
+
+
 class CreateSourceRequest(BaseModel):
     name: str
     type: Literal["folder", "nifi", "confluence", "jira", "smb"] = "folder"

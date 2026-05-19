@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CheckCircle2, PlugZap, Plus, RefreshCw, ServerIcon } from "lucide-react";
+import { ArrowLeft, CheckCircle2, PlugZap, Plus, RefreshCw, ServerIcon } from "lucide-react";
 import { adminApi, type ConnectorType, type Source, type SyncResult } from "@/api/admin";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
@@ -179,6 +179,10 @@ export function AdminSourcesPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
+        <Button variant="secondary" size="sm" onClick={() => navigate({ to: "/admin" })}>
+          <ArrowLeft size={16} />
+          Admin
+        </Button>
         <h1 className={styles.title}>{t.admin.title}</h1>
         <Button onClick={() => navigate({ to: "/admin/sources/new" })} disabled={typesLoading}>
           <Plus size={16} />

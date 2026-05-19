@@ -9,9 +9,11 @@ import { SubscriptionsPage } from "@/features/subscriptions/SubscriptionsPage";
 import { NotificationsPage } from "@/features/notifications/NotificationsPage";
 import { HistoryPage } from "@/features/history/HistoryPage";
 import { ExpertisePage } from "@/features/expertise/ExpertisePage";
+import { AdminHubPage } from "@/features/admin/AdminHubPage";
 import { AdminSourcesPage } from "@/features/admin/AdminSourcesPage";
 import { AdminSourceDetailPage } from "@/features/admin/AdminSourceDetailPage";
 import { AdminAddSourceWizard } from "@/features/admin/AdminAddSourceWizard";
+import { AdminGroupsPage } from "@/features/admin/AdminGroupsPage";
 import { AdminGroupDetailPage } from "@/features/admin/AdminGroupDetailPage";
 import { AppLayout } from "./AppLayout";
 
@@ -97,6 +99,12 @@ const expertiseRoute = createRoute({
 const adminRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/admin",
+  component: AdminHubPage,
+});
+
+const adminSourcesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/sources",
   component: AdminSourcesPage,
 });
 
@@ -110,6 +118,12 @@ const adminSourceDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/admin/sources/$sourceId",
   component: AdminSourceDetailPage,
+});
+
+const adminGroupsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/groups",
+  component: AdminGroupsPage,
 });
 
 const adminGroupDetailRoute = createRoute({
@@ -131,8 +145,10 @@ const routeTree = rootRoute.addChildren([
     historyRoute,
     expertiseRoute,
     adminRoute,
+    adminSourcesRoute,
     adminAddSourceRoute,
     adminSourceDetailRoute,
+    adminGroupsRoute,
     adminGroupDetailRoute,
   ]),
 ]);
