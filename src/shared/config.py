@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     ldap_bind_password: str = "changeme"
 
     feature_rag_qa: bool = True
+    rag_max_chunks: int = Field(default=5, ge=1, le=50)
+    rag_max_tokens_context: int = Field(default=2000, ge=100)
+    rag_score_threshold: float = Field(default=0.0, ge=0.0, le=1.0)
     feature_summarization: bool = True
     feature_entity_extraction: bool = True
     feature_annotations: bool = True

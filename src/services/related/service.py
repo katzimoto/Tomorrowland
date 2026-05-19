@@ -24,6 +24,8 @@ SIGNAL_WEIGHTS = {
     "annotation": 2.0,
     "subscription": 1.0,
 }
+RELATED_OVERLAP_BONUS_PER_MATCH = 0.1
+RELATED_OVERLAP_BONUS_CAP = 0.3
 
 
 @dataclass
@@ -35,6 +37,10 @@ class _ExpertiseAggregate:
     comment_count: int = 0
     annotation_count: int = 0
     subscription_count: int = 0
+    view_contribution: float = 0.0
+    comment_contribution: float = 0.0
+    annotation_contribution: float = 0.0
+    subscription_contribution: float = 0.0
     docs: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
@@ -118,15 +124,19 @@ class RelatedService:
                 ),
             )
             signal_type = str(signal["signal_type"])
-            aggregate.score += SIGNAL_WEIGHTS[signal_type] * doc_scores.get(
+            contribution = SIGNAL_WEIGHTS[signal_type] * doc_scores.get(
                 str(signal["document_id"]), 1.0
             )
+            aggregate.score += contribution
             if signal_type == "view":
                 aggregate.view_count += 1
+                aggregate.view_contribution += contribution
             elif signal_type == "comment":
                 aggregate.comment_count += 1
+                aggregate.comment_contribution += contribution
             elif signal_type == "annotation":
                 aggregate.annotation_count += 1
+                aggregate.annotation_contribution += contribution
             document_id = str(signal["document_id"])
             aggregate.docs.setdefault(
                 document_id,
@@ -161,8 +171,10 @@ class RelatedService:
                         display_name=subscription["display_name"],
                     ),
                 )
+                sub_contribution = SIGNAL_WEIGHTS["subscription"] * similarity
                 aggregate.subscription_count += 1
-                aggregate.score += SIGNAL_WEIGHTS["subscription"] * similarity
+                aggregate.subscription_contribution += sub_contribution
+                aggregate.score += sub_contribution
 
         return [_expertise_response(aggregate) for aggregate in _rank_aggregates(aggregates)]
 
@@ -191,6 +203,8 @@ def _rank_aggregates(
 
 
 def _expertise_response(aggregate: _ExpertiseAggregate) -> dict[str, Any]:
+    # top_docs is derived exclusively from expertise_signals() which applies the
+    # caller's group_ids filter via an accessible_docs CTE — no cross-group leakage.
     evidence = sorted(
         aggregate.docs.values(),
         key=lambda item: (-float(item["score"]), str(item["document_id"])),
@@ -204,6 +218,28 @@ def _expertise_response(aggregate: _ExpertiseAggregate) -> dict[str, Any]:
             "comments": aggregate.comment_count,
             "annotations": aggregate.annotation_count,
             "subscriptions": aggregate.subscription_count,
+        },
+        "signal_details": {
+            "views": {
+                "count": aggregate.view_count,
+                "weight": SIGNAL_WEIGHTS["view"],
+                "contribution": round(aggregate.view_contribution, 4),
+            },
+            "comments": {
+                "count": aggregate.comment_count,
+                "weight": SIGNAL_WEIGHTS["comment"],
+                "contribution": round(aggregate.comment_contribution, 4),
+            },
+            "annotations": {
+                "count": aggregate.annotation_count,
+                "weight": SIGNAL_WEIGHTS["annotation"],
+                "contribution": round(aggregate.annotation_contribution, 4),
+            },
+            "subscriptions": {
+                "count": aggregate.subscription_count,
+                "weight": SIGNAL_WEIGHTS["subscription"],
+                "contribution": round(aggregate.subscription_contribution, 4),
+            },
         },
         "reason": "Has activity on matching documents",
         "top_docs": evidence,
