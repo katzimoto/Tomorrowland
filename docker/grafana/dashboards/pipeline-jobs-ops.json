@@ -1,0 +1,330 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Dead-letter jobs",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+          "rawSql": "SELECT COUNT(*) AS count FROM pipeline_jobs WHERE status = 'dead_letter'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^count$/" },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Pending jobs",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+          "rawSql": "SELECT COUNT(*) AS count FROM pipeline_jobs WHERE status = 'pending'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^count$/" },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Running jobs",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+          "rawSql": "SELECT COUNT(*) AS count FROM pipeline_jobs WHERE status = 'running'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^count$/" },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Retry jobs",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+          "rawSql": "SELECT COUNT(*) AS count FROM pipeline_jobs WHERE status = 'retry'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^count$/" },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Dead-letter jobs",
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+          "rawSql": "SELECT id, document_id, job_type, attempts, max_attempts, last_error, stage, updated_at FROM pipeline_jobs WHERE status = 'dead_letter' ORDER BY updated_at DESC LIMIT 100",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "last_error" },
+            "properties": [{ "id": "custom.width", "value": 220 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "id" },
+            "properties": [{ "id": "custom.width", "value": 300 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "document_id" },
+            "properties": [{ "id": "custom.width", "value": 300 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "updated_at" },
+            "properties": [
+              { "id": "custom.width", "value": 180 },
+              { "id": "unit", "value": "dateTimeAsIso" }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "footer": { "show": false },
+        "sortBy": [{ "displayName": "updated_at", "desc": true }]
+      }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Active jobs (pending / running / retry)",
+      "gridPos": { "x": 0, "y": 14, "w": 24, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+          "rawSql": "SELECT id, document_id, job_type, status, attempts, max_attempts, stage, locked_by, run_after, updated_at FROM pipeline_jobs WHERE status IN ('pending', 'running', 'retry') ORDER BY priority DESC, created_at ASC LIMIT 100",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "id" },
+            "properties": [{ "id": "custom.width", "value": 300 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "document_id" },
+            "properties": [{ "id": "custom.width", "value": 300 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "status" },
+            "properties": [
+              { "id": "custom.width", "value": 90 },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "pending":  { "color": "blue",   "index": 0 } } },
+                  { "type": "value", "options": { "running":  { "color": "green",  "index": 1 } } },
+                  { "type": "value", "options": { "retry":    { "color": "orange", "index": 2 } } }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "run_after" },
+            "properties": [
+              { "id": "custom.width", "value": 180 },
+              { "id": "unit", "value": "dateTimeAsIso" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "updated_at" },
+            "properties": [
+              { "id": "custom.width", "value": 180 },
+              { "id": "unit", "value": "dateTimeAsIso" }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "footer": { "show": false }
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Job counts by type and status (last 24 h)",
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+          "rawSql": "SELECT job_type, status, COUNT(*) AS count FROM pipeline_jobs WHERE updated_at >= NOW() - INTERVAL '24 hours' GROUP BY job_type, status ORDER BY job_type, status",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "footer": { "show": false }
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Recently failed jobs (last 24 h)",
+      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "tomorrowland-postgres" },
+          "rawSql": "SELECT id, document_id, job_type, last_error, attempts, updated_at FROM pipeline_jobs WHERE status IN ('dead_letter', 'retry') AND updated_at >= NOW() - INTERVAL '24 hours' ORDER BY updated_at DESC LIMIT 50",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "updated_at" },
+            "properties": [
+              { "id": "custom.width", "value": 180 },
+              { "id": "unit", "value": "dateTimeAsIso" }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "footer": { "show": false }
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["tomorrowland", "provisioned"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Tomorrowland Pipeline Jobs",
+  "uid": "tomorrowland-pipeline-jobs-ops",
+  "version": 1,
+  "weekStart": ""
+}
