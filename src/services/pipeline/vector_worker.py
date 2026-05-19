@@ -1,7 +1,8 @@
 """Vector indexing worker that processes ``vector_index_document`` jobs.
 
 Claims durable vector jobs from the queue, encodes chunks via Ollama,
-and writes Qdrant points. Independent of the text pipeline worker.
+and writes Qdrant points for both original and translated text.
+Independent of the text pipeline worker.
 """
 
 from __future__ import annotations
@@ -74,20 +75,27 @@ def run_vector_once(
 
         allowed_group_ids = [str(gid) for gid in doc_repo.source_group_ids(source_id)]
 
-        # Load payload text for chunking
+        # Load payload texts for chunking
         payload = job_repo.get_payload(document_id)
-        content = (payload["content_text"] if payload else None) or ""
-        if not content and doc.path:
+        content_text = (payload.get("content_text", "") if payload else None) or ""
+        if not content_text and doc.path:
             from pathlib import Path
 
-            content = extractor.extract(Path(doc.path), doc.mime_type)
+            content_text = extractor.extract(Path(doc.path), doc.mime_type)
 
-        chunks = chunk_text(content)
-        qdrant_chunks: list[dict[str, Any]] = []
-        for idx, chunk_text_content in enumerate(chunks):
+        translated_text = (payload.get("translated_text", "") if payload else None) or ""
+
+        # Helper to build a single Qdrant chunk entry
+        def _build_chunk(
+            chunk_text_content: str,
+            idx: int,
+            *,
+            lang: str | None,
+            suffix: str,
+        ) -> dict[str, Any]:
             vector = encoder.encode(chunk_text_content)
-            chunk_entry: dict[str, Any] = {
-                "chunk_id": f"{document_id}-{idx}",
+            entry: dict[str, Any] = {
+                "chunk_id": f"{document_id}-{suffix}-{idx}",
                 "document_id": str(document_id),
                 "group_id": allowed_group_ids,
                 "chunk_index": idx,
@@ -96,10 +104,35 @@ def run_vector_once(
                 "source_id": str(source_id),
             }
             if doc.title:
-                chunk_entry["title"] = doc.title
-            if doc.source_language:
-                chunk_entry["source_language"] = doc.source_language
-            qdrant_chunks.append(chunk_entry)
+                entry["title"] = doc.title
+            if lang:
+                entry["language"] = lang
+            return entry
+
+        qdrant_chunks: list[dict[str, Any]] = []
+
+        # Original language chunks
+        for idx, chunk_text_content in enumerate(chunk_text(content_text)):
+            qdrant_chunks.append(
+                _build_chunk(
+                    chunk_text_content,
+                    idx,
+                    lang=doc.source_language,
+                    suffix="orig",
+                )
+            )
+
+        # Translated chunks (when translation exists and differs from original)
+        if translated_text and translated_text != content_text:
+            for idx, chunk_text_content in enumerate(chunk_text(translated_text)):
+                qdrant_chunks.append(
+                    _build_chunk(
+                        chunk_text_content,
+                        idx,
+                        lang=doc.target_language,
+                        suffix="trans",
+                    )
+                )
 
         if qdrant_chunks:
             # Delete stale chunks from previous indexing runs before upserting
