@@ -361,6 +361,47 @@ class PipelineJobRepository:
             },
         )
 
+    def requeue_dead_letter(
+        self,
+        job_type: str | None = None,
+        error_prefix: str | None = None,
+    ) -> int:
+        """Reset dead-lettered jobs back to pending so workers retry them.
+
+        Clears attempts so the job gets a full retry budget again.
+        Filters can be combined: *job_type* restricts by job type,
+        *error_prefix* restricts to rows whose last_error starts with the prefix.
+
+        Returns the number of jobs requeued.
+        """
+        now = datetime.now(UTC)
+        params: dict[str, Any] = {"now": now}
+        filters = ["status = 'dead_letter'"]
+
+        if job_type is not None:
+            filters.append("job_type = :job_type")
+            params["job_type"] = job_type
+        if error_prefix is not None:
+            filters.append("last_error LIKE :error_prefix")
+            params["error_prefix"] = error_prefix + "%"
+
+        where = " AND ".join(filters)
+        result = self._connection.execute(
+            sa.text(f"""
+                UPDATE pipeline_jobs
+                SET status = 'pending',
+                    attempts = 0,
+                    last_error = NULL,
+                    locked_by = NULL,
+                    locked_at = NULL,
+                    run_after = :now,
+                    updated_at = :now
+                WHERE {where}
+            """),
+            params,
+        )
+        return result.rowcount if result.rowcount is not None else 0
+
     def count_by_status(self) -> dict[tuple[str, str], int]:
         """Return job counts grouped by (status, job_type).
 

@@ -551,6 +551,151 @@ def test_update_translated_text_persists_value(engine: Engine) -> None:
         assert payload["translated_text"] == "translated content"
 
 
+def _make_dead_letter_job(
+    conn: sa.Connection,
+    source_id: object,
+    document_id: object,
+    job_type: str = "vector_index_document",
+    last_error: str = "UnexpectedResponse:process",
+) -> None:
+    """Insert a dead-lettered pipeline job directly for testing requeue."""
+    from uuid import uuid4
+
+    conn.execute(
+        sa.text("""
+            INSERT INTO pipeline_jobs
+                (id, document_id, source_id, job_type, status, attempts, max_attempts, last_error)
+            VALUES (:id, :document_id, :source_id, :job_type, 'dead_letter', 5, 5, :last_error)
+        """),
+        {
+            "id": uuid4().hex,
+            "document_id": document_id,
+            "source_id": source_id,
+            "job_type": job_type,
+            "last_error": last_error,
+        },
+    )
+
+
+def test_requeue_dead_letter_resets_to_pending(engine: Engine) -> None:
+    with engine.begin() as conn:
+        source_id = uuid4()
+        document_id = uuid4()
+        conn.execute(
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
+            {"id": source_id.hex, "name": "test", "type": "folder"},
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
+                "VALUES (:id, :source_id, :eid, :source, :mime)"
+            ),
+            {
+                "id": document_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },
+        )
+        _make_dead_letter_job(conn, source_id.hex, document_id.hex)
+
+        repo = PipelineJobRepository(conn)
+        count = repo.requeue_dead_letter()
+
+        assert count == 1
+        row = conn.execute(
+            sa.text("SELECT status, attempts, last_error, locked_by FROM pipeline_jobs")
+        ).one()
+        assert row.status == "pending"
+        assert row.attempts == 0
+        assert row.last_error is None
+        assert row.locked_by is None
+
+
+def test_requeue_dead_letter_filters_by_job_type(engine: Engine) -> None:
+    with engine.begin() as conn:
+        source_id = uuid4()
+        doc_a = uuid4()
+        doc_b = uuid4()
+        conn.execute(
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
+            {"id": source_id.hex, "name": "test", "type": "folder"},
+        )
+        for doc in (doc_a, doc_b):
+            conn.execute(
+                sa.text(
+                    "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
+                    "VALUES (:id, :source_id, :eid, :source, :mime)"
+                ),
+                {
+                    "id": doc.hex,
+                    "source_id": source_id.hex,
+                    "eid": doc.hex,
+                    "source": "folder",
+                    "mime": "text/plain",
+                },
+            )
+        _make_dead_letter_job(conn, source_id.hex, doc_a.hex, job_type="vector_index_document")
+        _make_dead_letter_job(conn, source_id.hex, doc_b.hex, job_type="process_document")
+
+        repo = PipelineJobRepository(conn)
+        count = repo.requeue_dead_letter(job_type="vector_index_document")
+
+        assert count == 1
+        rows = conn.execute(sa.text("SELECT job_type, status FROM pipeline_jobs")).fetchall()
+        statuses = {r[0]: r[1] for r in rows}
+        assert statuses["vector_index_document"] == "pending"
+        assert statuses["process_document"] == "dead_letter"
+
+
+def test_requeue_dead_letter_filters_by_error_prefix(engine: Engine) -> None:
+    with engine.begin() as conn:
+        source_id = uuid4()
+        doc_a = uuid4()
+        doc_b = uuid4()
+        conn.execute(
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
+            {"id": source_id.hex, "name": "test", "type": "folder"},
+        )
+        for doc in (doc_a, doc_b):
+            conn.execute(
+                sa.text(
+                    "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
+                    "VALUES (:id, :source_id, :eid, :source, :mime)"
+                ),
+                {
+                    "id": doc.hex,
+                    "source_id": source_id.hex,
+                    "eid": doc.hex,
+                    "source": "folder",
+                    "mime": "text/plain",
+                },
+            )
+        _make_dead_letter_job(
+            conn, source_id.hex, doc_a.hex, last_error="UnexpectedResponse:process"
+        )
+        _make_dead_letter_job(conn, source_id.hex, doc_b.hex, last_error="ValueError:process")
+
+        repo = PipelineJobRepository(conn)
+        count = repo.requeue_dead_letter(error_prefix="UnexpectedResponse")
+
+        assert count == 1
+        rows = conn.execute(
+            sa.text("SELECT last_error, status FROM pipeline_jobs ORDER BY last_error")
+        ).fetchall()
+        status_map = {r[0]: r[1] for r in rows}
+        assert status_map[None] == "pending"
+        assert status_map["ValueError:process"] == "dead_letter"
+
+
+def test_requeue_dead_letter_returns_zero_when_none_match(engine: Engine) -> None:
+    with engine.begin() as conn:
+        repo = PipelineJobRepository(conn)
+        count = repo.requeue_dead_letter(job_type="no_such_type")
+        assert count == 0
+
+
 def test_end_to_end(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
