@@ -29,7 +29,7 @@ test("maps the backend annotations envelope and privacy fields", async () => {
   });
 
   await expect(listAnnotations("d1")).resolves.toEqual([
-    { id: "a1", document_id: "d1", author_id: "u1", author_name: "Ari", body: "Shared note", position: { page: 2 }, shared: true, created_at: "2026-05-01T10:00:00Z", updated_at: "2026-05-01T11:00:00Z" },
+    { id: "a1", document_id: "d1", author_id: "u1", author_name: "Ari", body: "Shared note", position: { page: 2 }, shared: true, created_at: "2026-05-01T10:00:00Z", updated_at: "2026-05-01T11:00:00Z", can_modify: false },
   ]);
 });
 

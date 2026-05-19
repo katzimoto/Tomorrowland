@@ -84,7 +84,7 @@ describe("TranslationVersionSelector", () => {
     });
     expect(select).toBeInTheDocument();
     expect(
-      await screen.findByRole("option", { name: /Manual EN/ })
+      await screen.findByRole("option", { name: "Manual EN" })
     ).toBeInTheDocument();
   });
 
