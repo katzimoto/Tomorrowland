@@ -12,6 +12,7 @@ from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
 from services.intelligence.ollama_client import OllamaClient
 from services.rag.models import QuestionRequest
+from services.rag.reranker import NoOpReranker
 from services.rag.service import RagService
 from services.search.factory import build_encoder
 from services.search.qdrant import QdrantSearchClient
@@ -90,6 +91,8 @@ def qa(
             max_chunks=settings.rag_max_chunks,
             max_tokens_context=settings.rag_max_tokens_context,
             score_threshold=settings.rag_score_threshold,
+            meili_provider=request.app.state.meili_provider,
+            reranker=NoOpReranker(),
         )
         try:
             result = rag.answer(

@@ -154,8 +154,10 @@ class SlowWorker:
 
         # Chunk both original and translated text separately so Meilisearch records
         # pair original chunk text (content) with its translated chunk (content_en).
-        original_chunks = list(chunk_text(original)) if original else []
-        translated_chunks = list(chunk_text(translated))
+        original_chunks = (
+            list(chunk_text(original, language=doc.source_language)) if original else []
+        )
+        translated_chunks = list(chunk_text(translated, language=doc.target_language))
 
         # Index full document in Elasticsearch (preserve original text on re-index)
         self._es.index_document(
