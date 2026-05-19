@@ -80,6 +80,8 @@ class QdrantSearchClient:
         if not chunks:
             return
 
+        self.create_collection_if_not_exists()
+
         if delete_existing:
             doc_id = chunks[0]["document_id"]
             self.delete_by_doc_id(doc_id)
@@ -174,6 +176,8 @@ class QdrantSearchClient:
 
     def delete_by_doc_id(self, document_id: str) -> None:
         """Remove all chunks belonging to *document_id*."""
+        if not self._client.collection_exists(collection_name=self._collection_name):
+            return
         self._client.delete(
             collection_name=self._collection_name,
             points_selector=Filter(
