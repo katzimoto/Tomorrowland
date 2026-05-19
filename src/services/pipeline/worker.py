@@ -309,7 +309,7 @@ class PipelineWorker:
         self._doc_repo.update_indexed(document_id, "indexed", translation_quality)
 
         # 8. Intelligence (best-effort, never blocking)
-        if self._intelligence is not None and translation_quality in ("fast", "high"):
+        if self._intelligence is not None:
             try:
                 self._intelligence.process_document(doc.id, translated)
             except Exception:
