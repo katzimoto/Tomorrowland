@@ -9,6 +9,7 @@ import pytest
 
 from services.documents.models import DocumentRow
 from services.pipeline.worker import PipelineWorker, ProcessResult
+from services.search.meili_types import SearchChunkRecord
 
 
 class _FakeDocumentRepository:
@@ -94,9 +95,9 @@ class _FakeQdrant:
 class _FakeMeili:
     def __init__(self, *, fail: bool = False) -> None:
         self.fail = fail
-        self.calls: list[list[object]] = []
+        self.calls: list[list[SearchChunkRecord]] = []
 
-    def index_batch(self, documents: list[object]) -> None:
+    def index_batch(self, documents: list[SearchChunkRecord]) -> None:
         self.calls.append(documents)
         if self.fail:
             raise RuntimeError("meili_unavailable")
@@ -230,6 +231,55 @@ def test_worker_indexes_chunks_in_meilisearch_when_configured() -> None:
     assert first_record.allowed_group_ids == [str(group_id)]
     assert first_record.metadata.file_name == "test1.pdf"
     assert repo.indexed_updates == [(doc.id, "indexed", None)]
+
+
+def test_meili_content_is_original_and_content_en_is_translation() -> None:
+    """Meilisearch records use original text for content and translated for content_en."""
+    doc = _document()
+    doc.source_language = "zh"
+    doc.target_language = "en"
+    group_id = uuid4()
+    repo = _FakeDocumentRepository(doc, [group_id])
+    encoder = _FakeEncoder()
+    es = _FakeElasticsearch()
+    qdrant = _FakeQdrant()
+    meili = _FakeMeili()
+    translator = _FakeTranslator(translated="translated english text")
+    worker = _worker(
+        repo=repo, encoder=encoder, es=es, qdrant=qdrant, meili=meili, translator=translator
+    )
+
+    worker.process_document(doc.id, pre_extracted_text="原始中文文本")
+
+    assert len(meili.calls) == 1
+    records = meili.calls[0]
+    assert records
+    first = records[0]
+    assert first.content == "原始中文文本"
+    assert first.content_en == "translated english text"
+    assert first.content != first.content_en
+
+
+def test_meili_content_en_is_none_when_no_translation() -> None:
+    """Meilisearch content_en should be None when text equals translation."""
+    doc = _document()
+    doc.source_language = "en"
+    group_id = uuid4()
+    repo = _FakeDocumentRepository(doc, [group_id])
+    encoder = _FakeEncoder()
+    es = _FakeElasticsearch()
+    qdrant = _FakeQdrant()
+    meili = _FakeMeili()
+    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant, meili=meili)
+
+    worker.process_document(doc.id, pre_extracted_text="english text")
+
+    assert len(meili.calls) == 1
+    records = meili.calls[0]
+    assert records
+    first = records[0]
+    assert first.content == "english text"
+    assert first.content_en is None
 
 
 def test_worker_marks_indexed_when_meilisearch_fails(
