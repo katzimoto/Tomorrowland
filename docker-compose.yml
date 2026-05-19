@@ -12,6 +12,11 @@ x-app-environment: &app-environment
   SUPPORTED_TRANSLATION_TARGET_LANGUAGES: ${SUPPORTED_TRANSLATION_TARGET_LANGUAGES:-en,he,zh,ko,th,ar,fr,ru,es}
   OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
   OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+  EMBEDDING_URL: ${EMBEDDING_URL:-}
+  EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
+  EMBEDDING_PROVIDER_UNSAFE_ALLOW_TEST_IN_PROD: ${EMBEDDING_PROVIDER_UNSAFE_ALLOW_TEST_IN_PROD:-false}
   AUTH_PROVIDER: ${AUTH_PROVIDER:-local}
   LDAP_URL: ${LDAP_URL:-ldap://domain-controller:389}
   LDAP_BASE_DN: ${LDAP_BASE_DN:-DC=company,DC=local}
@@ -91,8 +96,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
+      ollama-models:
+        condition: service_completed_successfully
     logging:
       driver: json-file
     volumes:
@@ -113,8 +118,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
+      ollama-models:
+        condition: service_completed_successfully
     logging:
       driver: json-file
     volumes:
@@ -284,6 +289,23 @@ services:
       driver: json-file
     volumes:
       - ollama_data:/root/.ollama
+
+  ollama-models:
+    image: ollama/ollama:latest
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        ollama pull "$${EMBEDDING_MODEL}"
+    logging:
+      driver: json-file
 
   prometheus:
     image: prom/prometheus:v2.54.1
