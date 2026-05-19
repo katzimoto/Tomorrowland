@@ -14,6 +14,8 @@ export interface Comment {
   body: string;
   created_at: string;
   updated_at?: string | null;
+  can_edit: boolean;
+  can_delete: boolean;
 }
 
 export interface CommentRaw {
@@ -27,6 +29,8 @@ export interface CommentRaw {
   created_at: string;
   edited_at?: string | null;
   updated_at?: string | null;
+  can_edit?: boolean;
+  can_delete?: boolean;
 }
 
 export interface CommentListEnvelope {
@@ -71,6 +75,8 @@ function mapComment(raw: CommentRaw, docId: string): Comment {
     body: raw.body,
     created_at: raw.created_at,
     updated_at: raw.edited_at ?? raw.updated_at ?? null,
+    can_edit: raw.can_edit ?? false,
+    can_delete: raw.can_delete ?? false,
   };
 }
 

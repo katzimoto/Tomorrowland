@@ -449,3 +449,174 @@ def test_cannot_comment_on_inaccessible_doc(migrated_engine: Engine) -> None:
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# can_edit / can_delete field tests
+# ---------------------------------------------------------------------------
+
+
+def _setup_non_owner(engine: Engine) -> tuple[UUID, str]:
+    """Create a non-admin user in the admins group and return (user_id, jwt_token)."""
+    with engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        group_id = auth_repo.ensure_group("admins")
+        auth_repo.create_local_user(
+            email="other@example.com",
+            password_hash=hash_password("secret"),
+            display_name="Other User",
+            is_admin=False,
+            group_names=["admins"],
+        )
+        row = (
+            connection.execute(
+                sa.text("SELECT id FROM users WHERE email = :email"),
+                {"email": "other@example.com"},
+            )
+            .mappings()
+            .first()
+        )
+    assert row is not None
+    other_id = UUID(str(row["id"]))
+
+    app = create_app(engine)
+    jwt = JwtService(secret=app.state.settings.jwt_secret)
+    identity = UserIdentity(
+        id=other_id,
+        email="other@example.com",
+        display_name="Other User",
+        auth_source="local",
+        is_admin=False,
+        groups=[group_id],
+    )
+    return other_id, jwt.encode(identity)
+
+
+def test_create_comment_returns_can_edit_can_delete_for_owner(migrated_engine: Engine) -> None:
+    """Comment creator receives can_edit=true and can_delete=true."""
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    resp = client.post(
+        f"/documents/{doc_id}/comments",
+        json={"body": "My comment"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["can_edit"] is True
+    assert data["can_delete"] is True
+
+
+def test_list_comments_owner_gets_can_edit_can_delete(migrated_engine: Engine) -> None:
+    """Owner sees can_edit=true and can_delete=true in the list response."""
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+    client.post(
+        f"/documents/{doc_id}/comments",
+        json={"body": "Owner comment"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    resp = client.get(
+        f"/documents/{doc_id}/comments",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    comments = resp.json()["comments"]
+    assert len(comments) == 1
+    assert comments[0]["can_edit"] is True
+    assert comments[0]["can_delete"] is True
+
+
+def test_list_comments_non_owner_gets_false_flags(migrated_engine: Engine) -> None:
+    """Non-owner, non-admin user sees can_edit=false and can_delete=false."""
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    admin_token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+    client.post(
+        f"/documents/{doc_id}/comments",
+        json={"body": "Admin comment"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    _, other_token = _setup_non_owner(migrated_engine)
+
+    resp = client.get(
+        f"/documents/{doc_id}/comments",
+        headers={"Authorization": f"Bearer {other_token}"},
+    )
+    assert resp.status_code == 200
+    comments = resp.json()["comments"]
+    assert len(comments) == 1
+    assert comments[0]["can_edit"] is False
+    assert comments[0]["can_delete"] is False
+
+
+def test_update_comment_returns_can_edit_can_delete(migrated_engine: Engine) -> None:
+    """PATCH response includes can_edit=true and can_delete=true for the editor."""
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    admin_token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+    create_resp = client.post(
+        f"/documents/{doc_id}/comments",
+        json={"body": "Original"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert create_resp.status_code == 201
+    comment_id = create_resp.json()["id"]
+
+    patch_resp = client.patch(
+        f"/documents/{doc_id}/comments/{comment_id}",
+        json={"body": "Updated"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert patch_resp.status_code == 200
+    data = patch_resp.json()
+    assert data["can_edit"] is True
+    assert data["can_delete"] is True
+
+
+def test_admin_gets_can_edit_can_delete_on_others_comment(migrated_engine: Engine) -> None:
+    """Admin always gets can_edit=true and can_delete=true regardless of authorship."""
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    admin_token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    _, other_token = _setup_non_owner(migrated_engine)
+
+    # Non-owner creates a comment
+    create_resp = client.post(
+        f"/documents/{doc_id}/comments",
+        json={"body": "Non-owner comment"},
+        headers={"Authorization": f"Bearer {other_token}"},
+    )
+    assert create_resp.status_code == 201
+
+    # Admin lists and should see can_edit=true, can_delete=true
+    resp = client.get(
+        f"/documents/{doc_id}/comments",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200
+    comments = resp.json()["comments"]
+    assert len(comments) == 1
+    assert comments[0]["can_edit"] is True
+    assert comments[0]["can_delete"] is True
