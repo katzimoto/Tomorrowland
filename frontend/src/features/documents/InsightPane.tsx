@@ -5,6 +5,7 @@ import {
   useQuery,
   useMutation,
   useQueryClient,
+  type InfiniteData,
 } from "@tanstack/react-query";
 import { Trash2, Pencil } from "lucide-react";
 import {
@@ -402,7 +403,7 @@ function CommentsTab({ docId }: { docId: string }) {
     mutationFn: (body: string) => createComment(docId, body),
     onMutate: async (body) => {
       await qc.cancelQueries({ queryKey: ["doc-comments", docId] });
-      const previous = qc.getQueryData<CommentListResponse>([
+      const previous = qc.getQueryData<InfiniteData<CommentListResponse>>([
         "doc-comments",
         docId,
       ]);
@@ -418,12 +419,23 @@ function CommentsTab({ docId }: { docId: string }) {
         can_edit: true,
         can_delete: true,
       };
-      qc.setQueryData<CommentListResponse>(
+      qc.setQueryData<InfiniteData<CommentListResponse>>(
         ["doc-comments", docId],
-        (current) => ({
-          comments: [...(current?.comments ?? []), optimistic],
-          total: (current?.total ?? 0) + 1,
-        })
+        (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            pages: current.pages.map((page, idx) =>
+              idx === 0
+                ? {
+                    ...page,
+                    comments: [...page.comments, optimistic],
+                    total: page.total + 1,
+                  }
+                : page
+            ),
+          };
+        }
       );
       setNewBody("");
       return { previous };
@@ -440,21 +452,27 @@ function CommentsTab({ docId }: { docId: string }) {
     mutationFn: (body: string) => updateComment(docId, editId!, body),
     onMutate: async (body) => {
       await qc.cancelQueries({ queryKey: ["doc-comments", docId] });
-      const previous = qc.getQueryData<CommentListResponse>([
+      const previous = qc.getQueryData<InfiniteData<CommentListResponse>>([
         "doc-comments",
         docId,
       ]);
       const editingId = editId;
-      qc.setQueryData<CommentListResponse>(
+      qc.setQueryData<InfiniteData<CommentListResponse>>(
         ["doc-comments", docId],
-        (current) => ({
-          comments: (current?.comments ?? []).map((comment) =>
-            comment.id === editingId
-              ? { ...comment, body, edited_at: new Date().toISOString() }
-              : comment
-          ),
-          total: current?.total ?? 0,
-        })
+        (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              comments: page.comments.map((comment) =>
+                comment.id === editingId
+                  ? { ...comment, body, edited_at: new Date().toISOString() }
+                  : comment
+              ),
+            })),
+          };
+        }
       );
       setEditId(null);
       return { previous };
@@ -471,18 +489,25 @@ function CommentsTab({ docId }: { docId: string }) {
     mutationFn: (id: string) => deleteComment(docId, id),
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: ["doc-comments", docId] });
-      const previous = qc.getQueryData<CommentListResponse>([
+      const previous = qc.getQueryData<InfiniteData<CommentListResponse>>([
         "doc-comments",
         docId,
       ]);
-      qc.setQueryData<CommentListResponse>(
+      qc.setQueryData<InfiniteData<CommentListResponse>>(
         ["doc-comments", docId],
-        (current) => ({
-          comments: (current?.comments ?? []).filter(
-            (comment) => comment.id !== id
-          ),
-          total: Math.max((current?.total ?? 1) - 1, 0),
-        })
+        (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              comments: page.comments.filter(
+                (comment) => comment.id !== id
+              ),
+              total: Math.max(page.total - 1, 0),
+            })),
+          };
+        }
       );
       return { previous };
     },
