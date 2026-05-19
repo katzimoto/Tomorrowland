@@ -91,24 +91,39 @@ class RelatedRepository:
         return result
 
     def document_metadata(
-        self, doc_ids: list[str], group_ids: list[str]
+        self, doc_ids: list[str], group_ids: list[str], *, allow_all: bool = False
     ) -> dict[str, dict[str, Any]]:
-        """Return accessible metadata for document IDs keyed by string UUID."""
-        if not doc_ids or not group_ids:
+        """Return accessible metadata for document IDs keyed by string UUID.
+
+        When *allow_all* is True the group filter is omitted (admin bypass).
+        """
+        if not doc_ids:
+            return {}
+        if not allow_all and not group_ids:
             return {}
         params, placeholders = _uuid_params(doc_ids)
-        group_params, group_placeholders = _uuid_params(group_ids, prefix="group")
-        params.update(group_params)
-        rows = self._connection.execute(
-            sa.text(f"""
-                SELECT DISTINCT d.id, d.title, d.source, d.metadata
-                FROM documents d
-                JOIN source_permissions sp ON sp.source_id = d.source_id
-                WHERE d.id IN ({placeholders})
-                  AND sp.group_id IN ({group_placeholders})
-                """),
-            params,
-        ).mappings()
+        if allow_all:
+            rows = self._connection.execute(
+                sa.text(f"""
+                    SELECT d.id, d.title, d.source, d.metadata
+                    FROM documents d
+                    WHERE d.id IN ({placeholders})
+                    """),
+                params,
+            ).mappings()
+        else:
+            group_params, group_placeholders = _uuid_params(group_ids, prefix="group")
+            params.update(group_params)
+            rows = self._connection.execute(
+                sa.text(f"""
+                    SELECT DISTINCT d.id, d.title, d.source, d.metadata
+                    FROM documents d
+                    JOIN source_permissions sp ON sp.source_id = d.source_id
+                    WHERE d.id IN ({placeholders})
+                      AND sp.group_id IN ({group_placeholders})
+                    """),
+                params,
+            ).mappings()
         return {str(to_uuid(row["id"])): dict(row) for row in rows}
 
     def expertise_signals(self, doc_ids: list[str], group_ids: list[str]) -> list[dict[str, Any]]:
@@ -191,6 +206,24 @@ class RelatedRepository:
             }
             for row in rows
         ]
+
+    def user_shares_group(self, user_id: UUID, group_ids: list[str]) -> bool:
+        """Return whether *user_id* is a member of at least one group in *group_ids*."""
+        if not group_ids:
+            return False
+        params, placeholders = _uuid_params(group_ids, prefix="group")
+        params["user_id"] = db_uuid(user_id)
+        value = self._connection.execute(
+            sa.text(f"""
+                SELECT 1
+                FROM user_groups ug
+                WHERE ug.user_id = :user_id
+                  AND ug.group_id IN ({placeholders})
+                LIMIT 1
+                """),
+            params,
+        ).scalar_one_or_none()
+        return value is not None
 
     def user_can_access_any(self, user_id: UUID, doc_ids: list[str], group_ids: list[str]) -> bool:
         """Return whether a user can access at least one document in *doc_ids*."""

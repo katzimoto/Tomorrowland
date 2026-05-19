@@ -315,8 +315,14 @@ def related_documents(
         if doc is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        group_ids = [str(group_id) for group_id in user.groups]
-        if not group_ids:
+        raw_group_ids = [str(g) for g in user.groups]
+        is_admin = user.is_admin or request.app.state.admins_group_id in raw_group_ids
+        if is_admin:
+            group_ids: list[str] = []
+        elif raw_group_ids:
+            _effective = set(user.groups) | set(auth_repo.get_effective_group_ids(user.groups))
+            group_ids = [str(g) for g in _effective]
+        else:
             return {"document_id": str(document_id), "related": []}
 
         encoder = build_encoder(request.app.state.settings)
@@ -334,6 +340,7 @@ def related_documents(
                 doc=doc,
                 group_ids=group_ids,
                 limit=related_docs_limit(connection),
+                allow_all=is_admin,
             )
         except Exception as exc:
             logger.warning(

@@ -64,6 +64,7 @@ class RelatedService:
         doc: DocumentRow,
         group_ids: list[str],
         limit: int,
+        allow_all: bool = False,
     ) -> list[dict[str, Any]]:
         """Return related documents for a source document."""
         if doc.path is None:
@@ -77,6 +78,7 @@ class RelatedService:
             vector=vector,
             group_ids=group_ids,
             limit=max(limit * RELATED_SEARCH_MULTIPLIER, limit + 1),
+            allow_all=allow_all,
         )
         related = _dedupe_results(
             results,
@@ -84,7 +86,7 @@ class RelatedService:
             limit=max(limit * RELATED_SEARCH_MULTIPLIER, limit + 1),
         )
         metadata = self._repository.document_metadata(
-            [result.document_id for result in related], group_ids
+            [result.document_id for result in related], group_ids, allow_all=allow_all
         )
         return [
             {
@@ -145,28 +147,34 @@ class RelatedService:
                 },
             )
 
-        topic_vector = self._encoder.encode(topic)
-        for subscription in self._repository.active_subscriptions():
-            if not self._repository.user_can_access_any(
-                UUID(str(subscription["user_id"])), doc_ids, group_ids
-            ):
-                continue
-            subscription_query = str(subscription["query"])
-            similarity = _cosine_similarity(topic_vector, self._encoder.encode(subscription_query))
-            if not _topics_match(topic, subscription_query, similarity):
-                continue
-            user_id = str(subscription["user_id"])
-            aggregate = aggregates.setdefault(
-                user_id,
-                _ExpertiseAggregate(
-                    user_id=user_id,
-                    display_name=subscription["display_name"],
-                ),
-            )
-            sub_contribution = SIGNAL_WEIGHTS["subscription"] * similarity
-            aggregate.subscription_count += 1
-            aggregate.subscription_contribution += sub_contribution
-            aggregate.score += sub_contribution
+        # Subscription arm: only when the caller has explicit group membership.
+        # With allow_all=True (admin, group_ids=[]) there is no co-membership
+        # baseline, so subscription signals are skipped to avoid leaking
+        # subscriber identity across tenants (H4).
+        if not allow_all and group_ids:
+            topic_vector = self._encoder.encode(topic)
+            for subscription in self._repository.active_subscriptions():
+                sub_user_id = UUID(str(subscription["user_id"]))
+                if not self._repository.user_shares_group(sub_user_id, group_ids):
+                    continue
+                subscription_query = str(subscription["query"])
+                similarity = _cosine_similarity(
+                    topic_vector, self._encoder.encode(subscription_query)
+                )
+                if not _topics_match(topic, subscription_query, similarity):
+                    continue
+                user_id = str(subscription["user_id"])
+                aggregate = aggregates.setdefault(
+                    user_id,
+                    _ExpertiseAggregate(
+                        user_id=user_id,
+                        display_name=subscription["display_name"],
+                    ),
+                )
+                sub_contribution = SIGNAL_WEIGHTS["subscription"] * similarity
+                aggregate.subscription_count += 1
+                aggregate.subscription_contribution += sub_contribution
+                aggregate.score += sub_contribution
 
         return [_expertise_response(aggregate) for aggregate in _rank_aggregates(aggregates)]
 
