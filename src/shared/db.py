@@ -5,9 +5,9 @@ from uuid import UUID
 from sqlalchemy import MetaData
 
 
-def db_uuid(value: UUID) -> str:
-    """Convert a UUID to its hex string for database storage."""
-    return value.hex
+def db_uuid(value: UUID | str) -> str:
+    """Convert a UUID or UUID hex string to its hex string for database storage."""
+    return value.hex if isinstance(value, UUID) else value.replace("-", "")
 
 
 def to_uuid(value: object) -> UUID:

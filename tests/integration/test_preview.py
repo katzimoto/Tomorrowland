@@ -12,6 +12,7 @@ from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from shared.config import Settings
+from shared.db import db_uuid
 
 TEST_JWT_SECRET = "x" * 32
 
@@ -389,7 +390,7 @@ def test_preview_falls_back_to_document_payloads_translated_text(
                     updated_at = CURRENT_TIMESTAMP
             """),
             {
-                "document_id": UUID(document_id),
+                "document_id": db_uuid(UUID(document_id)),
                 "content_text": "Original file content.",
                 "translated_text": "Payload translated content.",
             },

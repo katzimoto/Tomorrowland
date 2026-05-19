@@ -41,6 +41,7 @@ def list_annotations(
                     "position": _parse_json(a["position"]),
                     "is_private": bool(a["is_private"]),
                     "created_at": _fmt_dt(a["created_at"]),
+                    "can_modify": repo.can_modify(to_uuid(a["id"]), user.sub, user.is_admin),
                 }
                 for a in annotations
             ],
@@ -78,6 +79,7 @@ def create_annotation(
             "position": _parse_json(annotation["position"]),
             "is_private": bool(annotation["is_private"]),
             "created_at": _fmt_dt(annotation["created_at"]),
+            "can_modify": True,
         }
 
 
@@ -123,6 +125,7 @@ def update_annotation(
             "is_private": bool(updated["is_private"]),
             "created_at": _fmt_dt(updated["created_at"]),
             "updated_at": _fmt_dt(updated["updated_at"]),
+            "can_modify": True,
         }
 
 

@@ -196,9 +196,15 @@ def test_search_pagination(
 
     source_id, document_id = _create_source_with_doc(migrated_engine, "users")
 
+    # Create 5 documents so mock results can reference distinct doc IDs
+    doc_ids: list[str] = [document_id]
+    for i in range(4):
+        _, extra_id = _create_source_with_doc(migrated_engine, "users", f"Doc {i}")
+        doc_ids.append(extra_id)
+
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_es.search.return_value = [
-        SearchResult(document_id=f"doc-{i}", score=float(i), title=f"Doc {i}") for i in range(5)
+        SearchResult(document_id=doc_ids[i], score=float(i), title=f"Doc {i}") for i in range(5)
     ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = []

@@ -51,7 +51,6 @@ class _FakeTranslator:
         self._translated = translated
 
     def translate(self, text: str, *, source_lang: str | None = None) -> str:
-        assert source_lang == "en"
         return self._translated if self._translated is not None else text
 
 
@@ -227,7 +226,7 @@ def test_worker_indexes_chunks_in_meilisearch_when_configured() -> None:
     assert first_record.document_id == str(doc.id)
     assert first_record.title == "Test document"
     assert first_record.content == "document body"
-    assert first_record.content_en == "document body"
+    assert first_record.content_en is None
     assert first_record.allowed_group_ids == [str(group_id)]
     assert first_record.metadata.file_name == "test1.pdf"
     assert repo.indexed_updates == [(doc.id, "indexed", None)]

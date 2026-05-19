@@ -1089,7 +1089,7 @@ def test_admin_delete_group_not_found(migrated_engine: Engine) -> None:
 
 
 def test_admin_delete_group_non_admin_denied(migrated_engine: Engine) -> None:
-    _setup_nested_group_users(migrated_engine)
+    _setup_users(migrated_engine)
     client = TestClient(
         create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
     )
@@ -1164,7 +1164,7 @@ def test_admin_rename_group_duplicate(migrated_engine: Engine) -> None:
 
 
 def test_admin_rename_group_non_admin_denied(migrated_engine: Engine) -> None:
-    _setup_nested_group_users(migrated_engine)
+    _setup_users(migrated_engine)
     client = TestClient(
         create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
     )

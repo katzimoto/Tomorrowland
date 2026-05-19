@@ -105,6 +105,7 @@ def search(
                 exc.__class__.__name__,
                 get_correlation_id(),
             )
+            raise
 
     vector_results: list[SearchResult] = []
     try:

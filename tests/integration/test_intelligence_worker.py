@@ -48,8 +48,8 @@ def test_worker_summarizes_and_stores(
         assert summary is not None
         assert summary["summary"] == "A document about AI and finance."
 
-    # Summary + entities (empty) + tags (empty) all update ES
-    assert mock_es.update_document_field.call_count == 3
+    # Summary + entities (empty) + tags (empty) + key_points all update ES
+    assert mock_es.update_document_field.call_count == 4
     mock_es.update_document_field.assert_any_call(
         str(document_id), "summary", "A document about AI and finance."
     )
@@ -128,6 +128,7 @@ def test_worker_skips_disabled_tasks(
         "feature.summarization": False,
         "feature.entity_extraction": False,
         "feature.auto_tagging": False,
+        "feature.key_points": False,
     }
 
     with migrated_engine.begin() as connection:

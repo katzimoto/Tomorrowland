@@ -229,12 +229,14 @@ def test_record_index_metrics_noop_when_metrics_none() -> None:
 class TestAppInitialization:
     """Tests that Meilisearch provider is initialized in create_app."""
 
-    def test_meili_provider_initialized_when_flag_enabled(self) -> None:
+    @patch("services.api.main.meilisearch.Client")
+    def test_meili_provider_initialized_when_flag_enabled(self, mock_meili: MagicMock) -> None:
         import sqlalchemy as sa
 
         from services.api.main import create_app
         from shared.config import Settings
 
+        mock_meili.return_value = MagicMock()
         engine = sa.create_engine("sqlite:///:memory:")
         settings = Settings(app_env="test", auth_provider="local", jwt_secret="x" * 32)
         settings.feature_meilisearch_search = True

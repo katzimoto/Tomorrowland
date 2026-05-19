@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
@@ -39,7 +41,9 @@ def _setup_admin(app):
 class TestRollbackBehavior:
     """Tests proving Meilisearch flag rollback works correctly."""
 
-    def test_meili_provider_present_when_flag_on(self, engine):
+    @patch("services.api.main.meilisearch.Client")
+    def test_meili_provider_present_when_flag_on(self, mock_meili, engine):
+        mock_meili.return_value = MagicMock()
         settings = Settings(app_env="test", auth_provider="local", jwt_secret=TEST_JWT_SECRET)
         settings.feature_meilisearch_search = True
         settings.meilisearch_url = "http://meilisearch:7700"
@@ -53,7 +57,9 @@ class TestRollbackBehavior:
         app = create_app(engine, settings=settings)
         assert app.state.meili_provider is None
 
-    def test_flag_on_creates_provider(self, engine):
+    @patch("services.api.main.meilisearch.Client")
+    def test_flag_on_creates_provider(self, mock_meili, engine):
+        mock_meili.return_value = MagicMock()
         settings = Settings(app_env="test", auth_provider="local", jwt_secret=TEST_JWT_SECRET)
         settings.feature_meilisearch_search = True
         settings.meilisearch_url = "http://meilisearch:7700"

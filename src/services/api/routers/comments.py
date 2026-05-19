@@ -47,6 +47,8 @@ def list_comments(
                         str(to_uuid(c["edited_by_id"])) if c["edited_by_id"] else None
                     ),
                     "deleted_at": _fmt_dt(c["deleted_at"]),
+                    "can_edit": repo.can_edit(to_uuid(c["id"]), user.sub, user.is_admin),
+                    "can_delete": repo.can_delete(to_uuid(c["id"]), user.sub, user.is_admin),
                 }
                 for c in comments
             ],
@@ -76,6 +78,8 @@ def create_comment(
             "author_id": str(to_uuid(comment["author_id"])),
             "body": comment["body"],
             "created_at": _fmt_dt(comment["created_at"]),
+            "can_edit": True,
+            "can_delete": True,
         }
 
 
@@ -113,6 +117,8 @@ def update_comment(
             "edited_by_id": (
                 str(to_uuid(updated["edited_by_id"])) if updated["edited_by_id"] else None
             ),
+            "can_edit": True,
+            "can_delete": True,
         }
 
 
