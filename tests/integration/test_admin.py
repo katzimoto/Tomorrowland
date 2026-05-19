@@ -441,7 +441,7 @@ def test_admin_dlq_retry_and_list(migrated_engine: Engine) -> None:
     token = _admin_token(client)
 
     # Insert a DLQ item manually
-    documant_id = uuid4()
+    document_id = uuid4()
     dlq_id = uuid4()
     with migrated_engine.begin() as connection:
         connection.execute(
@@ -449,14 +449,14 @@ def test_admin_dlq_retry_and_list(migrated_engine: Engine) -> None:
                 INSERT INTO documents (id, source_id, external_id, source, mime_type)
                 VALUES (:id, :source_id, 'file:/data/test.txt', 'folder', 'text/plain')
                 """),
-            {"id": documant_id.hex, "source_id": uuid4().hex},
+            {"id": document_id.hex, "source_id": uuid4().hex},
         )
         connection.execute(
             sa.text("""
-                INSERT INTO dlq (id, documant_id, error_message, status)
-                VALUES (:id, :documant_id, 'Test error', 'pending')
+                INSERT INTO dlq (id, document_id, error_message, status)
+                VALUES (:id, :document_id, 'Test error', 'pending')
                 """),
-            {"id": dlq_id.hex, "documant_id": documant_id.hex},
+            {"id": dlq_id.hex, "document_id": document_id.hex},
         )
 
     # List DLQ

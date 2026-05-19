@@ -93,7 +93,7 @@ def _drain(
     return NiFiKafkaDrain(
         consumer=consumer,
         engine=engine,
-        process_document=process_document or (lambda documant_id, text: None),
+        process_document=process_document or (lambda document_id, text: None),
         dlq=dlq,
         sleep=lambda seconds: None,
     )
@@ -110,7 +110,7 @@ def test_kafka_drain_processes_inline_event_and_commits_after_pipeline(
     result = _drain(
         migrated_engine,
         consumer,
-        lambda documant_id, text: processed.append((documant_id, text)),
+        lambda document_id, text: processed.append((document_id, text)),
     ).drain(max_messages=1)
 
     assert result["processed"] == 1
@@ -158,7 +158,7 @@ def test_kafka_drain_resolves_source_key(migrated_engine: Engine) -> None:
     result = _drain(
         migrated_engine,
         consumer,
-        lambda documant_id, text: processed.append((documant_id, text)),
+        lambda document_id, text: processed.append((document_id, text)),
     ).drain(max_messages=1)
 
     assert result["processed"] == 1
@@ -186,8 +186,8 @@ def test_kafka_drain_routes_pipeline_failure_to_dlq_and_commits(
     consumer = _Consumer([message])
     dlq = _Dlq()
 
-    def fail_pipeline(documant_id: UUID, text: str | None) -> None:
-        del documant_id, text
+    def fail_pipeline(document_id: UUID, text: str | None) -> None:
+        del document_id, text
         raise RuntimeError("raw backend details must not leak")
 
     result = _drain(migrated_engine, consumer, fail_pipeline, dlq).drain(max_messages=1)
@@ -221,7 +221,7 @@ def test_kafka_drain_is_idempotent_for_source_external_id(
     result = _drain(
         migrated_engine,
         consumer,
-        lambda documant_id, text: processed.append((documant_id, text)),
+        lambda document_id, text: processed.append((document_id, text)),
     ).drain(max_messages=2)
 
     assert result["processed"] == 2

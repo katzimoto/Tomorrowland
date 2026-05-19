@@ -73,15 +73,15 @@ def test_list_comments_empty(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.get(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["documant_id"] == str(documant_id)
+    assert data["document_id"] == str(document_id)
     assert data["comments"] == []
     assert data["total"] == 0
 
@@ -92,21 +92,21 @@ def test_create_comment(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.post(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         json={"body": "First comment"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 201
     data = resp.json()
     assert data["body"] == "First comment"
-    assert data["documant_id"] == str(documant_id)
+    assert data["document_id"] == str(document_id)
 
     # Verify list shows it
     resp = client.get(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -121,10 +121,10 @@ def test_update_comment(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.post(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         json={"body": "Original"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -132,7 +132,7 @@ def test_update_comment(migrated_engine: Engine) -> None:
     comment_id = resp.json()["id"]
 
     resp = client.patch(
-        f"/documents/{documant_id}/comments/{comment_id}",
+        f"/documents/{document_id}/comments/{comment_id}",
         json={"body": "Updated body"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -148,10 +148,10 @@ def test_delete_comment(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.post(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         json={"body": "To delete"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -159,14 +159,14 @@ def test_delete_comment(migrated_engine: Engine) -> None:
     comment_id = resp.json()["id"]
 
     resp = client.delete(
-        f"/documents/{documant_id}/comments/{comment_id}",
+        f"/documents/{document_id}/comments/{comment_id}",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 204
 
     # Verify list is empty
     resp = client.get(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -179,10 +179,10 @@ def test_cannot_edit_others_comment(migrated_engine: Engine) -> None:
     client = TestClient(app)
     admin_token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.post(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         json={"body": "Admin comment"},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
@@ -224,7 +224,7 @@ def test_cannot_edit_others_comment(migrated_engine: Engine) -> None:
     user2_token = jwt.encode(user2_identity)
 
     resp = client.patch(
-        f"/documents/{documant_id}/comments/{comment_id}",
+        f"/documents/{document_id}/comments/{comment_id}",
         json={"body": "Edited by user2"},
         headers={"Authorization": f"Bearer {user2_token}"},
     )
@@ -237,12 +237,12 @@ def test_pagination(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     # Create 3 comments
     for i in range(3):
         resp = client.post(
-            f"/documents/{documant_id}/comments",
+            f"/documents/{document_id}/comments",
             json={"body": f"Comment {i}"},
             headers={"Authorization": f"Bearer {token}"},
         )
@@ -250,7 +250,7 @@ def test_pagination(migrated_engine: Engine) -> None:
 
     # Pagination
     resp = client.get(
-        f"/documents/{documant_id}/comments?limit=1&skip=1",
+        f"/documents/{document_id}/comments?limit=1&skip=1",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -265,18 +265,18 @@ def test_sort_oldest(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     for i in range(3):
         resp = client.post(
-            f"/documents/{documant_id}/comments",
+            f"/documents/{document_id}/comments",
             json={"body": f"Comment {i}"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code == 201
 
     resp = client.get(
-        f"/documents/{documant_id}/comments?sort=oldest",
+        f"/documents/{document_id}/comments?sort=oldest",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -291,9 +291,9 @@ def test_admin_can_edit_others_comment(migrated_engine: Engine) -> None:
     admin_token = _admin_token(client)
 
     # Create doc and comment as admin first
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
     resp = client.post(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         json={"body": "Admin comment"},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
@@ -334,7 +334,7 @@ def test_admin_can_edit_others_comment(migrated_engine: Engine) -> None:
 
     # Regular user creates a comment
     resp = client.post(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         json={"body": "Regular comment"},
         headers={"Authorization": f"Bearer {regular_token}"},
     )
@@ -343,7 +343,7 @@ def test_admin_can_edit_others_comment(migrated_engine: Engine) -> None:
 
     # Admin edits regular user's comment
     resp = client.patch(
-        f"/documents/{documant_id}/comments/{regular_comment_id}",
+        f"/documents/{document_id}/comments/{regular_comment_id}",
         json={"body": "Edited by admin"},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
@@ -357,10 +357,10 @@ def test_empty_body_returns_422(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.post(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         json={"body": ""},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -373,10 +373,10 @@ def test_edit_deleted_comment_returns_404(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.post(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         json={"body": "To delete"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -385,14 +385,14 @@ def test_edit_deleted_comment_returns_404(migrated_engine: Engine) -> None:
 
     # Soft delete
     resp = client.delete(
-        f"/documents/{documant_id}/comments/{comment_id}",
+        f"/documents/{document_id}/comments/{comment_id}",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 204
 
     # Try to edit deleted comment
     resp = client.patch(
-        f"/documents/{documant_id}/comments/{comment_id}",
+        f"/documents/{document_id}/comments/{comment_id}",
         json={"body": "Should fail"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -405,10 +405,10 @@ def test_delete_deleted_comment_returns_404(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.post(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         json={"body": "To delete twice"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -417,14 +417,14 @@ def test_delete_deleted_comment_returns_404(migrated_engine: Engine) -> None:
 
     # Soft delete
     resp = client.delete(
-        f"/documents/{documant_id}/comments/{comment_id}",
+        f"/documents/{document_id}/comments/{comment_id}",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 204
 
     # Try to delete again
     resp = client.delete(
-        f"/documents/{documant_id}/comments/{comment_id}",
+        f"/documents/{document_id}/comments/{comment_id}",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 404
@@ -436,7 +436,7 @@ def test_cannot_comment_on_inaccessible_doc(migrated_engine: Engine) -> None:
     client = TestClient(app)
 
     # Create a doc only accessible to "admins" group
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     # Log in as regular user in "users" group
     login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
@@ -444,7 +444,7 @@ def test_cannot_comment_on_inaccessible_doc(migrated_engine: Engine) -> None:
     user_token = str(login.json()["access_token"])
 
     resp = client.post(
-        f"/documents/{documant_id}/comments",
+        f"/documents/{document_id}/comments",
         json={"body": "Should fail"},
         headers={"Authorization": f"Bearer {user_token}"},
     )

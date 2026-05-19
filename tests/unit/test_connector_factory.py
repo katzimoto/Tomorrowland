@@ -155,7 +155,7 @@ def test_admin_source_languages_endpoint_default_includes_major_languages(
 def test_db_constraints_allow_smb_source_and_document(migrated_engine: Engine) -> None:
     with migrated_engine.begin() as connection:
         source_id = "00112233445566778899aabbccddeeff"
-        documant_id = "11112233445566778899aabbccddeeff"
+        document_id = "11112233445566778899aabbccddeeff"
         connection.execute(
             sa.text("""
                 INSERT INTO ingestion_sources (id, name, type, source_language)
@@ -168,12 +168,12 @@ def test_db_constraints_allow_smb_source_and_document(migrated_engine: Engine) -
                 INSERT INTO documents (id, source_id, external_id, source, mime_type)
                 VALUES (:id, :source_id, 'smb://fileserver/share/a.txt', 'smb', 'text/plain')
                 """),
-            {"id": documant_id, "source_id": source_id},
+            {"id": document_id, "source_id": source_id},
         )
 
         row = connection.execute(
             sa.text("SELECT source FROM documents WHERE id = :id"),
-            {"id": documant_id},
+            {"id": document_id},
         ).scalar_one()
 
     assert row == "smb"

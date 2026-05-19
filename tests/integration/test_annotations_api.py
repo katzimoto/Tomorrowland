@@ -71,15 +71,15 @@ def test_list_annotations_empty(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.get(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["documant_id"] == str(documant_id)
+    assert data["document_id"] == str(document_id)
     assert data["annotations"] == []
 
 
@@ -89,10 +89,10 @@ def test_create_and_list_annotation(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.post(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         json={"text": "Important passage", "note": "This is key", "is_private": False},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -104,7 +104,7 @@ def test_create_and_list_annotation(migrated_engine: Engine) -> None:
 
     # List shows it
     resp = client.get(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -119,11 +119,11 @@ def test_private_annotations_not_visible_to_others(migrated_engine: Engine) -> N
     client = TestClient(app)
     admin_token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     # Admin creates a private annotation
     resp = client.post(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         json={"text": "Secret", "note": "Private note", "is_private": True},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
@@ -164,7 +164,7 @@ def test_private_annotations_not_visible_to_others(migrated_engine: Engine) -> N
 
     # Other user should not see private annotation
     resp = client.get(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         headers={"Authorization": f"Bearer {other_token}"},
     )
     assert resp.status_code == 200
@@ -177,10 +177,10 @@ def test_update_annotation(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.post(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         json={"text": "Original text", "note": "Original note"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -205,10 +205,10 @@ def test_delete_annotation(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.post(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         json={"text": "To delete"},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -223,7 +223,7 @@ def test_delete_annotation(migrated_engine: Engine) -> None:
 
     # Verify list is empty
     resp = client.get(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 200
@@ -236,10 +236,10 @@ def test_cannot_modify_others_annotation(migrated_engine: Engine) -> None:
     client = TestClient(app)
     admin_token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.post(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         json={"text": "Admin annotation"},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
@@ -293,7 +293,7 @@ def test_admin_can_delete_others_annotation(migrated_engine: Engine) -> None:
     client = TestClient(app)
     admin_token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     # Create a regular user in admins group
     with migrated_engine.begin() as connection:
@@ -330,7 +330,7 @@ def test_admin_can_delete_others_annotation(migrated_engine: Engine) -> None:
 
     # Regular user creates an annotation
     resp = client.post(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         json={"text": "Regular annotation"},
         headers={"Authorization": f"Bearer {regular_token}"},
     )
@@ -346,7 +346,7 @@ def test_admin_can_delete_others_annotation(migrated_engine: Engine) -> None:
 
     # Verify it's gone
     resp = client.get(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert resp.status_code == 200
@@ -359,11 +359,11 @@ def test_admin_can_see_all_annotations(migrated_engine: Engine) -> None:
     client = TestClient(app)
     admin_token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     # Admin creates a private annotation
     resp = client.post(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         json={"text": "Admin private", "is_private": True},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
@@ -403,7 +403,7 @@ def test_admin_can_see_all_annotations(migrated_engine: Engine) -> None:
     other_token = jwt.encode(other_identity)
 
     resp = client.post(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         json={"text": "Other private", "is_private": True},
         headers={"Authorization": f"Bearer {other_token}"},
     )
@@ -411,7 +411,7 @@ def test_admin_can_see_all_annotations(migrated_engine: Engine) -> None:
 
     # Admin should see both private annotations
     resp = client.get(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert resp.status_code == 200
@@ -424,10 +424,10 @@ def test_empty_text_returns_422(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     resp = client.post(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         json={"text": ""},
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -467,7 +467,7 @@ def test_cannot_annotate_inaccessible_doc(migrated_engine: Engine) -> None:
     client = TestClient(app)
 
     # Create a doc only accessible to "admins" group
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     # Log in as regular user in "users" group
     login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
@@ -475,7 +475,7 @@ def test_cannot_annotate_inaccessible_doc(migrated_engine: Engine) -> None:
     user_token = str(login.json()["access_token"])
 
     resp = client.post(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         json={"text": "Should fail"},
         headers={"Authorization": f"Bearer {user_token}"},
     )
@@ -488,11 +488,11 @@ def test_position_roundtrip(migrated_engine: Engine) -> None:
     client = TestClient(app)
     token = _admin_token(client)
 
-    documant_id = _create_doc(migrated_engine, "admins")
+    document_id = _create_doc(migrated_engine, "admins")
 
     position = {"page": 3, "start_char": 42, "end_char": 99}
     resp = client.post(
-        f"/documents/{documant_id}/annotations",
+        f"/documents/{document_id}/annotations",
         json={"text": "Passage", "position": position},
         headers={"Authorization": f"Bearer {token}"},
     )

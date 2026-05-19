@@ -17,7 +17,7 @@ def engine(tmp_path) -> Engine:
         conn.execute(
             sa.text("""
             CREATE TABLE document_summaries (
-                documant_id TEXT PRIMARY KEY,
+                document_id TEXT PRIMARY KEY,
                 summary TEXT NOT NULL,
                 model TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -38,19 +38,19 @@ def engine(tmp_path) -> Engine:
         conn.execute(
             sa.text("""
             CREATE TABLE document_entities (
-                documant_id TEXT NOT NULL,
+                document_id TEXT NOT NULL,
                 entity_id TEXT NOT NULL,
                 frequency INTEGER NOT NULL DEFAULT 1,
-                PRIMARY KEY (documant_id, entity_id)
+                PRIMARY KEY (document_id, entity_id)
             )
         """)
         )
         conn.execute(
             sa.text("""
             CREATE TABLE document_tags (
-                documant_id TEXT NOT NULL,
+                document_id TEXT NOT NULL,
                 tag TEXT NOT NULL,
-                PRIMARY KEY (documant_id, tag)
+                PRIMARY KEY (document_id, tag)
             )
         """)
         )
@@ -60,16 +60,16 @@ def engine(tmp_path) -> Engine:
 def test_upsert_summary_creates_and_updates(engine: Engine) -> None:
     with engine.begin() as connection:
         repo = IntelligenceRepository(connection)
-        documant_id = uuid4()
-        repo.upsert_summary(documant_id, "First summary", "mistral")
+        document_id = uuid4()
+        repo.upsert_summary(document_id, "First summary", "mistral")
 
-        row = repo.get_summary(documant_id)
+        row = repo.get_summary(document_id)
         assert row is not None
         assert row["summary"] == "First summary"
         assert row["model"] == "mistral"
 
-        repo.upsert_summary(documant_id, "Updated summary", "llama3")
-        row = repo.get_summary(documant_id)
+        repo.upsert_summary(document_id, "Updated summary", "llama3")
+        row = repo.get_summary(document_id)
         assert row["summary"] == "Updated summary"
         assert row["model"] == "llama3"
 
@@ -96,13 +96,13 @@ def test_upsert_entity_deduplicates_by_name_type(engine: Engine) -> None:
 def test_link_document_entity_increments_frequency(engine: Engine) -> None:
     with engine.begin() as connection:
         repo = IntelligenceRepository(connection)
-        documant_id = uuid4()
+        document_id = uuid4()
         entity_id = repo.upsert_entity("Bob", "person")
 
-        repo.link_document_entity(documant_id, entity_id, frequency=2)
-        repo.link_document_entity(documant_id, entity_id, frequency=3)
+        repo.link_document_entity(document_id, entity_id, frequency=2)
+        repo.link_document_entity(document_id, entity_id, frequency=3)
 
-        entities = repo.get_entities(documant_id)
+        entities = repo.get_entities(document_id)
         assert len(entities) == 1
         assert entities[0]["frequency"] == 5
 
@@ -110,15 +110,15 @@ def test_link_document_entity_increments_frequency(engine: Engine) -> None:
 def test_get_entities_returns_sorted(engine: Engine) -> None:
     with engine.begin() as connection:
         repo = IntelligenceRepository(connection)
-        documant_id = uuid4()
+        document_id = uuid4()
 
         e1 = repo.upsert_entity("Charlie", "person")
         e2 = repo.upsert_entity("Acme", "organization")
 
-        repo.link_document_entity(documant_id, e1, frequency=1)
-        repo.link_document_entity(documant_id, e2, frequency=5)
+        repo.link_document_entity(document_id, e1, frequency=1)
+        repo.link_document_entity(document_id, e2, frequency=5)
 
-        entities = repo.get_entities(documant_id)
+        entities = repo.get_entities(document_id)
         assert len(entities) == 2
         # Higher frequency first
         assert entities[0]["name"] == "Acme"
@@ -128,16 +128,16 @@ def test_get_entities_returns_sorted(engine: Engine) -> None:
 def test_replace_tags(engine: Engine) -> None:
     with engine.begin() as connection:
         repo = IntelligenceRepository(connection)
-        documant_id = uuid4()
+        document_id = uuid4()
 
-        repo.replace_tags(documant_id, ["finance", "Q3"])
-        assert set(repo.get_tags(documant_id)) == {"finance", "Q3"}
+        repo.replace_tags(document_id, ["finance", "Q3"])
+        assert set(repo.get_tags(document_id)) == {"finance", "Q3"}
 
-        repo.replace_tags(documant_id, ["tech", "AI"])
-        assert set(repo.get_tags(documant_id)) == {"AI", "tech"}
+        repo.replace_tags(document_id, ["tech", "AI"])
+        assert set(repo.get_tags(document_id)) == {"AI", "tech"}
 
-        repo.replace_tags(documant_id, [])
-        assert repo.get_tags(documant_id) == []
+        repo.replace_tags(document_id, [])
+        assert repo.get_tags(document_id) == []
 
 
 def test_get_tags_returns_empty_when_missing(engine: Engine) -> None:

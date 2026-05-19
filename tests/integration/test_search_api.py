@@ -58,7 +58,7 @@ def _create_source_with_doc(
     doc_title: str = "Test Doc",
 ) -> tuple[str, str]:
     """Create an ingestion source, grant it to a group, and create a document.
-    Returns (source_id, documant_id).
+    Returns (source_id, document_id).
     """
     with engine.begin() as connection:
         auth_repo = AuthRepository(connection)
@@ -85,15 +85,15 @@ def test_search_returns_matching_documents(
 ) -> None:
     _setup_users(migrated_engine)
 
-    source_id, documant_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
+    source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_es.search.return_value = [
-        SearchResult(documant_id=documant_id, score=1.5, title="Hello Doc")
+        SearchResult(document_id=document_id, score=1.5, title="Hello Doc")
     ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = [
-        SearchResult(documant_id=documant_id, score=0.9, chunk_text="hello chunk")
+        SearchResult(document_id=document_id, score=0.9, chunk_text="hello chunk")
     ]
 
     client = TestClient(
@@ -122,7 +122,7 @@ def test_search_returns_matching_documents(
     assert data["query"] == "hello"
     assert len(data["results"]) == 1
     result = data["results"][0]
-    assert result["documant_id"] == documant_id
+    assert result["document_id"] == document_id
     assert result["title"] == "Hello Doc"
     assert result["snippet"] == "Hello Doc"
     assert result["source"] == "folder"
@@ -194,11 +194,11 @@ def test_search_pagination(
 ) -> None:
     _setup_users(migrated_engine)
 
-    source_id, documant_id = _create_source_with_doc(migrated_engine, "users")
+    source_id, document_id = _create_source_with_doc(migrated_engine, "users")
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_es.search.return_value = [
-        SearchResult(documant_id=f"doc-{i}", score=float(i), title=f"Doc {i}") for i in range(5)
+        SearchResult(document_id=f"doc-{i}", score=float(i), title=f"Doc {i}") for i in range(5)
     ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = []
@@ -230,7 +230,7 @@ def test_preview_returns_authorized_document(
 ) -> None:
     _setup_users(migrated_engine)
 
-    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", "Preview Doc")
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Preview Doc")
 
     client = TestClient(
         create_app(
@@ -240,11 +240,11 @@ def test_preview_returns_authorized_document(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
-    assert data["documant_id"] == documant_id
+    assert data["document_id"] == document_id
     assert data["title"] == "Preview Doc"
     assert data["mime_type"] == "text/plain"
 
@@ -271,7 +271,7 @@ def test_preview_forbids_unauthorized_document(
             path="/data/admin.txt",
         )
         assert doc is not None
-        documant_id = str(doc.id)
+        document_id = str(doc.id)
 
     client = TestClient(
         create_app(
@@ -281,7 +281,7 @@ def test_preview_forbids_unauthorized_document(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 403
 
@@ -314,7 +314,7 @@ def test_download_returns_file_bytes(
             path=str(test_file),
         )
         assert doc is not None
-        documant_id = str(doc.id)
+        document_id = str(doc.id)
 
     client = TestClient(
         create_app(
@@ -328,7 +328,7 @@ def test_download_returns_file_bytes(
     )
     token = _user_token(client)
 
-    response = client.get(f"/download/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/download/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     assert response.content == b"Hello world"
@@ -363,7 +363,7 @@ def test_download_blocks_path_traversal(
             path=str(tmp_path / ".." / "secret.txt"),
         )
         assert doc is not None
-        documant_id = str(doc.id)
+        document_id = str(doc.id)
 
     client = TestClient(
         create_app(
@@ -377,7 +377,7 @@ def test_download_blocks_path_traversal(
     )
     token = _user_token(client)
 
-    response = client.get(f"/download/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/download/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 400
 
@@ -423,18 +423,18 @@ def test_search_with_null_translation_quality(
 ) -> None:
     _setup_users(migrated_engine)
 
-    source_id, documant_id = _create_source_with_doc(migrated_engine, "users")
+    source_id, document_id = _create_source_with_doc(migrated_engine, "users")
 
     # Set translation_quality to null explicitly
     with migrated_engine.begin() as connection:
         connection.execute(
             sa.text("UPDATE documents SET translation_quality = NULL WHERE id = :id"),
-            {"id": documant_id},
+            {"id": document_id},
         )
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_es.search.return_value = [
-        SearchResult(documant_id=documant_id, score=1.0, title="No Translation")
+        SearchResult(document_id=document_id, score=1.0, title="No Translation")
     ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = []
@@ -458,7 +458,7 @@ def test_search_with_null_translation_quality(
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 1
-    assert data["results"][0]["documant_id"] == documant_id
+    assert data["results"][0]["document_id"] == document_id
 
 
 def test_search_encoder_failure_returns_bm25_only(
@@ -467,11 +467,11 @@ def test_search_encoder_failure_returns_bm25_only(
     """When encoder fails, search should still return BM25 results."""
     _setup_users(migrated_engine)
 
-    source_id, documant_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
+    source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_es.search.return_value = [
-        SearchResult(documant_id=documant_id, score=1.5, title="Hello Doc")
+        SearchResult(document_id=document_id, score=1.5, title="Hello Doc")
     ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
 
@@ -502,7 +502,7 @@ def test_search_encoder_failure_returns_bm25_only(
     data = response.json()
     assert data["total"] == 1
     assert len(data["results"]) == 1
-    assert data["results"][0]["documant_id"] == documant_id
+    assert data["results"][0]["document_id"] == document_id
 
 
 def test_search_qdrant_failure_returns_bm25_only(
@@ -511,11 +511,11 @@ def test_search_qdrant_failure_returns_bm25_only(
     """When Qdrant fails, search should still return BM25 results."""
     _setup_users(migrated_engine)
 
-    source_id, documant_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
+    source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_es.search.return_value = [
-        SearchResult(documant_id=documant_id, score=1.5, title="Hello Doc")
+        SearchResult(document_id=document_id, score=1.5, title="Hello Doc")
     ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.side_effect = RuntimeError("Qdrant unavailable")
@@ -540,7 +540,7 @@ def test_search_qdrant_failure_returns_bm25_only(
     data = response.json()
     assert data["total"] == 1
     assert len(data["results"]) == 1
-    assert data["results"][0]["documant_id"] == documant_id
+    assert data["results"][0]["document_id"] == document_id
 
 
 def test_search_es_failure_still_fails(
@@ -617,7 +617,7 @@ def test_related_documents_degraded_on_encoder_failure(
         def encode(self, text: str) -> list[float]:
             raise RuntimeError("Ollama is down")
 
-    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", "Related Doc")
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Related Doc")
 
     # Create a real file for extraction
     import tempfile
@@ -630,7 +630,7 @@ def test_related_documents_degraded_on_encoder_failure(
     with migrated_engine.begin() as connection:
         connection.execute(
             sa.text("UPDATE documents SET path = :path WHERE id = :id"),
-            {"path": path, "id": documant_id},
+            {"path": path, "id": document_id},
         )
 
     with patch("services.api.routers.documents.build_encoder", return_value=BrokenEncoder()):
@@ -647,13 +647,13 @@ def test_related_documents_degraded_on_encoder_failure(
     token = _user_token(client)
 
     response = client.get(
-        f"/documents/{documant_id}/related",
+        f"/documents/{document_id}/related",
         headers={"Authorization": f"Bearer {token}"},
     )
 
     assert response.status_code == 200
     data = response.json()
-    assert data["documant_id"] == documant_id
+    assert data["document_id"] == document_id
     assert data["related"] == []
 
     Path(path).unlink(missing_ok=True)
