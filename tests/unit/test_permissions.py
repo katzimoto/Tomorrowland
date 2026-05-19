@@ -52,11 +52,11 @@ def test_source_and_document_access_follow_source_permissions(
             group_names=["analysts"],
         )
         source_id = repository.create_ingestion_source("Finance")
-        documant_id = repository.create_document(source_id)
+        document_id = repository.create_document(source_id)
         repository.grant_source_to_group(source_id, user.groups[0])
 
         assert_source_access(source_id, user, repository)
-        assert_doc_access(documant_id, user, repository)
+        assert_doc_access(document_id, user, repository)
 
 
 def test_document_access_rejects_missing_or_ungranted_documents(
@@ -70,10 +70,10 @@ def test_document_access_rejects_missing_or_ungranted_documents(
             group_names=["analysts"],
         )
         source_id = repository.create_ingestion_source("Finance")
-        documant_id = repository.create_document(source_id)
+        document_id = repository.create_document(source_id)
 
         with pytest.raises(HTTPException) as denied:
-            assert_doc_access(documant_id, user, repository)
+            assert_doc_access(document_id, user, repository)
         with pytest.raises(HTTPException) as missing:
             assert_doc_access(uuid4(), user, repository)
 

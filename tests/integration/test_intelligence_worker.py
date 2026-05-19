@@ -27,7 +27,7 @@ def test_worker_summarizes_and_stores(
     mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
-    documant_id = uuid4()
+    document_id = uuid4()
     content = "This is a document about artificial intelligence and finance."
 
     # Mock Ollama to return a predictable summary
@@ -40,18 +40,18 @@ def test_worker_summarizes_and_stores(
             ollama_client=ollama_client,
             es_client=mock_es,
         )
-        worker.process_document(documant_id, content)
+        worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
         repo = IntelligenceRepository(connection)
-        summary = repo.get_summary(documant_id)
+        summary = repo.get_summary(document_id)
         assert summary is not None
         assert summary["summary"] == "A document about AI and finance."
 
     # Summary + entities (empty) + tags (empty) all update ES
     assert mock_es.update_document_field.call_count == 3
     mock_es.update_document_field.assert_any_call(
-        str(documant_id), "summary", "A document about AI and finance."
+        str(document_id), "summary", "A document about AI and finance."
     )
 
 
@@ -60,7 +60,7 @@ def test_worker_extracts_entities(
     mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
-    documant_id = uuid4()
+    document_id = uuid4()
     content = "Alice from Acme Corp visited Paris."
 
     ollama_client.generate = MagicMock(
@@ -78,11 +78,11 @@ def test_worker_extracts_entities(
             ollama_client=ollama_client,
             es_client=mock_es,
         )
-        worker.process_document(documant_id, content)
+        worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
         repo = IntelligenceRepository(connection)
-        entities = repo.get_entities(documant_id)
+        entities = repo.get_entities(document_id)
         names = {e["name"]: e["type"] for e in entities}
         assert names["Alice"] == "person"
         assert names["Acme Corp"] == "organization"
@@ -94,7 +94,7 @@ def test_worker_auto_tags(
     mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
-    documant_id = uuid4()
+    document_id = uuid4()
     content = "Quarterly earnings report for finance sector."
 
     ollama_client.generate = MagicMock(return_value='["finance", "earnings", "Q3"]')
@@ -106,11 +106,11 @@ def test_worker_auto_tags(
             ollama_client=ollama_client,
             es_client=mock_es,
         )
-        worker.process_document(documant_id, content)
+        worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
         repo = IntelligenceRepository(connection)
-        tags = repo.get_tags(documant_id)
+        tags = repo.get_tags(document_id)
         assert set(tags) == {"finance", "earnings", "Q3"}
 
 
@@ -119,7 +119,7 @@ def test_worker_skips_disabled_tasks(
     mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
-    documant_id = uuid4()
+    document_id = uuid4()
     content = "Some content"
 
     ollama_client.generate = MagicMock(return_value="")
@@ -138,7 +138,7 @@ def test_worker_skips_disabled_tasks(
             es_client=mock_es,
             config_source=config,
         )
-        worker.process_document(documant_id, content)
+        worker.process_document(document_id, content)
 
     ollama_client.generate.assert_not_called()
     mock_es.update_document_field.assert_not_called()
@@ -149,7 +149,7 @@ def test_worker_failure_does_not_block(
     mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
-    documant_id = uuid4()
+    document_id = uuid4()
     content = "Some content"
 
     ollama_client.generate = MagicMock(side_effect=RuntimeError("Ollama unavailable"))
@@ -162,11 +162,11 @@ def test_worker_failure_does_not_block(
             es_client=mock_es,
         )
         # Should not raise
-        worker.process_document(documant_id, content)
+        worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
         repo = IntelligenceRepository(connection)
-        summary = repo.get_summary(documant_id)
+        summary = repo.get_summary(document_id)
         assert summary is None
 
 
@@ -175,7 +175,7 @@ def test_worker_stops_on_first_failure(
     mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
-    documant_id = uuid4()
+    document_id = uuid4()
     content = "Some content"
 
     # Summary succeeds, entities fail
@@ -188,13 +188,13 @@ def test_worker_stops_on_first_failure(
             ollama_client=ollama_client,
             es_client=mock_es,
         )
-        worker.process_document(documant_id, content)
+        worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
         repo = IntelligenceRepository(connection)
-        summary = repo.get_summary(documant_id)
+        summary = repo.get_summary(document_id)
         assert summary is not None
-        entities = repo.get_entities(documant_id)
+        entities = repo.get_entities(document_id)
         assert len(entities) == 0
 
     assert ollama_client.generate.call_count == 2

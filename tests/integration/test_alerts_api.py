@@ -138,7 +138,7 @@ def test_alert_trigger_creates_access_filtered_notification(
     _setup_users(migrated_engine)
     doc_path = tmp_path / "procurement.txt"
     doc_path.write_text("procurement fraud")
-    documant_id = _create_doc(migrated_engine, "users", str(doc_path))
+    document_id = _create_doc(migrated_engine, "users", str(doc_path))
 
     client = TestClient(create_app(migrated_engine, _settings()))
     user_token = _token(client, "user@example.com")
@@ -167,7 +167,7 @@ def test_alert_trigger_creates_access_filtered_notification(
     assert outsider_sub.status_code == 201
 
     triggered = client.post(
-        f"/admin/alerts/{documant_id}/trigger",
+        f"/admin/alerts/{document_id}/trigger",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert triggered.status_code == 200
@@ -177,7 +177,7 @@ def test_alert_trigger_creates_access_filtered_notification(
     assert notifications.status_code == 200
     assert len(notifications.json()) == 1
     notification = notifications.json()[0]
-    assert notification["documant_id"] == str(documant_id)
+    assert notification["document_id"] == str(document_id)
     assert notification["subscription_name"] == "Procurement"
 
     outsider_notifications = client.get(
@@ -191,7 +191,7 @@ def test_mark_notification_read(migrated_engine: Engine, tmp_path: Path) -> None
     _setup_users(migrated_engine)
     doc_path = tmp_path / "topic.txt"
     doc_path.write_text("security update")
-    documant_id = _create_doc(migrated_engine, "users", str(doc_path))
+    document_id = _create_doc(migrated_engine, "users", str(doc_path))
 
     client = TestClient(create_app(migrated_engine, _settings()))
     user_token = _token(client, "user@example.com")
@@ -206,7 +206,7 @@ def test_mark_notification_read(migrated_engine: Engine, tmp_path: Path) -> None
         headers={"Authorization": f"Bearer {user_token}"},
     )
     client.post(
-        f"/admin/alerts/{documant_id}/trigger",
+        f"/admin/alerts/{document_id}/trigger",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
 

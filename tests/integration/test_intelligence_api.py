@@ -92,11 +92,11 @@ def test_get_summary_returns_data(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     with migrated_engine.begin() as connection:
         repo = IntelligenceRepository(connection)
-        repo.upsert_summary(UUID(documant_id), "A test summary", "mistral")
+        repo.upsert_summary(UUID(document_id), "A test summary", "mistral")
 
     client = TestClient(
         create_app(
@@ -107,13 +107,13 @@ def test_get_summary_returns_data(
     token = _user_token(client)
 
     response = client.get(
-        f"/documents/{documant_id}/summary",
+        f"/documents/{document_id}/summary",
         headers={"Authorization": f"Bearer {token}"},
     )
 
     assert response.status_code == 200
     data = response.json()
-    assert data["documant_id"] == documant_id
+    assert data["document_id"] == document_id
     assert data["summary"] == "A test summary"
     assert data["model"] == "mistral"
 
@@ -129,7 +129,7 @@ def test_get_summary_404_when_missing(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     client = TestClient(
         create_app(
@@ -140,7 +140,7 @@ def test_get_summary_404_when_missing(
     token = _user_token(client)
 
     response = client.get(
-        f"/documents/{documant_id}/summary",
+        f"/documents/{document_id}/summary",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -158,12 +158,12 @@ def test_get_entities_returns_data(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     with migrated_engine.begin() as connection:
         repo = IntelligenceRepository(connection)
         entity_id = repo.upsert_entity("Acme Corp", "organization")
-        repo.link_document_entity(UUID(documant_id), entity_id, frequency=3)
+        repo.link_document_entity(UUID(document_id), entity_id, frequency=3)
 
     client = TestClient(
         create_app(
@@ -174,7 +174,7 @@ def test_get_entities_returns_data(
     token = _user_token(client)
 
     response = client.get(
-        f"/documents/{documant_id}/entities",
+        f"/documents/{document_id}/entities",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -197,11 +197,11 @@ def test_get_tags_returns_data(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     with migrated_engine.begin() as connection:
         repo = IntelligenceRepository(connection)
-        repo.replace_tags(UUID(documant_id), ["finance", "Q3"])
+        repo.replace_tags(UUID(document_id), ["finance", "Q3"])
 
     client = TestClient(
         create_app(
@@ -212,13 +212,13 @@ def test_get_tags_returns_data(
     token = _user_token(client)
 
     response = client.get(
-        f"/documents/{documant_id}/tags",
+        f"/documents/{document_id}/tags",
         headers={"Authorization": f"Bearer {token}"},
     )
 
     assert response.status_code == 200
     data = response.json()
-    assert data["documant_id"] == documant_id
+    assert data["document_id"] == document_id
     assert set(data["tags"]) == {"finance", "Q3"}
 
 
@@ -250,7 +250,7 @@ def test_intelligence_endpoints_require_doc_access(
             path=str(test_file),
         )
         assert doc is not None
-        documant_id = str(doc.id)
+        document_id = str(doc.id)
 
     client = TestClient(
         create_app(
@@ -262,7 +262,7 @@ def test_intelligence_endpoints_require_doc_access(
 
     for endpoint in ["summary", "entities", "tags"]:
         response = client.get(
-            f"/documents/{documant_id}/{endpoint}",
+            f"/documents/{document_id}/{endpoint}",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 403
@@ -279,7 +279,7 @@ def test_admin_trigger_intelligence(
     test_file = files_root / "test.txt"
     test_file.write_text("This is a document about AI and finance.")
 
-    _source_id, documant_id = _create_source_with_doc(
+    _source_id, document_id = _create_source_with_doc(
         migrated_engine, "users", path=str(test_file), translation_quality="fast"
     )
 
@@ -292,7 +292,7 @@ def test_admin_trigger_intelligence(
     admin_token = _admin_token(client)
 
     response = client.post(
-        f"/admin/intelligence/{documant_id}/trigger",
+        f"/admin/intelligence/{document_id}/trigger",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
 
@@ -300,7 +300,7 @@ def test_admin_trigger_intelligence(
     # because the endpoint catches errors from the worker
     assert response.status_code == 200
     data = response.json()
-    assert data["documant_id"] == documant_id
+    assert data["document_id"] == document_id
     assert data["triggered"] is True
 
 
@@ -315,7 +315,7 @@ def test_admin_trigger_requires_admin(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     client = TestClient(
         create_app(
@@ -326,7 +326,7 @@ def test_admin_trigger_requires_admin(
     token = _user_token(client)
 
     response = client.post(
-        f"/admin/intelligence/{documant_id}/trigger",
+        f"/admin/intelligence/{document_id}/trigger",
         headers={"Authorization": f"Bearer {token}"},
     )
 

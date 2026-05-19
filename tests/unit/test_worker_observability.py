@@ -51,7 +51,7 @@ class _FakePipelineRepo:
     def claim_next(self, worker_id: str) -> dict | None:
         return self.claimed_job
 
-    def get_payload(self, documant_id: object) -> dict | None:
+    def get_payload(self, document_id: object) -> dict | None:
         return self.payload
 
     def mark_running_stage(self, job_id: object, stage: str) -> None:
@@ -437,7 +437,7 @@ class TestCountByStatus:
             conn.execute(
                 sa.text("""
                 CREATE TABLE document_payloads (
-                    documant_id TEXT PRIMARY KEY REFERENCES documents(id),
+                    document_id TEXT PRIMARY KEY REFERENCES documents(id),
                     content_text TEXT,
                     content_path TEXT,
                     content_sha256 TEXT,

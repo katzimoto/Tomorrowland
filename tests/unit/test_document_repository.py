@@ -153,7 +153,7 @@ def test_metadata_string_parsing(migrated_engine: Engine) -> None:
     """Ensure metadata stored as a JSON string is parsed correctly."""
     with migrated_engine.begin() as connection:
         source_id = _create_source(connection)
-        documant_id = uuid4()
+        document_id = uuid4()
         connection.execute(
             sa.text("""
                 INSERT INTO documents (
@@ -161,10 +161,10 @@ def test_metadata_string_parsing(migrated_engine: Engine) -> None:
                 )
                 VALUES (:id, :source_id, 'meta.txt', 'folder', 'text/plain', 'pending', '{}')
                 """),
-            {"id": documant_id.hex, "source_id": source_id.hex},
+            {"id": document_id.hex, "source_id": source_id.hex},
         )
         repo = DocumentRepository(connection)
-        doc = repo.get_by_id(documant_id)
+        doc = repo.get_by_id(document_id)
 
     assert doc is not None
     assert doc.metadata == {}

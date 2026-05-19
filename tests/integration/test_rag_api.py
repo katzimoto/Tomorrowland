@@ -74,12 +74,12 @@ def _create_doc(
 def test_qa_returns_answer_and_citations(migrated_engine: Engine) -> None:
     _setup_users(migrated_engine)
 
-    documant_id = _create_doc(migrated_engine, "admins", "Procurement Policy")
+    document_id = _create_doc(migrated_engine, "admins", "Procurement Policy")
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = [
         SearchResult(
-            documant_id=str(documant_id),
+            document_id=str(document_id),
             score=0.92,
             chunk_text="All procurement over $10,000 requires two quotes.",
         )
@@ -104,7 +104,7 @@ def test_qa_returns_answer_and_citations(migrated_engine: Engine) -> None:
     assert data["question"] == "What is the procurement threshold?"
     assert "answer" in data
     assert len(data["citations"]) == 1
-    assert data["citations"][0]["documant_id"] == str(documant_id)
+    assert data["citations"][0]["document_id"] == str(document_id)
     assert data["citations"][0]["doc_title"] == "Procurement Policy"
     assert "procurement" in data["citations"][0]["chunk_text"].lower()
 
@@ -192,12 +192,12 @@ def test_qa_empty_question_returns_422(migrated_engine: Engine) -> None:
 def test_qa_ollama_failure_returns_fallback(migrated_engine: Engine) -> None:
     _setup_users(migrated_engine)
 
-    documant_id = _create_doc(migrated_engine, "admins", "Fallback Doc")
+    document_id = _create_doc(migrated_engine, "admins", "Fallback Doc")
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = [
         SearchResult(
-            documant_id=str(documant_id),
+            document_id=str(document_id),
             score=0.85,
             chunk_text="Important information here.",
         )
@@ -232,12 +232,12 @@ def test_qa_ollama_failure_returns_fallback(migrated_engine: Engine) -> None:
 def test_qa_top_k_limits_chunks(migrated_engine: Engine) -> None:
     _setup_users(migrated_engine)
 
-    documant_id = _create_doc(migrated_engine, "admins", "Multi Chunk Doc")
+    document_id = _create_doc(migrated_engine, "admins", "Multi Chunk Doc")
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = [
         SearchResult(
-            documant_id=str(documant_id),
+            document_id=str(document_id),
             score=0.95,
             chunk_text=f"Chunk {i}",
         )

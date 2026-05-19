@@ -17,11 +17,11 @@ _SOURCE_ID = str(uuid.UUID("cccccccc-0000-0000-0000-000000000001"))
 
 
 def _mock_doc_row(
-    documant_id: str = _DOC_ID,
+    document_id: str = _DOC_ID,
     source_id: str = _SOURCE_ID,
 ) -> dict[str, Any]:
     return {
-        "id": documant_id,
+        "id": document_id,
         "source_id": source_id,
         "source": "folder",
         "path": "/data/test.txt",
@@ -155,8 +155,8 @@ def test_changed_chunks_are_indexed_to_shadow(mock_chunk: MagicMock) -> None:
 @patch("services.search.meili_backfill.chunk_text")
 def test_per_document_failure_increments_count(mock_chunk: MagicMock) -> None:
     mock_chunk.side_effect = [ValueError("bad data"), ["chunk for doc2"]]
-    doc1 = _mock_doc_row(documant_id=_DOC_ID)
-    doc2 = _mock_doc_row(documant_id=str(uuid.UUID("dddddddd-0000-0000-0000-000000000001")))
+    doc1 = _mock_doc_row(document_id=_DOC_ID)
+    doc2 = _mock_doc_row(document_id=str(uuid.UUID("dddddddd-0000-0000-0000-000000000001")))
     engine = _make_engine([[doc1, doc2]])
     provider = _mock_provider()
 
@@ -178,9 +178,9 @@ def test_summary_counts_mixed(mock_chunk: MagicMock) -> None:
         ["chunk c"],
     ]
 
-    doc1 = _mock_doc_row(documant_id=_DOC_ID)
-    doc2 = _mock_doc_row(documant_id=str(uuid.UUID("dddddddd-0000-0000-0000-000000000001")))
-    doc3 = _mock_doc_row(documant_id=str(uuid.UUID("eeeeeeee-0000-0000-0000-000000000001")))
+    doc1 = _mock_doc_row(document_id=_DOC_ID)
+    doc2 = _mock_doc_row(document_id=str(uuid.UUID("dddddddd-0000-0000-0000-000000000001")))
+    doc3 = _mock_doc_row(document_id=str(uuid.UUID("eeeeeeee-0000-0000-0000-000000000001")))
     engine = _make_engine([[doc1, doc2, doc3]])
 
     # Override the translation mock to return None for doc3
