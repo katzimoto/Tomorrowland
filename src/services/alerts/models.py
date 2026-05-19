@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 class SubscriptionCreateRequest(BaseModel):
     """Request body for creating an alert subscription."""
 
-    name: str = Field(..., min_length=1)
-    query: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1, max_length=200)
+    query: str = Field(..., min_length=1, max_length=500)
     similarity_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
     enabled: bool = True
 
@@ -17,7 +17,7 @@ class SubscriptionCreateRequest(BaseModel):
 class SubscriptionUpdateRequest(BaseModel):
     """Request body for updating an alert subscription."""
 
-    name: str | None = Field(default=None, min_length=1)
-    query: str | None = Field(default=None, min_length=1)
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    query: str | None = Field(default=None, min_length=1, max_length=500)
     similarity_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
     enabled: bool | None = None

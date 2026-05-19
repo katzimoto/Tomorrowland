@@ -26,8 +26,8 @@ class Annotation(BaseModel):
 class AnnotationCreateRequest(BaseModel):
     """Request body for creating an annotation."""
 
-    text: str = Field(..., min_length=1)
-    note: str | None = None
+    text: str = Field(..., min_length=1, max_length=5000)
+    note: str | None = Field(default=None, max_length=2000)
     position: dict[str, Any] | None = None
     is_private: bool = False
 
@@ -35,7 +35,7 @@ class AnnotationCreateRequest(BaseModel):
 class AnnotationUpdateRequest(BaseModel):
     """Request body for updating an annotation."""
 
-    text: str | None = None
-    note: str | None = None
+    text: str | None = Field(default=None, min_length=1, max_length=5000)
+    note: str | None = Field(default=None, max_length=2000)
     position: dict[str, Any] | None = None
     is_private: bool | None = None

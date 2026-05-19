@@ -308,3 +308,16 @@ def test_qa_disabled_by_system_config_returns_404(migrated_engine: Engine) -> No
     )
 
     assert resp.status_code == 404
+
+
+def test_qa_oversized_question_returns_422(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(create_app(migrated_engine, _settings()))
+    token = _admin_token(client)
+
+    resp = client.post(
+        "/qa",
+        json={"question": "x" * 2001},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422

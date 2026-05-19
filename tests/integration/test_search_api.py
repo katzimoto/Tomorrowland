@@ -659,6 +659,21 @@ def test_related_documents_degraded_on_encoder_failure(
     Path(path).unlink(missing_ok=True)
 
 
+def test_oversized_search_query_returns_422(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _user_token(client)
+
+    resp = client.post(
+        "/search",
+        json={"query": "x" * 501, "mode": "hybrid"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
 def test_expertise_degraded_on_encoder_failure(
     migrated_engine: Engine,
 ) -> None:
@@ -691,3 +706,37 @@ def test_expertise_degraded_on_encoder_failure(
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_oversized_expertise_topic_returns_422(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(
+        migrated_engine,
+        Settings(
+            auth_provider="local",
+            jwt_secret=TEST_JWT_SECRET,
+            feature_expertise_map=True,
+        ),
+    )
+    client = TestClient(app)
+    token = _user_token(client)
+
+    resp = client.get(
+        f"/expertise?topic={'x' * 501}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_excessive_limit_on_comments_returns_422(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    _create_source_with_doc(migrated_engine, "users")
+    app = create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    client = TestClient(app)
+    token = _user_token(client)
+
+    resp = client.get(
+        "/documents/00000000-0000-0000-0000-000000000000/comments?limit=201",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422

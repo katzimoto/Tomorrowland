@@ -19,7 +19,7 @@ class Citation(BaseModel):
 class QuestionRequest(BaseModel):
     """Request body for RAG Q&A."""
 
-    question: str = Field(..., min_length=1)
+    question: str = Field(..., min_length=1, max_length=2000)
     top_k: int | None = Field(default=None, ge=1, le=20)
     document_id: str | None = None
 
