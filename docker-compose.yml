@@ -96,8 +96,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-      ollama-models:
-        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
     logging:
       driver: json-file
     volumes:
@@ -118,8 +118,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-      ollama-models:
-        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
     logging:
       driver: json-file
     volumes:
@@ -274,36 +274,25 @@ services:
       - libretranslate_data:/home/libretranslate/.local
 
   ollama:
-    image: ollama/ollama:latest
+    build:
+      context: .
+      dockerfile: docker/ollama.Dockerfile
+      args:
+        OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
+        EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+    image: tomorrowland/ollama:models
     restart: unless-stopped
     environment:
       OLLAMA_MODELS: /root/.ollama/models
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
     healthcheck:
-      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 && ollama list | grep -F \"$${OLLAMA_MODEL}\" >/dev/null && ollama list | grep -F \"$${EMBEDDING_MODEL}\" >/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 10
-    logging:
-      driver: json-file
-    volumes:
-      - ollama_data:/root/.ollama
-
-  ollama-models:
-    image: ollama/ollama:latest
-    restart: "no"
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
-    depends_on:
-      ollama:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -eu
-        ollama pull "$${EMBEDDING_MODEL}"
     logging:
       driver: json-file
 
@@ -367,8 +356,6 @@ volumes:
     name: ${TOMORROWLAND_MEILISEARCH_VOLUME:-tomorrowland_meilisearch_data}
   libretranslate_data:
     name: ${TOMORROWLAND_LIBRETRANSLATE_VOLUME:-tomorrowland_libretranslate_data}
-  ollama_data:
-    name: ${TOMORROWLAND_OLLAMA_VOLUME:-tomorrowland_ollama_data}
   prometheus_data:
     name: ${TOMORROWLAND_PROMETHEUS_VOLUME:-tomorrowland_prometheus_data}
   grafana_data:
