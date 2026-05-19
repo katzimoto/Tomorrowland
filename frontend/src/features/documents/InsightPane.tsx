@@ -474,7 +474,6 @@ function CommentsTab({ docId }: { docId: string }) {
           };
         }
       );
-      );
       setEditId(null);
       return { previous };
     },
