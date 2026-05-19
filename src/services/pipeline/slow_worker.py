@@ -14,8 +14,11 @@ from services.documents.repository import (
     TranslationVersionRepository,
 )
 from services.extraction.registry import ExtractorRegistry
+from services.intelligence.worker import IntelligenceWorker
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.encoder import TextEncoder
+from services.search.meili_provider import MeilisearchSearchProvider
+from services.search.meili_types import ChunkMetadata, SearchChunkRecord
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.correlation import get_correlation_id
@@ -35,6 +38,8 @@ class SlowWorker:
         es_client: ElasticsearchSearchClient,
         qdrant_client: QdrantSearchClient,
         version_repository: TranslationVersionRepository | None = None,
+        meili_provider: MeilisearchSearchProvider | None = None,
+        intelligence_worker: IntelligenceWorker | None = None,
         alert_matcher: AlertMatcher | None = None,
     ) -> None:
         self._doc_repo = document_repository
@@ -43,6 +48,8 @@ class SlowWorker:
         self._encoder = encoder
         self._es = es_client
         self._qdrant = qdrant_client
+        self._meili = meili_provider
+        self._intelligence = intelligence_worker
         self._version_repo = version_repository
         self._alert_matcher = alert_matcher
 
@@ -142,39 +149,10 @@ class SlowWorker:
             str(group_id) for group_id in self._doc_repo.source_group_ids(doc.source_id)
         ]
 
-        # Build Qdrant points for both original and translated chunks
-        qdrant_chunks: list[dict[str, Any]] = []
-
-        def _build_chunk(
-            chunk_text_content: str,
-            idx: int,
-            *,
-            lang: str | None,
-            suffix: str,
-        ) -> dict[str, Any]:
-            vector = self._encoder.encode(chunk_text_content)
-            entry: dict[str, Any] = {
-                "chunk_id": f"{document_id}-{suffix}-{idx}",
-                "document_id": str(document_id),
-                "group_id": allowed_group_ids,
-                "chunk_index": idx,
-                "text": chunk_text_content,
-                "vector": vector,
-            }
-            if lang:
-                entry["language"] = lang
-            return entry
-
-        if original:
-            for idx, chunk_text_content in enumerate(chunk_text(original)):
-                qdrant_chunks.append(
-                    _build_chunk(chunk_text_content, idx, lang=doc.source_language, suffix="orig")
-                )
-
-        for idx, chunk_text_content in enumerate(chunk_text(translated)):
-            qdrant_chunks.append(
-                _build_chunk(chunk_text_content, idx, lang=doc.target_language, suffix="trans")
-            )
+        # Chunk both original and translated text separately so Meilisearch records
+        # pair original chunk text (content) with its translated chunk (content_en).
+        original_chunks = list(chunk_text(original)) if original else []
+        translated_chunks = list(chunk_text(translated))
 
         # Index full document in Elasticsearch (preserve original text on re-index)
         self._es.index_document(
@@ -193,9 +171,127 @@ class SlowWorker:
             },
         )
 
-        # Index chunks in Qdrant
-        if qdrant_chunks:
-            self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
+        # Index chunks in Meilisearch when configured
+        if self._meili is not None:
+            try:
+                pair_count = min(len(original_chunks), len(translated_chunks))
+                meili_records = [
+                    SearchChunkRecord.from_parts(
+                        document_id=str(document_id),
+                        chunk_index=idx,
+                        title=doc.title or "",
+                        content=orig_chunk,
+                        allowed_group_ids=allowed_group_ids,
+                        metadata=ChunkMetadata(
+                            source=doc.source,
+                            mime_type=doc.mime_type,
+                            file_name=Path(doc.path).name if doc.path else None,
+                            language=doc.source_language,
+                        ),
+                        content_en=tran_chunk if translated != original else None,
+                    )
+                    for idx, (orig_chunk, tran_chunk) in enumerate(
+                        zip(
+                            original_chunks[:pair_count],
+                            translated_chunks[:pair_count],
+                            strict=False,
+                        )
+                    )
+                ]
+                for idx in range(pair_count, len(original_chunks)):
+                    meili_records.append(
+                        SearchChunkRecord.from_parts(
+                            document_id=str(document_id),
+                            chunk_index=idx,
+                            title=doc.title or "",
+                            content=original_chunks[idx],
+                            allowed_group_ids=allowed_group_ids,
+                            metadata=ChunkMetadata(
+                                source=doc.source,
+                                mime_type=doc.mime_type,
+                                file_name=Path(doc.path).name if doc.path else None,
+                                language=doc.source_language,
+                            ),
+                            content_en=None,
+                        )
+                    )
+                if meili_records:
+                    self._meili.index_batch(meili_records)
+            except Exception as exc:
+                logger.error(
+                    "Meilisearch indexing failed during enrichment for "
+                    "document_id=%s error_type=%s correlation=%s",
+                    document_id,
+                    exc.__class__.__name__,
+                    get_correlation_id(),
+                )
 
+        # Build Qdrant points for both original and translated chunks
+        try:
+            qdrant_chunks: list[dict[str, Any]] = []
+
+            def _build_chunk(
+                chunk_text_content: str,
+                idx: int,
+                *,
+                lang: str | None,
+                suffix: str,
+            ) -> dict[str, Any]:
+                vector = self._encoder.encode(chunk_text_content)
+                entry: dict[str, Any] = {
+                    "chunk_id": f"{document_id}-{suffix}-{idx}",
+                    "document_id": str(document_id),
+                    "group_id": allowed_group_ids,
+                    "chunk_index": idx,
+                    "text": chunk_text_content,
+                    "vector": vector,
+                    "source_id": str(doc.source_id),
+                }
+                if doc.title:
+                    entry["title"] = doc.title
+                if lang:
+                    entry["language"] = lang
+                return entry
+
+            for idx, chunk_text_content in enumerate(original_chunks):
+                qdrant_chunks.append(
+                    _build_chunk(chunk_text_content, idx, lang=doc.source_language, suffix="orig")
+                )
+
+            for idx, chunk_text_content in enumerate(translated_chunks):
+                qdrant_chunks.append(
+                    _build_chunk(chunk_text_content, idx, lang=doc.target_language, suffix="trans")
+                )
+
+            if qdrant_chunks:
+                self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
+        except Exception as exc:
+            logger.error(
+                "Vector indexing failed during enrichment for "
+                "document_id=%s error_type=%s correlation=%s",
+                document_id,
+                exc.__class__.__name__,
+                get_correlation_id(),
+            )
+
+        # Alert matching (best-effort, never blocking)
         if self._alert_matcher is not None:
-            self._alert_matcher.match_document(doc, translated)
+            try:
+                self._alert_matcher.match_document(doc, translated)
+            except Exception:
+                logger.exception(
+                    "Alert matching failed during enrichment for document_id=%s correlation=%s",
+                    document_id,
+                    get_correlation_id(),
+                )
+
+        # Intelligence (best-effort, never blocking)
+        if self._intelligence is not None:
+            try:
+                self._intelligence.process_document(doc.id, translated)
+            except Exception:
+                logger.exception(
+                    "Intelligence failed during enrichment for document_id=%s correlation=%s",
+                    document_id,
+                    get_correlation_id(),
+                )
