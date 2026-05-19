@@ -140,14 +140,19 @@ class PipelineWorker:
             self._metrics.translation_requests_total.labels("pipeline", "success").inc()
             self._metrics.translation_characters_total.labels("pipeline").inc(len(text))
 
-        # 3. Chunk
+        # 3. Chunk both original and translated text separately so each
+        #    Meilisearch record pairs original chunk text (content) with its
+        #    corresponding translated chunk (content_en).
         start = time.perf_counter()
-        chunks = chunk_text(translated)
+        original_chunks = list(chunk_text(text))
+        translated_chunks = list(chunk_text(translated))
         if self._metrics is not None:
             self._metrics.pipeline_stage_duration_seconds.labels("chunking").observe(
                 time.perf_counter() - start
             )
-            self._metrics.pipeline_chunks_total.labels("success").inc(len(chunks))
+            self._metrics.pipeline_chunks_total.labels("success").inc(
+                max(len(original_chunks), len(translated_chunks))
+            )
 
         # 4. Index full document in Elasticsearch. This is intentionally before
         #    vector embedding so an Ollama/Qdrant outage does not prevent BM25
@@ -175,16 +180,18 @@ class PipelineWorker:
             )
             self._metrics.search_index_documents.labels("elasticsearch").inc()
 
-        # 5. Index chunks in Meilisearch when configured. This mirrors the
-        #    backfill record shape so live ingestion and reindex agree.
+        # 5. Index chunks in Meilisearch when configured. Uses original text
+        #    for content and translated text for content_en so queries in
+        #    either language can find the document.
         if self._meili is not None:
             try:
+                pair_count = min(len(original_chunks), len(translated_chunks))
                 meili_records = [
                     SearchChunkRecord.from_parts(
                         document_id=str(document_id),
                         chunk_index=idx,
                         title=doc.title or "",
-                        content=chunk_text_content,
+                        content=orig_chunk,
                         allowed_group_ids=allowed_group_ids,
                         metadata=ChunkMetadata(
                             source=doc.source,
@@ -192,10 +199,34 @@ class PipelineWorker:
                             file_name=Path(doc.path).name if doc.path else None,
                             language=doc.source_language,
                         ),
-                        content_en=translated,
+                        content_en=tran_chunk if translated != text else None,
                     )
-                    for idx, chunk_text_content in enumerate(chunks)
+                    for idx, (orig_chunk, tran_chunk) in enumerate(
+                        zip(
+                            original_chunks[:pair_count],
+                            translated_chunks[:pair_count],
+                            strict=False,
+                        )
+                    )
                 ]
+                # Any extra original-only chunks (e.g. when translation is shorter)
+                for idx in range(pair_count, len(original_chunks)):
+                    meili_records.append(
+                        SearchChunkRecord.from_parts(
+                            document_id=str(document_id),
+                            chunk_index=idx,
+                            title=doc.title or "",
+                            content=original_chunks[idx],
+                            allowed_group_ids=allowed_group_ids,
+                            metadata=ChunkMetadata(
+                                source=doc.source,
+                                mime_type=doc.mime_type,
+                                file_name=Path(doc.path).name if doc.path else None,
+                                language=doc.source_language,
+                            ),
+                            content_en=None,
+                        )
+                    )
                 if meili_records:
                     start = time.perf_counter()
                     self._meili.index_batch(meili_records)
@@ -244,13 +275,13 @@ class PipelineWorker:
                 return entry
 
             # Original language chunks
-            for idx, chunk_text_content in enumerate(chunk_text(text)):
+            for idx, chunk_text_content in enumerate(original_chunks):
                 qdrant_chunks.append(
                     _build_chunk(chunk_text_content, idx, lang=doc.source_language, suffix="orig")
                 )
 
             # Translated chunks (when translation differs from original)
-            for idx, chunk_text_content in enumerate(chunks):
+            for idx, chunk_text_content in enumerate(translated_chunks):
                 qdrant_chunks.append(
                     _build_chunk(chunk_text_content, idx, lang=doc.target_language, suffix="trans")
                 )
