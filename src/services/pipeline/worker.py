@@ -144,8 +144,8 @@ class PipelineWorker:
         #    Meilisearch record pairs original chunk text (content) with its
         #    corresponding translated chunk (content_en).
         start = time.perf_counter()
-        original_chunks = list(chunk_text(text))
-        translated_chunks = list(chunk_text(translated))
+        original_chunks = list(chunk_text(text, language=doc.source_language))
+        translated_chunks = list(chunk_text(translated, language=doc.target_language))
         if self._metrics is not None:
             self._metrics.pipeline_stage_duration_seconds.labels("chunking").observe(
                 time.perf_counter() - start

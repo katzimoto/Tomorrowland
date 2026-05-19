@@ -328,6 +328,46 @@ class MeilisearchSearchProvider:
         ]
         return results
 
+    def search_rag(
+        self,
+        text: str,
+        group_ids: list[str],
+        allow_all: bool = False,
+        limit: int = 20,
+    ) -> list[SearchResult]:
+        """Search Meilisearch for RAG — no user object required.
+
+        Uses ``build_permission_filter_for_ids`` directly so callers can pass
+        pre-resolved effective group IDs. Returns ``SearchResult`` objects
+        compatible with ``merge_results()``.
+        """
+        from services.search.meili_acl import build_permission_filter_for_ids
+
+        filter_expr = build_permission_filter_for_ids(list(group_ids), is_admin=allow_all)
+
+        params: dict[str, Any] = {
+            "limit": limit,
+            "showRankingScore": True,
+        }
+        if filter_expr:
+            params["filter"] = filter_expr
+
+        raw = self._client.index(INDEX_NAME).search(text, params)
+
+        return [
+            SearchResult(
+                document_id=hit["document_id"],
+                score=hit.get("_rankingScore") or 0.0,
+                title=hit.get("title") or "",
+                chunk_text=hit.get("content") or "",
+                metadata={
+                    "chunk_id": hit.get("id"),
+                    "chunk_index": hit.get("chunk_index"),
+                },
+            )
+            for hit in raw.get("hits", [])
+        ]
+
     # ------------------------------------------------------------------
     # Observability
     # ------------------------------------------------------------------

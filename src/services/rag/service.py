@@ -11,6 +11,7 @@ from sqlalchemy.engine import Connection
 from services.documents.repository import DocumentRepository
 from services.intelligence.ollama_client import OllamaClient
 from services.search.encoder import TextEncoder
+from services.search.hybrid import merge_results
 from services.search.qdrant import QdrantSearchClient
 from shared.metrics import current_metrics
 
@@ -20,8 +21,9 @@ from .models import AnswerResponse, Citation
 class RagService:
     """Retrieval-Augmented Generation Q&A service.
 
-    Retrieves relevant document chunks from Qdrant, assembles context,
-    and generates an answer using a local LLM.
+    Retrieves relevant document chunks from Qdrant (vector) and optionally
+    Meilisearch (BM25), fuses them with reciprocal-rank fusion, optionally
+    reranks them, assembles context, and generates an answer using a local LLM.
     """
 
     def __init__(
@@ -34,6 +36,8 @@ class RagService:
         max_chunks: int = 5,
         max_tokens_context: int = 2_000,
         score_threshold: float = 0.0,
+        meili_provider: Any | None = None,
+        reranker: Any | None = None,
     ) -> None:
         self._qdrant = qdrant_client
         self._encoder = encoder
@@ -46,6 +50,8 @@ class RagService:
         self._max_chunks = max_chunks
         self._max_tokens_context = max_tokens_context
         self._score_threshold = score_threshold
+        self._meili = meili_provider
+        self._reranker = reranker
 
     def answer(
         self,
@@ -100,7 +106,16 @@ class RagService:
                 model=self._ollama._model,
             )
 
-        # 2. Assemble context
+        # 2. Rerank (when a reranker is configured)
+        if self._reranker is not None:
+            phase_start = time.perf_counter()
+            chunks = self._reranker.rerank(chunks, question)
+            if metrics is not None:
+                metrics.rag_duration_seconds.labels("rerank").observe(
+                    time.perf_counter() - phase_start
+                )
+
+        # 3. Assemble context
         phase_start = time.perf_counter()
         context = self._assemble_context(chunks)
         if metrics is not None:
@@ -108,7 +123,7 @@ class RagService:
                 time.perf_counter() - phase_start
             )
 
-        # 3. Generate answer
+        # 4. Generate answer
         prompt = self._build_prompt(question, context)
         phase_start = time.perf_counter()
         try:
@@ -124,18 +139,24 @@ class RagService:
                 time.perf_counter() - phase_start
             )
 
-        # 4. Build citations
-        citations = [
-            Citation(
-                document_id=c["document_id"],
-                doc_title=c.get("doc_title"),
-                chunk_text=c["chunk_text"],
-                score=c["score"],
-                chunk_index=c.get("chunk_index"),
-                source_id=c.get("source_id"),
+        # 5. Build citations (deduplicated by document_id + chunk_index)
+        seen_citations: set[tuple[str, int | None]] = set()
+        citations = []
+        for c in chunks:
+            key = (c["document_id"], c.get("chunk_index"))
+            if key in seen_citations:
+                continue
+            seen_citations.add(key)
+            citations.append(
+                Citation(
+                    document_id=c["document_id"],
+                    doc_title=c.get("doc_title"),
+                    chunk_text=c["chunk_text"],
+                    score=c["score"],
+                    chunk_index=c.get("chunk_index"),
+                    source_id=c.get("source_id"),
+                )
             )
-            for c in chunks
-        ]
 
         if metrics is not None:
             metrics.rag_requests_total.labels("success").inc()
@@ -158,15 +179,17 @@ class RagService:
         document_id: str | None = None,
         allow_all: bool = False,
     ) -> list[dict[str, Any]]:
-        """Retrieve top-K chunks from Qdrant filtered by group_ids.
+        """Retrieve top-K chunks from Qdrant (+ Meilisearch when available).
 
+        When a Meilisearch provider is configured, BM25 candidates are fused
+        with the vector results via ``merge_results()`` using equal weights.
         Deduplication is performed at the chunk level (by chunk_id) so all
         relevant chunks from a document are preserved, not just the highest
         scorer per document. Chunks scoring below ``score_threshold`` are
         dropped before context assembly.
         """
         query_vector = self._encoder.encode(question)
-        results = self._qdrant.search(
+        vector_results = self._qdrant.search(
             vector=query_vector,
             group_ids=group_ids,
             limit=top_k,
@@ -174,8 +197,22 @@ class RagService:
             allow_all=allow_all,
         )
 
-        # Deduplicate by chunk_id (from payload metadata) to avoid duplicate
-        # chunks while preserving all relevant chunks across documents.
+        if self._meili is not None:
+            bm25_results = self._meili.search_rag(
+                text=question,
+                group_ids=group_ids,
+                allow_all=allow_all,
+                limit=top_k,
+            )
+            results = merge_results(
+                bm25_results=bm25_results,
+                vector_results=vector_results,
+                vector_weight=0.5,
+                bm25_weight=0.5,
+            )
+        else:
+            results = vector_results
+
         seen_chunk_ids: set[str] = set()
         unique_results = []
         for r in results:

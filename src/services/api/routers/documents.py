@@ -307,6 +307,56 @@ def get_tags(
         return {"document_id": str(document_id), "tags": tags}
 
 
+@router.get("/documents/{document_id}/key_points")
+def get_key_points(
+    document_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    with request.app.state.engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(document_id, user, auth_repo)
+
+        intelligence_repo = IntelligenceRepository(connection)
+        key_points = intelligence_repo.get_key_points(document_id)
+        return {"document_id": str(document_id), "key_points": key_points}
+
+
+@router.get("/documents/{document_id}/intelligence")
+def get_intelligence(
+    document_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    with request.app.state.engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(document_id, user, auth_repo)
+
+        intelligence_repo = IntelligenceRepository(connection)
+        summary = intelligence_repo.get_summary(document_id)
+        key_points = intelligence_repo.get_key_points(document_id)
+        entities = intelligence_repo.get_entities(document_id)
+        tags = intelligence_repo.get_tags(document_id)
+
+        result: dict[str, Any] = {"document_id": str(document_id)}
+        if summary is not None:
+            result["summary"] = summary["summary"]
+            result["summary_model"] = summary["model"]
+            result["summary_updated_at"] = _fmt_dt(summary["updated_at"])
+        result["key_points"] = key_points
+        result["entities"] = [
+            {
+                "id": str(e["id"]),
+                "name": e["name"],
+                "type": e["type"],
+                "frequency": e["frequency"],
+            }
+            for e in entities
+        ]
+        result["tags"] = tags
+        return result
+
+
 @router.get("/documents/{document_id}/related")
 def related_documents(
     document_id: UUID,

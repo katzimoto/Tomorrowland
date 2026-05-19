@@ -112,7 +112,9 @@ def run_vector_once(
         qdrant_chunks: list[dict[str, Any]] = []
 
         # Original language chunks
-        for idx, chunk_text_content in enumerate(chunk_text(content_text)):
+        for idx, chunk_text_content in enumerate(
+            chunk_text(content_text, language=doc.source_language)
+        ):
             qdrant_chunks.append(
                 _build_chunk(
                     chunk_text_content,
@@ -124,7 +126,9 @@ def run_vector_once(
 
         # Translated chunks (when translation exists and differs from original)
         if translated_text and translated_text != content_text:
-            for idx, chunk_text_content in enumerate(chunk_text(translated_text)):
+            for idx, chunk_text_content in enumerate(
+                chunk_text(translated_text, language=doc.target_language)
+            ):
                 qdrant_chunks.append(
                     _build_chunk(
                         chunk_text_content,

@@ -147,10 +147,7 @@ def test_split_sentences_trailing_text() -> None:
     text = "First sentence. Second sentence. trailing text"
     result = _split_sentences(text)
 
-    assert "First sentence." in result
-    # English-centric regex only splits on punctuation + space + capital letter,
-    # so "Second sentence. trailing text" remains one item
-    assert "Second sentence. trailing text" in result
+    assert result == ["First sentence.", "Second sentence.", "trailing text"]
 
 
 def test_split_sentences_multiple_boundaries() -> None:
@@ -158,3 +155,19 @@ def test_split_sentences_multiple_boundaries() -> None:
     result = _split_sentences(text)
 
     assert result == ["One.", "Two!", "Three?"]
+
+
+def test_split_sentences_hebrew() -> None:
+    """Hebrew text must split on sentence boundaries."""
+    text = "משפט ראשון. משפט שני! משפט שלישי?"
+    result = _split_sentences(text, language="he")
+
+    assert result == ["משפט ראשון.", "משפט שני!", "משפט שלישי?"]
+
+
+def test_split_sentences_language_fallback() -> None:
+    """Unknown language must use generic fallback pattern."""
+    text = "Sentence one. Sentence two. trailing"
+    result = _split_sentences(text, language="fr")
+
+    assert result == ["Sentence one.", "Sentence two.", "trailing"]

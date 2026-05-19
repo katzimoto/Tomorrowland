@@ -179,13 +179,32 @@ def _build_index(encoder: DeterministicTestEncoder) -> QdrantSearchClient:
 
 
 # ---------------------------------------------------------------------------
-# Evaluation metric
+# Evaluation metrics
 # ---------------------------------------------------------------------------
 
 
 def hit_at_k(results: list[SearchResult], expected_doc_id: str, k: int) -> bool:
     """Return True if *expected_doc_id* appears in the top-k results."""
     return any(r.document_id == expected_doc_id for r in results[:k])
+
+
+def reciprocal_rank(results: list[SearchResult], expected_doc_id: str) -> float:
+    """Return 1/rank of *expected_doc_id* in *results*, or 0.0 if absent."""
+    for rank, r in enumerate(results, 1):
+        if r.document_id == expected_doc_id:
+            return 1.0 / rank
+    return 0.0
+
+
+def mean_reciprocal_rank(
+    results_list: list[list[SearchResult]],
+    expected_ids: list[str],
+) -> float:
+    """Compute MRR across multiple queries."""
+    if not results_list:
+        return 0.0
+    total = sum(reciprocal_rank(r, e) for r, e in zip(results_list, expected_ids, strict=True))
+    return total / len(results_list)
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +223,40 @@ _GOLDEN: list[dict] = [
     {
         "question": "When are performance reviews conducted?",
         "expected_doc_id": "doc-beta",
+    },
+]
+
+_CORPUS_HEBREW = [
+    {
+        "doc_id": "doc-hebrew",
+        "chunks": [
+            "התקציב השנתי של הארגון לשנת 2024 אושר על ידי הדירקטוריון.",
+            "במהלך השנה גויסו 50 עובדים חדשים בכל המחלקות השונות.",
+            "מדיניות העבודה מהבית הורחבה לשלושה ימים בשבוע.",
+        ],
+    },
+    {
+        "doc_id": "doc-mixed",
+        "chunks": [
+            "The Q1 2024 budget was approved. התקציב לרבעון הראשון אושר.",
+            "Revenue grew by 15% year-over-year. ההכנסות גדלו ב-15% בהשוואה לשנה שעברה.",
+            "Operating margin improved to 22%. הרווחיות התפעולית השתפרה ל-22%.",
+        ],
+    },
+]
+
+_HEBREW_GOLDEN: list[dict] = [
+    {
+        "question": "התקציב השנתי של הארגון לשנת 2024 אושר על ידי הדירקטוריון.",
+        "expected_doc_id": "doc-hebrew",
+    },
+    {
+        "question": "במהלך השנה גויסו 50 עובדים חדשים בכל המחלקות השונות.",
+        "expected_doc_id": "doc-hebrew",
+    },
+    {
+        "question": "מדיניות העבודה מהבית הורחבה לשלושה ימים בשבוע.",
+        "expected_doc_id": "doc-hebrew",
     },
 ]
 
@@ -353,3 +406,82 @@ def test_search_result_metadata_includes_chunk_index(
         assert isinstance(r.metadata["chunk_index"], int), (
             f"chunk_index must be int, got {type(r.metadata['chunk_index'])}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Multi-language eval harness
+# ---------------------------------------------------------------------------
+
+
+def _build_multilang_index(encoder: DeterministicTestEncoder) -> QdrantSearchClient:
+    """Index Hebrew and mixed-language fixtures into a fake Qdrant client."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=encoder.dimension)
+    store = _FakeQdrantStore()
+    client._client = store  # type: ignore[assignment]
+
+    for doc in _CORPUS_HEBREW:
+        doc_id = doc["doc_id"]
+        for idx, text in enumerate(doc["chunks"]):
+            vector = encoder.encode(text)
+            client.upsert_chunks(
+                [
+                    {
+                        "chunk_id": f"{doc_id}-{idx}",
+                        "document_id": doc_id,
+                        "group_id": _GROUP_IDS,
+                        "chunk_index": idx,
+                        "text": text,
+                        "vector": vector,
+                        "source_id": "src-fixture",
+                    }
+                ]
+            )
+    return client
+
+
+@pytest.fixture(scope="module")
+def multilang_qdrant_client() -> QdrantSearchClient:
+    encoder = DeterministicTestEncoder()
+    return _build_multilang_index(encoder)
+
+
+@pytest.mark.parametrize(
+    "case",
+    _HEBREW_GOLDEN,
+    ids=[c["question"][:40] for c in _HEBREW_GOLDEN],
+)
+def test_multilang_hit_at_5(
+    multilang_qdrant_client: QdrantSearchClient,
+    encoder: DeterministicTestEncoder,
+    case: dict,
+) -> None:
+    """Each Hebrew golden question retrieves its expected doc in top-5."""
+    vector = encoder.encode(case["question"])
+    results = multilang_qdrant_client.search(
+        vector=vector,
+        group_ids=_GROUP_IDS,
+        limit=5,
+    )
+    assert hit_at_k(results, case["expected_doc_id"], k=5), (
+        f"Expected doc '{case['expected_doc_id']}' not in top-5 for: {case['question']!r}\n"
+        f"Got: {[r.document_id for r in results]}"
+    )
+
+
+def test_mrr_hebrew_golden(
+    multilang_qdrant_client: QdrantSearchClient,
+    encoder: DeterministicTestEncoder,
+) -> None:
+    """MRR across Hebrew golden queries must exceed 0.7."""
+    results_list = []
+    for case in _HEBREW_GOLDEN:
+        vector = encoder.encode(case["question"])
+        results = multilang_qdrant_client.search(
+            vector=vector,
+            group_ids=_GROUP_IDS,
+            limit=5,
+        )
+        results_list.append(results)
+
+    mrr = mean_reciprocal_rank(results_list, [c["expected_doc_id"] for c in _HEBREW_GOLDEN])
+    assert mrr >= 0.75, f"MRR too low: {mrr:.3f}"
