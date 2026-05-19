@@ -7,14 +7,18 @@ import {
   getEntities,
   getTags,
   getRelated,
+} from "@/api/documents";
+import {
   listComments,
   createComment,
   updateComment,
   deleteComment,
+} from "@/api/comments";
+import {
   listAnnotations,
   createAnnotation,
   deleteAnnotation,
-} from "@/api/documents";
+} from "@/api/annotations";
 import { Badge } from "@/components/primitives/Badge";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
@@ -210,9 +214,9 @@ function AnnotationsTab({ docId }: { docId: string }) {
   const addMut = useMutation({
     mutationFn: () =>
       createAnnotation(docId, {
-        text: newText.trim(),
+        body: newText.trim(),
         position: null,
-        is_private: isPrivate,
+        shared: !isPrivate,
       }),
     onSuccess: () => {
       setNewText("");
@@ -227,7 +231,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
     onError: () => showToast("error", "Failed to delete annotation."),
   });
 
-  const annotations = data?.annotations ?? [];
+  const annotations = data ?? [];
 
   return (
     <div className={styles.commentsSection}>
@@ -245,8 +249,8 @@ function AnnotationsTab({ docId }: { docId: string }) {
         {annotations.map((a) => (
           <li key={a.id} className={styles.comment}>
             <div className={styles.commentMeta}>
-              <Badge variant={a.is_private ? "neutral" : "source"}>
-                {a.is_private ? "Private" : "Shared"}
+              <Badge variant={a.shared ? "source" : "neutral"}>
+                {a.shared ? "Shared" : "Private"}
               </Badge>
               <span className={styles.commentDate}>
                 {new Date(a.created_at).toLocaleDateString()}
@@ -261,7 +265,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
                 </button>
               )}
             </div>
-            <p className={styles.commentBody}>{a.text}</p>
+            <p className={styles.commentBody}>{a.body}</p>
           </li>
         ))}
       </ul>
@@ -332,7 +336,7 @@ function CommentsTab({ docId }: { docId: string }) {
     onError: () => showToast("error", "Failed to delete comment."),
   });
 
-  const activeComments = data?.comments.filter((c) => !c.deleted_at) ?? [];
+  const activeComments = data ?? [];
 
   return (
     <div className={styles.commentsSection}>
@@ -370,7 +374,7 @@ function CommentsTab({ docId }: { docId: string }) {
               <>
                 <div className={styles.commentMeta}>
                   <span className={styles.commentAuthor}>
-                    {c.author_display_name}
+                    {c.author_name ?? c.author?.display_name ?? ""}
                   </span>
                   <span className={styles.commentDate}>
                     {new Date(c.created_at).toLocaleDateString()}

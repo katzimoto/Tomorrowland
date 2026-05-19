@@ -18,7 +18,7 @@ function authorName(comment: Comment): string {
   return comment.author?.display_name ?? comment.author_name ?? "Reader";
 }
 
-export function CommentItem({ docId, comment, currentUser }: CommentItemProps) {
+export function CommentItem({ docId, comment }: CommentItemProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const queryClient = useQueryClient();

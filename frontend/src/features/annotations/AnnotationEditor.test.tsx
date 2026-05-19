@@ -65,6 +65,7 @@ test("sends update annotations with body shared and position for API mapping", a
         position: { page: 4 },
         shared: false,
         created_at: "2026-05-01T10:00:00Z",
+        can_modify: true,
       }}
     />
   );

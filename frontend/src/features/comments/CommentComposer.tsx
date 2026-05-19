@@ -24,6 +24,8 @@ export function CommentComposer({ docId }: CommentComposerProps) {
         body: draft,
         created_at: new Date().toISOString(),
         updated_at: null,
+        can_edit: true,
+        can_delete: true,
       };
       queryClient.setQueryData<Comment[]>(
         ["comments", docId],
