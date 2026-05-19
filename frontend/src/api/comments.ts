@@ -95,6 +95,27 @@ export async function updateComment(docId: string, commentId: string, body: stri
   return mapComment(comment, docId);
 }
 
+export interface CommentPage {
+  comments: Comment[];
+  total: number;
+}
+
+export async function listCommentsPage(
+  docId: string,
+  skip = 0,
+  limit = 20,
+): Promise<CommentPage> {
+  const envelope = await api.get<CommentListEnvelope>(
+    `/documents/${docId}/comments?skip=${skip}&limit=${limit}`,
+  );
+  return {
+    comments: envelope.comments.map((comment) =>
+      mapComment(comment, envelope.document_id),
+    ),
+    total: envelope.total,
+  };
+}
+
 export function deleteComment(docId: string, commentId: string): Promise<void> {
   return api.delete<void>(`/documents/${docId}/comments/${commentId}`);
 }

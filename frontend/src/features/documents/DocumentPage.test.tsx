@@ -3,6 +3,8 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { render } from "@/test/render";
 import { DocumentPage } from "./DocumentPage";
 import * as documentsApi from "@/api/documents";
+import * as commentsApi from "@/api/comments";
+import * as annotationsApi from "@/api/annotations";
 
 vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({ docId: "doc-123" }),
@@ -13,6 +15,8 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/api/documents");
+vi.mock("@/api/comments");
+vi.mock("@/api/annotations");
 
 const mockPreview: documentsApi.DocumentPreview = {
   document_id: "doc-123",
@@ -35,13 +39,11 @@ beforeEach(() => {
   vi.mocked(documentsApi.getEntities).mockRejectedValue(new Error("not found"));
   vi.mocked(documentsApi.getTags).mockRejectedValue(new Error("not found"));
   vi.mocked(documentsApi.getRelated).mockRejectedValue(new Error("not found"));
-  vi.mocked(documentsApi.listComments).mockResolvedValue({
+  vi.mocked(commentsApi.listCommentsPage).mockResolvedValue({
     comments: [],
     total: 0,
   });
-  vi.mocked(documentsApi.listAnnotations).mockResolvedValue({
-    annotations: [],
-  });
+  vi.mocked(annotationsApi.listAnnotations).mockResolvedValue([]);
 });
 
 describe("DocumentPage", () => {
@@ -97,13 +99,13 @@ describe("DocumentPage", () => {
     });
 
     expect(documentsApi.getRelated).not.toHaveBeenCalled();
-    expect(documentsApi.listAnnotations).not.toHaveBeenCalled();
-    expect(documentsApi.listComments).not.toHaveBeenCalled();
+    expect(annotationsApi.listAnnotations).not.toHaveBeenCalled();
+    expect(commentsApi.listCommentsPage).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("tab", { name: "Comments" }));
 
     await waitFor(() => {
-      expect(documentsApi.listComments).toHaveBeenCalledWith("doc-123", 0, 20);
+      expect(commentsApi.listCommentsPage).toHaveBeenCalledWith("doc-123", 0, 20);
     });
   });
 

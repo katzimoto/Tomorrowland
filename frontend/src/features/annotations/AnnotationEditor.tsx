@@ -83,6 +83,7 @@ export function AnnotationEditor({
           shared: values.shared,
           created_at: now,
           updated_at: null,
+          can_modify: true,
         };
         queryClient.setQueryData<Annotation[]>(
           ["annotations", docId],

@@ -10,6 +10,7 @@ export interface Annotation {
   shared: boolean;
   created_at: string;
   updated_at?: string | null;
+  can_modify: boolean;
 }
 
 export interface AnnotationRaw {
@@ -23,6 +24,7 @@ export interface AnnotationRaw {
   is_private: boolean;
   created_at: string;
   updated_at?: string | null;
+  can_modify?: boolean;
 }
 
 export interface AnnotationListEnvelope {
@@ -53,6 +55,7 @@ function mapAnnotation(raw: AnnotationRaw, docId?: string): Annotation {
     shared: !raw.is_private,
     created_at: raw.created_at,
     updated_at: raw.updated_at ?? null,
+    can_modify: raw.can_modify ?? false,
   };
 }
 

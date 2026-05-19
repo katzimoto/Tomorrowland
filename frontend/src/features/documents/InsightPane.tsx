@@ -13,18 +13,22 @@ import {
   getEntities,
   getTags,
   getRelated,
-  listComments,
+  listDocumentVersions,
+} from "@/api/documents";
+import {
+  listCommentsPage,
   createComment,
   updateComment,
   deleteComment,
+  type Comment,
+  type CommentPage,
+} from "@/api/comments";
+import {
   listAnnotations,
   createAnnotation,
   deleteAnnotation,
-  listDocumentVersions,
-  type Comment,
-  type CommentListResponse,
-  type DocAnnotation,
-} from "@/api/documents";
+  type Annotation,
+} from "@/api/annotations";
 import { VersionBadge } from "./VersionBadge";
 import { Badge } from "@/components/primitives/Badge";
 import { Button } from "@/components/primitives/Button";
@@ -240,35 +244,34 @@ function AnnotationsTab({ docId }: { docId: string }) {
     void qc.invalidateQueries({ queryKey: ["doc-annotations", docId] });
 
   const addMut = useMutation({
-    mutationFn: (text: string) =>
-      createAnnotation(docId, { text, is_private: isPrivate }),
-    onMutate: async (text) => {
+    mutationFn: (body: string) =>
+      createAnnotation(docId, { body, shared: !isPrivate, position: null }),
+    onMutate: async (body) => {
       await qc.cancelQueries({ queryKey: ["doc-annotations", docId] });
-      const previous = qc.getQueryData<{ annotations: DocAnnotation[] }>([
+      const previous = qc.getQueryData<Annotation[]>([
         "doc-annotations",
         docId,
       ]);
-      const optimistic: DocAnnotation = {
+      const optimistic: Annotation = {
         id: `optimistic-${Date.now()}`,
         document_id: docId,
-        user_id: "current-user",
-        text,
-        note: null,
+        author_id: "current-user",
+        author_name: "Reader",
+        body,
         position: null,
-        is_private: isPrivate,
+        shared: !isPrivate,
         created_at: new Date().toISOString(),
+        updated_at: null,
         can_modify: true,
       };
-      qc.setQueryData<{ annotations: DocAnnotation[] }>(
+      qc.setQueryData<Annotation[]>(
         ["doc-annotations", docId],
-        (current) => ({
-          annotations: [...(current?.annotations ?? []), optimistic],
-        })
+        (current) => [...(current ?? []), optimistic]
       );
       setNewText("");
       return { previous };
     },
-    onError: (_error, _text, context) => {
+    onError: (_error, _body, context) => {
       if (context?.previous)
         qc.setQueryData(["doc-annotations", docId], context.previous);
       showToast("error", t.insight.annotationAddError);
@@ -280,17 +283,15 @@ function AnnotationsTab({ docId }: { docId: string }) {
     mutationFn: (id: string) => deleteAnnotation(id),
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: ["doc-annotations", docId] });
-      const previous = qc.getQueryData<{ annotations: DocAnnotation[] }>([
+      const previous = qc.getQueryData<Annotation[]>([
         "doc-annotations",
         docId,
       ]);
-      qc.setQueryData<{ annotations: DocAnnotation[] }>(
+      qc.setQueryData<Annotation[]>(
         ["doc-annotations", docId],
-        (current) => ({
-          annotations: (current?.annotations ?? []).filter(
-            (annotation) => annotation.id !== id
-          ),
-        })
+        (current) => (current ?? []).filter(
+          (annotation) => annotation.id !== id
+        )
       );
       return { previous };
     },
@@ -302,7 +303,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
     onSettled: invalidate,
   });
 
-  const annotations = data?.annotations ?? [];
+  const annotations = data ?? [];
 
   return (
     <div className={styles.commentsSection}>
@@ -322,10 +323,10 @@ function AnnotationsTab({ docId }: { docId: string }) {
         {annotations.map((a) => (
           <li key={a.id} className={styles.comment}>
             <div className={styles.commentMeta}>
-              <Badge variant={a.is_private ? "neutral" : "source"}>
-                {a.is_private
-                  ? t.insight.annotationPrivate
-                  : t.insight.annotationShared}
+              <Badge variant={a.shared ? "source" : "neutral"}>
+                {a.shared
+                  ? t.insight.annotationShared
+                  : t.insight.annotationPrivate}
               </Badge>
               <span className={styles.commentDate}>
                 {new Date(a.created_at).toLocaleDateString()}
@@ -340,7 +341,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
                 </button>
               )}
             </div>
-            <p className={styles.commentBody}>{a.text}</p>
+            <p className={styles.commentBody}>{a.body}</p>
           </li>
         ))}
       </ul>
@@ -384,7 +385,7 @@ function CommentsTab({ docId }: { docId: string }) {
     useInfiniteQuery({
       queryKey: ["doc-comments", docId],
       queryFn: ({ pageParam }) =>
-        listComments(docId, pageParam, COMMENTS_PAGE_SIZE),
+        listCommentsPage(docId, pageParam, COMMENTS_PAGE_SIZE),
       initialPageParam: 0,
       getNextPageParam: (lastPage, allPages) => {
         const loaded = allPages.reduce(
@@ -403,7 +404,7 @@ function CommentsTab({ docId }: { docId: string }) {
     mutationFn: (body: string) => createComment(docId, body),
     onMutate: async (body) => {
       await qc.cancelQueries({ queryKey: ["doc-comments", docId] });
-      const previous = qc.getQueryData<InfiniteData<CommentListResponse>>([
+      const previous = qc.getQueryData<InfiniteData<CommentPage>>([
         "doc-comments",
         docId,
       ]);
@@ -411,15 +412,14 @@ function CommentsTab({ docId }: { docId: string }) {
         id: `optimistic-${Date.now()}`,
         document_id: docId,
         author_id: "current-user",
-        author_display_name: "Reader",
+        author_name: "Reader",
         body,
         created_at: new Date().toISOString(),
-        edited_at: null,
-        deleted_at: null,
+        updated_at: null,
         can_edit: true,
         can_delete: true,
       };
-      qc.setQueryData<InfiniteData<CommentListResponse>>(
+      qc.setQueryData<InfiniteData<CommentPage>>(
         ["doc-comments", docId],
         (current) => {
           if (!current) return current;
@@ -452,12 +452,12 @@ function CommentsTab({ docId }: { docId: string }) {
     mutationFn: (body: string) => updateComment(docId, editId!, body),
     onMutate: async (body) => {
       await qc.cancelQueries({ queryKey: ["doc-comments", docId] });
-      const previous = qc.getQueryData<InfiniteData<CommentListResponse>>([
+      const previous = qc.getQueryData<InfiniteData<CommentPage>>([
         "doc-comments",
         docId,
       ]);
       const editingId = editId;
-      qc.setQueryData<InfiniteData<CommentListResponse>>(
+      qc.setQueryData<InfiniteData<CommentPage>>(
         ["doc-comments", docId],
         (current) => {
           if (!current) return current;
@@ -467,12 +467,13 @@ function CommentsTab({ docId }: { docId: string }) {
               ...page,
               comments: page.comments.map((comment) =>
                 comment.id === editingId
-                  ? { ...comment, body, edited_at: new Date().toISOString() }
+                  ? { ...comment, body, updated_at: new Date().toISOString() }
                   : comment
               ),
             })),
           };
         }
+      );
       );
       setEditId(null);
       return { previous };
@@ -489,11 +490,11 @@ function CommentsTab({ docId }: { docId: string }) {
     mutationFn: (id: string) => deleteComment(docId, id),
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: ["doc-comments", docId] });
-      const previous = qc.getQueryData<InfiniteData<CommentListResponse>>([
+      const previous = qc.getQueryData<InfiniteData<CommentPage>>([
         "doc-comments",
         docId,
       ]);
-      qc.setQueryData<InfiniteData<CommentListResponse>>(
+      qc.setQueryData<InfiniteData<CommentPage>>(
         ["doc-comments", docId],
         (current) => {
           if (!current) return current;
@@ -522,8 +523,7 @@ function CommentsTab({ docId }: { docId: string }) {
   const activeComments = useMemo(
     () =>
       data?.pages
-        .flatMap((page) => page.comments)
-        .filter((c) => !c.deleted_at) ?? [],
+        .flatMap((page) => page.comments) ?? [],
     [data]
   );
 
@@ -563,7 +563,7 @@ function CommentsTab({ docId }: { docId: string }) {
               <>
                 <div className={styles.commentMeta}>
                   <span className={styles.commentAuthor}>
-                    {c.author_display_name}
+                    {c.author_name ?? c.author?.display_name ?? ""}
                   </span>
                   <span className={styles.commentDate}>
                     {new Date(c.created_at).toLocaleDateString()}

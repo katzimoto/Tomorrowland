@@ -12,6 +12,7 @@ const annotation: Annotation = {
   position: { page: 2 },
   shared: true,
   created_at: "2026-05-10T00:00:00Z",
+  can_modify: false,
 };
 
 test("shows shared label and position evidence", () => {
