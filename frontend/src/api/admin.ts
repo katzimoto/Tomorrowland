@@ -105,6 +105,12 @@ export const adminApi = {
   getUser: (userId: string) => api.get<UserDetail>(`/admin/users/${userId}`),
   setUserGroups: (userId: string, groupNames: string[]) =>
     api.put(`/admin/users/${userId}/groups`, { group_names: groupNames }),
+  createGroup: (name: string) =>
+    api.post<{ id: string; name: string }>("/admin/groups", { name }),
+  deleteGroup: (groupId: string) =>
+    api.delete(`/admin/groups/${groupId}`),
+  renameGroup: (groupId: string, name: string) =>
+    api.put<{ id: string; name: string }>(`/admin/groups/${groupId}`, { name }),
   listGroupUsers: (groupId: string) =>
     api.get<GroupMember[]>(`/admin/groups/${groupId}/users`),
   addUserToGroup: (groupId: string, userId: string) =>

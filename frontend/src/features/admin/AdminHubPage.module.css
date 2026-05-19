@@ -1,0 +1,61 @@
+.page {
+  padding: var(--page-padding-desktop);
+  max-width: 640px;
+}
+
+.title {
+  font-size: var(--font-size-page-title);
+  line-height: var(--line-height-page-title);
+  font-weight: var(--font-weight-page-title);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.subtitle {
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-6);
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 1px 6px color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.cardIcon {
+  color: var(--color-primary);
+}
+
+.cardTitle {
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-section-title);
+  color: var(--color-text-primary);
+}
+
+.cardDesc {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}

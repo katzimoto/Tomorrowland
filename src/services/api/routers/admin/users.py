@@ -14,6 +14,7 @@ from services.api.schemas import (
     AdminUpdateUserGroupsRequest,
     CreateGroupRequest,
     CreateUserRequest,
+    UpdateGroupRequest,
 )
 from services.auth.models import TokenPayload
 from services.auth.passwords import hash_password
@@ -207,6 +208,62 @@ def admin_create_group(
         auth_repo = AuthRepository(connection)
         group_id = auth_repo.ensure_group(body.name)
         _audit_log(connection, user.sub, "create", "group", str(group_id))
+        return {"id": str(group_id), "name": body.name}
+
+
+@router.delete("/admin/groups/{group_id}", status_code=204)
+def admin_delete_group(
+    group_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> None:
+    require_admin(user)
+    with request.app.state.engine.begin() as connection:
+        group_row = connection.execute(
+            sa.text("SELECT id FROM groups WHERE id = :id"),
+            {"id": db_uuid(group_id)},
+        ).first()
+        if group_row is None:
+            raise HTTPException(status_code=404, detail="Group not found")
+        connection.execute(
+            sa.text("DELETE FROM groups WHERE id = :id"),
+            {"id": db_uuid(group_id)},
+        )
+        _audit_log(connection, user.sub, "delete", "group", str(group_id))
+
+
+@router.put("/admin/groups/{group_id}")
+def admin_rename_group(
+    group_id: UUID,
+    body: UpdateGroupRequest,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    require_admin(user)
+    with request.app.state.engine.begin() as connection:
+        group_row = connection.execute(
+            sa.text("SELECT id, name FROM groups WHERE id = :id"),
+            {"id": db_uuid(group_id)},
+        ).first()
+        if group_row is None:
+            raise HTTPException(status_code=404, detail="Group not found")
+        try:
+            connection.execute(
+                sa.text("UPDATE groups SET name = :name WHERE id = :id"),
+                {"name": body.name, "id": db_uuid(group_id)},
+            )
+        except sa.exc.IntegrityError:
+            raise HTTPException(
+                status_code=409, detail="A group with this name already exists."
+            ) from None
+        _audit_log(
+            connection,
+            user.sub,
+            "update",
+            "group",
+            str(group_id),
+            {"name": body.name},
+        )
         return {"id": str(group_id), "name": body.name}
 
 

@@ -97,7 +97,7 @@ export function AdminSourceDetailPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <Button variant="secondary" size="sm" onClick={() => navigate({ to: "/admin" })}>
+        <Button variant="secondary" size="sm" onClick={() => navigate({ to: "/admin/sources" })}>
           <ArrowLeft size={16} />
           Back
         </Button>

@@ -1047,3 +1047,132 @@ def test_nested_groups_group_not_found(migrated_engine: Engine) -> None:
         ).status_code
         == 404
     )
+
+
+# Group delete and rename
+
+
+def test_admin_delete_group(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+
+    group = client.post(
+        "/admin/groups",
+        json={"name": "to-delete"},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+    group_id = group["id"]
+
+    resp = client.delete(
+        f"/admin/groups/{group_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 204
+
+    get_resp = client.get(
+        "/admin/groups",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    names = [g["name"] for g in get_resp.json()]
+    assert "to-delete" not in names
+
+
+def test_admin_delete_group_not_found(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+
+    resp = client.delete(
+        f"/admin/groups/{uuid4()}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+def test_admin_delete_group_non_admin_denied(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _user_token(client)
+
+    resp = client.delete(
+        f"/admin/groups/{uuid4()}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+def test_admin_rename_group(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+
+    group = client.post(
+        "/admin/groups",
+        json={"name": "renameme"},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+    group_id = group["id"]
+
+    rename_resp = client.put(
+        f"/admin/groups/{group_id}",
+        json={"name": "new-name"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert rename_resp.status_code == 200
+    assert rename_resp.json()["name"] == "new-name"
+
+    groups = client.get("/admin/groups", headers={"Authorization": f"Bearer {token}"}).json()
+    names = [g["name"] for g in groups]
+    assert "renameme" not in names
+    assert "new-name" in names
+
+
+def test_admin_rename_group_not_found(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+
+    resp = client.put(
+        f"/admin/groups/{uuid4()}",
+        json={"name": "anything"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+def test_admin_rename_group_duplicate(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client, token = _make_client(migrated_engine)
+
+    group_a = client.post(
+        "/admin/groups",
+        json={"name": "group-a"},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+
+    client.post(
+        "/admin/groups",
+        json={"name": "group-b"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    resp = client.put(
+        f"/admin/groups/{group_a['id']}",
+        json={"name": "group-b"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 409
+
+
+def test_admin_rename_group_non_admin_denied(migrated_engine: Engine) -> None:
+    _setup_nested_group_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _user_token(client)
+
+    resp = client.put(
+        f"/admin/groups/{uuid4()}",
+        json={"name": "anything"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
