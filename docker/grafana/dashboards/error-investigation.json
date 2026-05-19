@@ -1,0 +1,242 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "templating": {
+    "list": [
+      {
+        "name": "correlation_id",
+        "type": "textbox",
+        "label": "Correlation ID",
+        "description": "Paste a correlation_id UUID to trace a request across all services",
+        "current": { "selected": false, "text": "", "value": "" },
+        "hide": 0,
+        "options": [],
+        "query": "",
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total log lines",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+          "expr": "count_over_time({service=~\".+\"} |= \"$correlation_id\" [$__range])",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Error lines",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+          "expr": "count_over_time({service=~\".+\"} |= \"$correlation_id\" |~ \"(?i)(\\\"level\\\":\\\"ERROR\\\"|\\bERROR\\b|\\bexception\\b|\\btraceback\\b)\" [$__range])",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Warning lines",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+          "expr": "count_over_time({service=~\".+\"} |= \"$correlation_id\" |~ \"(?i)(\\\"level\\\":\\\"WARNING\\\"|\\bWARNING\\b|\\bWARN\\b)\" [$__range])",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 4,
+      "type": "piechart",
+      "title": "Log lines by service",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+          "expr": "sum by (service) (count_over_time({service=~\".+\"} |= \"$correlation_id\" [$__range]))",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["sum"] } }
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "Log volume over time by service",
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 6 },
+      "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+          "expr": "sum by (service) (count_over_time({service=~\".+\"} |= \"$correlation_id\" [1m]))",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "stacking": { "group": "A", "mode": "normal" } } },
+        "overrides": []
+      },
+      "options": {
+        "barWidth": 0.97,
+        "stacking": "normal",
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      }
+    },
+    {
+      "id": 6,
+      "type": "logs",
+      "title": "All logs for correlation ID",
+      "gridPos": { "x": 0, "y": 10, "w": 24, "h": 14 },
+      "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+          "expr": "{service=~\".+\"} |= \"$correlation_id\"",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Ascending",
+        "wrapLogMessage": true
+      }
+    },
+    {
+      "id": 7,
+      "type": "logs",
+      "title": "Errors and warnings only",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 10 },
+      "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+          "expr": "{service=~\".+\", level=~\"ERROR|WARNING|error|warning\"} |= \"$correlation_id\"",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "tomorrowland-loki" },
+          "expr": "{service=~\".+\", level=\"\"} |= \"$correlation_id\" |~ \"(?i)(\\bERROR\\b|\\bWARNING\\b|\\bexception\\b|\\btraceback\\b)\"",
+          "refId": "B",
+          "hide": false
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Ascending",
+        "wrapLogMessage": true
+      }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["tomorrowland", "provisioned"],
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Tomorrowland Error Investigation",
+  "uid": "tomorrowland-error-investigation",
+  "version": 1,
+  "weekStart": ""
+}

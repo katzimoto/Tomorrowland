@@ -316,6 +316,38 @@ services:
     logging:
       driver: json-file
 
+  loki:
+    image: grafana/loki:3.1.0
+    restart: unless-stopped
+    command: -config.file=/etc/loki/config.yml
+    ports:
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --tries=1 -O- http://127.0.0.1:3100/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    volumes:
+      - ./docker/loki/loki.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    logging:
+      driver: json-file
+
+  promtail:
+    image: grafana/promtail:3.1.0
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      loki:
+        condition: service_healthy
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker/promtail/promtail.yml:/etc/promtail/config.yml:ro
+    logging:
+      driver: json-file
+
   grafana:
     image: grafana/grafana:11.1.4
     restart: unless-stopped
@@ -333,6 +365,8 @@ services:
       prometheus:
         condition: service_started
       postgres:
+        condition: service_healthy
+      loki:
         condition: service_healthy
     volumes:
       - grafana_data:/var/lib/grafana
@@ -363,3 +397,5 @@ volumes:
     name: ${TOMORROWLAND_PROMETHEUS_VOLUME:-tomorrowland_prometheus_data}
   grafana_data:
     name: ${TOMORROWLAND_GRAFANA_VOLUME:-tomorrowland_grafana_data}
+  loki_data:
+    name: ${TOMORROWLAND_LOKI_VOLUME:-tomorrowland_loki_data}
