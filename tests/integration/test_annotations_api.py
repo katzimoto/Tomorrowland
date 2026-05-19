@@ -499,3 +499,171 @@ def test_position_roundtrip(migrated_engine: Engine) -> None:
     assert resp.status_code == 201
     data = resp.json()
     assert data["position"] == position
+
+
+def _make_non_admin_token(
+    engine: Engine,
+    app: object,
+    email: str,
+    group_name: str = "admins",
+) -> str:
+    """Create a non-admin user and return a JWT for them."""
+
+    with engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        group_id = auth_repo.ensure_group(group_name)
+        auth_repo.create_local_user(
+            email=email,
+            password_hash=hash_password("secret"),
+            display_name=email.split("@")[0],
+            is_admin=False,
+            group_names=[group_name],
+        )
+        row = (
+            connection.execute(
+                sa.text("SELECT id FROM users WHERE email = :email"),
+                {"email": email},
+            )
+            .mappings()
+            .first()
+        )
+    assert row is not None
+    user_id = UUID(str(row["id"]))
+
+    from services.auth.jwt import JwtService
+    from services.auth.models import UserIdentity
+
+    jwt = JwtService(secret=app.state.settings.jwt_secret)  # type: ignore[attr-defined]
+    identity = UserIdentity(
+        id=user_id,
+        email=email,
+        display_name=email.split("@")[0],
+        auth_source="local",
+        is_admin=False,
+        groups=[group_id],
+    )
+    return jwt.encode(identity)
+
+
+def test_owner_gets_can_modify_true_on_create(migrated_engine: Engine) -> None:
+    """Annotation creator receives can_modify=true in the POST response."""
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    resp = client.post(
+        f"/documents/{doc_id}/annotations",
+        json={"text": "My annotation"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["can_modify"] is True
+
+
+def test_owner_gets_can_modify_true_on_list(migrated_engine: Engine) -> None:
+    """Owner sees can_modify=true for their own annotation in the list response."""
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+    client.post(
+        f"/documents/{doc_id}/annotations",
+        json={"text": "Owner annotation"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    resp = client.get(
+        f"/documents/{doc_id}/annotations",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    annotations = resp.json()["annotations"]
+    assert len(annotations) == 1
+    assert annotations[0]["can_modify"] is True
+
+
+def test_admin_gets_can_modify_true_on_others_annotation(migrated_engine: Engine) -> None:
+    """Admin receives can_modify=true even for annotations they did not create."""
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    admin_token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    # Non-admin creates annotation
+    non_admin_token = _make_non_admin_token(migrated_engine, app, "writer@example.com")
+    client.post(
+        f"/documents/{doc_id}/annotations",
+        json={"text": "Non-admin annotation"},
+        headers={"Authorization": f"Bearer {non_admin_token}"},
+    )
+
+    # Admin lists and should see can_modify=True
+    resp = client.get(
+        f"/documents/{doc_id}/annotations",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200
+    annotations = resp.json()["annotations"]
+    assert len(annotations) == 1
+    assert annotations[0]["can_modify"] is True
+
+
+def test_non_owner_gets_can_modify_false_on_list(migrated_engine: Engine) -> None:
+    """Non-owner, non-admin user sees can_modify=false for annotations they did not create."""
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    admin_token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    # Admin creates a shared annotation
+    client.post(
+        f"/documents/{doc_id}/annotations",
+        json={"text": "Admin shared annotation", "is_private": False},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    # Non-admin user lists annotations; they are not the owner
+    non_admin_token = _make_non_admin_token(migrated_engine, app, "reader@example.com")
+    resp = client.get(
+        f"/documents/{doc_id}/annotations",
+        headers={"Authorization": f"Bearer {non_admin_token}"},
+    )
+    assert resp.status_code == 200
+    annotations = resp.json()["annotations"]
+    assert len(annotations) == 1
+    assert annotations[0]["can_modify"] is False
+
+
+def test_owner_gets_can_modify_true_on_update(migrated_engine: Engine) -> None:
+    """Owner receives can_modify=true in the PUT response."""
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    create_resp = client.post(
+        f"/documents/{doc_id}/annotations",
+        json={"text": "Before update"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create_resp.status_code == 201
+    annotation_id = create_resp.json()["id"]
+
+    update_resp = client.put(
+        f"/annotations/{annotation_id}",
+        json={"note": "Added note"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert update_resp.status_code == 200
+    assert update_resp.json()["can_modify"] is True
