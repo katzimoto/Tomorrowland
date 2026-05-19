@@ -89,6 +89,46 @@ def enrichment_queue(
         ]
 
 
+@router.get("/admin/enrich-jobs")
+def admin_list_enrich_jobs(
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> list[dict[str, Any]]:
+    """List all enrich_document jobs with their current state and priority."""
+    require_admin(user)
+    with request.app.state.engine.begin() as connection:
+        rows = connection.execute(
+            sa.text("""
+                SELECT pj.id, pj.document_id, pj.status, pj.priority,
+                       pj.attempts, pj.max_attempts, pj.stage, pj.last_error,
+                       pj.run_after, pj.locked_by, pj.created_at, pj.updated_at,
+                       d.title AS document_title
+                FROM pipeline_jobs pj
+                LEFT JOIN documents d ON d.id = pj.document_id
+                WHERE pj.job_type = 'enrich_document'
+                ORDER BY pj.priority DESC, pj.created_at ASC
+            """),
+        ).mappings()
+        return [
+            {
+                "id": str(to_uuid(row["id"])),
+                "document_id": str(to_uuid(row["document_id"])),
+                "document_title": row["document_title"],
+                "status": row["status"],
+                "priority": row["priority"],
+                "attempts": row["attempts"],
+                "max_attempts": row["max_attempts"],
+                "stage": row["stage"],
+                "last_error": row["last_error"],
+                "run_after": _fmt_dt(row["run_after"]) if row["run_after"] else None,
+                "locked_by": row["locked_by"],
+                "created_at": _fmt_dt(row["created_at"]),
+                "updated_at": _fmt_dt(row["updated_at"]),
+            }
+            for row in rows
+        ]
+
+
 @router.get("/admin/activity")
 def admin_list_activity(
     request: Request,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -14,11 +15,16 @@ from services.documents.repository import (
     TranslationVersionRepository,
 )
 from services.extraction.registry import ExtractorRegistry
+from services.intelligence.worker import IntelligenceWorker
+from services.pipeline.jobs import PipelineJobRepository
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.encoder import TextEncoder
+from services.search.meili_provider import MeilisearchSearchProvider
+from services.search.meili_types import ChunkMetadata, SearchChunkRecord
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.correlation import get_correlation_id
+from shared.metrics import MetricsRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +41,8 @@ class SlowWorker:
         es_client: ElasticsearchSearchClient,
         qdrant_client: QdrantSearchClient,
         version_repository: TranslationVersionRepository | None = None,
+        meili_provider: MeilisearchSearchProvider | None = None,
+        intelligence_worker: IntelligenceWorker | None = None,
         alert_matcher: AlertMatcher | None = None,
     ) -> None:
         self._doc_repo = document_repository
@@ -43,6 +51,8 @@ class SlowWorker:
         self._encoder = encoder
         self._es = es_client
         self._qdrant = qdrant_client
+        self._meili = meili_provider
+        self._intelligence = intelligence_worker
         self._version_repo = version_repository
         self._alert_matcher = alert_matcher
 
@@ -142,39 +152,10 @@ class SlowWorker:
             str(group_id) for group_id in self._doc_repo.source_group_ids(doc.source_id)
         ]
 
-        # Build Qdrant points for both original and translated chunks
-        qdrant_chunks: list[dict[str, Any]] = []
-
-        def _build_chunk(
-            chunk_text_content: str,
-            idx: int,
-            *,
-            lang: str | None,
-            suffix: str,
-        ) -> dict[str, Any]:
-            vector = self._encoder.encode(chunk_text_content)
-            entry: dict[str, Any] = {
-                "chunk_id": f"{document_id}-{suffix}-{idx}",
-                "document_id": str(document_id),
-                "group_id": allowed_group_ids,
-                "chunk_index": idx,
-                "text": chunk_text_content,
-                "vector": vector,
-            }
-            if lang:
-                entry["language"] = lang
-            return entry
-
-        if original:
-            for idx, chunk_text_content in enumerate(chunk_text(original)):
-                qdrant_chunks.append(
-                    _build_chunk(chunk_text_content, idx, lang=doc.source_language, suffix="orig")
-                )
-
-        for idx, chunk_text_content in enumerate(chunk_text(translated)):
-            qdrant_chunks.append(
-                _build_chunk(chunk_text_content, idx, lang=doc.target_language, suffix="trans")
-            )
+        # Chunk both original and translated text separately so Meilisearch records
+        # pair original chunk text (content) with its translated chunk (content_en).
+        original_chunks = list(chunk_text(original)) if original else []
+        translated_chunks = list(chunk_text(translated))
 
         # Index full document in Elasticsearch (preserve original text on re-index)
         self._es.index_document(
@@ -193,9 +174,302 @@ class SlowWorker:
             },
         )
 
-        # Index chunks in Qdrant
-        if qdrant_chunks:
-            self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
+        # Index chunks in Meilisearch when configured
+        if self._meili is not None:
+            try:
+                pair_count = min(len(original_chunks), len(translated_chunks))
+                meili_records = [
+                    SearchChunkRecord.from_parts(
+                        document_id=str(document_id),
+                        chunk_index=idx,
+                        title=doc.title or "",
+                        content=orig_chunk,
+                        allowed_group_ids=allowed_group_ids,
+                        metadata=ChunkMetadata(
+                            source=doc.source,
+                            mime_type=doc.mime_type,
+                            file_name=Path(doc.path).name if doc.path else None,
+                            language=doc.source_language,
+                        ),
+                        content_en=tran_chunk if translated != original else None,
+                    )
+                    for idx, (orig_chunk, tran_chunk) in enumerate(
+                        zip(
+                            original_chunks[:pair_count],
+                            translated_chunks[:pair_count],
+                            strict=False,
+                        )
+                    )
+                ]
+                for idx in range(pair_count, len(original_chunks)):
+                    meili_records.append(
+                        SearchChunkRecord.from_parts(
+                            document_id=str(document_id),
+                            chunk_index=idx,
+                            title=doc.title or "",
+                            content=original_chunks[idx],
+                            allowed_group_ids=allowed_group_ids,
+                            metadata=ChunkMetadata(
+                                source=doc.source,
+                                mime_type=doc.mime_type,
+                                file_name=Path(doc.path).name if doc.path else None,
+                                language=doc.source_language,
+                            ),
+                            content_en=None,
+                        )
+                    )
+                if meili_records:
+                    self._meili.index_batch(meili_records)
+            except Exception as exc:
+                logger.error(
+                    "Meilisearch indexing failed during enrichment for "
+                    "document_id=%s error_type=%s correlation=%s",
+                    document_id,
+                    exc.__class__.__name__,
+                    get_correlation_id(),
+                )
 
+        # Build Qdrant points for both original and translated chunks
+        try:
+            qdrant_chunks: list[dict[str, Any]] = []
+
+            def _build_chunk(
+                chunk_text_content: str,
+                idx: int,
+                *,
+                lang: str | None,
+                suffix: str,
+            ) -> dict[str, Any]:
+                vector = self._encoder.encode(chunk_text_content)
+                entry: dict[str, Any] = {
+                    "chunk_id": f"{document_id}-{suffix}-{idx}",
+                    "document_id": str(document_id),
+                    "group_id": allowed_group_ids,
+                    "chunk_index": idx,
+                    "text": chunk_text_content,
+                    "vector": vector,
+                    "source_id": str(doc.source_id),
+                }
+                if doc.title:
+                    entry["title"] = doc.title
+                if lang:
+                    entry["language"] = lang
+                return entry
+
+            for idx, chunk_text_content in enumerate(original_chunks):
+                qdrant_chunks.append(
+                    _build_chunk(chunk_text_content, idx, lang=doc.source_language, suffix="orig")
+                )
+
+            for idx, chunk_text_content in enumerate(translated_chunks):
+                qdrant_chunks.append(
+                    _build_chunk(chunk_text_content, idx, lang=doc.target_language, suffix="trans")
+                )
+
+            if qdrant_chunks:
+                self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
+        except Exception as exc:
+            logger.error(
+                "Vector indexing failed during enrichment for "
+                "document_id=%s error_type=%s correlation=%s",
+                document_id,
+                exc.__class__.__name__,
+                get_correlation_id(),
+            )
+
+        # Alert matching (best-effort, never blocking)
         if self._alert_matcher is not None:
-            self._alert_matcher.match_document(doc, translated)
+            try:
+                self._alert_matcher.match_document(doc, translated)
+            except Exception:
+                logger.exception(
+                    "Alert matching failed during enrichment for document_id=%s correlation=%s",
+                    document_id,
+                    get_correlation_id(),
+                )
+
+        # Intelligence (best-effort, never blocking)
+        if self._intelligence is not None:
+            try:
+                self._intelligence.process_document(doc.id, translated)
+            except Exception:
+                logger.exception(
+                    "Intelligence failed during enrichment for document_id=%s correlation=%s",
+                    document_id,
+                    get_correlation_id(),
+                )
+
+
+def run_enrich_once(
+    job_repo: PipelineJobRepository,
+    worker: SlowWorker,
+    worker_id: str = "enrich-worker",
+    metrics: MetricsRegistry | None = None,
+) -> bool:
+    """Claim one ``enrich_document`` job and process it.
+
+    Args:
+        job_repo: Queue repository for claiming and updating jobs.
+        worker: SlowWorker instance for document enrichment.
+        worker_id: Identifier stamped on claimed jobs (for stale-lock tracking).
+        metrics: Optional metrics registry; pass ``None`` to disable instrumentation.
+
+    Returns:
+        ``True`` if a job was claimed and processed, ``False`` if none available.
+    """
+    claimed = job_repo.claim_next(worker_id, job_types=["enrich_document"])
+    if claimed is None:
+        return False
+
+    job_id: UUID = claimed["id"]
+    document_id: UUID = claimed["document_id"]
+    job_type: str = claimed["job_type"]
+    attempts: int = claimed["attempts"]
+    max_attempts: int = claimed["max_attempts"]
+
+    if metrics is not None:
+        metrics.pipeline_jobs_claimed_total.labels(worker_type="enrich", job_type=job_type).inc()
+
+    job_repo.mark_running_stage(job_id, "enrich")
+
+    start = time.monotonic()
+    try:
+        worker.process_document(document_id)
+    except Exception as exc:
+        elapsed = time.monotonic() - start
+        error_type = type(exc).__name__
+        if attempts < max_attempts:
+            job_repo.mark_retry(job_id, exc, stage="enrich")
+            if metrics is not None:
+                metrics.pipeline_jobs_retried_total.labels(
+                    worker_type="enrich", job_type=job_type
+                ).inc()
+                metrics.pipeline_job_duration_seconds.labels(
+                    worker_type="enrich",
+                    job_type=job_type,
+                    stage="enrich",
+                    outcome="retried",
+                ).observe(elapsed)
+            logger.info(
+                "enrich job retried: worker_id=%s job_type=%s job_id=%s "
+                "attempt=%d max_attempts=%d error_type=%s",
+                worker_id,
+                job_type,
+                job_id,
+                attempts,
+                max_attempts,
+                error_type,
+            )
+        else:
+            job_repo.mark_dead_letter(job_id, exc)
+            if metrics is not None:
+                metrics.pipeline_jobs_dead_lettered_total.labels(
+                    worker_type="enrich", job_type=job_type
+                ).inc()
+                metrics.pipeline_job_duration_seconds.labels(
+                    worker_type="enrich",
+                    job_type=job_type,
+                    stage="enrich",
+                    outcome="dead_lettered",
+                ).observe(elapsed)
+            logger.warning(
+                "enrich job dead-lettered: worker_id=%s job_type=%s job_id=%s "
+                "attempts=%d error_type=%s",
+                worker_id,
+                job_type,
+                job_id,
+                attempts,
+                error_type,
+            )
+        return True
+
+    elapsed = time.monotonic() - start
+    job_repo.mark_succeeded(job_id)
+    if metrics is not None:
+        metrics.pipeline_jobs_succeeded_total.labels(worker_type="enrich", job_type=job_type).inc()
+        metrics.pipeline_job_duration_seconds.labels(
+            worker_type="enrich",
+            job_type=job_type,
+            stage="enrich",
+            outcome="succeeded",
+        ).observe(elapsed)
+    logger.info(
+        "enrich job succeeded: worker_id=%s job_type=%s job_id=%s attempt=%d",
+        worker_id,
+        job_type,
+        job_id,
+        attempts,
+    )
+
+    return True
+
+
+def run_enrich_loop(
+    job_repo: PipelineJobRepository,
+    worker: SlowWorker,
+    worker_id: str = "enrich-worker",
+    poll_interval: float = 1.0,
+    metrics: MetricsRegistry | None = None,
+) -> None:
+    """Run ``run_enrich_once`` in a loop until interrupted."""
+    logger.info(
+        "enrich worker started: worker_id=%s poll_interval=%.1f",
+        worker_id,
+        poll_interval,
+    )
+    try:
+        while True:
+            if metrics is not None:
+                metrics.worker_heartbeat_timestamp_seconds.labels(
+                    worker_type="enrich", worker_id=worker_id
+                ).set_to_current_time()
+
+            try:
+                ran = run_enrich_once(job_repo, worker, worker_id=worker_id, metrics=metrics)
+            except Exception:
+                logger.exception(
+                    "unhandled enrich loop error: worker_id=%s error_type=%s",
+                    worker_id,
+                    type(Exception).__name__,
+                )
+                time.sleep(poll_interval)
+                continue
+
+            if not ran:
+                time.sleep(poll_interval)
+    except KeyboardInterrupt:
+        logger.info("enrich worker shutting down: worker_id=%s", worker_id)
+
+
+if __name__ == "__main__":
+    from sqlalchemy import create_engine
+
+    from services.search.factory import build_encoder
+    from shared.config import Settings
+
+    settings = Settings()
+    engine = create_engine(settings.postgres_url)
+
+    with engine.begin() as conn:
+        doc_repo = DocumentRepository(conn)
+        version_repo = TranslationVersionRepository(conn)
+        es_client = ElasticsearchSearchClient(hosts=[settings.elastic_url])
+        qdrant_client = QdrantSearchClient(url=settings.qdrant_url)
+        translator = LibreTranslateClient(base_url=settings.libretranslate_url)
+        encoder = build_encoder(settings)
+
+        worker = SlowWorker(
+            document_repository=doc_repo,
+            extractor_registry=None,
+            translator=translator,
+            encoder=encoder,
+            es_client=es_client,
+            qdrant_client=qdrant_client,
+            version_repository=version_repo,
+        )
+
+        run_enrich_loop(
+            PipelineJobRepository(conn),
+            worker,
+            worker_id="enrich-worker",
+        )

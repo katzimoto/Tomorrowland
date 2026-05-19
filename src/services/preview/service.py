@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 import sqlalchemy as sa
 
 from services.extraction.registry import ExtractorRegistry
+from services.pipeline.jobs import PipelineJobRepository
 from shared.db import db_uuid, to_uuid
 
 SNIPPET_LENGTH = 2000
@@ -56,7 +57,7 @@ class PreviewService:
         row = (
             self._connection.execute(
                 sa.text("""
-                    SELECT id, title, mime_type, path, translation_quality, metadata
+                    SELECT id, source_id, title, mime_type, path, translation_quality, metadata
                     FROM documents WHERE id = :id
                     """),
                 {"id": db_uuid(document_id)},
@@ -88,7 +89,9 @@ class PreviewService:
         ).scalar_one()
 
         # Auto-enrich: queue for high-quality translation when view threshold is crossed
-        self._maybe_auto_enrich(document_id, view_count, row["translation_quality"])
+        self._maybe_auto_enrich(
+            document_id, row["source_id"], view_count, row["translation_quality"]
+        )
 
         snippet = self._generate_snippet(
             document_id,
@@ -223,12 +226,14 @@ class PreviewService:
     def _maybe_auto_enrich(
         self,
         document_id: UUID,
+        source_id: UUID,
         view_count: int,
         current_quality: str | None,
     ) -> None:
         """Queue document for enrichment if view threshold is crossed.
 
-        Creates a translation version record for auditability.
+        Creates a translation version record and enqueues an
+        ``enrich_document`` pipeline job for the slow worker.
         """
         if current_quality in ("high", "pending_high"):
             return
@@ -296,6 +301,13 @@ class PreviewService:
                 WHERE id = :id
                 """),
             {"id": db_uuid(document_id)},
+        )
+
+        job_repo = PipelineJobRepository(self._connection)
+        job_repo.enqueue_document(
+            document_id=document_id,
+            source_id=source_id,
+            job_type="enrich_document",
         )
 
     @staticmethod
