@@ -20,6 +20,16 @@ def engine(tmp_path) -> Engine:
                 document_id TEXT PRIMARY KEY,
                 summary TEXT NOT NULL,
                 model TEXT NOT NULL,
+                status TEXT DEFAULT 'available',
+                summary_bullets TEXT,
+                language TEXT,
+                document_type TEXT,
+                source_text TEXT,
+                input_chars INTEGER,
+                content_hash TEXT,
+                error_type TEXT,
+                error_summary TEXT,
+                last_attempted_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )

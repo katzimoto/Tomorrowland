@@ -69,6 +69,56 @@ def trigger_intelligence(
         return {"document_id": str(document_id), "triggered": True}
 
 
+@router.post("/admin/intelligence/{document_id}/summary/regenerate")
+def regenerate_summary(
+    document_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    """Regenerate the summary for a document. Admin-only, idempotent."""
+    require_admin(user)
+    with request.app.state.engine.begin() as connection:
+        doc_repo = DocumentRepository(connection)
+        doc = doc_repo.get_by_id(document_id)
+        if doc is None or doc.path is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        extractor = ExtractorRegistry()
+        text = extractor.extract(Path(doc.path), doc.mime_type)
+
+        try:
+            intelligence_repo = IntelligenceRepository(connection)
+            ollama_client = request.app.state.ollama_client or OllamaClient(
+                base_url=request.app.state.settings.ollama_url,
+                model=request.app.state.settings.ollama_model,
+            )
+            es_client = request.app.state.es_client or ElasticsearchSearchClient(
+                hosts=[request.app.state.settings.elastic_url]
+            )
+            worker = IntelligenceWorker(
+                repository=intelligence_repo,
+                ollama_client=ollama_client,
+                es_client=es_client,
+            )
+            worker._summarize(document_id, text)
+            logger.info(
+                "Summary regenerated document_id=%s user_id=%s correlation=%s",
+                document_id,
+                user.sub,
+                get_correlation_id(),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Summary regeneration degraded route=/admin/intelligence/%s/summary/regenerate "
+                "error_type=%s correlation_id=%s",
+                document_id,
+                exc.__class__.__name__,
+                get_correlation_id(),
+            )
+
+        return {"document_id": str(document_id), "regenerated": True}
+
+
 @router.get("/admin/enrichment-queue")
 def enrichment_queue(
     request: Request,

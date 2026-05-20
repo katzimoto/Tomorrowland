@@ -48,11 +48,9 @@ def test_worker_summarizes_and_stores(
         assert summary is not None
         assert summary["summary"] == "A document about AI and finance."
 
-    # Summary + entities (empty) + tags (empty) + key_points all update ES
-    assert mock_es.update_document_field.call_count == 4
-    mock_es.update_document_field.assert_any_call(
-        str(document_id), "summary", "A document about AI and finance."
-    )
+    # Summary uses update_document_fields; entities + tags + key_points use update_document_field
+    assert mock_es.update_document_field.call_count == 3
+    assert mock_es.update_document_fields.call_count == 1
 
 
 def test_worker_extracts_entities(
@@ -168,7 +166,9 @@ def test_worker_failure_does_not_block(
     with migrated_engine.begin() as connection:
         repo = IntelligenceRepository(connection)
         summary = repo.get_summary(document_id)
-        assert summary is None
+        assert summary is not None
+        assert summary["status"] == "failed"
+        assert summary["error_type"] is not None
 
 
 def test_worker_stops_on_first_failure(

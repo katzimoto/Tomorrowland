@@ -10,13 +10,21 @@ from uuid import UUID
 
 from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.repository import IntelligenceRepository
+from services.intelligence.summary_helpers import (
+    MAX_SUMMARIZE_CHARS,
+    SUMMARY_CHUNK_CHARS,
+    build_reduce_prompt,
+    chunk_content,
+    content_hash,
+    normalize_summary_output,
+    safe_error_category,
+)
 from services.search.elastic import ElasticsearchSearchClient
 from shared.correlation import get_correlation_id
 from shared.metrics import current_metrics
 
 logger = logging.getLogger(__name__)
 
-MAX_SUMMARIZE_CHARS = 8000
 MAX_ENTITY_CHARS = 6000
 MAX_TAG_CHARS = 4000
 MAX_KEY_POINTS_CHARS = 8000
@@ -145,14 +153,99 @@ class IntelligenceWorker:
         return tasks
 
     def _summarize(self, document_id: UUID, content: str) -> None:
-        """Generate and store a document summary."""
-        prompt = self._build_prompt("llm.summarization_prompt", content, MAX_SUMMARIZE_CHARS)
-        summary = self._ollama.generate(prompt)
-        model = self._ollama._model
+        """Generate and store a document summary.
 
-        self._repo.upsert_summary(document_id, summary, model)
-        self._update_es_field(document_id, "summary", summary)
-        logger.info("Summarized document_id=%s", document_id)
+        For short documents (<= MAX_SUMMARIZE_CHARS) uses a single LLM call.
+        For long documents uses a map-reduce strategy: chunk summaries are
+        generated separately, then reduced to a final summary.
+
+        Structured JSON output from the model is parsed and normalized.
+        If the model returns unparseable text, the raw output is stored as
+        the summary text with ``degraded`` status.
+        If the LLM call fails entirely, safe failure metadata is persisted.
+        """
+        stripped = content.strip()
+        model = self._ollama._model
+        input_chars = len(stripped)
+        text_hash = content_hash(stripped)
+
+        if not stripped:
+            self._repo.upsert_summary(
+                document_id,
+                summary="",
+                model=model,
+                status="failed",
+                error_type="empty_content",
+                error_summary="empty_content",
+                input_chars=0,
+                content_hash=text_hash,
+            )
+            return
+
+        try:
+            if len(stripped) <= MAX_SUMMARIZE_CHARS:
+                prompt = self._build_prompt(
+                    "llm.summarization_prompt", stripped, MAX_SUMMARIZE_CHARS
+                )
+                raw = self._ollama.generate(prompt)
+                normalized = normalize_summary_output(raw)
+            else:
+                chunks = chunk_content(stripped, SUMMARY_CHUNK_CHARS)
+                chunk_summaries: list[str] = []
+                for chunk in chunks:
+                    chunk_prompt = self._build_prompt(
+                        "llm.summarization_prompt", chunk, SUMMARY_CHUNK_CHARS
+                    )
+                    chunk_raw = self._ollama.generate(chunk_prompt)
+                    parsed = normalize_summary_output(chunk_raw)
+                    chunk_summaries.append(parsed["summary"] or chunk)
+
+                reduce_prompt = build_reduce_prompt(chunk_summaries)
+                reduce_raw = self._ollama.generate(reduce_prompt)
+                normalized = normalize_summary_output(reduce_raw)
+
+            norm_lang = normalized["language"] if normalized["language"] != "unknown" else None
+            norm_doc_type = (
+                normalized["document_type"] if normalized["document_type"] != "unknown" else None
+            )
+            norm_source = (
+                normalized["source_text"] if normalized["source_text"] != "unknown" else None
+            )
+            self._repo.upsert_summary(
+                document_id,
+                summary=normalized["summary"],
+                model=model,
+                status=normalized["status"],
+                summary_bullets=normalized["bullets"],
+                language=norm_lang,
+                document_type=norm_doc_type,
+                source_text=norm_source,
+                input_chars=input_chars,
+                content_hash=text_hash,
+            )
+
+            if normalized["status"] != "failed":
+                es_doc: dict[str, Any] = {"summary": normalized["summary"]}
+                if normalized["bullets"]:
+                    es_doc["summary_bullets"] = normalized["bullets"]
+                if normalized.get("language") and normalized["language"] != "unknown":
+                    es_doc["summary_language"] = normalized["language"]
+                if normalized.get("document_type") and normalized["document_type"] != "unknown":
+                    es_doc["summary_document_type"] = normalized["document_type"]
+                self._update_es_fields(document_id, es_doc)
+
+        except Exception as exc:
+            category = safe_error_category(exc)
+            self._repo.upsert_summary(
+                document_id,
+                summary="",
+                model=model,
+                status="failed",
+                error_type=category,
+                error_summary=category,
+                input_chars=input_chars,
+                content_hash=text_hash,
+            )
 
     def _extract_entities(self, document_id: UUID, content: str) -> None:
         """Extract entities and store them with document links."""
@@ -275,6 +368,21 @@ class IntelligenceWorker:
             logger.warning(
                 "Failed to update ES field %s for document_id=%s",
                 field,
+                document_id,
+                exc_info=True,
+            )
+
+    def _update_es_fields(
+        self,
+        document_id: UUID,
+        fields: dict[str, Any],
+    ) -> None:
+        """Update multiple fields in the Elasticsearch document atomically."""
+        try:
+            self._es.update_document_fields(str(document_id), fields)
+        except Exception:
+            logger.warning(
+                "Failed to update ES fields for document_id=%s",
                 document_id,
                 exc_info=True,
             )
