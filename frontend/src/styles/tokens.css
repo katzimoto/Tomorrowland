@@ -1,26 +1,52 @@
-/* Design tokens — sourced from docs/design/user-ui-spec.md */
+/* Design tokens — dark-first workspace theme */
 :root {
   /* Colour palette */
-  --color-bg: #f7f8fa;
-  --color-surface: #ffffff;
-  --color-surface-raised: #fbfcfe;
-  --color-border: #d9dee7;
+  --color-bg: #0d1117;
+  --color-surface: #161b22;
+  --color-surface-raised: #1c2128;
+  --color-border: #30363d;
 
-  --color-text-primary: #111827;
-  --color-text-secondary: #4b5563;
-  --color-text-muted: #6b7280;
+  --color-text-primary: #e6edf3;
+  --color-text-secondary: #8b949e;
+  --color-text-muted: #6e7681;
 
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-primary-fg: #ffffff;
+  --color-primary: #58a6ff;
+  --color-primary-hover: #79b8ff;
+  --color-primary-fg: #0d1117;
 
-  --color-success: #0f766e;
-  --color-warning: #b45309;
-  --color-danger: #b42318;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-danger: #f85149;
+  --color-danger-hover: #da3633;
 
-  --color-badge-source: #1e40af;
-  --color-badge-tag: #047857;
-  --color-badge-translation: #b45309;
+  --color-badge-source: #58a6ff;
+  --color-badge-tag: #3fb950;
+  --color-badge-translation: #d29922;
+
+  /* Badge backgrounds — semi-transparent tints on dark surface */
+  --color-badge-neutral-bg: rgba(255, 255, 255, 0.07);
+  --color-badge-source-bg: rgba(88, 166, 255, 0.15);
+  --color-badge-tag-bg: rgba(63, 185, 80, 0.15);
+  --color-badge-translation-bg: rgba(210, 153, 34, 0.15);
+  --color-badge-success-bg: rgba(63, 185, 80, 0.15);
+  --color-badge-warning-bg: rgba(210, 153, 34, 0.15);
+  --color-badge-danger-bg: rgba(248, 81, 73, 0.15);
+
+  /* Contextual warning surface (banners, alerts) */
+  --color-warning-surface: rgba(210, 153, 34, 0.1);
+  --color-warning-border: rgba(210, 153, 34, 0.3);
+  --color-warning-text: #d29922;
+
+  /* Focus ring alpha tints */
+  --color-primary-alpha: rgba(88, 166, 255, 0.2);
+  --color-danger-alpha: rgba(248, 81, 73, 0.2);
+
+  /* Skeleton shimmer */
+  --color-skeleton-base: #21262d;
+  --color-skeleton-shine: #2d333b;
+
+  /* Modal/menu overlay */
+  --color-overlay: rgba(0, 0, 0, 0.65);
 
   /* Typography */
   --font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
@@ -78,14 +104,14 @@
   --topbar-height: 56px;
   --filter-panel-width: 280px;
 
-  /* Result row heights — shared between real rows and SkeletonRow to prevent layout jumps */
+  /* Result row heights — shared between real rows and SkeletonRow */
   --result-row-height: 88px;
   --result-row-height-compact: 64px;
 
   /* Focus ring */
-  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-primary);
+  --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-primary);
 
-  /* Elevation */
-  --shadow-menu: 0 4px 12px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.1);
+  /* Elevation — deeper shadows for dark backgrounds */
+  --shadow-menu: 0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 4px rgba(0, 0, 0, 0.3);
+  --shadow-modal: 0 8px 48px rgba(0, 0, 0, 0.7), 0 2px 12px rgba(0, 0, 0, 0.4);
 }

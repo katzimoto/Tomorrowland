@@ -10,10 +10,10 @@
   white-space: nowrap;
 }
 
-.neutral { background: #e9ecef; color: var(--color-text-secondary); }
-.source { background: #dbeafe; color: var(--color-badge-source); }
-.tag { background: #d1fae5; color: var(--color-badge-tag); }
-.translation { background: #fef3c7; color: var(--color-badge-translation); }
-.success { background: #ccfbf1; color: var(--color-success); }
-.warning { background: #fef3c7; color: var(--color-warning); }
-.danger { background: #fee2e2; color: var(--color-danger); }
+.neutral { background: var(--color-badge-neutral-bg); color: var(--color-text-secondary); }
+.source { background: var(--color-badge-source-bg); color: var(--color-badge-source); }
+.tag { background: var(--color-badge-tag-bg); color: var(--color-badge-tag); }
+.translation { background: var(--color-badge-translation-bg); color: var(--color-badge-translation); }
+.success { background: var(--color-badge-success-bg); color: var(--color-success); }
+.warning { background: var(--color-badge-warning-bg); color: var(--color-warning); }
+.danger { background: var(--color-badge-danger-bg); color: var(--color-danger); }

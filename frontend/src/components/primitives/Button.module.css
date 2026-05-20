@@ -62,8 +62,8 @@
   border-color: var(--color-danger);
 }
 .danger:hover:not(:disabled) {
-  background: #901b12;
-  border-color: #901b12;
+  background: var(--color-danger-hover);
+  border-color: var(--color-danger-hover);
 }
 
 /* Spinner */

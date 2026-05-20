@@ -9,6 +9,7 @@
 }
 
 html {
+  color-scheme: dark;
   font-family: var(--font-family);
   font-size: var(--font-size-body);
   line-height: var(--line-height-body);

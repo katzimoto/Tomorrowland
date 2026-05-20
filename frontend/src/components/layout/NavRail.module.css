@@ -93,8 +93,8 @@
   color: var(--color-text-primary);
 }
 .active {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--color-badge-source-bg);
+  color: var(--color-primary);
 }
 
 .icon {
@@ -132,7 +132,7 @@
   top: -4px;
   right: -6px;
   background: var(--color-danger);
-  color: #fff;
+  color: var(--color-primary-fg);
   font-size: 9px;
   font-weight: 700;
   border-radius: 10px;
