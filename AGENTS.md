@@ -1,7 +1,8 @@
 # AGENTS.md — Tomorrowland (compact)
 
 Read this first. Keep context minimal and prefer the narrowest command that proves
-your change. For non-trivial tasks, read `docs/agents/token-efficiency.md` first.
+your change. For non-trivial tasks, read `docs/agents/token-efficiency.md` and
+`docs/agents/coding-behavior.md` first.
 
 ## Dev commands (exact)
 
@@ -63,6 +64,7 @@ Python 3.13; local dev is supported on Python >=3.11.
 
 ## Multi-agent rules (concise)
 
+- All agents: apply `docs/agents/coding-behavior.md` for non-trivial implementation, review, and debugging work.
 - Claude Code: planning, architecture/security reviews, API/UX/consistency,
   docs polish, high-level decomposition.
 - Codex: scoped implementation after a plan, mechanical refactors, tests/CI
@@ -149,18 +151,20 @@ frontend consumers → docs/test-only → final integration/changelog.
 
 1. `AGENTS.md`
 2. `docs/agents/token-efficiency.md`
-3. `CLAUDE.md` (Claude Code only)
-4. GitHub Issue body (`Context Budget`, `Allowed Changes`, `Forbidden Changes`)
-5. Single referenced implementation/design plan, if any
-6. One relevant `docs/context/<area>.md` when needed (backend-api, frontend, search, extraction)
-7. Source & test files discovered with `rg`
-8. `CHANGELOG.md` before assuming a feature is missing
+3. `docs/agents/coding-behavior.md`
+4. `CLAUDE.md` (Claude Code only)
+5. GitHub Issue body (`Context Budget`, `Allowed Changes`, `Forbidden Changes`)
+6. Single referenced implementation/design plan, if any
+7. One relevant `docs/context/<area>.md` when needed (backend-api, frontend, search, extraction)
+8. Source & test files discovered with `rg`
+9. `CHANGELOG.md` before assuming a feature is missing
 
 Do not read `spec.md` or `spec-v4.pdf` unless explicitly authorized.
 
 ## References
 
 - `docs/agents/token-efficiency.md` — context limits and handoff fields
+- `docs/agents/coding-behavior.md` — shared execution discipline for simple, surgical, verifiable work
 - `docs/agents/templates.md` — claim/transfer/issue/PR templates (new)
 - `frontend/AGENTS.md` — frontend-specific conventions
 - `docs/context/*.md` — area context maps
@@ -196,40 +200,4 @@ Run the guard script for a quick automated check:
 
 ```bash
 bash scripts/check-pr-cleanliness.sh [target-branch]
-```
-
-## Conventions & guardrails (quick)
-
-### Python
-- Files start with `from __future__ import annotations`.
-- Ruff line length = 100; mypy is strict.
-- Use `str | None`, `dict[str, Any]`, modern generics.
-- Use `shared.db.db_uuid(value)` for SQL UUID parameter binding.
-- Use SQLAlchemy bound parameters; do not interpolate SQL strings.
-
-### FastAPI & persistence
-- Auth dependency: `Depends(current_user)`.
-- Admin-only: `require_admin(user)`.
-- Document access: `assert_doc_access(documant_id, user, auth_repo)`.
-- DB transaction: `with app.state.engine.begin() as connection:`.
-
-### Data-layer guardrail
-Default: SQLAlchemy Core repos + Pydantic models + Alembic migrations. Do not
-introduce SQLModel or refactor data-layer broadly unless explicitly authorized.
-
-### Common mistakes
-- Do not serve `document.path` directly; use safe download/path validation.
-- Do not bypass feature flags.
-- Do not create migrations without downgrade paths.
-- Do not add hardcoded secrets; `.env.example` contains placeholders only.
-- Routes live in `src/services/api/routers/`; add new routes to the appropriate domain router.
-
-### Review routing (short)
-- Claude: architecture, API consistency, security boundaries, migrations, plan compliance.
-- Codex: correctness, tests, typing, lint, regressions, CI.
-
-Useful prompts:
-```txt
-@claude review this PR against AGENTS.md, the issue, architecture consistency, and edge cases.
-@codex review this PR for correctness, tests, typing, lint, regressions, and CI failures.
 ```
