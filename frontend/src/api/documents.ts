@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api, ApiError } from "./client";
 import type { RelatedDocument } from "./generated-or-shared-types";
 
 export interface DocumentPreview {
@@ -93,8 +93,13 @@ export function getTranslationVersions(docId: string): Promise<TranslationVersio
   return api.get<TranslationVersion[]>(`/documents/${docId}/translation-versions`);
 }
 
-export function getSummary(docId: string): Promise<DocumentSummary> {
-  return api.get<DocumentSummary>(`/documents/${docId}/summary`);
+export async function getSummary(docId: string): Promise<DocumentSummary | null> {
+  try {
+    return await api.get<DocumentSummary>(`/documents/${docId}/summary`);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
 }
 
 export async function getEntities(docId: string): Promise<{ document_id: string; entities: DocumentEntity[] }> {
