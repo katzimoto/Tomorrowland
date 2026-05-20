@@ -4,19 +4,28 @@ import { render } from "@/test/render";
 import { HtmlPreview } from "./HtmlPreview";
 
 describe("HtmlPreview", () => {
-  it("renders sanitized HTML content", () => {
-    render(<HtmlPreview html="<p>Safe content</p>" />);
-    expect(screen.getByText("Safe content")).toBeInTheDocument();
+  it("renders an iframe", () => {
+    const { container } = render(<HtmlPreview html="<p>Hello</p>" />);
+    expect(container.querySelector("iframe")).not.toBeNull();
   });
 
-  it("strips script tags", () => {
-    render(<HtmlPreview html="<p>Safe</p><script>alert('xss')</script>" />);
-    expect(screen.queryByText("alert('xss')")).not.toBeInTheDocument();
-    expect(screen.getByText("Safe")).toBeInTheDocument();
+  it("passes html as srcDoc", () => {
+    const html = "<p>Document content</p>";
+    const { container } = render(<HtmlPreview html={html} />);
+    const iframe = container.querySelector("iframe") as HTMLIFrameElement;
+    expect(iframe.getAttribute("srcdoc")).toBe(html);
   });
 
-  it("strips style tags", () => {
-    const { container } = render(<HtmlPreview html="<p>Text</p><style>body{color:red}</style>" />);
-    expect(container.querySelector("style")).toBeNull();
+  it("sandboxes the iframe without allow-scripts", () => {
+    const { container } = render(<HtmlPreview html="<p>test</p>" />);
+    const iframe = container.querySelector("iframe") as HTMLIFrameElement;
+    const sandbox = iframe.getAttribute("sandbox") ?? "";
+    expect(sandbox).toContain("allow-same-origin");
+    expect(sandbox).not.toContain("allow-scripts");
+  });
+
+  it("has an accessible title", () => {
+    render(<HtmlPreview html="<p>test</p>" />);
+    expect(screen.getByTitle("HTML document preview")).toBeInTheDocument();
   });
 });

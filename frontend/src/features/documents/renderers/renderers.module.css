@@ -20,6 +20,13 @@
 .htmlContent p { margin: 0.5em 0; }
 .htmlContent a { color: var(--color-accent); }
 
+.htmlFrame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
 .tableWrapper {
   overflow-x: auto;
   padding: var(--space-4);
