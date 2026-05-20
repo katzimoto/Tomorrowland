@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -17,22 +18,63 @@ class IntelligenceRepository:
     def __init__(self, connection: Connection) -> None:
         self._connection = connection
 
-    def upsert_summary(self, document_id: UUID, summary: str, model: str) -> None:
-        """Insert or update the summary for a document."""
+    def upsert_summary(
+        self,
+        document_id: UUID,
+        summary: str,
+        model: str,
+        *,
+        status: str = "available",
+        summary_bullets: list[str] | None = None,
+        language: str | None = None,
+        document_type: str | None = None,
+        source_text: str | None = None,
+        input_chars: int | None = None,
+        content_hash: str | None = None,
+        error_type: str | None = None,
+        error_summary: str | None = None,
+    ) -> None:
+        """Insert or update the summary for a document with v2 metadata."""
         self._connection.execute(
             sa.text("""
-                INSERT INTO document_summaries (document_id, summary, model)
-                VALUES (:document_id, :summary, :model)
+                INSERT INTO document_summaries (
+                    document_id, summary, model, status, summary_bullets,
+                    language, document_type, source_text, input_chars,
+                    content_hash, error_type, error_summary, last_attempted_at
+                ) VALUES (
+                    :document_id, :summary, :model, :status, :summary_bullets,
+                    :language, :document_type, :source_text, :input_chars,
+                    :content_hash, :error_type, :error_summary, CURRENT_TIMESTAMP
+                )
                 ON CONFLICT (document_id)
                 DO UPDATE SET
                     summary = EXCLUDED.summary,
                     model = EXCLUDED.model,
+                    status = EXCLUDED.status,
+                    summary_bullets = EXCLUDED.summary_bullets,
+                    language = EXCLUDED.language,
+                    document_type = EXCLUDED.document_type,
+                    source_text = EXCLUDED.source_text,
+                    input_chars = EXCLUDED.input_chars,
+                    content_hash = EXCLUDED.content_hash,
+                    error_type = EXCLUDED.error_type,
+                    error_summary = EXCLUDED.error_summary,
+                    last_attempted_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
                 """),
             {
                 "document_id": db_uuid(document_id),
                 "summary": summary,
                 "model": model,
+                "status": status,
+                "summary_bullets": json.dumps(summary_bullets) if summary_bullets else None,
+                "language": language,
+                "document_type": document_type,
+                "source_text": source_text,
+                "input_chars": input_chars,
+                "content_hash": content_hash,
+                "error_type": error_type,
+                "error_summary": error_summary,
             },
         )
 
@@ -41,7 +83,11 @@ class IntelligenceRepository:
         row = (
             self._connection.execute(
                 sa.text("""
-                    SELECT document_id, summary, model, created_at, updated_at
+                    SELECT
+                        document_id, summary, model, status, summary_bullets,
+                        language, document_type, source_text, input_chars,
+                        content_hash, error_type, error_summary,
+                        created_at, updated_at, last_attempted_at
                     FROM document_summaries
                     WHERE document_id = :document_id
                     """),
@@ -50,7 +96,16 @@ class IntelligenceRepository:
             .mappings()
             .first()
         )
-        return dict(row) if row else None
+        if row is None:
+            return None
+        result = dict(row)
+        raw_bullets = result.get("summary_bullets")
+        if raw_bullets is not None and isinstance(raw_bullets, str):
+            try:
+                result["summary_bullets"] = json.loads(raw_bullets)
+            except (json.JSONDecodeError, TypeError):
+                result["summary_bullets"] = None
+        return result
 
     def upsert_entity(self, name: str, entity_type: str) -> UUID:
         """Upsert an entity by (name, type) and return its id.

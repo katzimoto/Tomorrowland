@@ -143,6 +143,18 @@ class ElasticsearchSearchClient:
             doc={field: value},
         )
 
+    def update_document_fields(
+        self,
+        document_id: str,
+        fields: dict[str, Any],
+    ) -> None:
+        """Update multiple fields of an existing document atomically."""
+        self._client.update(
+            index=INDEX_NAME,
+            id=document_id,
+            doc=fields,
+        )
+
     def close(self) -> None:
         """Close the underlying Elasticsearch client."""
         self._client.close()

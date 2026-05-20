@@ -266,6 +266,15 @@ def get_summary(
             "summary": summary["summary"],
             "model": summary["model"],
             "updated_at": _fmt_dt(summary["updated_at"]),
+            "summary_bullets": summary.get("summary_bullets"),
+            "summary_status": summary.get("status", "available"),
+            "summary_language": summary.get("language"),
+            "summary_document_type": summary.get("document_type"),
+            "summary_source_text": summary.get("source_text"),
+            "summary_is_stale": False,
+            "summary_error_summary": (
+                summary.get("error_summary") if summary.get("status") == "failed" else None
+            ),
         }
 
 
@@ -343,6 +352,15 @@ def get_intelligence(
             result["summary"] = summary["summary"]
             result["summary_model"] = summary["model"]
             result["summary_updated_at"] = _fmt_dt(summary["updated_at"])
+            result["summary_bullets"] = summary.get("summary_bullets")
+            result["summary_status"] = summary.get("status", "available")
+            result["summary_language"] = summary.get("language")
+            result["summary_document_type"] = summary.get("document_type")
+            result["summary_source_text"] = summary.get("source_text")
+            result["summary_is_stale"] = False
+            result["summary_error_summary"] = (
+                summary.get("error_summary") if summary.get("status") == "failed" else None
+            )
         result["key_points"] = key_points
         result["entities"] = [
             {
