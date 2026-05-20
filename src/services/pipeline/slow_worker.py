@@ -446,6 +446,8 @@ def run_enrich_loop(
 if __name__ == "__main__":
     from sqlalchemy import create_engine
 
+    from services.intelligence.ollama_client import OllamaClient
+    from services.intelligence.repository import IntelligenceRepository
     from services.search.factory import build_encoder
     from shared.config import Settings
 
@@ -460,6 +462,16 @@ if __name__ == "__main__":
         translator = LibreTranslateClient(base_url=settings.libretranslate_url)
         encoder = build_encoder(settings)
 
+        ollama_client = OllamaClient(
+            base_url=settings.ollama_url,
+            model=settings.ollama_model,
+        )
+        intelligence_worker = IntelligenceWorker(
+            repository=IntelligenceRepository(conn),
+            ollama_client=ollama_client,
+            es_client=es_client,
+        )
+
         worker = SlowWorker(
             document_repository=doc_repo,
             extractor_registry=None,
@@ -468,6 +480,7 @@ if __name__ == "__main__":
             es_client=es_client,
             qdrant_client=qdrant_client,
             version_repository=version_repo,
+            intelligence_worker=intelligence_worker,
         )
 
         run_enrich_loop(

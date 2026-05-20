@@ -288,6 +288,9 @@ def run_loop(
 
 
 if __name__ == "__main__":
+    from services.intelligence.ollama_client import OllamaClient
+    from services.intelligence.repository import IntelligenceRepository
+    from services.intelligence.worker import IntelligenceWorker
     from services.search.factory import build_encoder
     from services.search.meili_provider import MeilisearchSearchProvider
     from shared.config import Settings
@@ -311,6 +314,16 @@ if __name__ == "__main__":
         encoder = build_encoder(settings)
         qdrant_client = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
 
+        ollama_client = OllamaClient(
+            base_url=settings.ollama_url,
+            model=settings.ollama_model,
+        )
+        intelligence_worker = IntelligenceWorker(
+            repository=IntelligenceRepository(conn),
+            ollama_client=ollama_client,
+            es_client=es_client,
+        )
+
         job_repo = PipelineJobRepository(conn)
         worker = PipelineWorker(
             document_repository=doc_repo,
@@ -320,6 +333,7 @@ if __name__ == "__main__":
             es_client=es_client,
             qdrant_client=qdrant_client,
             meili_provider=meili_provider,
+            intelligence_worker=intelligence_worker,
         )
 
         run_loop(job_repo, worker, conn, worker_id="pipeline-worker")
