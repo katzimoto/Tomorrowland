@@ -1,8 +1,9 @@
 # Pipeline Worker Operations Guide
 
-This guide covers the two long-running worker processes that drive document
-ingestion and vector indexing, the Prometheus metrics they emit, and how to
-interpret those signals on-call.
+This guide covers the five long-running worker processes that drive document
+ingestion, vector indexing, translation, enrichment, and alert/intelligence
+post-processing, the Prometheus metrics they emit, and how to interpret those
+signals on-call.
 
 ---
 
@@ -12,19 +13,30 @@ Tomorrowland's ingestion pipeline is served by two independent workers that
 claim durable jobs from a shared PostgreSQL-backed queue (`pipeline_jobs`
 table).
 
-| Service | Module | Job type handled |
+| Service | Module | Job types handled |
 |---------|--------|-----------------|
-| `pipeline-worker` | `services.pipeline.runner` | `process_document` |
+| `pipeline-worker` | `services.pipeline.runner` | `process_document`, `intelligence_document`, `alert_document` |
 | `vector-worker` | `services.pipeline.vector_worker` | `vector_index_document` |
+| `translation-worker` | `services.pipeline.translation_worker` | `translate_document` |
+| `index-worker` | `services.pipeline.index_worker` | `index_document` |
+| `slow-worker` | `services.pipeline.slow_worker` | `enrich_document` |
 
 **Queue transport**: workers poll the database with `SELECT … FOR UPDATE SKIP
 LOCKED`. There is no Kafka consumer; consumer-lag concepts do not apply here.
 
 **Job flow**: when the pipeline worker successfully completes a
-`process_document` job it immediately enqueues a `vector_index_document` job
-for the same document. The vector worker picks that up independently.
+`process_document` job it enqueues downstream jobs for the same document:
+`vector_index_document`, `translate_document`, `index_document`, `enrich_document`,
+`intelligence_document`, and `alert_document`. Each downstream worker picks up
+its associated job type independently.
 
-Both workers run a tight poll loop:
+`intelligence_document` and `alert_document` are **best-effort** jobs: if the
+pipeline worker was not started with an `IntelligenceWorker` or `AlertMatcher`
+dependency, these jobs are immediately marked succeeded (no-op). On failure,
+they are retried with bounded backoff; if all retries are exhausted, they are
+dead-lettered without affecting the document's ingestion success.
+
+All workers run a tight poll loop:
 
 1. Emit heartbeat gauge (current Unix timestamp).
 2. Sample queue depth by status and job type.
@@ -45,8 +57,9 @@ Metric names are reproduced exactly as registered.
 **Labels**: `worker_type`, `worker_id`
 
 Set to the current Unix timestamp at the top of every loop iteration.
-`worker_type` is either `pipeline` or `vector`; `worker_id` is the stable
-identifier passed at startup (e.g. `pipeline-worker`, `vector-worker`).
+`worker_type` is one of `pipeline`, `vector`, `translation`, `index`, or
+`enrich`; `worker_id` is the stable identifier passed at startup (e.g.
+`pipeline-worker`, `vector-worker`).
 
 **How to use**: detect a stopped or stale worker:
 
@@ -70,7 +83,9 @@ at the top of every loop iteration by both workers. The snapshot is produced by
 `COUNT … GROUP BY status, job_type` query.
 
 Known `status` values: `pending`, `running`, `retry`, `dead_letter`.  
-Known `job_type` values: `process_document`, `vector_index_document`.
+Known `job_type` values: `process_document`, `vector_index_document`,
+`translate_document`, `index_document`, `enrich_document`,
+`intelligence_document`, `alert_document`.
 
 **How to use**:
 
@@ -113,7 +128,8 @@ rate(tomorrowland_pipeline_jobs_claimed_total{worker_type="pipeline"}[5m]) * 60
 **Labels**: `worker_type`, `job_type`
 
 Incremented when a job is marked succeeded. For `pipeline` workers the stage
-is `process`; for `vector` workers the stage is `vector_encode`.
+is `process` (or `intelligence` / `alert` for best-effort jobs); for `vector`
+workers the stage is `vector_encode`.
 
 ```promql
 # Success rate as a fraction of claimed jobs (5-minute window)
@@ -189,7 +205,12 @@ Measures wall-clock duration of each job attempt from claim to outcome.
 | `worker_type` | `stage` | `outcome` values |
 |--------------|---------|-----------------|
 | `pipeline` | `process` | `succeeded`, `retried`, `dead_lettered` |
+| `pipeline` | `intelligence` | `succeeded`, `retried`, `dead_lettered` |
+| `pipeline` | `alert` | `succeeded`, `retried`, `dead_lettered` |
 | `vector` | `vector_encode` | `succeeded`, `retried`, `dead_lettered` |
+| `translation` | `translate` | `succeeded`, `retried`, `dead_lettered` |
+| `index` | `index` | `succeeded`, `retried`, `dead_lettered` |
+| `enrich` | `enrich` | `succeeded`, `retried`, `dead_lettered` |
 
 ```promql
 # p95 job duration for pipeline workers
@@ -234,11 +255,11 @@ PostgreSQL `pipeline_jobs` table directly at the top of every loop iteration:
 SELECT status, job_type, COUNT(*) FROM pipeline_jobs GROUP BY status, job_type;
 ```
 
-This snapshot reflects the instantaneous state of the queue at that moment. Both
-the pipeline worker and the vector worker independently sample and set the same
-gauge labels, so the gauge for `job_type="process_document"` is updated by the
-pipeline worker and the gauge for `job_type="vector_index_document"` is updated
-by the vector worker.
+This snapshot reflects the instantaneous state of the queue at that moment. Each
+worker independently samples and sets the same gauge labels, so the gauge for
+`job_type="process_document"` is updated by the pipeline worker and the gauge
+for `job_type="vector_index_document"` is updated by the vector worker, and so
+on for all active workers.
 
 ---
 
@@ -297,11 +318,20 @@ docker compose restart pipeline-worker
 
 # Restart vector-worker
 docker compose restart vector-worker
+
+# Restart translation-worker
+docker compose restart translation-worker
+
+# Restart index-worker
+docker compose restart index-worker
+
+# Restart slow-worker (enrichment)
+docker compose restart slow-worker
 ```
 
-`restart: unless-stopped` is set on both services, so a plain container exit
-will be automatically restarted by Docker. Use `docker compose restart` when
-you need to force a restart of a live but unresponsive container.
+`restart: unless-stopped` is set on all worker services, so a plain container
+exit will be automatically restarted by Docker. Use `docker compose restart`
+when you need to force a restart of a live but unresponsive container.
 
 After restart, the worker's next loop iteration will reap any stale locks it
 finds, returning orphaned `running` jobs to `pending` within 60 seconds.
@@ -330,7 +360,7 @@ Each log line for a job event includes:
 
 **Signals**: `time() - tomorrowland_worker_heartbeat_timestamp_seconds > 120`
 
-1. Check container status: `docker compose ps pipeline-worker vector-worker`
+1. Check container status: `docker compose ps pipeline-worker vector-worker translation-worker index-worker slow-worker`
 2. Check recent logs: `docker compose logs --tail=100 pipeline-worker`
 3. If the container is stopped: `docker compose restart pipeline-worker`
 4. If it exits immediately, check for config/DB connection errors in the logs
@@ -358,8 +388,12 @@ claim rate (`tomorrowland_pipeline_jobs_claimed_total`) flat.
 1. Check which `job_type` is retrying: filter by `job_type` label.
 2. For `process_document` retries: check Elasticsearch and Qdrant health.
 3. For `vector_index_document` retries: check Qdrant and Ollama health.
-4. Check worker logs for the exception class driving retries.
-5. If a dependency is recovering, retries will clear automatically once it is
+4. For `translate_document` retries: check LibreTranslate health.
+5. For `intelligence_document` or `alert_document` retries: check Ollama or
+   alert-matcher configuration respectively. These are best-effort; a sustained
+   retry pattern indicates the downstream dependency is not configured.
+6. Check worker logs for the exception class driving retries.
+7. If a dependency is recovering, retries will clear automatically once it is
    healthy.
 
 ---
@@ -434,6 +468,9 @@ histogram_quantile(0.95,
 
 - `src/services/pipeline/runner.py` — pipeline worker loop and job lifecycle
 - `src/services/pipeline/vector_worker.py` — vector worker loop
+- `src/services/pipeline/translation_worker.py` — translation worker loop
+- `src/services/pipeline/index_worker.py` — index worker loop
+- `src/services/pipeline/slow_worker.py` — enrich worker loop
 - `src/shared/metrics.py` — `MetricsRegistry` with all metric definitions
 - `docs/operations/production-compose.md` — Compose service layout
 - `docs/operations/air-gapped-deployment.md` — offline deployment guide

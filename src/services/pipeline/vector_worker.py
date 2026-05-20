@@ -23,6 +23,7 @@ from shared.metrics import MetricsRegistry
 logger = logging.getLogger(__name__)
 
 _WORKER_TYPE = "vector"
+_ALLOWED_JOB_TYPES = ["vector_index_document"]
 _REAP_INTERVAL_SECONDS = 60.0
 
 
@@ -49,7 +50,7 @@ def run_vector_once(
     Returns:
         ``True`` if a job was processed, ``False`` if none available.
     """
-    claimed = job_repo.claim_next(worker_id, job_types=["vector_index_document"])
+    claimed = job_repo.claim_next(worker_id, job_types=_ALLOWED_JOB_TYPES)
     if claimed is None:
         return False
 

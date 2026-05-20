@@ -63,6 +63,18 @@ class PipelineWorker:
         self._alert_matcher = alert_matcher
         self._metrics = metrics
 
+    @property
+    def document_repository(self) -> DocumentRepository:
+        return self._doc_repo
+
+    @property
+    def intelligence_worker(self) -> IntelligenceWorker | None:
+        return self._intelligence
+
+    @property
+    def alert_matcher(self) -> AlertMatcher | None:
+        return self._alert_matcher
+
     def process_document(
         self, document_id: UUID, pre_extracted_text: str | None = None
     ) -> ProcessResult | None:
@@ -308,29 +320,7 @@ class PipelineWorker:
         #    stage-specific retry state for those failures.
         self._doc_repo.update_indexed(document_id, "indexed", translation_quality)
 
-        # 8. Intelligence (best-effort, never blocking)
-        if self._intelligence is not None:
-            try:
-                self._intelligence.process_document(doc.id, translated)
-            except Exception:
-                logger.exception(
-                    "Intelligence failed for document_id=%s correlation=%s",
-                    document_id,
-                    get_correlation_id(),
-                )
-
-        # 9. Alert matching (best-effort, never blocking)
-        if self._alert_matcher is not None:
-            try:
-                self._alert_matcher.match_document(doc, translated)
-            except Exception:
-                logger.exception(
-                    "Alert matching failed for document_id=%s correlation=%s",
-                    document_id,
-                    get_correlation_id(),
-                )
-
-        # 10. Process email/archive attachments as child documents (best-effort).
+        # 8. Process email/archive attachments as child documents (best-effort).
         #     _seen tracks SHA-256 hashes of content already processed in this
         #     call chain to break circular references (e.g. ZIP-A → ZIP-B → ZIP-A).
         if doc.path is not None:

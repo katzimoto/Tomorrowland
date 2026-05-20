@@ -48,7 +48,7 @@ class _FakePipelineRepo:
         self.dead_lettered: tuple | None = None
         self.enqueued: list = []
 
-    def claim_next(self, worker_id: str) -> dict | None:
+    def claim_next(self, worker_id: str, job_types: list[str] | None = None) -> dict | None:
         return self.claimed_job
 
     def get_payload(self, document_id: object) -> dict | None:
@@ -270,7 +270,7 @@ class TestVectorWorkerMetrics:
 
         original_chunk_text = vw_module.chunk_text
         try:
-            vw_module.chunk_text = lambda _: ["chunk one"]
+            vw_module.chunk_text = lambda *a, **kw: ["chunk one"]
             result = run_vector_once(
                 repo,
                 encoder,
@@ -355,7 +355,7 @@ class TestVectorWorkerMetrics:
 
         original_chunk_text = vw_module.chunk_text
         try:
-            vw_module.chunk_text = lambda _: ["chunk"]
+            vw_module.chunk_text = lambda *a, **kw: ["chunk"]
             result = run_vector_once(
                 repo,
                 encoder,

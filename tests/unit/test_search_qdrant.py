@@ -356,9 +356,7 @@ def test_upsert_chunks_delete_existing_ensures_collection_before_delete() -> Non
     collection_exists_idx = next(
         i for i, c in enumerate(mock_qdrant.mock_calls) if "collection_exists" in str(c)
     )
-    delete_idx = next(
-        i for i, c in enumerate(mock_qdrant.mock_calls) if "delete" in str(c)
-    )
+    delete_idx = next(i for i, c in enumerate(mock_qdrant.mock_calls) if "delete" in str(c))
     assert collection_exists_idx < delete_idx
 
 

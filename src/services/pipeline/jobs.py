@@ -27,6 +27,7 @@ _ALLOWED_ERROR_CATEGORIES = frozenset(
         "vector_encode",
         "vector_upsert",
         "intelligence",
+        "alert",
         "timeout",
         "connection_refused",
         "not_found",
