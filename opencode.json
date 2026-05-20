@@ -3,6 +3,7 @@
   "instructions": [
     "docs/agents/token-efficiency.md",
     "docs/agents/coding-behavior.md",
+    "docs/agents/shared-memory.md",
     "docs/agents/opencode.md"
   ]
 }
