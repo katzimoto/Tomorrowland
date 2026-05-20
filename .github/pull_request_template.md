@@ -37,6 +37,11 @@ Run `git diff --name-only <target-branch>...HEAD` and paste the output:
 - [ ] Public interfaces are documented.
 - [ ] Tests or validation steps are included above.
 - [ ] Reviewer agent can audit this change without unrelated context.
+- [ ] I followed `AGENTS.md`.
+- [ ] I followed `docs/agents/token-efficiency.md` where applicable.
+- [ ] I followed `docs/agents/coding-behavior.md` for simple, surgical, verifiable work.
+- [ ] The diff is scoped to the task and contains no unrelated refactors.
+- [ ] Verification is reported honestly, including skipped checks or remaining risk.
 - [ ] No local agent artifacts in the diff (`.opencode_auth.json`, `token_opencode.txt`, root `main`)
 - [ ] No unrelated `.gitignore` additions; local tooling exclusions use `.git/info/exclude`
 - [ ] `bash scripts/check-pr-cleanliness.sh <target-branch>` passed (or N/A; reason: )
