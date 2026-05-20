@@ -6,8 +6,8 @@ for Tomorrowland priority, architecture, release policy, security posture, or
 merge decisions.
 
 OpenCode loads additional instruction files from `opencode.json`. This repository
-uses that file to include the shared token-efficiency rules and this OpenCode
-workflow document.
+uses that file to include the shared token-efficiency rules, shared coding
+behavior rules, and this OpenCode workflow document.
 
 ## What OpenCode should do
 
@@ -31,11 +31,25 @@ For non-trivial tasks, load only this context before opening source files:
 
 1. `AGENTS.md`
 2. `docs/agents/token-efficiency.md`
-3. `docs/agents/opencode.md`
-4. The GitHub Issue body
-5. One relevant context map or implementation plan, only if the issue points to it
+3. `docs/agents/coding-behavior.md`
+4. `docs/agents/opencode.md`
+5. The GitHub Issue body
+6. One relevant context map or implementation plan, only if the issue points to it
 
 Then use `rg` / `rg --files` to locate exact source and test files.
+
+## Execution discipline
+
+For every non-trivial implementation task, apply `docs/agents/coding-behavior.md`:
+
+- Restate the goal before editing.
+- State assumptions and ambiguity.
+- Identify the smallest safe change.
+- Keep the diff surgical.
+- Do not refactor adjacent code unless explicitly asked.
+- Do not add speculative abstractions or extra features.
+- Name the verification command or manual flow before changing code.
+- Report verification honestly at handoff.
 
 ## Recommended prompts
 
@@ -43,9 +57,10 @@ For implementation:
 
 ```text
 Use this issue as the source of truth. Read AGENTS.md, docs/agents/token-efficiency.md,
-docs/agents/opencode.md, and only the allowed paths listed in the issue. Make the
-smallest code change that satisfies the acceptance criteria. End with the
-standard agent handoff and list the checks you ran.
+docs/agents/coding-behavior.md, docs/agents/opencode.md, and only the allowed
+paths listed in the issue. Make the smallest code change that satisfies the
+acceptance criteria. End with the standard agent handoff and list the checks you
+ran.
 ```
 
 For test generation:
@@ -62,6 +77,17 @@ For CI or local failure repair:
 Use the failing output as the source of truth. Identify the failing command,
 exact error, likely root cause, minimal fix, files involved, and validation
 command before editing files.
+```
+
+For plan-then-build work:
+
+```text
+Plan mode first: restate the goal, assumptions, smallest safe approach, files
+likely to change, and verification steps. Do not edit files in plan mode.
+
+Build mode after approval: implement only the approved plan, keep the diff
+surgical, run the agreed verification, and report changed files, checks, skipped
+checks, risks, and follow-ups.
 ```
 
 ## Routing with other agents
@@ -86,4 +112,5 @@ OpenCode work is ready for PR or handoff only when:
 - Tests/checks are listed, or skipped checks are justified.
 - Risks and follow-ups are explicit.
 - The handoff includes completed work, remaining work, tests, context loaded,
-  context skipped, and next steps.
+  context skipped, token efficiency notes, changed files, verification, and next
+  steps.
