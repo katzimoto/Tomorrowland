@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import create_engine
@@ -30,6 +31,7 @@ from shared.metrics import MetricsRegistry
 logger = logging.getLogger(__name__)
 
 _WORKER_TYPE = "pipeline"
+_WORKER_ALLOWED_JOB_TYPES = ["process_document", "intelligence_document", "alert_document"]
 _REAP_INTERVAL_SECONDS = 60.0
 
 
@@ -50,12 +52,13 @@ def run_once(
     Returns:
         ``True`` if a job was claimed and processed, ``False`` if no job was available.
     """
-    claimed = job_repo.claim_next(worker_id)
+    claimed = job_repo.claim_next(worker_id, job_types=_WORKER_ALLOWED_JOB_TYPES)
     if claimed is None:
         return False
 
     job_id: UUID = claimed["id"]
     document_id: UUID = claimed["document_id"]
+    source_id: UUID = claimed["source_id"]
     job_type: str = claimed["job_type"]
     attempts: int = claimed["attempts"]
     max_attempts: int = claimed["max_attempts"]
@@ -66,9 +69,71 @@ def run_once(
         ).inc()
 
     # Load durable payload
-    payload = job_repo.get_payload(document_id)
-    pre_extracted_text: str | None = payload["content_text"] if payload else None
+    payload: dict[str, Any] | None = job_repo.get_payload(document_id)
+    pre_extracted_text: str | None = payload.get("content_text") if payload else None
 
+    # ---- Dispatch by job type ----
+    if job_type == "process_document":
+        return _run_process_job(
+            job_repo,
+            worker,
+            job_id,
+            document_id,
+            source_id,
+            job_type,
+            attempts,
+            max_attempts,
+            pre_extracted_text,
+            worker_id,
+            metrics,
+            payload,
+        )
+    elif job_type == "intelligence_document":
+        return _run_intelligence_job(
+            job_repo,
+            worker,
+            job_id,
+            document_id,
+            job_type,
+            attempts,
+            max_attempts,
+            payload,
+            worker_id,
+            metrics,
+        )
+    elif job_type == "alert_document":
+        return _run_alert_job(
+            job_repo,
+            worker,
+            job_id,
+            document_id,
+            job_type,
+            attempts,
+            max_attempts,
+            payload,
+            worker_id,
+            metrics,
+        )
+    # Unknown job type — mark dead-letter immediately (should not happen with filtering)
+    job_repo.mark_dead_letter(job_id, ValueError(f"unknown job_type: {job_type}"))
+    return True
+
+
+def _run_process_job(
+    job_repo: PipelineJobRepository,
+    worker: PipelineWorker,
+    job_id: UUID,
+    document_id: UUID,
+    source_id: UUID,
+    job_type: str,
+    attempts: int,
+    max_attempts: int,
+    pre_extracted_text: str | None,
+    worker_id: str,
+    metrics: MetricsRegistry | None,
+    payload: dict[str, Any] | None,
+) -> bool:
+    """Process a ``process_document`` job end-to-end."""
     job_repo.mark_running_stage(job_id, "process")
 
     start = time.monotonic()
@@ -143,9 +208,8 @@ def run_once(
         attempts,
     )
 
-    # Persist extracted and translated text after successful processing so downstream
-    # workers (translation-worker, index-worker) can operate from IDs only.
-    if job_type == "process_document" and process_result is not None:
+    # Persist extracted and translated text so downstream workers operate from IDs only.
+    if process_result is not None:
         try:
             job_repo.update_content_text(document_id, process_result.extracted_text)
         except Exception:
@@ -160,12 +224,9 @@ def run_once(
                 "failed to persist translated text: worker_id=%s error_type=PersistError",
                 worker_id,
             )
-        # Create a translation version record so the preview service and version
-        # selector can surface the ingestion translation. Without this, translated_text
-        # stays only in document_payloads and users see the original text.
         if process_result.translated_text:
             try:
-                doc = worker._doc_repo.get_by_id(document_id)
+                doc = worker.document_repository.get_by_id(document_id)
                 target_lang = doc.target_language if doc is not None else "en"
                 version_repo = TranslationVersionRepository(job_repo._connection)
                 existing = version_repo.find_pending_or_running(document_id, target_lang)
@@ -191,25 +252,246 @@ def run_once(
                     worker_id,
                 )
 
-    # Enqueue vector indexing job after successful text processing
-    if job_type == "process_document":
+    # Enqueue downstream jobs after successful text processing
+    # Vector job is always enqueued; intelligence and alert jobs are
+    # best-effort and only enqueued when the worker has the dependency.
+    try:
+        job_repo.enqueue_document(
+            document_id=document_id,
+            source_id=source_id,
+            job_type="vector_index_document",
+        )
+    except Exception:
+        logger.exception(
+            "failed to enqueue vector job: worker_id=%s error_type=EnqueueError",
+            worker_id,
+        )
+
+    if worker.intelligence_worker is not None:
         try:
             job_repo.enqueue_document(
                 document_id=document_id,
-                source_id=claimed["source_id"],
-                job_type="vector_index_document",
-            )
-            logger.debug(
-                "vector job enqueued: worker_id=%s document_id=%s",
-                worker_id,
-                document_id,
+                source_id=source_id,
+                job_type="intelligence_document",
             )
         except Exception:
             logger.exception(
-                "failed to enqueue vector job: worker_id=%s error_type=EnqueueError",
+                "failed to enqueue intelligence job: worker_id=%s error_type=EnqueueError",
                 worker_id,
             )
 
+    if worker.alert_matcher is not None:
+        try:
+            job_repo.enqueue_document(
+                document_id=document_id,
+                source_id=source_id,
+                job_type="alert_document",
+            )
+        except Exception:
+            logger.exception(
+                "failed to enqueue alert job: worker_id=%s error_type=EnqueueError",
+                worker_id,
+            )
+
+    return True
+
+
+def _run_intelligence_job(
+    job_repo: PipelineJobRepository,
+    worker: PipelineWorker,
+    job_id: UUID,
+    document_id: UUID,
+    job_type: str,
+    attempts: int,
+    max_attempts: int,
+    payload: dict[str, Any] | None,
+    worker_id: str,
+    metrics: MetricsRegistry | None,
+) -> bool:
+    """Process an ``intelligence_document`` job (best-effort)."""
+    intel = worker.intelligence_worker
+    if intel is None or not hasattr(intel, "process_document"):
+        job_repo.mark_succeeded(job_id)
+        return True
+
+    content = ""
+    if payload is not None:
+        content = payload.get("translated_text") or payload.get("content_text") or ""
+
+    job_repo.mark_running_stage(job_id, "intelligence")
+
+    start = time.monotonic()
+    try:
+        intel.process_document(document_id, content)
+    except Exception as exc:
+        elapsed = time.monotonic() - start
+        error_type = type(exc).__name__
+        if attempts < max_attempts:
+            job_repo.mark_retry(job_id, exc, stage="intelligence")
+            if metrics is not None:
+                metrics.pipeline_jobs_retried_total.labels(
+                    worker_type=_WORKER_TYPE, job_type=job_type
+                ).inc()
+                metrics.pipeline_job_duration_seconds.labels(
+                    worker_type=_WORKER_TYPE,
+                    job_type=job_type,
+                    stage="intelligence",
+                    outcome="retried",
+                ).observe(elapsed)
+            logger.info(
+                "intelligence job retried: worker_id=%s job_type=%s job_id=%s "
+                "attempt=%d max_attempts=%d error_type=%s",
+                worker_id,
+                job_type,
+                job_id,
+                attempts,
+                max_attempts,
+                error_type,
+            )
+        else:
+            job_repo.mark_dead_letter(job_id, exc)
+            if metrics is not None:
+                metrics.pipeline_jobs_dead_lettered_total.labels(
+                    worker_type=_WORKER_TYPE, job_type=job_type
+                ).inc()
+                metrics.pipeline_job_duration_seconds.labels(
+                    worker_type=_WORKER_TYPE,
+                    job_type=job_type,
+                    stage="intelligence",
+                    outcome="dead_lettered",
+                ).observe(elapsed)
+            logger.warning(
+                "intelligence job dead-lettered: worker_id=%s job_type=%s job_id=%s "
+                "attempts=%d error_type=%s",
+                worker_id,
+                job_type,
+                job_id,
+                attempts,
+                error_type,
+            )
+        return True
+
+    elapsed = time.monotonic() - start
+    job_repo.mark_succeeded(job_id)
+    if metrics is not None:
+        metrics.pipeline_jobs_succeeded_total.labels(
+            worker_type=_WORKER_TYPE, job_type=job_type
+        ).inc()
+        metrics.pipeline_job_duration_seconds.labels(
+            worker_type=_WORKER_TYPE,
+            job_type=job_type,
+            stage="intelligence",
+            outcome="succeeded",
+        ).observe(elapsed)
+    logger.info(
+        "intelligence job succeeded: worker_id=%s job_type=%s job_id=%s attempt=%d",
+        worker_id,
+        job_type,
+        job_id,
+        attempts,
+    )
+    return True
+
+
+def _run_alert_job(
+    job_repo: PipelineJobRepository,
+    worker: PipelineWorker,
+    job_id: UUID,
+    document_id: UUID,
+    job_type: str,
+    attempts: int,
+    max_attempts: int,
+    payload: dict[str, Any] | None,
+    worker_id: str,
+    metrics: MetricsRegistry | None,
+) -> bool:
+    """Process an ``alert_document`` job (best-effort)."""
+    matcher = worker.alert_matcher
+    if matcher is None or not hasattr(matcher, "match_document"):
+        job_repo.mark_succeeded(job_id)
+        return True
+
+    doc = worker.document_repository.get_by_id(document_id)
+    if doc is None:
+        job_repo.mark_succeeded(job_id)
+        return True
+
+    content = ""
+    if payload is not None:
+        content = payload.get("translated_text") or payload.get("content_text") or ""
+
+    job_repo.mark_running_stage(job_id, "alert")
+
+    start = time.monotonic()
+    try:
+        matcher.match_document(doc, content)
+    except Exception as exc:
+        elapsed = time.monotonic() - start
+        error_type = type(exc).__name__
+        if attempts < max_attempts:
+            job_repo.mark_retry(job_id, exc, stage="alert")
+            if metrics is not None:
+                metrics.pipeline_jobs_retried_total.labels(
+                    worker_type=_WORKER_TYPE, job_type=job_type
+                ).inc()
+                metrics.pipeline_job_duration_seconds.labels(
+                    worker_type=_WORKER_TYPE,
+                    job_type=job_type,
+                    stage="alert",
+                    outcome="retried",
+                ).observe(elapsed)
+            logger.info(
+                "alert job retried: worker_id=%s job_type=%s job_id=%s "
+                "attempt=%d max_attempts=%d error_type=%s",
+                worker_id,
+                job_type,
+                job_id,
+                attempts,
+                max_attempts,
+                error_type,
+            )
+        else:
+            job_repo.mark_dead_letter(job_id, exc)
+            if metrics is not None:
+                metrics.pipeline_jobs_dead_lettered_total.labels(
+                    worker_type=_WORKER_TYPE, job_type=job_type
+                ).inc()
+                metrics.pipeline_job_duration_seconds.labels(
+                    worker_type=_WORKER_TYPE,
+                    job_type=job_type,
+                    stage="alert",
+                    outcome="dead_lettered",
+                ).observe(elapsed)
+            logger.warning(
+                "alert job dead-lettered: worker_id=%s job_type=%s job_id=%s "
+                "attempts=%d error_type=%s",
+                worker_id,
+                job_type,
+                job_id,
+                attempts,
+                error_type,
+            )
+        return True
+
+    elapsed = time.monotonic() - start
+    job_repo.mark_succeeded(job_id)
+    if metrics is not None:
+        metrics.pipeline_jobs_succeeded_total.labels(
+            worker_type=_WORKER_TYPE, job_type=job_type
+        ).inc()
+        metrics.pipeline_job_duration_seconds.labels(
+            worker_type=_WORKER_TYPE,
+            job_type=job_type,
+            stage="alert",
+            outcome="succeeded",
+        ).observe(elapsed)
+    logger.info(
+        "alert job succeeded: worker_id=%s job_type=%s job_id=%s attempt=%d",
+        worker_id,
+        job_type,
+        job_id,
+        attempts,
+    )
     return True
 
 

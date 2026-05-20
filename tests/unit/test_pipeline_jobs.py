@@ -696,7 +696,42 @@ def test_requeue_dead_letter_returns_zero_when_none_match(engine: Engine) -> Non
         assert count == 0
 
 
-def test_end_to_end(engine: Engine) -> None:
+def test_claim_next_respects_job_type_filter(engine: Engine) -> None:
+    with engine.begin() as conn:
+        source_id = uuid4()
+        doc_a = uuid4()
+        doc_b = uuid4()
+        conn.execute(
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
+            {"id": source_id.hex, "name": "test", "type": "folder"},
+        )
+        for d in (doc_a, doc_b):
+            conn.execute(
+                sa.text(
+                    "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
+                    "VALUES (:id, :source_id, :eid, :source, :mime)"
+                ),
+                {
+                    "id": d.hex,
+                    "source_id": source_id.hex,
+                    "eid": d.hex,
+                    "source": "folder",
+                    "mime": "text/plain",
+                },
+            )
+
+        repo = PipelineJobRepository(conn)
+        repo.enqueue_document(doc_a, source_id, job_type="process_document")
+        repo.enqueue_document(doc_b, source_id, job_type="vector_index_document")
+
+        # Claim only process_document — should get doc_a
+        claimed = repo.claim_next("worker1", job_types=["process_document"])
+        assert claimed is not None
+        assert claimed["document_id"] == doc_a
+        assert claimed["job_type"] == "process_document"
+
+
+def test_claim_next_returns_none_when_no_matching_job_type(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
         document_id = uuid4()
@@ -715,33 +750,121 @@ def test_end_to_end(engine: Engine) -> None:
                 "eid": "ext1",
                 "source": "folder",
                 "mime": "text/plain",
-            },  # noqa: E501
+            },
         )
 
         repo = PipelineJobRepository(conn)
-        job_id = repo.enqueue_document(document_id, source_id, content_text="full lifecycle")
+        repo.enqueue_document(document_id, source_id, job_type="process_document")
 
+        # Claim with wrong job type filter
+        claimed = repo.claim_next("worker1", job_types=["vector_index_document"])
+        assert claimed is None
+
+
+def test_dead_lettered_job_not_claimable(engine: Engine) -> None:
+    with engine.begin() as conn:
+        source_id = uuid4()
+        document_id = uuid4()
+        conn.execute(
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
+            {"id": source_id.hex, "name": "test", "type": "folder"},
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
+                "VALUES (:id, :source_id, :eid, :source, :mime)"
+            ),
+            {
+                "id": document_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },
+        )
+
+        repo = PipelineJobRepository(conn)
+        job_id = repo.enqueue_document(document_id, source_id)
         claimed = repo.claim_next("worker1")
         assert claimed is not None
-        assert claimed["id"] == job_id
-        assert claimed["document_id"] == document_id
+        repo.mark_dead_letter(job_id, RuntimeError("fatal"))
 
-        repo.mark_running_stage(job_id, "extracting")
+        # Dead-lettered job should not be claimable
+        again = repo.claim_next("worker2")
+        assert again is None
 
-        stage = conn.execute(
-            sa.text("SELECT stage FROM pipeline_jobs WHERE id = :id"),
-            {"id": job_id.hex},
-        ).scalar()
-        assert stage == "extracting"
 
-        payload = repo.get_payload(document_id)
-        assert payload is not None
-        assert payload["content_text"] == "full lifecycle"
+def test_mark_succeeded_idempotent(engine: Engine) -> None:
+    """Calling mark_succeeded on an already-succeeded job is a no-op."""
+    with engine.begin() as conn:
+        source_id = uuid4()
+        document_id = uuid4()
+        conn.execute(
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
+            {"id": source_id.hex, "name": "test", "type": "folder"},
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
+                "VALUES (:id, :source_id, :eid, :source, :mime)"
+            ),
+            {
+                "id": document_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },
+        )
 
+        repo = PipelineJobRepository(conn)
+        job_id = repo.enqueue_document(document_id, source_id)
+        claimed = repo.claim_next("worker1")
+        assert claimed is not None
         repo.mark_succeeded(job_id)
 
+        # Second call should not raise and should not change state
+        repo.mark_succeeded(job_id)
         status = conn.execute(
             sa.text("SELECT status FROM pipeline_jobs WHERE id = :id"),
             {"id": job_id.hex},
         ).scalar()
         assert status == "succeeded"
+
+
+def test_mark_dead_letter_idempotent(engine: Engine) -> None:
+    """Calling mark_dead_letter on an already-dead-lettered job is a no-op."""
+    with engine.begin() as conn:
+        source_id = uuid4()
+        document_id = uuid4()
+        conn.execute(
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
+            {"id": source_id.hex, "name": "test", "type": "folder"},
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
+                "VALUES (:id, :source_id, :eid, :source, :mime)"
+            ),
+            {
+                "id": document_id.hex,
+                "source_id": source_id.hex,
+                "eid": "ext1",
+                "source": "folder",
+                "mime": "text/plain",
+            },
+        )
+
+        repo = PipelineJobRepository(conn)
+        job_id = repo.enqueue_document(document_id, source_id)
+        claimed = repo.claim_next("worker1")
+        assert claimed is not None
+        repo.mark_dead_letter(job_id, RuntimeError("fatal"))
+
+        # Second call should not raise and should not change state
+        repo.mark_dead_letter(job_id, RuntimeError("again"))
+        status = conn.execute(
+            sa.text("SELECT status FROM pipeline_jobs WHERE id = :id"),
+            {"id": job_id.hex},
+        ).scalar()
+        assert status == "dead_letter"

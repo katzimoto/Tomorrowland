@@ -20,6 +20,7 @@ from shared.metrics import MetricsRegistry
 logger = logging.getLogger(__name__)
 
 _WORKER_TYPE = "translation"
+_ALLOWED_JOB_TYPES = ["translate_document"]
 _REAP_INTERVAL_SECONDS = 60.0
 
 
@@ -42,7 +43,7 @@ def run_translation_once(
     Returns:
         ``True`` if a job was claimed and processed, ``False`` if none available.
     """
-    claimed = job_repo.claim_next(worker_id, job_types=["translate_document"])
+    claimed = job_repo.claim_next(worker_id, job_types=_ALLOWED_JOB_TYPES)
     if claimed is None:
         return False
 
