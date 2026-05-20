@@ -6,13 +6,14 @@ Before taking any action, Claude must read:
 
 1. `AGENTS.md`
 2. `docs/agents/token-efficiency.md`
-3. The GitHub Issue body, especially `Context Budget`, `Allowed Changes`,
+3. `docs/agents/coding-behavior.md`
+4. The GitHub Issue body, especially `Context Budget`, `Allowed Changes`,
    `Forbidden Changes`, relationships, and acceptance criteria
-4. The single relevant implementation/design plan only when the issue references
+5. The single relevant implementation/design plan only when the issue references
    one or when the issue lacks enough context
-5. One relevant `docs/context/<area>.md` file when implementation or review needs
+6. One relevant `docs/context/<area>.md` file when implementation or review needs
    area context
-6. `CHANGELOG.md` before assuming a feature is missing
+7. `CHANGELOG.md` before assuming a feature is missing
 
 Current executable release work is issue-based. Prefer the release queue in
 `AGENTS.md` and the live GitHub Issue body over stale phase-table status.
@@ -34,10 +35,19 @@ Use `docs/agents/token-efficiency.md` for context limits, search-first behavior,
 and required `Context Loaded` / `Context Skipped` / `Token Efficiency Notes`
 handoff fields.
 
+Use `docs/agents/coding-behavior.md` for the execution discipline on every
+non-trivial task: think before coding, keep changes simple, make surgical edits,
+turn the request into verifiable goals, and report verification honestly.
+
 Claude is preferred for planning, architecture/security review, broad UI
 localization, UX/text consistency, docs polish, issue decomposition, and reviewer
 reports. Implementation is allowed when the issue or user explicitly requests it
 and the scope is bounded.
+
+Before implementation, Claude should restate the goal, state assumptions,
+identify the smallest safe change, and name the verification step. Before final
+handoff, Claude should summarize changed files, verification performed, skipped
+checks, and remaining risks.
 
 For planning-only tasks, stop after posting the requested plan or review. Do not
 implement product code during a planning-only task.
