@@ -126,3 +126,68 @@ describe("TextPreview — with docId (API mode)", () => {
     expect(screen.getByText(/Second chunk/)).toBeInTheDocument();
   });
 });
+
+describe("TextPreview — search highlighting", () => {
+  it("wraps matches in <mark> elements when searchQuery is provided", async () => {
+    mockGetDocumentText.mockResolvedValue({
+      text: "the quick brown fox",
+      total_length: 19,
+      offset: 0,
+      limit: 10000,
+      truncated: false,
+    });
+    render(<TextPreview docId="doc-1" searchQuery="quick" />);
+    await waitFor(() => {
+      const mark = document.querySelector("mark");
+      expect(mark).toBeInTheDocument();
+      expect(mark?.textContent).toBe("quick");
+    });
+  });
+
+  it("reports correct match count via onMatchCountChange", async () => {
+    mockGetDocumentText.mockResolvedValue({
+      text: "foo bar foo baz foo",
+      total_length: 19,
+      offset: 0,
+      limit: 10000,
+      truncated: false,
+    });
+    const onMatchCountChange = vi.fn();
+    render(<TextPreview docId="doc-1" searchQuery="foo" onMatchCountChange={onMatchCountChange} />);
+    await waitFor(() => {
+      expect(onMatchCountChange).toHaveBeenCalledWith(3);
+    });
+  });
+
+  it("gives active match a distinct highlight when activeSearchIndex is set", async () => {
+    mockGetDocumentText.mockResolvedValue({
+      text: "abc abc abc",
+      total_length: 11,
+      offset: 0,
+      limit: 10000,
+      truncated: false,
+    });
+    render(<TextPreview docId="doc-1" searchQuery="abc" activeSearchIndex={1} />);
+    await waitFor(() => {
+      const marks = document.querySelectorAll("mark");
+      expect(marks.length).toBe(3);
+      // The second mark (index 1) should have a different class than the first
+      expect(marks[0].className).not.toBe(marks[1].className);
+    });
+  });
+
+  it("shows zero match count when query has no results", async () => {
+    mockGetDocumentText.mockResolvedValue({
+      text: "hello world",
+      total_length: 11,
+      offset: 0,
+      limit: 10000,
+      truncated: false,
+    });
+    const onMatchCountChange = vi.fn();
+    render(<TextPreview docId="doc-1" searchQuery="notfound" onMatchCountChange={onMatchCountChange} />);
+    await waitFor(() => {
+      expect(onMatchCountChange).toHaveBeenCalledWith(0);
+    });
+  });
+});

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import hljs from "highlight.js/lib/core";
 import json from "highlight.js/lib/languages/json";
@@ -11,6 +11,7 @@ import bash from "highlight.js/lib/languages/bash";
 import sql from "highlight.js/lib/languages/sql";
 import "highlight.js/styles/github.min.css";
 import { getDocumentText } from "@/api/documents";
+import { highlightMatches } from "../highlightMatches";
 import styles from "./CodeViewer.module.css";
 
 hljs.registerLanguage("json", json);
@@ -76,9 +77,20 @@ interface CodeViewerProps {
   docId: string;
   mimeType: string;
   title?: string;
+  searchQuery?: string;
+  activeSearchIndex?: number;
+  onMatchCountChange?: (count: number) => void;
 }
 
-export function CodeViewer({ docId, mimeType, title }: CodeViewerProps) {
+export function CodeViewer({
+  docId,
+  mimeType,
+  title,
+  searchQuery = "",
+  activeSearchIndex = 0,
+  onMatchCountChange,
+}: CodeViewerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [raw, setRaw] = useState(false);
   const [wrap, setWrap] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -96,13 +108,32 @@ export function CodeViewer({ docId, mimeType, title }: CodeViewerProps) {
   const lineCount = text ? text.split("\n").length : 0;
 
   const highlighted = useMemo(() => {
-    if (!text || raw || language === "plaintext") return null;
+    if (!text || raw || language === "plaintext" || searchQuery) return null;
     try {
       return hljs.highlight(text, { language }).value;
     } catch {
       return null;
     }
-  }, [text, language, raw]);
+  }, [text, language, raw, searchQuery]);
+
+  const { nodes: searchNodes, count: matchCount } = useMemo(
+    () =>
+      searchQuery && text
+        ? highlightMatches(text, searchQuery, activeSearchIndex, styles.match, styles.activeMatch)
+        : { nodes: null, count: 0 },
+    [text, searchQuery, activeSearchIndex],
+  );
+
+  useEffect(() => {
+    onMatchCountChange?.(matchCount);
+  }, [matchCount, onMatchCountChange]);
+
+  useEffect(() => {
+    if (!searchQuery || matchCount === 0) return;
+    containerRef.current
+      ?.querySelector<HTMLElement>(`[data-match-index="${activeSearchIndex}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [activeSearchIndex, searchQuery, matchCount]);
 
   function handleCopy() {
     void navigator.clipboard.writeText(text).then(() => {
@@ -117,6 +148,7 @@ export function CodeViewer({ docId, mimeType, title }: CodeViewerProps) {
 
   return (
     <div
+      ref={containerRef}
       className={styles.viewer}
       role="region"
       aria-label={title ? `Code: ${title}` : "Code viewer"}
@@ -155,7 +187,9 @@ export function CodeViewer({ docId, mimeType, title }: CodeViewerProps) {
           ))}
         </div>
         <pre className={`${styles.pre} ${wrap ? styles.preWrap : ""}`}>
-          {highlighted ? (
+          {searchNodes ? (
+            <code>{searchNodes}</code>
+          ) : highlighted ? (
             <code dangerouslySetInnerHTML={{ __html: highlighted }} />
           ) : (
             <code>{text}</code>

@@ -15,10 +15,11 @@ vi.mock("pdfjs-dist", () => ({
 import { getDocument } from "pdfjs-dist";
 const mockGetDocument = getDocument as ReturnType<typeof vi.fn>;
 
-function makeMockPage() {
+function makeMockPage(text = "sample pdf text") {
   return {
     getViewport: vi.fn().mockReturnValue({ width: 600, height: 800 }),
     render: vi.fn().mockReturnValue({ promise: Promise.resolve() }),
+    getTextContent: vi.fn().mockResolvedValue({ items: [{ str: text }] }),
   };
 }
 
@@ -165,5 +166,35 @@ describe("PdfViewer", () => {
     render(<PdfViewer docId="doc-1" />);
     await waitFor(() => screen.getByText("1 / 4"));
     expect(screen.getByRole("document", { name: /PDF page 1 of 4/i })).toBeInTheDocument();
+  });
+
+  it("reports match count via onMatchCountChange when searchQuery matches text", async () => {
+    const getPageMock = vi.fn().mockResolvedValue(
+      makeMockPage("hello world hello again")
+    );
+    const task = {
+      promise: Promise.resolve({ numPages: 1, getPage: getPageMock }),
+      destroy: vi.fn(),
+    };
+    mockGetDocument.mockReturnValue(task);
+    const onMatchCountChange = vi.fn();
+    render(<PdfViewer docId="doc-1" searchQuery="hello" onMatchCountChange={onMatchCountChange} />);
+    await waitFor(() => {
+      expect(onMatchCountChange).toHaveBeenCalledWith(2);
+    });
+  });
+
+  it("reports zero matches when searchQuery does not match", async () => {
+    const getPageMock = vi.fn().mockResolvedValue(makeMockPage("hello world"));
+    const task = {
+      promise: Promise.resolve({ numPages: 1, getPage: getPageMock }),
+      destroy: vi.fn(),
+    };
+    mockGetDocument.mockReturnValue(task);
+    const onMatchCountChange = vi.fn();
+    render(<PdfViewer docId="doc-1" searchQuery="notfound" onMatchCountChange={onMatchCountChange} />);
+    await waitFor(() => {
+      expect(onMatchCountChange).toHaveBeenCalledWith(0);
+    });
   });
 });

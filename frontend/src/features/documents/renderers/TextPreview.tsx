@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getDocumentText } from "@/api/documents";
+import { highlightMatches } from "../highlightMatches";
 import styles from "./renderers.module.css";
 
 const CHUNK_SIZE = 10_000;
@@ -10,9 +11,21 @@ interface TextPreviewProps {
   docId?: string;
   translationVersionId?: string;
   showOriginal?: boolean;
+  searchQuery?: string;
+  activeSearchIndex?: number;
+  onMatchCountChange?: (count: number) => void;
 }
 
-export function TextPreview({ text, docId, translationVersionId, showOriginal }: TextPreviewProps) {
+export function TextPreview({
+  text,
+  docId,
+  translationVersionId,
+  showOriginal,
+  searchQuery = "",
+  activeSearchIndex = 0,
+  onMatchCountChange,
+}: TextPreviewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [extraChunks, setExtraChunks] = useState<string[]>([]);
   const [extraTruncated, setExtraTruncated] = useState<boolean | null>(null);
   const [nextOffset, setNextOffset] = useState(CHUNK_SIZE);
@@ -31,22 +44,49 @@ export function TextPreview({ text, docId, translationVersionId, showOriginal }:
     staleTime: 5 * 60_000,
   });
 
-  // Reset accumulated pages when document identity changes
   useEffect(() => {
     setExtraChunks([]);
     setExtraTruncated(null);
     setNextOffset(CHUNK_SIZE);
   }, [docId, translationVersionId, showOriginal]);
 
+  const baseText = docId
+    ? [data?.text ?? "", ...extraChunks].join("")
+    : (text ?? "");
+
+  const { nodes: highlighted, count: matchCount } = useMemo(
+    () =>
+      searchQuery
+        ? highlightMatches(baseText, searchQuery, activeSearchIndex, styles.match, styles.activeMatch)
+        : { nodes: null, count: 0 },
+    [baseText, searchQuery, activeSearchIndex],
+  );
+
+  useEffect(() => {
+    onMatchCountChange?.(matchCount);
+  }, [matchCount, onMatchCountChange]);
+
+  useEffect(() => {
+    if (!searchQuery || matchCount === 0) return;
+    containerRef.current
+      ?.querySelector<HTMLElement>(`[data-match-index="${activeSearchIndex}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [activeSearchIndex, searchQuery, matchCount]);
+
   if (!docId) {
-    return <pre className={styles.textContent}>{text || "No text content available."}</pre>;
+    return (
+      <div ref={containerRef}>
+        <pre className={styles.textContent}>
+          {searchQuery ? highlighted : (text || "No text content available.")}
+        </pre>
+      </div>
+    );
   }
 
   if (isLoading) {
     return <div className={styles.muted}>Loading…</div>;
   }
 
-  const allText = [data?.text ?? "", ...extraChunks].join("");
   const isTruncated = extraTruncated !== null ? extraTruncated : (data?.truncated ?? false);
 
   async function handleLoadMore() {
@@ -68,8 +108,10 @@ export function TextPreview({ text, docId, translationVersionId, showOriginal }:
   }
 
   return (
-    <div>
-      <pre className={styles.textContent}>{allText || "No text content available."}</pre>
+    <div ref={containerRef}>
+      <pre className={styles.textContent}>
+        {searchQuery ? highlighted : (baseText || "No text content available.")}
+      </pre>
       {isTruncated && (
         <button
           className={styles.loadMoreBtn}

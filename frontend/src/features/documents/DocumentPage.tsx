@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDownloadUrl, getPreview, getTranslationVersions } from "@/api/documents";
@@ -8,6 +8,7 @@ import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { useT } from "@/i18n/index";
 import { measurePerformance } from "@/lib/performanceTelemetry";
 import { DocumentToolbar } from "./DocumentToolbar";
+import { DocumentSearchBar } from "./DocumentSearchBar";
 import { FidelityStatusBar } from "./FidelityStatusBar";
 import { PreviewPane } from "./PreviewPane";
 import { InsightPane } from "./InsightPane";
@@ -23,18 +24,50 @@ export function DocumentPage() {
   >(undefined);
   const [activeMode, setActiveMode] = useState<ViewMode>("original");
   const [imageZoom, setImageZoom] = useState<number | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [rawQuery, setRawQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [matchCount, setMatchCount] = useState(0);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const initialModeDoneRef = useRef(false);
   const qc = useQueryClient();
   const hadInProgressRef = useRef(false);
 
   const showOriginal = activeMode === "original" || activeMode === "extracted";
 
+  // Debounce search query (200 ms)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(rawQuery), 200);
+    return () => clearTimeout(timer);
+  }, [rawQuery]);
+
+  // Reset active index when query changes
+  useEffect(() => {
+    setActiveSearchIndex(0);
+  }, [debouncedQuery]);
+
+  // Reset match count when search closes
+  useEffect(() => {
+    if (!searchOpen) { setMatchCount(0); setActiveSearchIndex(0); }
+  }, [searchOpen]);
+
+  const handleMatchCountChange = useCallback((n: number) => {
+    setMatchCount(n);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setRawQuery("");
+    setDebouncedQuery("");
+  }, []);
+
   // Reset mode and image zoom when navigating to a different document.
   useEffect(() => {
     initialModeDoneRef.current = false;
     setActiveMode("original");
     setImageZoom(null);
-  }, [docId]);
+    closeSearch();
+  }, [docId, closeSearch]);
 
   // Poll for translation versions when there are in-progress translations.
   // When a pending/running translation completes, invalidate the preview
@@ -127,8 +160,20 @@ export function DocumentPage() {
       ? preview.mime_type.startsWith("image/") && preview.mime_type !== "image/tiff"
       : false;
 
+  const searchable = !preview.mime_type.startsWith("image/") &&
+    !preview.mime_type.startsWith("audio/") &&
+    !preview.mime_type.startsWith("video/") &&
+    !["application/zip", "application/x-tar", "application/x-7z-compressed", "application/x-rar-compressed"].includes(preview.mime_type);
+
+  function handlePageKeyDown(e: React.KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "f" && searchable) {
+      e.preventDefault();
+      setSearchOpen(true);
+    }
+  }
+
   return (
-    <div className={styles.page}>
+    <div className={styles.page} onKeyDown={handlePageKeyDown} tabIndex={-1}>
       <DocumentToolbar
         preview={preview}
         selectedVersionId={selectedVersionId}
@@ -141,6 +186,9 @@ export function DocumentPage() {
         onShowOriginalChange={(val) => setActiveMode(val ? "original" : "translation")}
         onModeChange={setActiveMode}
         onImageZoomChange={setImageZoom}
+        searchable={searchable}
+        searchOpen={searchOpen}
+        onSearchToggle={() => setSearchOpen((o) => !o)}
       />
       {preview.has_newer_version && preview.latest_document_id && (
         <VersionBanner latestDocumentId={preview.latest_document_id} />
@@ -150,6 +198,17 @@ export function DocumentPage() {
         translationQuality={preview.translation_quality}
         downloadUrl={getDownloadUrl(preview.document_id)}
       />
+      {searchOpen && (
+        <DocumentSearchBar
+          query={rawQuery}
+          matchCount={matchCount}
+          activeIndex={activeSearchIndex}
+          onQueryChange={setRawQuery}
+          onNext={() => setActiveSearchIndex((i) => (i + 1) % Math.max(1, matchCount))}
+          onPrev={() => setActiveSearchIndex((i) => (i - 1 + Math.max(1, matchCount)) % Math.max(1, matchCount))}
+          onClose={closeSearch}
+        />
+      )}
       <div className={styles.body}>
         <div className={styles.previewCol}>
           <PreviewPane
@@ -158,6 +217,9 @@ export function DocumentPage() {
             selectedVersionId={selectedVersionId}
             imageZoom={imageZoom}
             onImageZoomChange={setImageZoom}
+            searchQuery={debouncedQuery}
+            activeSearchIndex={activeSearchIndex}
+            onMatchCountChange={handleMatchCountChange}
           />
         </div>
         <div className={styles.insightCol}>
