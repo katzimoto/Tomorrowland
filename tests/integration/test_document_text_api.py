@@ -59,7 +59,12 @@ def _create_doc(
         return str(doc.id)
 
 
-def _insert_payload(engine: Engine, document_id: str, content_text: str = "", translated_text: str = "") -> None:
+def _insert_payload(
+    engine: Engine,
+    document_id: str,
+    content_text: str = "",
+    translated_text: str = "",
+) -> None:
     with engine.begin() as connection:
         connection.execute(
             sa.text("""
@@ -109,12 +114,20 @@ def test_returns_content_text_when_no_translation(migrated_engine: Engine, tmp_p
     assert data["truncated"] is False
 
 
-def test_show_original_returns_content_text_over_translation(migrated_engine: Engine, tmp_path: Path) -> None:
+def test_show_original_returns_content_text_over_translation(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
     _setup_users(migrated_engine)
     test_file = tmp_path / "test.txt"
     test_file.write_text("Original text.")
     doc_id = _create_doc(migrated_engine, path=str(test_file))
-    _insert_payload(migrated_engine, doc_id, content_text="Original text.", translated_text="Translated text.")
+    _insert_payload(
+        migrated_engine,
+        doc_id,
+        content_text="Original text.",
+        translated_text="Translated text.",
+    )
 
     client = _make_client(migrated_engine)
     token = _user_token(client)
@@ -127,12 +140,20 @@ def test_show_original_returns_content_text_over_translation(migrated_engine: En
     assert resp.json()["text"] == "Original text."
 
 
-def test_returns_translation_by_default_when_available(migrated_engine: Engine, tmp_path: Path) -> None:
+def test_returns_translation_by_default_when_available(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
     _setup_users(migrated_engine)
     test_file = tmp_path / "test.txt"
     test_file.write_text("Original text.")
     doc_id = _create_doc(migrated_engine, path=str(test_file))
-    _insert_payload(migrated_engine, doc_id, content_text="Original text.", translated_text="Translated text.")
+    _insert_payload(
+        migrated_engine,
+        doc_id,
+        content_text="Original text.",
+        translated_text="Translated text.",
+    )
 
     client = _make_client(migrated_engine)
     token = _user_token(client)
@@ -188,7 +209,10 @@ def test_offset_beyond_end_returns_empty(migrated_engine: Engine, tmp_path: Path
     assert data["truncated"] is False
 
 
-def test_empty_text_returns_empty_response_not_error(migrated_engine: Engine, tmp_path: Path) -> None:
+def test_empty_text_returns_empty_response_not_error(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
     _setup_users(migrated_engine)
     test_file = tmp_path / "test.txt"
     test_file.write_text("ignored file")
@@ -235,7 +259,10 @@ def test_limit_validation_rejects_above_100000(migrated_engine: Engine, tmp_path
     assert resp.status_code == 422
 
 
-def test_translation_version_id_resolves_specific_version(migrated_engine: Engine, tmp_path: Path) -> None:
+def test_translation_version_id_resolves_specific_version(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
     _setup_users(migrated_engine)
     test_file = tmp_path / "test.txt"
     test_file.write_text("Original.")

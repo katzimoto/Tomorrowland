@@ -134,9 +134,7 @@ class PreviewService:
 
         payload_row = (
             self._connection.execute(
-                sa.text(
-                    "SELECT content_text FROM document_payloads WHERE document_id = :id"
-                ),
+                sa.text("SELECT content_text FROM document_payloads WHERE document_id = :id"),
                 {"id": db_uuid(document_id)},
             )
             .mappings()

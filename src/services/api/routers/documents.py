@@ -549,7 +549,7 @@ def download(
             start = int(start_str) if start_str else 0
             end = int(end_str) if end_str else file_size - 1
         except (ValueError, AttributeError):
-            raise HTTPException(status_code=416, detail="Invalid Range header")
+            raise HTTPException(status_code=416, detail="Invalid Range header") from None
 
         if start >= file_size or end >= file_size or start > end:
             raise HTTPException(
