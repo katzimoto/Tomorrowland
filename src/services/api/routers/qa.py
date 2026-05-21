@@ -121,6 +121,7 @@ def qa(
             "answer": result.answer,
             "citations": [
                 {
+                    "citation_id": c.citation_id,
                     "document_id": c.document_id,
                     "doc_title": c.doc_title,
                     "chunk_text": c.chunk_text,

@@ -23,6 +23,31 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-21 — Document Chat Phase A foundation complete
+
+Status: Done
+Source: issue #472
+
+What changed:
+- Added `citation_id` UUID to backend `Citation` model (auto-generated via `uuid4` default factory).
+- Included `citation_id` in `/qa` response serialization.
+- Added `chunk_index`, `source_id`, `citation_id` to `QACitation` TypeScript type.
+- Fixed `CitationList` React key collision: `key={c.citation_id ?? `${c.document_id}-${c.chunk_index ?? idx}`}`.
+- Replaced 1-sentence grounding prompt with 8-rule prompt per Document Chat design spec.
+
+Verification:
+- `ruff check` + `ruff format` — passed
+- `mypy` — 3 source files, no issues
+- `pytest tests/unit/test_rag_retrieval_eval.py tests/unit/test_rag_reranker.py` — 18 passed
+- `tsc --noEmit` — exit 0
+- Frontend vitest unavailable locally (Node 20.9.0, needs 22+) — pre-existing env issue
+
+Open risks:
+- Frontend test suite not run locally due to Node version gap — CI will verify
+
+Next agent prompt:
+- Phase B (persistent chat sessions) after PR #472 merges.
+
 ## 2026-05-21 — #449 in-document search complete
 
 Status: Done
