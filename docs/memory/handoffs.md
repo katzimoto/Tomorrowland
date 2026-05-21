@@ -23,6 +23,41 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-21 — Document Chat Phase B6 frontend complete
+
+Status: Done
+Source: issue #473, commit e95f696 on feature/document-chat
+
+What changed:
+- `frontend/src/api/chat.ts` — typed API client for all /chat/* endpoints
+- `frontend/src/features/chat/` — ChatPage, ChatSidebar, ChatWindow, ChatInput,
+  MessageList, MessageBubble, ChatCitationCard, ChatCitationList (all new)
+- `frontend/src/app/routes.tsx` — `/chat` route added
+- `frontend/src/components/layout/NavRail.tsx` — "Chat" nav item (MessagesSquare icon)
+- `frontend/src/i18n/locales/en.ts` + `he.ts` — nav.chat + full chat section strings
+- `frontend/src/features/chat/ChatPage.test.tsx` — 11 test cases
+
+Key design decisions:
+- Session messages managed in local state after initial query seed (prevents refetch flash)
+- Seeded once per session via ref guard; staleTime=5m on session query
+- User message optimistically added; replaced by server user+assistant turn on success
+- citation_id used as React key (fallback: `${document_id}-${chunk_index ?? idx}`)
+- TanStack Query v5: useEffect used instead of onSuccess on useQuery
+
+Verification:
+- `tsc --noEmit` — exit 0
+- Vitest blocked by pre-existing Node 20.9 / Node 22 gap — CI will run
+- `npm run lint` — same Node gap blocks formatter output
+
+Open risks:
+- Vitest/ESLint need Node 22 to run locally — CI is the only test gate for now
+- `MessagesSquare` icon from lucide-react — confirm it exists in the pinned version at CI time
+- Phase C InsightPane migration not yet done; InsightPane still shows legacy QAPanel
+
+Next agent prompt:
+- B7 integration tests: full session lifecycle, cross-user 403, degraded Qdrant fallback
+- Then Phase C: scope model, ChatScope filter, ScopeBadge, InsightPane migration
+
 ## 2026-05-21 — Phase B1-B2 chat_sessions + chat_messages migrations
 
 Status: Done
