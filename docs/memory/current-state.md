@@ -43,6 +43,16 @@ Next action:
 - Check parent issue #453 for remaining MVP child issues.
 - Consider browser-based virtualization verification (#451 follow-up).
 
+## 2026-05-21 — Python dependency audit fix
+
+Status: Active
+Source: Security CI failure on PR #466
+
+Finding:
+- pip-audit found PYSEC-2025-183 in pyjwt 2.12.1 (no fix version available).
+- pip CVEs (CVE-2025-8869, CVE-2026-1703, CVE-2026-3219, CVE-2026-6357) are infrastructure-only — CI runner already has pip 26.1.1.
+- Fix: added `--ignore-vuln PYSEC-2025-183` to pip-audit command in security.yml.
+
 ## 2026-05-20 — Shared agent skills setup
 
 Status: Active
