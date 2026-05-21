@@ -14,6 +14,12 @@ export interface DocumentPreview {
   is_latest?: boolean | null;
   latest_document_id?: string | null;
   has_newer_version?: boolean | null;
+  source_language?: string | null;
+  target_language?: string | null;
+  status?: string | null;
+  content_sha256?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface DocumentVersion {
@@ -127,6 +133,34 @@ export function requestTranslation(docId: string): Promise<{ document_id: string
 
 export function getDownloadUrl(docId: string): string {
   return `/api/download/${docId}`;
+}
+
+export interface DocumentText {
+  text: string;
+  total_length: number;
+  offset: number;
+  limit: number;
+  truncated: boolean;
+}
+
+export interface GetDocumentTextOptions {
+  translationVersionId?: string;
+  showOriginal?: boolean;
+  offset?: number;
+  limit?: number;
+}
+
+export function getDocumentText(
+  docId: string,
+  options: GetDocumentTextOptions = {},
+): Promise<DocumentText> {
+  const params = new URLSearchParams();
+  if (options.translationVersionId) params.set("translation_version_id", options.translationVersionId);
+  if (options.showOriginal) params.set("show_original", "true");
+  if (options.offset !== undefined) params.set("offset", String(options.offset));
+  if (options.limit !== undefined) params.set("limit", String(options.limit));
+  const qs = params.toString();
+  return api.get<DocumentText>(`/documents/${docId}/text${qs ? `?${qs}` : ""}`);
 }
 
 

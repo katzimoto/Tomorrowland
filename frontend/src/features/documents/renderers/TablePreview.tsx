@@ -1,27 +1,81 @@
+import { useCallback } from "react";
+import { List } from "react-window";
 import styles from "./renderers.module.css";
+
+const VIRTUALIZE_THRESHOLD = 1_000;
+const ROW_HEIGHT = 32;
 
 interface TablePreviewProps {
   text: string;
+  searchQuery?: string;
 }
 
-export function TablePreview({ text }: TablePreviewProps) {
+function cellMatches(cell: string, searchQuery: string): boolean {
+  if (!searchQuery.trim()) return false;
+  return cell.toLowerCase().includes(searchQuery.toLowerCase());
+}
+
+export function TablePreview({ text, searchQuery = "" }: TablePreviewProps) {
   const rows = text
     .split("\n")
     .filter(Boolean)
     .map((row) => row.split("\t"));
+
+  const RowComponent = useCallback(
+    ({ index, style }: { index: number; style: React.CSSProperties }) => (
+      <div style={style} role="row">
+        {rows[index + 1]?.map((cell, ci) => (
+          <div key={ci} role="cell" className={`${styles.td} ${cellMatches(cell, searchQuery) ? styles.match : ""}`}>
+            {cell}
+          </div>
+        )) ?? null}
+      </div>
+    ),
+    [rows, searchQuery],
+  );
 
   if (!rows.length) {
     return <p className={styles.muted}>No table data available.</p>;
   }
 
   const [header, ...body] = rows;
+  const isVirtualized = body.length > VIRTUALIZE_THRESHOLD;
+
+  if (isVirtualized) {
+    return (
+      <div className={styles.tableWrapper}>
+        <div role="table" aria-label="Document table">
+          <div role="rowgroup">
+            <div role="row">
+              {header.map((cell, i) => (
+                <div key={i} role="columnheader" scope="col" className={styles.th}>
+                  {cell}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div role="rowgroup">
+            <List
+              height={Math.min(body.length * ROW_HEIGHT, 600)}
+              width="100%"
+              rowCount={body.length}
+              rowHeight={ROW_HEIGHT}
+              rowComponent={RowComponent}
+              rowProps={{}}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.tableWrapper}>
-      <table className={styles.table}>
+      <table className={styles.table} aria-label="Document table">
         <thead>
           <tr>
             {header.map((cell, i) => (
-              <th key={i} className={styles.th}>{cell}</th>
+              <th key={i} scope="col" className={`${styles.th} ${cellMatches(cell, searchQuery) ? styles.match : ""}`}>{cell}</th>
             ))}
           </tr>
         </thead>
@@ -29,7 +83,7 @@ export function TablePreview({ text }: TablePreviewProps) {
           {body.map((row, ri) => (
             <tr key={ri}>
               {row.map((cell, ci) => (
-                <td key={ci} className={styles.td}>{cell}</td>
+                <td key={ci} className={`${styles.td} ${cellMatches(cell, searchQuery) ? styles.match : ""}`}>{cell}</td>
               ))}
             </tr>
           ))}

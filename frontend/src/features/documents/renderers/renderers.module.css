@@ -199,3 +199,107 @@
   font-size: 0.875rem;
   padding: var(--space-4);
 }
+
+.pdfWrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.pdfControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+
+.pdfBtn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-size: 1rem;
+  line-height: 1;
+  min-width: 2rem;
+}
+.pdfBtn:hover:not(:disabled) { background: var(--color-surface); }
+.pdfBtn:disabled { opacity: 0.4; cursor: default; }
+
+.pdfPageInfo {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  padding: 0 var(--space-2);
+  min-width: 4rem;
+  text-align: center;
+}
+
+.pdfDivider {
+  width: 1px;
+  height: 1.25rem;
+  background: var(--color-border);
+  margin: 0 var(--space-1);
+}
+
+.pdfCanvasWrapper {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--color-bg);
+}
+
+.pdfCanvasWrapper canvas {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  display: block;
+}
+
+.loadMoreBtn {
+  display: block;
+  margin: var(--space-2) var(--space-4) var(--space-4);
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.875rem;
+  color: var(--color-accent);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.loadMoreBtn:disabled { opacity: 0.5; cursor: default; }
+
+.virtualContainer {
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-family-mono, monospace);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+}
+
+.virtualRow {
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 var(--space-4);
+  display: flex;
+  align-items: center;
+}
+
+.match {
+  background: #fef08a;
+  color: inherit;
+  border-radius: 2px;
+}
+
+.activeMatch {
+  background: #fb923c;
+  color: #fff;
+  border-radius: 2px;
+}

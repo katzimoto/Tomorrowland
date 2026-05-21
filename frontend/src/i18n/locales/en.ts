@@ -96,6 +96,7 @@ export interface Translations {
     tabComments: string;
     tabSubscriptions: string;
     tabVersions: string;
+    tabDetails: string;
     versionLatest: string;
     versionOlder: string;
     versionBannerTitle: string;
@@ -392,6 +393,7 @@ export const en: Translations = {
     tabComments: "Comments",
     tabSubscriptions: "Subscriptions",
     tabVersions: "Versions",
+    tabDetails: "Details",
     versionLatest: "Latest",
     versionOlder: "Older version",
     versionBannerTitle: "A newer version of this document is available.",
