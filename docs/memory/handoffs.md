@@ -23,6 +23,30 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-21 — #443 view mode switcher complete
+
+Status: Done
+Source: issue #443, PR #457
+
+What changed:
+- Added `ViewModeSwitcher.tsx` — segmented button group (original/extracted/translation); hidden when ≤1 mode available.
+- Added `FidelityStatusBar.tsx` — single-line strip with colour dot + accessible aria-label + fidelity text; sits between toolbar and viewer body in `DocumentPage`.
+- `DocumentPage`: replaced `showOriginal` state with `activeMode` (ViewMode); derives showOriginal; defaults to `translation` if available translations exist; resets on docId change.
+- `DocumentToolbar`: added `availableModes`/`activeMode`/`onModeChange` props; renders ViewModeSwitcher in controls.
+- `PreviewPane`: added `activeMode`/`selectedVersionId` props; extracted/translation modes override MIME dispatch to TextPreview; HTML and images always rendered natively.
+
+Verification:
+- 236/236 tests passed (49 test files). TypeScript clean.
+- New tests: 6 ViewModeSwitcher + 10 FidelityStatusBar + 4 new PreviewPane + 5 new DocumentPage.
+
+Open risks:
+- FidelityStatusBar doesn't cover red/grey dot states (file unavailable, no preview) — those require server flag not yet available.
+- `converted` preview mode wired to #446; skipped per issue spec.
+
+Next agent prompt:
+- Merge PR #457 into `feature/document-viewer`.
+- Check #453 for the next remaining child issue in the MVP track.
+
 ## 2026-05-21 — #442 PDF.js viewer complete; #443 view mode switcher next
 
 Status: Active

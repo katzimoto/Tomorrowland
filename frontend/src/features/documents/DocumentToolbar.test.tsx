@@ -36,8 +36,11 @@ describe("DocumentToolbar", () => {
         preview={mockPreview}
         selectedVersionId={undefined}
         showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
         onVersionChange={vi.fn()}
         onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
       />
     );
     expect(
@@ -51,8 +54,11 @@ describe("DocumentToolbar", () => {
         preview={mockPreview}
         selectedVersionId={undefined}
         showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
         onVersionChange={vi.fn()}
         onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
       />
     );
     expect(
@@ -66,8 +72,11 @@ describe("DocumentToolbar", () => {
         preview={mockPreview}
         selectedVersionId={undefined}
         showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
         onVersionChange={vi.fn()}
         onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
       />
     );
     expect(screen.getByRole("link", { name: /download/i })).toHaveAttribute(
@@ -82,8 +91,11 @@ describe("DocumentToolbar", () => {
         preview={mockPreview}
         selectedVersionId={undefined}
         showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
         onVersionChange={vi.fn()}
         onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
       />
     );
     expect(
@@ -97,8 +109,11 @@ describe("DocumentToolbar", () => {
         preview={{ ...mockPreview, translation_quality: "high" }}
         selectedVersionId={undefined}
         showOriginal={false}
+        availableModes={["original", "translation"]}
+        activeMode="translation"
         onVersionChange={vi.fn()}
         onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
       />
     );
     expect(
@@ -112,8 +127,11 @@ describe("DocumentToolbar", () => {
         preview={mockPreview}
         selectedVersionId={undefined}
         showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
         onVersionChange={vi.fn()}
         onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
       />
     );
     expect(screen.getByText("Fast translation")).toBeInTheDocument();
