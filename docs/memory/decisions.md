@@ -87,6 +87,38 @@ Decision:
 Impact:
 - If the backend is ever normalized to 204, update `deleteChatSession` return type and callers.
 
+## 2026-05-21 — Document Chat: dual-gate feature flag in tests
+
+Status: Active
+Source: issue #473, `tests/integration/test_chat_api.py`, `src/shared/feature_flags.py`
+
+Decision:
+- Every `/chat` route checks **two** guards: `Settings.feature_document_chat` AND `system_config.feature.document_chat` in the DB. Both must be `True` or every endpoint returns 404.
+- The foundation migration seeds `feature.document_chat = False` in `system_config` (production safety default).
+- Integration tests must override **both**: pass `feature_document_chat=True` to `Settings(...)` AND run `INSERT OR REPLACE INTO system_config (key, value) VALUES ('feature.document_chat', 'true')` in the test setup fixture.
+- `.env` sets `FEATURE_MEILISEARCH_SEARCH=true`; `_settings()` helpers must explicitly override `feature_meilisearch_search=False` to prevent test workers attempting a Docker-DNS connection to `meilisearch:7700`.
+
+Impact:
+- Any new feature with a similar dual-gate pattern must be handled the same way in tests.
+- Skipping either override produces 404 on every request — a confusing failure mode when the feature code itself is correct.
+
+Next action:
+- Document this pattern in `docs/context/chat.md` if a context file is created for Phase C.
+
+## 2026-05-21 — Document Chat: typed UUID path params
+
+Status: Active
+Source: issue #473, `src/services/api/routers/chat.py`
+
+Decision:
+- Route handlers that accept a resource ID path param must type it as `UUID` (not `str`) in FastAPI.
+- FastAPI validates the param on entry and returns 422 for malformed input; manual `UUID(hex=str_param)` would raise unhandled `ValueError` → 500.
+- The pattern: `def get_session(session_id: UUID, ...)` with no manual conversion; pass `session_id` directly to repository methods that accept `UUID`.
+
+Impact:
+- All 4 chat route handlers (`get_session`, `update_session`, `delete_session`, `create_message`) follow this pattern.
+- Apply the same pattern to any new route with a UUID path segment.
+
 ## 2026-05-20 — Repo memory is the durable record
 
 Status: Active

@@ -21,7 +21,7 @@ Finding:
 
 ## 2026-05-21 — Document viewer a11y, perf, telemetry hardening (#450)
 
-Status: Active
+Status: Done
 Source: issue #450; PR #464
 
 Finding:
