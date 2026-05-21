@@ -22,16 +22,18 @@ export function DocumentPage() {
     string | undefined
   >(undefined);
   const [activeMode, setActiveMode] = useState<ViewMode>("original");
+  const [imageZoom, setImageZoom] = useState<number | null>(null);
   const initialModeDoneRef = useRef(false);
   const qc = useQueryClient();
   const hadInProgressRef = useRef(false);
 
   const showOriginal = activeMode === "original" || activeMode === "extracted";
 
-  // Reset mode when navigating to a different document.
+  // Reset mode and image zoom when navigating to a different document.
   useEffect(() => {
     initialModeDoneRef.current = false;
     setActiveMode("original");
+    setImageZoom(null);
   }, [docId]);
 
   // Poll for translation versions when there are in-progress translations.
@@ -119,6 +121,12 @@ export function DocumentPage() {
     );
   }
 
+  // Image viewer controls are shown only when viewing an image in original mode.
+  const showImageControls =
+    !activeMode || activeMode === "original"
+      ? preview.mime_type.startsWith("image/") && preview.mime_type !== "image/tiff"
+      : false;
+
   return (
     <div className={styles.page}>
       <DocumentToolbar
@@ -127,9 +135,12 @@ export function DocumentPage() {
         showOriginal={showOriginal}
         availableModes={availableModes}
         activeMode={activeMode}
+        showImageControls={showImageControls}
+        imageZoom={imageZoom}
         onVersionChange={setSelectedVersionId}
         onShowOriginalChange={(val) => setActiveMode(val ? "original" : "translation")}
         onModeChange={setActiveMode}
+        onImageZoomChange={setImageZoom}
       />
       {preview.has_newer_version && preview.latest_document_id && (
         <VersionBanner latestDocumentId={preview.latest_document_id} />
@@ -145,6 +156,8 @@ export function DocumentPage() {
             preview={preview}
             activeMode={activeMode}
             selectedVersionId={selectedVersionId}
+            imageZoom={imageZoom}
+            onImageZoomChange={setImageZoom}
           />
         </div>
         <div className={styles.insightCol}>

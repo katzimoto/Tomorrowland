@@ -12,15 +12,20 @@ import { ViewModeSwitcher } from "./ViewModeSwitcher";
 import type { ViewMode } from "./ViewModeSwitcher";
 import styles from "./DocumentToolbar.module.css";
 
+const ZOOM_STEPS = [25, 50, 75, 100, 125, 150, 200, 300, 400];
+
 interface DocumentToolbarProps {
   preview: DocumentPreview;
   selectedVersionId: string | undefined;
   showOriginal: boolean;
   availableModes: ViewMode[];
   activeMode: ViewMode;
+  showImageControls?: boolean;
+  imageZoom?: number | null;
   onVersionChange: (versionId: string | undefined) => void;
   onShowOriginalChange: (showOriginal: boolean) => void;
   onModeChange: (mode: ViewMode) => void;
+  onImageZoomChange?: (zoom: number | null) => void;
 }
 
 export function DocumentToolbar({
@@ -29,9 +34,12 @@ export function DocumentToolbar({
   showOriginal,
   availableModes,
   activeMode,
+  showImageControls = false,
+  imageZoom = null,
   onVersionChange,
   onShowOriginalChange,
   onModeChange,
+  onImageZoomChange,
 }: DocumentToolbarProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -81,6 +89,50 @@ export function DocumentToolbar({
               <Languages size={14} />
               {t.document.requestTranslation}
             </Button>
+          )}
+          {showImageControls && onImageZoomChange && (
+            <div className={styles.imageZoomControls}>
+              <button
+                className={styles.zoomBtn}
+                aria-label="Zoom out"
+                disabled={imageZoom !== null && imageZoom <= ZOOM_STEPS[0]}
+                onClick={() => {
+                  if (imageZoom === null || imageZoom <= ZOOM_STEPS[0]) {
+                    onImageZoomChange(null);
+                  } else {
+                    const below = ZOOM_STEPS.filter((s) => s < imageZoom);
+                    onImageZoomChange(below.length ? below[below.length - 1] : null);
+                  }
+                }}
+              >
+                −
+              </button>
+              <span className={styles.zoomLevel} aria-live="polite">
+                {imageZoom === null ? "Fit" : `${imageZoom}%`}
+              </span>
+              <button
+                className={styles.zoomBtn}
+                aria-label="Zoom in"
+                disabled={imageZoom !== null && imageZoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
+                onClick={() => {
+                  if (imageZoom === null) {
+                    onImageZoomChange(100);
+                  } else {
+                    const above = ZOOM_STEPS.filter((s) => s > imageZoom);
+                    onImageZoomChange(above.length ? above[0] : imageZoom);
+                  }
+                }}
+              >
+                +
+              </button>
+              <button
+                className={styles.zoomBtn}
+                aria-label="Reset zoom"
+                onClick={() => onImageZoomChange(null)}
+              >
+                ↺
+              </button>
+            </div>
           )}
           <a
             href={getDownloadUrl(preview.document_id)}

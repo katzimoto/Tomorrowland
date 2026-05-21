@@ -5,7 +5,7 @@ import { TablePreview } from "./renderers/TablePreview";
 import { ArchivePreview } from "./renderers/ArchivePreview";
 import { EmailPreview } from "./renderers/EmailPreview";
 import { SlidesPreview } from "./renderers/SlidesPreview";
-import { ImagePreview } from "./renderers/ImagePreview";
+import { ImageViewer } from "./renderers/ImageViewer";
 import { PdfViewer } from "./renderers/PdfViewer";
 import { UnsupportedPreview } from "./renderers/UnsupportedPreview";
 import type { ViewMode } from "./ViewModeSwitcher";
@@ -15,13 +15,15 @@ interface PreviewPaneProps {
   preview: DocumentPreview;
   activeMode?: ViewMode;
   selectedVersionId?: string;
+  imageZoom?: number | null;
+  onImageZoomChange?: (zoom: number | null) => void;
 }
 
 function downloadUrl(docId: string) {
   return `/api/download/${docId}`;
 }
 
-export function PreviewPane({ preview, activeMode, selectedVersionId }: PreviewPaneProps) {
+export function PreviewPane({ preview, activeMode, selectedVersionId, imageZoom = null, onImageZoomChange }: PreviewPaneProps) {
   const mime = preview.mime_type;
   const text = preview.snippet;
   const dl = downloadUrl(preview.document_id);
@@ -113,7 +115,13 @@ export function PreviewPane({ preview, activeMode, selectedVersionId }: PreviewP
   if (mime.startsWith("image/")) {
     return (
       <div className={styles.pane}>
-        <ImagePreview docId={preview.document_id} />
+        <ImageViewer
+          docId={preview.document_id}
+          mimeType={mime}
+          alt={preview.title ?? ""}
+          zoom={imageZoom}
+          onZoomChange={onImageZoomChange ?? (() => {})}
+        />
       </div>
     );
   }
