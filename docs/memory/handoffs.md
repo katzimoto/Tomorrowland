@@ -245,6 +245,27 @@ Next agent prompt:
 - Check parent issue #453 for remaining MVP child issues.
 - If picking up #451 (browser-based test verification), note that virtualization rendering can only be verified in a real browser with layout.
 
+## 2026-05-21 — #451 test suite: PreviewPane dispatch + zip bomb
+
+Status: Active
+Source: issue #451
+
+What changed:
+- Added 13 PreviewPane MIME dispatch tests covering: audio/ogg, video/webm, text/html, text/csv, application/zip, application/x-tar, message/rfc822, application/vnd.ms-outlook, DOCX, RTF, XLSX, PPTX, application/octet-stream (UnsupportedPreview).
+- Added zip bomb resilience test for ZipExtractor.extract_attachments.
+- Added mocks for HtmlPreview, ArchivePreview, EmailPreview, SlidesPreview, UnsupportedPreview, TablePreview in PreviewPane test file.
+
+Verification:
+- 372/372 frontend tests passed. 8/8 backend archive tests passed.
+- TypeScript clean. Lint clean (new files only).
+
+Open risks:
+- Many #451 items remain: security tests (HTML injection, iframe sandbox), integration tests (corrupt PDF, corrupt ZIP, file missing, translation switching), mobile/layout tests. These need follow-up.
+
+Next agent prompt:
+- Continue remaining #451 items on branch `feat/451-test-suite`.
+- Start with security tests (HtmlPreview injection, iframe sandbox assertion update) — these are mostly already covered by existing HtmlPreview tests, but need the specific assertions from the acceptance criteria.
+
 ## 2026-05-20 — Agent skills and memory branch
 
 Status: Active

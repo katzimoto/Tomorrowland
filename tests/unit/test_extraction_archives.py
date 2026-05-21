@@ -77,6 +77,22 @@ def test_zip_extractor_traversal_path_listed_safely() -> None:
     assert "safe/file.txt" in text
 
 
+def test_zip_extractor_extract_attachments_handles_large_compressed_file() -> None:
+    """Simulated zip bomb: highly compressible data does not crash extract_attachments."""
+    extractor = ZipExtractor()
+    path = FIXTURES / "large.zip"
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("large.bin", b"\x00" * 100_000)
+    text = extractor.extract(path)
+    atts = extractor.extract_attachments(path)
+    path.unlink()
+
+    assert "large.bin" in text
+    assert len(atts) == 1
+    assert atts[0].filename == "large.bin"
+    assert len(atts[0].data) == 100_000
+
+
 def test_tar_extractor_traversal_path_listed_safely() -> None:
     """Path components containing '..' are listed as-is, not resolved."""
     import io

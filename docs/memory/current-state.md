@@ -43,6 +43,23 @@ Next action:
 - Check parent issue #453 for remaining MVP child issues.
 - Consider browser-based virtualization verification (#451 follow-up).
 
+## 2026-05-21 — Document viewer test suite (#451)
+
+Status: Active
+Source: issue #451
+
+Finding:
+- #451 test suite work started. PR targeting `feature/document-viewer`.
+- PreviewPane MIME dispatch tests now cover all renderers (archive, email, unsupported, html, table, slides, audio/ogg, video/webm, text/csv, DOCX, RTF).
+- Zip bomb backend unit test added to archive extraction tests.
+
+Impact:
+- 372 frontend tests (was 359).
+- 8 backend archive extraction tests.
+
+Next action:
+- Complete remaining #451 items: security tests (HTML injection, iframe sandbox), integration tests (corrupt PDF, corrupt ZIP, file missing), mobile/layout tests.
+
 ## 2026-05-20 — Shared agent skills setup
 
 Status: Active
