@@ -23,6 +23,30 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-21 — #447 code/syntax viewer complete
+
+Status: Done
+Source: issue #447, PR #460
+
+What changed:
+- Added `CodeViewer.tsx` using highlight.js core (bundled; json, xml, yaml, python, js, ts, bash, sql languages registered). Fetches via `getDocumentText` with limit 50,000.
+- Line numbers in a sticky-left `aria-hidden` gutter. Copy button (`aria-label="Copy code"`). Raw toggle, word-wrap toggle.
+- Truncation notice shown when `data.truncated=true`.
+- Language detection: MIME lookup → file extension from `title` → `"plaintext"` fallback (skips hljs).
+- Container `role="region"` + `aria-label="Code: {title}"`.
+- PreviewPane: `application/json` moved from TextPreview to CodeViewer; `CODE_MIMES` set added covering xml/yaml/source types; `text/plain`/`text/markdown` remain on TextPreview.
+
+Verification:
+- 19/19 CodeViewer tests. 3 new PreviewPane dispatch tests. 167/167 full suite. TypeScript clean.
+
+Open risks:
+- highlight.js GitHub theme (github.min.css) is always light; no dark-mode variant wired.
+- Gutter line-count comes from splitting raw text by "\n"; a file without a trailing newline has one fewer gutter line than the tokenized output.
+
+Next agent prompt:
+- Merge PR #460 into `feature/document-viewer`.
+- Start #448 (Media viewer). Branch `feat/448-media-viewer` from `feature/document-viewer`.
+
 ## 2026-05-21 — #445 metadata Details tab complete
 
 Status: Done
