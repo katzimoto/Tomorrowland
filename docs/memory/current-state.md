@@ -100,17 +100,20 @@ Finding:
   - Frontend: `frontend/src/features/chat/` — ChatPage, ChatSidebar, ChatWindow, MessageList, ChatInput, ChatCitationList, all CSS modules; route `/chat` added; NavRail entry added.
   - i18n: full `chat` namespace in en.ts + he.ts.
   - Tests: 11 cases in ChatPage.test.tsx covering empty state, session CRUD, send+reply, citations, loading/error.
-- B7 integration tests (session lifecycle, cross-user 403, degraded Qdrant 503) not yet written.
+- B7 integration tests: done. 25 integration + 18 unit backend tests pass (43 total). 16 frontend tests cover lifecycle, error, and citation fields.
 - Phase C (scope selector, ScopeBadge, InsightPane migration) not started.
 
 Impact:
 - DELETE `/chat/sessions/{id}` returns `{"ok": true}` 200 (not 204) — `deleteChatSession` typed as `Promise<{ ok: boolean }>`.
 - TanStack Query v5: `onSuccess` removed from `useQuery`; seeding uses `useEffect` with seed-once ref guard.
 - Node 22 required for test/lint in frontend; CI runs on 22, local env at 20.9.0.
+- Session_id path params typed as `UUID`; FastAPI validates on entry (422 on malformed, not 500).
+- Dual-gate feature flag: tests must seed `system_config` key `feature.document_chat = true` AND pass `feature_document_chat=True` in Settings.
+- Foundation migration seeds `feature.document_chat = False` by default (production safety) — test harness overrides this in `_setup_users()`.
 
 Next action:
-- Write B7 integration tests (cross-user 403, Qdrant 503 fallback).
-- Start Phase C: scope model, `ChatScope` filter, `ScopeBadge`.
+- Open PR #473 → `main` (or feature branch target per project convention).
+- Start Phase C: scope model, `ChatScope` filter, `ScopeBadge`, InsightPane migration.
 
 ## 2026-05-20 — Shared agent skills setup
 

@@ -23,6 +23,38 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-21 — Document Chat Phase B7 lifecycle tests complete
+
+Status: Done
+Source: issue #473, commit 553c263 on feature/document-chat
+
+What changed:
+- `src/services/api/routers/chat.py` — typed `session_id` path params as `UUID` (all 4 route handlers); FastAPI now validates on entry (422 on bad input, not 500).
+- `tests/integration/test_chat_api.py` — fixed `_settings()` to disable Meilisearch flags; fixed `_setup_users()` to seed `feature.document_chat = true` in system_config; fixed invalid-UUID test fixture; added 8 new lifecycle tests (cross-user 403, empty content 422, invalid UUID 422, citations field shape, messages gone after delete, no cross-user session leakage, degraded RAG fallback).
+- `tests/unit/test_chat_repository.py` — added 3 tests: citations JSON round-trip, retrieval_trace round-trip, archive/unarchive semantics.
+- `frontend/src/features/chat/ChatPage.test.tsx` — added 5 tests: citation legacy/new field fallback, session load spinner, input disabled while pending, input cleared after send, session load error.
+
+Key discoveries:
+- **Dual-gate feature flag**: `/chat` routes check `Settings.feature_document_chat` AND `system_config.feature.document_chat`. Foundation migration seeds the DB key as `False` (production default). Tests must override both.
+- **Meilisearch env leakage**: `.env` sets `FEATURE_MEILISEARCH_SEARCH=true`; `_settings()` must explicitly override to `False` or tests fail trying to connect to `meilisearch:7700`.
+- **Citation field duality**: ChatCitationCard supports both `doc_title`/`chunk_text` (legacy) and `document_title`/`text_excerpt` (new). Both paths are now test-covered.
+
+Verification:
+- `pytest tests/integration/test_chat_api.py tests/unit/test_chat_repository.py` — 43 passed
+- `ruff check` + `ruff format` — clean
+- `mypy src/services/chat/ src/services/api/routers/chat.py --strict` — no issues
+- `tsc --noEmit` — exit 0
+- Frontend vitest blocked by Node 20.9.0 (requires 22+) — CI will verify
+
+Open risks:
+- Frontend test suite not run locally — CI is sole gate for ChatPage.test.tsx changes
+- SQLite does not enforce FK cascade (messages persist after session delete in test DB); documented in test comment; Postgres enforces correctly in production
+
+#473 recommendation: **Ready to close** — Phase B backend + frontend + tests are complete. B7 added router hardening, lifecycle coverage, cross-user isolation tests, and degraded RAG fallback. No Phase C/D/E/F scope was touched.
+
+Next agent prompt:
+- Phase C: scope model, `ChatScope` filter UI, `ScopeBadge` component, InsightPane migration from legacy QAPanel to ChatWindow. Branch off `feature/document-chat`.
+
 ## 2026-05-21 — Document Chat Phase B6 frontend complete
 
 Status: Done
