@@ -154,6 +154,7 @@ export function DocumentToolbar({
             href={getDownloadUrl(preview.document_id)}
             download
             className={styles.downloadLink}
+            aria-label="Download original file"
           >
             <Button variant="secondary" size="sm">
               <Download size={14} />

@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { List } from "react-window";
 import { getDocumentText } from "@/api/documents";
 import { highlightMatches } from "../highlightMatches";
+import {
+  finishNamedPerformanceTimer,
+  startNamedPerformanceTimer,
+} from "@/lib/performanceTelemetry";
 import styles from "./renderers.module.css";
 
 const CHUNK_SIZE = 10_000;
+const VIRTUALIZE_THRESHOLD = 10_000;
+const ROW_HEIGHT = 22;
 
 interface TextPreviewProps {
   text?: string;
@@ -50,6 +57,21 @@ export function TextPreview({
     setNextOffset(CHUNK_SIZE);
   }, [docId, translationVersionId, showOriginal]);
 
+  const textLoadTimer = useRef<string | null>(null);
+  useEffect(() => {
+    if (docId && !textLoadTimer.current) {
+      textLoadTimer.current = `text-load-${Date.now()}`;
+      startNamedPerformanceTimer(textLoadTimer.current);
+    }
+  }, [docId]);
+
+  useEffect(() => {
+    if (data && textLoadTimer.current) {
+      finishNamedPerformanceTimer(textLoadTimer.current, "viewer.text.load", "success");
+      textLoadTimer.current = null;
+    }
+  }, [data]);
+
   const baseText = docId
     ? [data?.text ?? "", ...extraChunks].join("")
     : (text ?? "");
@@ -72,6 +94,28 @@ export function TextPreview({
       ?.querySelector<HTMLElement>(`[data-match-index="${activeSearchIndex}"]`)
       ?.scrollIntoView({ block: "nearest" });
   }, [activeSearchIndex, searchQuery, matchCount]);
+
+  const lines = baseText ? baseText.split("\n") : [];
+  const isVirtualized = lines.length > VIRTUALIZE_THRESHOLD;
+
+  function renderLine(line: string, _index: number) {
+    if (searchQuery) {
+      const matches = searchQuery
+        ? highlightMatches(line, searchQuery, activeSearchIndex, styles.match, styles.activeMatch)
+        : null;
+      return matches?.nodes || line;
+    }
+    return line;
+  }
+
+  const RowComponent = useCallback(
+    ({ index, style }: { index: number; style: React.CSSProperties }) => (
+      <div style={style} className={styles.virtualRow}>
+        {renderLine(lines[index] ?? "", index)}
+      </div>
+    ),
+    [lines, searchQuery, activeSearchIndex],
+  );
 
   if (!docId) {
     return (
@@ -105,6 +149,30 @@ export function TextPreview({
     } finally {
       setLoadingMore(false);
     }
+  }
+
+  if (isVirtualized) {
+    return (
+      <div ref={containerRef} className={styles.virtualContainer}>
+        <List
+          height={Math.min(lines.length * ROW_HEIGHT, 600)}
+          width="100%"
+          rowCount={lines.length}
+          rowHeight={ROW_HEIGHT}
+          rowComponent={RowComponent}
+          rowProps={{}}
+        />
+        {isTruncated && (
+          <button
+            className={styles.loadMoreBtn}
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? "Loading…" : "Load more"}
+          </button>
+        )}
+      </div>
+    );
   }
 
   return (

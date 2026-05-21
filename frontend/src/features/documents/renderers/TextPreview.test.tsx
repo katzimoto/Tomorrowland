@@ -191,3 +191,44 @@ describe("TextPreview — search highlighting", () => {
     });
   });
 });
+
+describe("TextPreview — virtualization", () => {
+  it("renders react-window List for 12000 lines", async () => {
+    mockGetDocumentText.mockResolvedValue({
+      text: Array.from({ length: 12000 }, (_, i) => `Line number ${i}`).join("\n"),
+      total_length: 12000 * 12,
+      offset: 0,
+      limit: 10000,
+      truncated: false,
+    });
+    render(<TextPreview docId="doc-1" />);
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading/)).not.toBeInTheDocument();
+    });
+    // Virtual container renders with role="list" and position: relative
+    const container = document.querySelector('[role="list"]');
+    expect(container).toBeInTheDocument();
+    expect(container).toHaveStyle({ position: "relative" });
+    // No <pre> element — virtualized rendering avoids full DOM
+    expect(document.querySelector("pre")).not.toBeInTheDocument();
+  });
+
+  it("keeps DOM small for large documents", async () => {
+    mockGetDocumentText.mockResolvedValue({
+      text: Array.from({ length: 20000 }, (_, i) => `Line ${i}`).join("\n"),
+      total_length: 20000 * 7,
+      offset: 0,
+      limit: 10000,
+      truncated: false,
+    });
+    render(<TextPreview docId="doc-1" />);
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading/)).not.toBeInTheDocument();
+    });
+    const container = document.querySelector('[role="list"]');
+    expect(container).toBeInTheDocument();
+    // jsdom doesn't measure layout, so rows may be 0. Still, total DOM < 20000.
+    const rows = container!.querySelectorAll('[class*="virtualRow"]');
+    expect(rows.length).toBeLessThan(20000);
+  });
+});

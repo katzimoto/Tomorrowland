@@ -15,4 +15,30 @@ describe("TablePreview", () => {
     render(<TablePreview text="" />);
     expect(screen.getByText("No table data available.")).toBeInTheDocument();
   });
+
+  it("table has accessible label", () => {
+    render(<TablePreview text={"Name\tAge\nAlice\t30"} />);
+    expect(screen.getByRole("table", { name: "Document table" })).toBeInTheDocument();
+  });
+
+  it("column headers have scope='col'", () => {
+    const { container } = render(<TablePreview text={"Name\tAge\nAlice\t30"} />);
+    const headers = container.querySelectorAll("th");
+    headers.forEach((th) => {
+      expect(th).toHaveAttribute("scope", "col");
+  });
+});
+
+
+  it("uses ARIA table when virtualizing more than 1000 rows", () => {
+    const header = "Col1\tCol2\n";
+    const rows = Array.from({ length: 1001 }, (_, i) => `data${i}\tval${i}`).join("\n");
+    render(<TablePreview text={header + rows} />);
+    // With virtualization, uses div-based ARIA table instead of <table>
+    expect(screen.getByRole("table", { name: "Document table" })).toBeInTheDocument();
+    expect(document.querySelector("table")).not.toBeInTheDocument();
+    // jsdom may not render virtual rows, but we didn't render 1001×2 cells
+    const cells = document.querySelectorAll('[role="cell"]');
+    expect(cells.length).toBeLessThan(1001 * 2);
+  });
 });

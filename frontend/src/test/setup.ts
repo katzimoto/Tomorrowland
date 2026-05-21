@@ -8,6 +8,14 @@ import {
 // jsdom does not implement scrollIntoView
 Element.prototype.scrollIntoView = vi.fn();
 
+// jsdom does not implement ResizeObserver (needed by react-window)
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+window.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
+
 // jsdom does not implement HTMLDialogElement native methods; the open attribute
 // must be toggled manually so role="dialog" is discoverable by testing-library.
 HTMLDialogElement.prototype.showModal = vi.fn(function (

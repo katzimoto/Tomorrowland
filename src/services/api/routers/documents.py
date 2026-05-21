@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from services.api._helpers import (
@@ -580,6 +580,7 @@ def download(
                 "Content-Range": f"bytes {start}-{end}/{file_size}",
                 "Content-Length": str(length),
                 "Accept-Ranges": "bytes",
+                "X-Content-Type-Options": "nosniff",
             },
         )
 
@@ -595,5 +596,6 @@ def download(
             "Content-Disposition": f'inline; filename="{target.name}"',
             "Content-Length": str(file_size),
             "Accept-Ranges": "bytes",
+            "X-Content-Type-Options": "nosniff",
         },
     )

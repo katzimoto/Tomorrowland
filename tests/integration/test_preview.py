@@ -542,3 +542,33 @@ def test_me_activity_empty_for_new_user(
     response = client.get("/me/activity", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_download_returns_nosniff_header(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.txt"
+    test_file.write_text("Hello this is a downloadable file.")
+
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.get(
+        f"/download/{document_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers.get("x-content-type-options") == "nosniff"

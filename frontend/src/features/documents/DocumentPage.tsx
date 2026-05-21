@@ -32,6 +32,7 @@ export function DocumentPage() {
   const initialModeDoneRef = useRef(false);
   const qc = useQueryClient();
   const hadInProgressRef = useRef(false);
+  const viewerRef = useRef<HTMLDivElement>(null);
 
   const showOriginal = activeMode === "original" || activeMode === "extracted";
 
@@ -59,7 +60,17 @@ export function DocumentPage() {
     setSearchOpen(false);
     setRawQuery("");
     setDebouncedQuery("");
+    setTimeout(() => {
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Search within document"]')
+        ?.focus();
+    }, 0);
   }, []);
+
+  // Focus viewer area when view mode changes
+  useEffect(() => {
+    viewerRef.current?.focus();
+  }, [activeMode]);
 
   // Reset mode and image zoom when navigating to a different document.
   useEffect(() => {
@@ -209,7 +220,7 @@ export function DocumentPage() {
           onClose={closeSearch}
         />
       )}
-      <div className={styles.body}>
+      <div className={styles.body} ref={viewerRef} tabIndex={-1}>
         <div className={styles.previewCol}>
           <PreviewPane
             preview={preview}
