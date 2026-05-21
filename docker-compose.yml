@@ -56,6 +56,10 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     restart: unless-stopped
+    cpus: ${API_CPUS:-1.00}
+    mem_limit: ${API_MEM_LIMIT:-1g}
+    mem_reservation: ${API_MEM_RESERVATION:-256m}
+    pids_limit: ${API_PIDS_LIMIT:-512}
     environment: *app-environment
     ports:
       - "${API_PORT:-8000}:8000"
@@ -85,6 +89,10 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     restart: unless-stopped
+    cpus: ${PIPELINE_WORKER_CPUS:-1.00}
+    mem_limit: ${PIPELINE_WORKER_MEM_LIMIT:-1536m}
+    mem_reservation: ${PIPELINE_WORKER_MEM_RESERVATION:-256m}
+    pids_limit: ${PIPELINE_WORKER_PIDS_LIMIT:-512}
     environment: *app-environment
     command: python -m services.pipeline.runner
     depends_on:
@@ -109,6 +117,10 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
     restart: unless-stopped
+    cpus: ${VECTOR_WORKER_CPUS:-1.00}
+    mem_limit: ${VECTOR_WORKER_MEM_LIMIT:-1536m}
+    mem_reservation: ${VECTOR_WORKER_MEM_RESERVATION:-256m}
+    pids_limit: ${VECTOR_WORKER_PIDS_LIMIT:-512}
     environment: *app-environment
     command: python -m services.pipeline.vector_worker
     depends_on:
@@ -148,6 +160,10 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    cpus: ${POSTGRES_CPUS:-1.00}
+    mem_limit: ${POSTGRES_MEM_LIMIT:-1536m}
+    mem_reservation: ${POSTGRES_MEM_RESERVATION:-512m}
+    pids_limit: ${POSTGRES_PIDS_LIMIT:-512}
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-app}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -199,6 +215,10 @@ services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
     restart: unless-stopped
+    cpus: ${ELASTICSEARCH_CPUS:-1.50}
+    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-2g}
+    mem_reservation: ${ELASTICSEARCH_MEM_RESERVATION:-1g}
+    pids_limit: ${ELASTICSEARCH_PIDS_LIMIT:-512}
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
@@ -218,6 +238,10 @@ services:
   meilisearch:
     image: getmeili/meilisearch:v1.9
     restart: unless-stopped
+    cpus: ${MEILISEARCH_CPUS:-1.00}
+    mem_limit: ${MEILISEARCH_MEM_LIMIT:-1g}
+    mem_reservation: ${MEILISEARCH_MEM_RESERVATION:-256m}
+    pids_limit: ${MEILISEARCH_PIDS_LIMIT:-512}
     environment:
       MEILI_MASTER_KEY: ${MEILISEARCH_MASTER_KEY:-dev-meilisearch-master-key}
       MEILI_ENV: ${MEILISEARCH_ENV:-development}
@@ -237,6 +261,10 @@ services:
   qdrant:
     image: qdrant/qdrant:v1.10.1
     restart: unless-stopped
+    cpus: ${QDRANT_CPUS:-1.00}
+    mem_limit: ${QDRANT_MEM_LIMIT:-1536m}
+    mem_reservation: ${QDRANT_MEM_RESERVATION:-512m}
+    pids_limit: ${QDRANT_PIDS_LIMIT:-512}
     ports:
       - "${QDRANT_PORT:-6333}:6333"
     healthcheck:
@@ -255,6 +283,10 @@ services:
       dockerfile: docker/libretranslate.Dockerfile
     image: tomorrowland/libretranslate:airgap
     restart: unless-stopped
+    cpus: ${LIBRETRANSLATE_CPUS:-1.00}
+    mem_limit: ${LIBRETRANSLATE_MEM_LIMIT:-2g}
+    mem_reservation: ${LIBRETRANSLATE_MEM_RESERVATION:-512m}
+    pids_limit: ${LIBRETRANSLATE_PIDS_LIMIT:-512}
     environment:
       LT_UPDATE_PACKAGES: "false"
       LT_UPDATE_MODELS: "false"
@@ -281,8 +313,17 @@ services:
         OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
         EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
     restart: unless-stopped
+    cpus: ${OLLAMA_CPUS:-2.00}
+    mem_limit: ${OLLAMA_MEM_LIMIT:-4g}
+    mem_reservation: ${OLLAMA_MEM_RESERVATION:-1g}
+    pids_limit: ${OLLAMA_PIDS_LIMIT:-1024}
     environment:
       OLLAMA_MODELS: /root/.ollama/models
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-2048}
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}
+      OLLAMA_MAX_QUEUE: ${OLLAMA_MAX_QUEUE:-8}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-1m}
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
     healthcheck:
