@@ -245,26 +245,33 @@ Next agent prompt:
 - Check parent issue #453 for remaining MVP child issues.
 - If picking up #451 (browser-based test verification), note that virtualization rendering can only be verified in a real browser with layout.
 
-## 2026-05-21 — #451 test suite: PreviewPane dispatch + zip bomb
+## 2026-05-21 — #451 test suite: corrupt PDF, file missing, mobile, security
 
 Status: Active
 Source: issue #451
 
 What changed:
-- Added 13 PreviewPane MIME dispatch tests covering: audio/ogg, video/webm, text/html, text/csv, application/zip, application/x-tar, message/rfc822, application/vnd.ms-outlook, DOCX, RTF, XLSX, PPTX, application/octet-stream (UnsupportedPreview).
-- Added zip bomb resilience test for ZipExtractor.extract_attachments.
-- Added mocks for HtmlPreview, ArchivePreview, EmailPreview, SlidesPreview, UnsupportedPreview, TablePreview in PreviewPane test file.
+- Corrupt PDF backend unit test: truncated PDF returns empty string, not crash.
+- File missing backend test + fix: download endpoint returns 404 when file deleted from disk (added FileNotFoundError handling with `from None`).
+- Fixed nosniff integration test: was broken due to files_root mismatch (Settings override).
+- Mobile layout test: DocumentToolbar renders all primary actions at 375px viewport.
+- HTML injection security tests: verifies script content passes through srcdoc (not stripped), sandbox excludes all script-related tokens (allow-scripts, allow-popups, allow-top-navigation, allow-pointer-lock).
+- Previous: 13 PreviewPane dispatch tests, zip bomb resilience, PreviewPane mocks.
 
 Verification:
-- 372/372 frontend tests passed. 8/8 backend archive tests passed.
-- TypeScript clean. Lint clean (new files only).
+- 375/375 frontend tests passed. 25 backend tests (3 PDF + 8 archive + 14 integration) passed.
+- TypeScript clean. Lint clean (only pre-existing B904 on line 557).
+- Ruff clean on new code.
 
 Open risks:
-- Many #451 items remain: security tests (HTML injection, iframe sandbox), integration tests (corrupt PDF, corrupt ZIP, file missing, translation switching), mobile/layout tests. These need follow-up.
+- Insight pane stacking (CSS-only layout at ≤767px) — cannot verify in jsdom, needs browser test.
+- Full integration tests remain: PDF end-to-end, translation switching, DOCX conversion (depends on #446).
+- `converted` preview mode not wired (skipped per issue spec).
 
 Next agent prompt:
 - Continue remaining #451 items on branch `feat/451-test-suite`.
-- Start with security tests (HtmlPreview injection, iframe sandbox assertion update) — these are mostly already covered by existing HtmlPreview tests, but need the specific assertions from the acceptance criteria.
+- Focus on browser-based tests (Playwright) for insight pane stacking and virtualization.
+- Translation switching integration test can be written after reviewing preview endpoint logic.
 
 ## 2026-05-20 — Agent skills and memory branch
 

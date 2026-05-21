@@ -58,7 +58,8 @@ Impact:
 - 8 backend archive extraction tests.
 
 Next action:
-- Complete remaining #451 items: security tests (HTML injection, iframe sandbox), integration tests (corrupt PDF, corrupt ZIP, file missing), mobile/layout tests.
+- #451 progress: corrupt PDF unit test, file-missing download 404, mobile layout (toolbar 375px), HTML injection/iframe sandbox security tests, PreviewPane dispatch (all renderers), zip bomb resilience, fixed nosniff integration test (files_root mismatch).
+- Remaining #451: insight pane stacking (CSS-only, needs browser test), full integration tests (PDF end-to-end, translation switching, DOCX conversion).
 
 ## 2026-05-20 — Shared agent skills setup
 
