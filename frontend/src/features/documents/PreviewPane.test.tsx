@@ -17,6 +17,12 @@ vi.mock("./renderers/ImageViewer", () => ({
   ),
 }));
 
+vi.mock("./renderers/MediaPreview", () => ({
+  MediaPreview: ({ docId, mimeType }: { docId: string; mimeType: string }) => (
+    <div data-testid="media-preview" data-doc-id={docId} data-mime={mimeType} />
+  ),
+}));
+
 vi.mock("./renderers/CodeViewer", () => ({
   CodeViewer: ({ docId, mimeType }: { docId: string; mimeType: string }) => (
     <div data-testid="code-viewer" data-doc-id={docId} data-mime={mimeType} />
@@ -180,5 +186,17 @@ describe("PreviewPane dispatch", () => {
     render(<PreviewPane preview={makePreview({ mime_type: "text/plain" })} />);
     expect(screen.getByTestId("text-preview")).toBeInTheDocument();
     expect(screen.queryByTestId("code-viewer")).not.toBeInTheDocument();
+  });
+
+  it("dispatches audio/mpeg to MediaPreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "audio/mpeg" })} />);
+    expect(screen.getByTestId("media-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
+  });
+
+  it("dispatches video/mp4 to MediaPreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "video/mp4" })} />);
+    expect(screen.getByTestId("media-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
   });
 });
