@@ -101,7 +101,13 @@ Finding:
   - i18n: full `chat` namespace in en.ts + he.ts.
   - Tests: 11 cases in ChatPage.test.tsx covering empty state, session CRUD, send+reply, citations, loading/error.
 - B7 integration tests: done. 25 integration + 18 unit backend tests pass (43 total). 16 frontend tests cover lifecycle, error, and citation fields.
-- Phase C (scope selector, ScopeBadge, InsightPane migration) not started.
+- Phase C backend (scope-aware chat): done. Commit d7ab8e8 on feature/document-chat.
+  - `ChatScope` model + `build_qdrant_filter()` in `src/services/rag/service.py`.
+  - `QdrantSearchClient.search_filtered()` for pre-built filter path.
+  - Chat router validates revoked doc access (409) and passes `ChatScope` to RAG.
+  - 17 unit tests (scope validation + filter builder) + 8 new integration tests.
+  - 68 total tests pass (unit + repository + integration).
+- Phase C frontend (ScopeBadge, ScopeSelector, InsightPane migration) not started.
 
 Impact:
 - DELETE `/chat/sessions/{id}` returns `{"ok": true}` 200 (not 204) — `deleteChatSession` typed as `Promise<{ ok: boolean }>`.
@@ -110,10 +116,12 @@ Impact:
 - Session_id path params typed as `UUID`; FastAPI validates on entry (422 on malformed, not 500).
 - Dual-gate feature flag: tests must seed `system_config` key `feature.document_chat = true` AND pass `feature_document_chat=True` in Settings.
 - Foundation migration seeds `feature.document_chat = False` by default (production safety) — test harness overrides this in `_setup_users()`.
+- `folder` scope returns 400 (Qdrant payload has no folder field — deferred).
+- `source` scope: Qdrant filter by `source_id` built; revocation validation TODO (group filter still applied for safety).
 
 Next action:
-- Open PR #473 → `main` (or feature branch target per project convention).
-- Start Phase C: scope model, `ChatScope` filter, `ScopeBadge`, InsightPane migration.
+- Phase C frontend: ScopeBadge, ScopeSelector, InsightPane Chat tab migration.
+- Open PR for #473/#474 when frontend Phase C is ready.
 
 ## 2026-05-20 — Shared agent skills setup
 

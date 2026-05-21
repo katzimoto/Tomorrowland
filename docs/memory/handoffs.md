@@ -23,6 +23,42 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-21 — Document Chat Phase C backend scope-aware chat complete
+
+Status: Done
+Source: issue #474, commit d7ab8e8 on feature/document-chat
+
+What changed:
+- `src/services/chat/models.py` — `ChatScope` model: `Literal` scope_type, `list[str]` scope_ids, pydantic model_validator for cardinality rules.
+- `src/services/rag/service.py` — `build_qdrant_filter(scope, group_ids, allow_all) -> Filter | None`: builds combined permission+scope Qdrant filter. Returns None for admin+all_accessible. Imported into RagService._retrieve_chunks as the scope path.
+- `src/services/search/qdrant.py` — `search_filtered(vector, query_filter, limit)`: new method for pre-built filter; existing `search()` unchanged (preserves /qa compat).
+- `src/services/api/routers/chat.py` — scope validation on every message: builds ChatScope from session, checks revoked access (409) for single_document/selected_documents/current_search_results, returns 400 for folder scope (deferred), passes scope to RagService.
+- `tests/unit/test_chat_service.py` — 17 new tests for ChatScope validation and build_qdrant_filter conditions.
+- `tests/integration/test_chat_api.py` — 8 new scope integration tests.
+
+Key decisions:
+- `build_qdrant_filter` returns `None` (not empty Filter) for admin+all_accessible; Qdrant treats None as "no filter".
+- `folder` scope rejected at router level (400) — Qdrant payload has no folder field.
+- `source` scope: filter by `source_id` works; revocation validation deferred (group filter applied for safety).
+- Revocation check uses `AuthRepository.document_source_id()` + `user_can_access_source()`.
+- Admin (is_admin=True) bypasses revocation check entirely.
+
+Verification:
+- `pytest tests/unit/test_chat_service.py tests/unit/test_chat_repository.py tests/integration/test_chat_api.py --no-cov` — **68 passed**
+- `pytest tests/unit/test_rag_retrieval_eval.py tests/unit/test_rag_reranker.py --no-cov` — **17 passed** (RAG eval unbroken)
+- `ruff check` + `ruff format` — clean
+- `mypy src/services/chat/models.py src/services/search/qdrant.py src/services/rag/service.py src/services/api/routers/chat.py --strict` — no issues
+
+Open risks:
+- `source` scope revocation validation not implemented (TODO in code) — group filter still prevents data leakage.
+- Meilisearch BM25 results (when Meili enabled) are not scope-filtered at the document level — pre-existing gap, not in Phase C scope.
+- Frontend vitest blocked by Node 20.9.0 locally; CI is sole gate.
+
+Frontend Phase C can start — backend scope API is complete and tested.
+
+Next agent prompt:
+- Phase C frontend: ScopeBadge, ScopeSelector, InsightPane Chat tab migration (use existing ChatWindow + ChatScope data from session).
+
 ## 2026-05-21 — Document Chat Phase B7 lifecycle tests complete
 
 Status: Done
