@@ -23,11 +23,68 @@ def _sentence_pattern(language: str | None = None) -> Pattern[str]:
     return _FALLBACK_PATTERN
 
 
+_TOKEN_ESTIMATE_RATIO: float = 4.0
+
+
+def _estimate_tokens(text: str) -> int:
+    """Estimate the number of tokens in *text* using a character-based heuristic.
+
+    Uses ``len(text) / _TOKEN_ESTIMATE_RATIO`` (default 4.0), which is
+    conservative for English text. CJK-heavy text may need a lower ratio.
+    """
+    return max(1, int(len(text) / _TOKEN_ESTIMATE_RATIO))
+
+
+def _ensure_max_tokens(chunks: list[str], max_tokens: int) -> list[str]:
+    """Further split any chunk whose estimated token count exceeds *max_tokens*.
+
+    Splits oversized chunks at sentence boundaries when possible, otherwise
+    at a hard character limit derived from *max_tokens*.
+    """
+    result: list[str] = []
+    for chunk in chunks:
+        if _estimate_tokens(chunk) <= max_tokens:
+            result.append(chunk)
+            continue
+        # Oversized chunk: split further using the same sentence-boundary approach
+        sub_chunks = _chunk_by_token_estimate(chunk, max_tokens)
+        result.extend(sub_chunks)
+    return result
+
+
+def _chunk_by_token_estimate(text: str, max_tokens: int) -> list[str]:
+    """Split *text* into chunks each estimated at ≤ *max_tokens* tokens."""
+    max_chars = int(max_tokens * _TOKEN_ESTIMATE_RATIO)
+    sentences = _split_sentences(text, None)
+    chunks: list[str] = []
+    current: list[str] = []
+    current_est = 0
+    for sentence in sentences:
+        sentence_est = _estimate_tokens(sentence)
+        if current and current_est + sentence_est > max_tokens:
+            chunks.append(" ".join(current))
+            current = []
+            current_est = 0
+        # Single sentence larger than max_tokens: hard-cut at character limit
+        if _estimate_tokens(sentence) > max_tokens:
+            for i in range(0, len(sentence), max_chars):
+                segment = sentence[i : i + max_chars]
+                if segment:
+                    chunks.append(segment)
+            continue
+        current.append(sentence)
+        current_est += sentence_est
+    if current:
+        chunks.append(" ".join(current))
+    return chunks
+
+
 def chunk_text(
     text: str,
     chunk_size: int = 512,
     overlap: int = 50,
     language: str | None = None,
+    max_tokens: int | None = None,
 ) -> list[str]:
     """Split *text* into chunks of at most *chunk_size* tokens (whitespace-split).
 
@@ -40,6 +97,9 @@ def chunk_text(
     language-appropriate pattern. Known languages: ``en``, ``he``. Unknown
     languages fall back to a generic pattern that splits on any punctuation
     followed by a space and a non-whitespace character.
+
+    When *max_tokens* is provided, any chunk whose estimated token count
+    exceeds *max_tokens* is further split.
 
     Returns an empty list when *text* is empty or whitespace-only.
     """
@@ -72,6 +132,9 @@ def chunk_text(
 
     if current_chunk_words:
         chunks.append(" ".join(current_chunk_words))
+
+    if max_tokens is not None:
+        chunks = _ensure_max_tokens(chunks, max_tokens)
 
     return chunks
 
