@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 
 from services.api._helpers import (
@@ -537,6 +537,52 @@ def download(
         raise HTTPException(status_code=400, detail="Invalid file path")
     request.app.state.metrics.download_requests_total.labels("success").inc()
 
+    file_size = target.stat().st_size
+    range_header = request.headers.get("Range")
+
+    if range_header:
+        try:
+            unit, ranges = range_header.split("=", 1)
+            if unit.strip() != "bytes":
+                raise ValueError("unsupported unit")
+            start_str, end_str = ranges.split("-", 1)
+            start = int(start_str) if start_str else 0
+            end = int(end_str) if end_str else file_size - 1
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=416, detail="Invalid Range header")
+
+        if start >= file_size or end >= file_size or start > end:
+            raise HTTPException(
+                status_code=416,
+                detail="Range Not Satisfiable",
+                headers={"Content-Range": f"bytes */{file_size}"},
+            )
+
+        length = end - start + 1
+
+        def range_iterator() -> Iterator[bytes]:
+            with target.open("rb") as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    chunk = f.read(min(8192, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+
+        return StreamingResponse(
+            range_iterator(),
+            status_code=206,
+            media_type=doc.mime_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{target.name}"',
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Content-Length": str(length),
+                "Accept-Ranges": "bytes",
+            },
+        )
+
     def file_iterator() -> Iterator[bytes]:
         with target.open("rb") as f:
             while chunk := f.read(8192):
@@ -545,5 +591,9 @@ def download(
     return StreamingResponse(
         file_iterator(),
         media_type=doc.mime_type,
-        headers={"Content-Disposition": f'attachment; filename="{target.name}"'},
+        headers={
+            "Content-Disposition": f'inline; filename="{target.name}"',
+            "Content-Length": str(file_size),
+            "Accept-Ranges": "bytes",
+        },
     )

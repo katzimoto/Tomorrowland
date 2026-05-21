@@ -8,6 +8,7 @@ import { SlidesPreview } from "./renderers/SlidesPreview";
 import { ImageViewer } from "./renderers/ImageViewer";
 import { PdfViewer } from "./renderers/PdfViewer";
 import { CodeViewer } from "./renderers/CodeViewer";
+import { MediaPreview } from "./renderers/MediaPreview";
 import { UnsupportedPreview } from "./renderers/UnsupportedPreview";
 import type { ViewMode } from "./ViewModeSwitcher";
 import styles from "./PreviewPane.module.css";
@@ -130,6 +131,19 @@ export function PreviewPane({ preview, activeMode, selectedVersionId, imageZoom 
     return (
       <div className={styles.pane}>
         <SlidesPreview text={text} />
+      </div>
+    );
+  }
+
+  if (mime.startsWith("audio/") || mime.startsWith("video/")) {
+    return (
+      <div className={styles.pane}>
+        <MediaPreview
+          docId={preview.document_id}
+          mimeType={mime}
+          title={preview.title ?? null}
+          snippet={preview.snippet ?? ""}
+        />
       </div>
     );
   }
