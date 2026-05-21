@@ -21,27 +21,42 @@ Finding:
 
 ## 2026-05-21 — Document viewer a11y, perf, telemetry hardening (#450)
 
-Status: Active
+Status: Done
 Source: issue #450; PR #464
 
 Finding:
-- #450 (a11y, perf, telemetry hardening) — Done. PR #464 targets `feature/document-viewer`.
 - A11y: download link aria-label, table aria-label + th scope="col", sr-only status text, focus management on view mode switch and search close.
 - Perf: TextPreview virtualized with react-window v2 `List` when >10K lines; TablePreview virtualized with ARIA role-based table when >1K rows.
 - Telemetry: viewer.text/pdf/image.load events via named performance timers.
 - Backend: X-Content-Type-Options: nosniff on download endpoint.
-- react-window v2 key differences from v1: `List` replaces `FixedSizeList`, `rowCount`/`rowHeight`/`rowComponent` props, `rowProps={{}}` required (crashes if undefined).
-- ResizeObserver global mock added to test setup (required by react-window v2 in jsdom).
 
 Impact:
-- react-window@2.2.7 added to frontend dependencies.
-- Virtualized TablePreview uses `role="table"` / `role="rowgroup"` / `role="row"` / `role="columnheader"` / `role="cell"` instead of native `<table>` / `<thead>` / `<tbody>` / `<tr>` / `<th>` / `<td>` (react-window constraint).
-- `src/test/setup.ts` now includes ResizeObserver mock, scrollIntoView mock, HTMLDialogElement mocks.
+- react-window@2.2.7 added to frontend dependencies. v2 API: `List`, `rowCount`/`rowHeight`/`rowComponent`, `rowProps={{}}` required.
+- Virtualized TablePreview uses ARIA roles instead of native `<table>` (react-window constraint).
+- `src/test/setup.ts`: ResizeObserver mock, scrollIntoView mock, HTMLDialogElement mocks.
 - Download endpoint returns `X-Content-Type-Options: nosniff` on both full and range responses.
 
+## 2026-05-21 — Document viewer test suite (#451)
+
+Status: Active
+Source: issue #451
+
+Finding:
+- PreviewPane MIME dispatch tests cover all renderers (archive, email, unsupported, html, table, slides, audio/ogg, video/webm, text/csv, DOCX, RTF, XLSX, PPTX).
+- Security: HTML injection verified (srcdoc passthrough, sandbox tokens), iframe sandbox attribute asserted.
+- Corrupt PDF unit test: truncated PDF returns empty string.
+- File missing fix: download endpoint returns 404 (FileNotFoundError → HTTPException).
+- Mobile layout: toolbar renders all primary actions at 375px.
+- Zip bomb resilience: ZipExtractor handles large compressed data.
+- Nosniff test fixed: files_root override in Settings.
+
+Impact:
+- 375 frontend tests (was 359). 25 backend tests (3 PDF + 8 archive + 14 integration).
+- Backend bug fix: FileNotFoundError in download endpoint now returns 404 instead of 500.
+- Nosniff integration test corrected (files_root override).
+
 Next action:
-- Check parent issue #453 for remaining MVP child issues.
-- Consider browser-based virtualization verification (#451 follow-up).
+- Remaining #451: insight pane stacking (needs browser test), full integration tests (PDF end-to-end, translation switching).
 
 ## 2026-05-20 — Shared agent skills setup
 

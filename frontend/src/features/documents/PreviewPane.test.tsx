@@ -29,6 +29,36 @@ vi.mock("./renderers/CodeViewer", () => ({
   ),
 }));
 
+vi.mock("./renderers/HtmlPreview", () => ({
+  HtmlPreview: ({ html }: { html: string }) => (
+    <div data-testid="html-preview" data-html={html} />
+  ),
+}));
+
+vi.mock("./renderers/ArchivePreview", () => ({
+  ArchivePreview: ({ text }: { text: string }) => (
+    <div data-testid="archive-preview" data-text={text} />
+  ),
+}));
+
+vi.mock("./renderers/EmailPreview", () => ({
+  EmailPreview: () => <div data-testid="email-preview" />,
+}));
+
+vi.mock("./renderers/SlidesPreview", () => ({
+  SlidesPreview: () => <div data-testid="slides-preview" />,
+}));
+
+vi.mock("./renderers/UnsupportedPreview", () => ({
+  UnsupportedPreview: ({ mimeType }: { mimeType: string }) => (
+    <div data-testid="unsupported-preview" data-mime={mimeType} />
+  ),
+}));
+
+vi.mock("./renderers/TablePreview", () => ({
+  TablePreview: () => <div data-testid="table-preview" />,
+}));
+
 vi.mock("./renderers/TextPreview", () => ({
   TextPreview: ({
     docId,
@@ -198,5 +228,101 @@ describe("PreviewPane dispatch", () => {
     render(<PreviewPane preview={makePreview({ mime_type: "video/mp4" })} />);
     expect(screen.getByTestId("media-preview")).toBeInTheDocument();
     expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
+  });
+
+  it("dispatches audio/ogg to MediaPreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "audio/ogg" })} />);
+    expect(screen.getByTestId("media-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches video/webm to MediaPreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "video/webm" })} />);
+    expect(screen.getByTestId("media-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches text/html to HtmlPreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "text/html" })} />);
+    expect(screen.getByTestId("html-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
+  });
+
+  it("dispatches text/csv to TextPreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "text/csv" })} />);
+    expect(screen.getByTestId("text-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches application/zip to ArchivePreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "application/zip" })} />);
+    expect(screen.getByTestId("archive-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
+  });
+
+  it("dispatches application/x-tar to ArchivePreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "application/x-tar" })} />);
+    expect(screen.getByTestId("archive-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches message/rfc822 to EmailPreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "message/rfc822" })} />);
+    expect(screen.getByTestId("email-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
+  });
+
+  it("dispatches application/vnd.ms-outlook to EmailPreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "application/vnd.ms-outlook" })} />);
+    expect(screen.getByTestId("email-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches DOCX to TextPreview", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({
+          mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        })}
+      />
+    );
+    expect(screen.getByTestId("text-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches application/rtf to TextPreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "application/rtf" })} />);
+    expect(screen.getByTestId("text-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches XLSX to TablePreview", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({
+          mime_type:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        })}
+      />
+    );
+    expect(screen.getByTestId("table-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches PPTX to SlidesPreview", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({
+          mime_type:
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        })}
+      />
+    );
+    expect(screen.getByTestId("slides-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches unknown MIME to UnsupportedPreview", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({ mime_type: "application/octet-stream" })}
+      />
+    );
+    expect(screen.getByTestId("unsupported-preview")).toBeInTheDocument();
+    expect(screen.getByTestId("unsupported-preview")).toHaveAttribute(
+      "data-mime",
+      "application/octet-stream"
+    );
   });
 });

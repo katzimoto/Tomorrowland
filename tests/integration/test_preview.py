@@ -560,7 +560,7 @@ def test_download_returns_nosniff_header(
     client = TestClient(
         create_app(
             migrated_engine,
-            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET, files_root=files_root),
         )
     )
     token = _user_token(client)
@@ -572,3 +572,40 @@ def test_download_returns_nosniff_header(
 
     assert response.status_code == 200
     assert response.headers.get("x-content-type-options") == "nosniff"
+
+
+def test_file_missing_from_disk_returns_404_on_download(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.txt"
+    test_file.write_text("Preview content from DB.")
+
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET, files_root=files_root),
+        )
+    )
+    token = _user_token(client)
+
+    # Preview works — snippet comes from DB
+    preview = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+    assert preview.status_code == 200
+    assert preview.json()["snippet"] == "Preview content from DB."
+
+    # Delete the file from disk
+    test_file.unlink()
+
+    # Download returns 404
+    download = client.get(
+        f"/download/{document_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert download.status_code == 404

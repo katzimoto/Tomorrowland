@@ -245,6 +245,34 @@ Next agent prompt:
 - Check parent issue #453 for remaining MVP child issues.
 - If picking up #451 (browser-based test verification), note that virtualization rendering can only be verified in a real browser with layout.
 
+## 2026-05-21 — #451 test suite: corrupt PDF, file missing, mobile, security
+
+Status: Active
+Source: issue #451
+
+What changed:
+- Corrupt PDF backend unit test: truncated PDF returns empty string, not crash.
+- File missing backend test + fix: download endpoint returns 404 when file deleted from disk (added FileNotFoundError handling with `from None`).
+- Fixed nosniff integration test: was broken due to files_root mismatch (Settings override).
+- Mobile layout test: DocumentToolbar renders all primary actions at 375px viewport.
+- HTML injection security tests: verifies script content passes through srcdoc (not stripped), sandbox excludes all script-related tokens (allow-scripts, allow-popups, allow-top-navigation, allow-pointer-lock).
+- Previous: 13 PreviewPane dispatch tests, zip bomb resilience, PreviewPane mocks.
+
+Verification:
+- 375/375 frontend tests passed. 25 backend tests (3 PDF + 8 archive + 14 integration) passed.
+- TypeScript clean. Lint clean (only pre-existing B904 on line 557).
+- Ruff clean on new code.
+
+Open risks:
+- Insight pane stacking (CSS-only layout at ≤767px) — cannot verify in jsdom, needs browser test.
+- Full integration tests remain: PDF end-to-end, translation switching, DOCX conversion (depends on #446).
+- `converted` preview mode not wired (skipped per issue spec).
+
+Next agent prompt:
+- Continue remaining #451 items on branch `feat/451-test-suite`.
+- Focus on browser-based tests (Playwright) for insight pane stacking and virtualization.
+- Translation switching integration test can be written after reviewing preview endpoint logic.
+
 ## 2026-05-20 — Agent skills and memory branch
 
 Status: Active
