@@ -45,7 +45,7 @@ Next action:
 
 ## 2026-05-21 — Resource safety guards (#463)
 
-Status: Active
+Status: Done
 Source: issue #463; PR #467
 
 Finding:
@@ -54,13 +54,7 @@ Finding:
 - Workers already process one job per loop iteration (built-in backpressure); no Python code changes needed.
 - Docs: Resource Safety Guards section in production-compose.md with per-RAM-tier guidance, capacity warning, overload response procedure.
 - Baseline total: ~15 GB memory limit, ~4 GB reservation for all services at 1 replica.
-
-Impact:
-- PR #467 targets feature/resource-safety-guards.
-- docker compose config validated; production-audit passes.
-
-Next action:
-- Monitor CI on PR #467; merge when green.
+- Merged to main via PR #467.
 
 ## 2026-05-21 — Python dependency audit fix
 
