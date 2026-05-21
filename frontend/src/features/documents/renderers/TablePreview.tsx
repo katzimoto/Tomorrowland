@@ -1,5 +1,6 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { List } from "react-window";
+import { countMatches } from "../highlightMatches";
 import styles from "./renderers.module.css";
 
 const VIRTUALIZE_THRESHOLD = 1_000;
@@ -8,6 +9,8 @@ const ROW_HEIGHT = 32;
 interface TablePreviewProps {
   text: string;
   searchQuery?: string;
+  activeSearchIndex?: number;
+  onMatchCountChange?: (count: number) => void;
 }
 
 function cellMatches(cell: string, searchQuery: string): boolean {
@@ -15,7 +18,15 @@ function cellMatches(cell: string, searchQuery: string): boolean {
   return cell.toLowerCase().includes(searchQuery.toLowerCase());
 }
 
-export function TablePreview({ text, searchQuery = "" }: TablePreviewProps) {
+export function TablePreview({ text, searchQuery = "", activeSearchIndex = 0, onMatchCountChange }: TablePreviewProps) {
+  const matchCount = useMemo(
+    () => countMatches(text, searchQuery),
+    [text, searchQuery],
+  );
+  useEffect(() => {
+    onMatchCountChange?.(matchCount);
+  }, [matchCount, onMatchCountChange]);
+
   const rows = text
     .split("\n")
     .filter(Boolean)

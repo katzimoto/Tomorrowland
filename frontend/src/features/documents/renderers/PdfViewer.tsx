@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useRef, useState, useMemo } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState, useMemo } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -21,10 +21,11 @@ const MAX_SCALE = 3.0;
 interface PdfViewerProps {
   docId: string;
   searchQuery?: string;
+  activeSearchIndex?: number;
   onMatchCountChange?: (count: number) => void;
 }
 
-export function PdfViewer({ docId, searchQuery = "", onMatchCountChange }: PdfViewerProps) {
+export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMatchCountChange }: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState(0);
@@ -32,7 +33,7 @@ export function PdfViewer({ docId, searchQuery = "", onMatchCountChange }: PdfVi
   const [scale, setScale] = useState(DEFAULT_SCALE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [allPdfText, setAllPdfText] = useState("");
+  const [perPageText, setPerPageText] = useState<string[]>([]);
 
   const downloadUrl = `/api/download/${docId}`;
 
@@ -98,20 +99,43 @@ export function PdfViewer({ docId, searchQuery = "", onMatchCountChange }: PdfVi
     let cancelled = false;
     async function extractText() {
       if (!pdfDoc) return;
-      const parts: string[] = [];
+      const pageTexts: string[] = [];
       for (let i = 1; i <= pdfDoc.numPages; i++) {
         const page = await pdfDoc.getPage(i);
         const content = await page.getTextContent();
         const pageText = content.items
           .map((item) => ("str" in item ? item.str : ""))
           .join(" ");
-        parts.push(pageText);
+        pageTexts.push(pageText);
       }
-      if (!cancelled) setAllPdfText(parts.join(" "));
+      if (!cancelled) {
+        setPerPageText(pageTexts);
+        setAllPdfText(pageTexts.join(" "));
+      }
     }
     void extractText();
     return () => { cancelled = true; };
   }, [pdfDoc]);
+
+  // Compute per-page match counts for active-index navigation
+  const perPageMatchCounts = useMemo(() => {
+    if (!searchQuery) return perPageText.map(() => 0);
+    return perPageText.map((page) => countMatches(page, searchQuery));
+  }, [perPageText, searchQuery]);
+
+  // Navigate to page containing the active match
+  useEffect(() => {
+    if (!searchQuery || perPageMatchCounts.length === 0) return;
+    let cumulative = 0;
+    for (let i = 0; i < perPageMatchCounts.length; i++) {
+      cumulative += perPageMatchCounts[i];
+      if (activeSearchIndex < cumulative) {
+        const targetPage = i + 1;
+        if (targetPage !== pageNum) setPageNum(targetPage);
+        return;
+      }
+    }
+  }, [searchQuery, activeSearchIndex, perPageMatchCounts, pageNum, numPages]);
 
   // Report match count when search query or text changes
   const matchCount = useMemo(

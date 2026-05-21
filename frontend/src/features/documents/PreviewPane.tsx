@@ -124,7 +124,12 @@ export function PreviewPane({
   ) {
     return (
       <div className={styles.pane}>
-        <TablePreview text={text} searchQuery={searchQuery} />
+        <TablePreview
+          text={text}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
       </div>
     );
   }
@@ -137,7 +142,12 @@ export function PreviewPane({
   ) {
     return (
       <div className={styles.pane}>
-        <ArchivePreview text={text} />
+        <ArchivePreview
+          text={text}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
       </div>
     );
   }
@@ -145,7 +155,13 @@ export function PreviewPane({
   if (mime === "message/rfc822" || mime === "application/vnd.ms-outlook") {
     return (
       <div className={styles.pane}>
-        <EmailPreview text={text} metadata={preview.metadata} />
+        <EmailPreview
+          text={text}
+          metadata={preview.metadata}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
       </div>
     );
   }
@@ -157,7 +173,12 @@ export function PreviewPane({
   ) {
     return (
       <div className={styles.pane}>
-        <SlidesPreview text={text} />
+        <SlidesPreview
+          text={text}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
       </div>
     );
   }
@@ -195,6 +216,7 @@ export function PreviewPane({
         <PdfViewer
           docId={preview.document_id}
           searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
         />
       </div>
@@ -209,7 +231,12 @@ export function PreviewPane({
   ) {
     return (
       <div className={styles.pane}>
-        <TextPreview docId={preview.document_id} />
+        <TextPreview
+          docId={preview.document_id}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
       </div>
     );
   }

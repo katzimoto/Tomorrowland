@@ -1,15 +1,32 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { countMatches, highlightMatches } from "../highlightMatches";
 import styles from "./renderers.module.css";
 
 interface SlidesPreviewProps {
   text: string;
+  searchQuery?: string;
+  activeSearchIndex?: number;
+  onMatchCountChange?: (count: number) => void;
 }
 
-export function SlidesPreview({ text }: SlidesPreviewProps) {
+export function SlidesPreview({ text, searchQuery = "", activeSearchIndex = 0, onMatchCountChange }: SlidesPreviewProps) {
   const slides = text.split(/\n---+\n/).filter(Boolean);
   const [index, setIndex] = useState(0);
   const current = slides[index] ?? "";
+
+  const matchCount = useMemo(
+    () => countMatches(text, searchQuery),
+    [text, searchQuery],
+  );
+  useEffect(() => {
+    onMatchCountChange?.(matchCount);
+  }, [matchCount, onMatchCountChange]);
+
+  const { nodes: contentNodes } = useMemo(
+    () => highlightMatches(current, searchQuery, activeSearchIndex, styles.match, styles.activeMatch),
+    [current, searchQuery, activeSearchIndex],
+  );
 
   if (!slides.length) {
     return <p className={styles.muted}>No slide content available.</p>;
@@ -18,7 +35,7 @@ export function SlidesPreview({ text }: SlidesPreviewProps) {
   return (
     <div className={styles.slidesWrapper}>
       <div className={styles.slide}>
-        <pre className={styles.slideContent}>{current}</pre>
+        <pre className={styles.slideContent}>{searchQuery ? contentNodes : current}</pre>
       </div>
       <div className={styles.slideNav}>
         <button

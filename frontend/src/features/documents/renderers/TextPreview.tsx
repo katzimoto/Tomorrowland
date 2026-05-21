@@ -2,7 +2,7 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useQuery } from "@tanstack/react-query";
 import { List } from "react-window";
 import { getDocumentText } from "@/api/documents";
-import { highlightMatches } from "../highlightMatches";
+import { countMatches, highlightMatches } from "../highlightMatches";
 import {
   finishNamedPerformanceTimer,
   startNamedPerformanceTimer,
@@ -100,12 +100,30 @@ export function TextPreview({
   const lines = baseText ? baseText.split("\n") : [];
   const isVirtualized = lines.length > VIRTUALIZE_THRESHOLD;
 
-  function renderLine(line: string) {
+  const perLineMatchCounts = useMemo(() => {
+    if (!searchQuery) return lines.map(() => 0);
+    return lines.map((line) => countMatches(line, searchQuery));
+  }, [lines, searchQuery]);
+
+  const cumulativeMatchOffsets = useMemo(() => {
+    const offsets: number[] = [0];
+    for (let i = 0; i < perLineMatchCounts.length - 1; i++) {
+      offsets.push(offsets[i] + perLineMatchCounts[i]);
+    }
+    return offsets;
+  }, [perLineMatchCounts]);
+
+  function renderLine(line: string, lineIndex: number) {
     if (searchQuery) {
-      const matches = searchQuery
-        ? highlightMatches(line, searchQuery, activeSearchIndex, styles.match, styles.activeMatch)
-        : null;
-      return matches?.nodes || line;
+      const localIndex = activeSearchIndex - (cumulativeMatchOffsets[lineIndex] ?? 0);
+      const matches = highlightMatches(
+        line,
+        searchQuery,
+        localIndex,
+        styles.match,
+        styles.activeMatch,
+      );
+      return matches.nodes || line;
     }
     return line;
   }
@@ -113,10 +131,10 @@ export function TextPreview({
   const RowComponent = useCallback(
     ({ index, style }: { index: number; style: React.CSSProperties }) => (
       <div style={style} className={styles.virtualRow}>
-        {renderLine(lines[index] ?? "")}
+        {renderLine(lines[index] ?? "", index)}
       </div>
     ),
-    [lines, searchQuery, activeSearchIndex],
+    [lines, searchQuery, activeSearchIndex, cumulativeMatchOffsets],
   );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rc: any = RowComponent;
