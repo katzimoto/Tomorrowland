@@ -98,6 +98,7 @@ export const he: Translations = {
     tabComments: "תגובות",
     tabSubscriptions: "מנויים",
     tabVersions: "גרסאות",
+    tabDetails: "פרטים",
     versionLatest: "עדכני",
     versionOlder: "גרסה ישנה",
     versionBannerTitle: "קיימת גרסה חדשה יותר של מסמך זה.",

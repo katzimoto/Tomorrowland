@@ -14,6 +14,12 @@ export interface DocumentPreview {
   is_latest?: boolean | null;
   latest_document_id?: string | null;
   has_newer_version?: boolean | null;
+  source_language?: string | null;
+  target_language?: string | null;
+  status?: string | null;
+  content_sha256?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface DocumentVersion {

@@ -23,6 +23,31 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-21 — #445 metadata Details tab complete
+
+Status: Done
+Source: issue #445, PR #459
+
+What changed:
+- Extended `PreviewResponse` (backend) with `source_language`, `target_language`, `status`, `content_sha256`, `created_at`, `updated_at` (all `str | None`).
+- Added those fields as optional to `DocumentPreview` TypeScript interface.
+- Created `DetailsTab.tsx` — `<dl>` component with 25+ MIME label mappings, file size (B/KB/MB), source/path from metadata, languages, translation quality badge, status badge, version + latest marker, timestamps, SHA-256 (12-char truncated + copy button).
+- Created `DetailsTab.module.css` with badge, code, hashGroup, copyBtn styles.
+- Added `"details"` to `InsightPaneTab` union; added `tabDetails` i18n key to en + he locales.
+- Updated `InsightPane` to accept `preview?: DocumentPreview` and render DetailsTab.
+- Updated `DocumentPage` to pass `preview` to InsightPane.
+- Deleted `DetailsPanel.tsx` (unused).
+
+Verification:
+- 19/19 DetailsTab tests passed. Full documents suite 145/145. TypeScript clean.
+
+Open risks:
+- None critical. SHA-256 copy feedback is a 2-second "Copied" flash — no fallback for clipboard API denial.
+
+Next agent prompt:
+- Merge PR #459 into `feature/document-viewer`.
+- Start #447 (Code/syntax viewer). Branch `feat/447-code-viewer` from `feature/document-viewer`.
+
 ## 2026-05-21 — #444 image viewer complete
 
 Status: Done
