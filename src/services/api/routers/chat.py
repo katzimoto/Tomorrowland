@@ -142,7 +142,7 @@ def list_sessions(
 
 @router.get("/sessions/{session_id}")
 def get_session(
-    session_id: str,
+    session_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, Any]:
@@ -153,7 +153,7 @@ def get_session(
         repo = ChatRepository(connection)
         session = repo.get_session(
             user.sub,
-            UUID(hex=session_id),
+            session_id,
             include_messages=True,
         )
         if session is None:
@@ -167,7 +167,7 @@ def get_session(
 
 @router.patch("/sessions/{session_id}")
 def update_session(
-    session_id: str,
+    session_id: UUID,
     body: ChatUpdateRequest,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
@@ -179,7 +179,7 @@ def update_session(
         repo = ChatRepository(connection)
         updated = repo.update_session(
             user.sub,
-            UUID(hex=session_id),
+            session_id,
             ChatSessionUpdate(title=body.title, archived_at=None),
         )
         if updated is None:
@@ -189,7 +189,7 @@ def update_session(
 
 @router.delete("/sessions/{session_id}")
 def delete_session(
-    session_id: str,
+    session_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, Any]:
@@ -198,7 +198,7 @@ def delete_session(
     with request.app.state.engine.begin() as connection:
         _check_system_config_flag(connection)
         repo = ChatRepository(connection)
-        deleted = repo.delete_session(user.sub, UUID(hex=session_id))
+        deleted = repo.delete_session(user.sub, session_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Session not found")
         return {"ok": True}
@@ -211,7 +211,7 @@ def delete_session(
 
 @router.post("/sessions/{session_id}/messages")
 def create_message(
-    session_id: str,
+    session_id: UUID,
     body: ChatMessageRequest,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
@@ -222,14 +222,14 @@ def create_message(
         _check_system_config_flag(connection)
         repo = ChatRepository(connection)
         # Validate session exists and belongs to user
-        session = repo.get_session(user.sub, UUID(hex=session_id))
+        session = repo.get_session(user.sub, session_id)
         if session is None:
             raise HTTPException(status_code=404, detail="Session not found")
 
         # 1. Persist user message
         repo.create_message(
             ChatMessageCreate(
-                session_id=UUID(hex=session_id),
+                session_id=session_id,
                 role="user",
                 content=body.content,
             )
@@ -304,7 +304,7 @@ def create_message(
             )
             assistant_msg = repo.create_message(
                 ChatMessageCreate(
-                    session_id=UUID(hex=session_id),
+                    session_id=session_id,
                     role="assistant",
                     content="I could not search the document collection right now.",
                 )
@@ -328,7 +328,7 @@ def create_message(
         ]
         assistant_msg = repo.create_message(
             ChatMessageCreate(
-                session_id=UUID(hex=session_id),
+                session_id=session_id,
                 role="assistant",
                 content=result.answer,
                 citations=citations,

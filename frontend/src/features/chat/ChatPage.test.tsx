@@ -260,4 +260,143 @@ describe("ChatCitationCard", () => {
       expect(screen.getByText("Either party may terminate…")).toBeInTheDocument();
     });
   });
+
+  it("falls back to doc_title and chunk_text when document_title/text_excerpt absent", async () => {
+    vi.mocked(chatApi.getChatSession).mockResolvedValue({
+      ...SESSION_1,
+      messages: [
+        {
+          id: "msg-a",
+          session_id: "session-1",
+          role: "assistant",
+          content: "Answer using legacy fields.",
+          citations: [
+            {
+              citation_id: "cit-legacy",
+              document_id: "doc-2",
+              doc_title: "Legacy Doc Title",
+              chunk_text: "Legacy chunk excerpt.",
+              score: 0.8,
+              chunk_index: 0,
+              source_id: null,
+            },
+          ],
+          model: "llama3",
+          latency_ms: 500,
+          created_at: "2026-05-21T10:01:00Z",
+        },
+      ],
+    });
+
+    render(<ChatPage />);
+    const sessionBtn = await screen.findByText("Contract Review");
+    fireEvent.click(sessionBtn);
+    await waitFor(() => {
+      expect(screen.getByText("Legacy Doc Title")).toBeInTheDocument();
+      expect(screen.getByText("Legacy chunk excerpt.")).toBeInTheDocument();
+    });
+  });
+
+  it("falls back to document_title and text_excerpt (new field names)", async () => {
+    vi.mocked(chatApi.getChatSession).mockResolvedValue({
+      ...SESSION_1,
+      messages: [
+        {
+          id: "msg-b",
+          session_id: "session-1",
+          role: "assistant",
+          content: "Answer using new fields.",
+          citations: [
+            {
+              citation_id: "cit-new",
+              document_id: "doc-3",
+              document_title: "New Doc Title",
+              text_excerpt: "New excerpt text.",
+              score: 0.9,
+              chunk_index: 1,
+              source_id: null,
+            } as chatApi.DocumentChatCitation,
+          ],
+          model: "llama3",
+          latency_ms: 500,
+          created_at: "2026-05-21T10:01:00Z",
+        },
+      ],
+    });
+
+    render(<ChatPage />);
+    const sessionBtn = await screen.findByText("Contract Review");
+    fireEvent.click(sessionBtn);
+    await waitFor(() => {
+      expect(screen.getByText("New Doc Title")).toBeInTheDocument();
+      expect(screen.getByText("New excerpt text.")).toBeInTheDocument();
+    });
+  });
+});
+
+describe("ChatWindow loading and error states", () => {
+  it("shows loading state while session messages are fetching", async () => {
+    vi.mocked(chatApi.getChatSession).mockReturnValue(new Promise(() => {}));
+
+    render(<ChatPage />);
+    const sessionBtn = await screen.findByText("Contract Review");
+    fireEvent.click(sessionBtn);
+
+    // Input should not appear while session is loading
+    expect(
+      screen.queryByPlaceholderText("Ask a question…"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("disables input and send button while message is pending", async () => {
+    vi.mocked(chatApi.sendChatMessage).mockReturnValue(new Promise(() => {}));
+
+    render(<ChatPage />);
+    const sessionBtn = await screen.findByText("Contract Review");
+    fireEvent.click(sessionBtn);
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText("Ask a question…")).toBeInTheDocument(),
+    );
+
+    const input = screen.getByPlaceholderText("Ask a question…");
+    fireEvent.change(input, { target: { value: "Pending question" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Ask a question…")).toBeDisabled();
+    });
+  });
+
+  it("clears input after sending a message", async () => {
+    render(<ChatPage />);
+    const sessionBtn = await screen.findByText("Contract Review");
+    fireEvent.click(sessionBtn);
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText("Ask a question…")).toBeInTheDocument(),
+    );
+
+    const input = screen.getByPlaceholderText("Ask a question…");
+    fireEvent.change(input, { target: { value: "What about renewal?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Ask a question…")).toHaveValue("");
+    });
+  });
+
+  it("shows error state when session load fails", async () => {
+    vi.mocked(chatApi.getChatSession).mockRejectedValueOnce(
+      new Error("session load failed"),
+    );
+
+    render(<ChatPage />);
+    const sessionBtn = await screen.findByText("Contract Review");
+    fireEvent.click(sessionBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Failed to load chat."),
+      ).toBeInTheDocument();
+    });
+  });
 });
