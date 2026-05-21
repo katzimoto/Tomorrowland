@@ -192,8 +192,10 @@ describe("DocumentPage", () => {
         version_id: "v1",
         label: "Version 1",
         version_number: 1,
+        quality: "fast",
         status: "available",
-        created_at: "2026-01-01T00:00:00Z",
+        target_language: "es",
+        requested_at: "2026-01-01T00:00:00Z",
       },
     ]);
     render(<DocumentPage />);

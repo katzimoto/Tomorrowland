@@ -32,7 +32,7 @@ export function DocumentSearchBar({
     if (e.key === "Escape") {
       onClose();
     } else if (e.key === "Enter") {
-      e.shiftKey ? onPrev() : onNext();
+      if (e.shiftKey) onPrev(); else onNext();
     }
   }
 

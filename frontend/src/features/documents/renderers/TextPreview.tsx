@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { List } from "react-window";
 import { getDocumentText } from "@/api/documents";
@@ -33,6 +33,7 @@ export function TextPreview({
   onMatchCountChange,
 }: TextPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const noopRowProps: Record<string, never> = {};
   const [extraChunks, setExtraChunks] = useState<string[]>([]);
   const [extraTruncated, setExtraTruncated] = useState<boolean | null>(null);
   const [nextOffset, setNextOffset] = useState(CHUNK_SIZE);
@@ -52,9 +53,11 @@ export function TextPreview({
   });
 
   useEffect(() => {
-    setExtraChunks([]);
-    setExtraTruncated(null);
-    setNextOffset(CHUNK_SIZE);
+    startTransition(() => {
+      setExtraChunks([]);
+      setExtraTruncated(null);
+      setNextOffset(CHUNK_SIZE);
+    });
   }, [docId, translationVersionId, showOriginal]);
 
   const textLoadTimer = useRef<string | null>(null);
@@ -98,7 +101,7 @@ export function TextPreview({
   const lines = baseText ? baseText.split("\n") : [];
   const isVirtualized = lines.length > VIRTUALIZE_THRESHOLD;
 
-  function renderLine(line: string, _index: number) {
+  function renderLine(line: string) {
     if (searchQuery) {
       const matches = searchQuery
         ? highlightMatches(line, searchQuery, activeSearchIndex, styles.match, styles.activeMatch)
@@ -109,9 +112,9 @@ export function TextPreview({
   }
 
   const RowComponent = useCallback(
-    ({ index, style }: { index: number; style: React.CSSProperties }) => (
+    ({ index, style }: { index: number; style: React.CSSProperties; ariaAttributes?: Record<string, unknown> }) => (
       <div style={style} className={styles.virtualRow}>
-        {renderLine(lines[index] ?? "", index)}
+        {renderLine(lines[index] ?? "")}
       </div>
     ),
     [lines, searchQuery, activeSearchIndex],
@@ -155,12 +158,11 @@ export function TextPreview({
     return (
       <div ref={containerRef} className={styles.virtualContainer}>
         <List
-          height={Math.min(lines.length * ROW_HEIGHT, 600)}
-          width="100%"
           rowCount={lines.length}
           rowHeight={ROW_HEIGHT}
           rowComponent={RowComponent}
-          rowProps={{}}
+          rowProps={noopRowProps}
+          style={{ height: Math.min(lines.length * ROW_HEIGHT, 600), width: "100%" }}
         />
         {isTruncated && (
           <button

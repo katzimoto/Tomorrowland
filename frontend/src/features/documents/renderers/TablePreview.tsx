@@ -22,13 +22,13 @@ export function TablePreview({ text, searchQuery = "" }: TablePreviewProps) {
     .map((row) => row.split("\t"));
 
   const RowComponent = useCallback(
-    ({ index, style }: { index: number; style: React.CSSProperties }) => (
+    ({ index, style }: { index: number; style: React.CSSProperties; ariaAttributes?: Record<string, unknown> }) => (
       <div style={style} role="row">
         {rows[index + 1]?.map((cell, ci) => (
           <div key={ci} role="cell" className={`${styles.td} ${cellMatches(cell, searchQuery) ? styles.match : ""}`}>
             {cell}
           </div>
-        )) ?? null}
+        ))}
       </div>
     ),
     [rows, searchQuery],
@@ -40,6 +40,7 @@ export function TablePreview({ text, searchQuery = "" }: TablePreviewProps) {
 
   const [header, ...body] = rows;
   const isVirtualized = body.length > VIRTUALIZE_THRESHOLD;
+  const noopRowProps: Record<string, never> = {};
 
   if (isVirtualized) {
     return (
@@ -48,7 +49,7 @@ export function TablePreview({ text, searchQuery = "" }: TablePreviewProps) {
           <div role="rowgroup">
             <div role="row">
               {header.map((cell, i) => (
-                <div key={i} role="columnheader" scope="col" className={styles.th}>
+                <div key={i} role="columnheader" className={styles.th}>
                   {cell}
                 </div>
               ))}
@@ -56,12 +57,11 @@ export function TablePreview({ text, searchQuery = "" }: TablePreviewProps) {
           </div>
           <div role="rowgroup">
             <List
-              height={Math.min(body.length * ROW_HEIGHT, 600)}
-              width="100%"
               rowCount={body.length}
               rowHeight={ROW_HEIGHT}
               rowComponent={RowComponent}
-              rowProps={{}}
+              rowProps={noopRowProps}
+              style={{ height: Math.min(body.length * ROW_HEIGHT, 600), width: "100%" }}
             />
           </div>
         </div>

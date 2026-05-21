@@ -2,8 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ImageViewer } from "./ImageViewer";
 
-const noop = vi.fn();
-
 function setup(overrides: Partial<Parameters<typeof ImageViewer>[0]> = {}) {
   const onZoomChange = vi.fn();
   const utils = render(

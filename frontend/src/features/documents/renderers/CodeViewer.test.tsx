@@ -36,6 +36,7 @@ const { CodeViewer } = await import("./CodeViewer");
 beforeEach(() => {
   vi.mocked(documentsApi.getDocumentText).mockResolvedValue({
     text: 'const x = 1;\nconst y = 2;\n',
+    total_length: 26,
     truncated: false,
     offset: 0,
     limit: 50_000,
@@ -123,6 +124,7 @@ describe("CodeViewer", () => {
   it("shows truncation notice when text is truncated", async () => {
     vi.mocked(documentsApi.getDocumentText).mockResolvedValue({
       text: "x".repeat(50_000),
+      total_length: 50_001,
       truncated: true,
       offset: 0,
       limit: 50_000,
@@ -188,6 +190,7 @@ describe("CodeViewer", () => {
   it("highlights matches with <mark> when searchQuery is provided", async () => {
     vi.mocked(documentsApi.getDocumentText).mockResolvedValue({
       text: "const x = 1;\nconst y = 2;\n",
+      total_length: 26,
       truncated: false,
       offset: 0,
       limit: 50_000,
@@ -202,6 +205,7 @@ describe("CodeViewer", () => {
   it("reports match count via onMatchCountChange when searching", async () => {
     vi.mocked(documentsApi.getDocumentText).mockResolvedValue({
       text: "foo bar foo baz",
+      total_length: 15,
       truncated: false,
       offset: 0,
       limit: 50_000,
@@ -223,6 +227,7 @@ describe("CodeViewer", () => {
   it("active match has a different class than passive matches", async () => {
     vi.mocked(documentsApi.getDocumentText).mockResolvedValue({
       text: "abc abc abc",
+      total_length: 11,
       truncated: false,
       offset: 0,
       limit: 50_000,

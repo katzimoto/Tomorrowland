@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDownloadUrl, getPreview, getTranslationVersions } from "@/api/documents";
@@ -44,12 +44,12 @@ export function DocumentPage() {
 
   // Reset active index when query changes
   useEffect(() => {
-    setActiveSearchIndex(0);
+    startTransition(() => { setActiveSearchIndex(0); });
   }, [debouncedQuery]);
 
   // Reset match count when search closes
   useEffect(() => {
-    if (!searchOpen) { setMatchCount(0); setActiveSearchIndex(0); }
+    if (!searchOpen) { startTransition(() => { setMatchCount(0); setActiveSearchIndex(0); }); }
   }, [searchOpen]);
 
   const handleMatchCountChange = useCallback((n: number) => {
@@ -75,9 +75,11 @@ export function DocumentPage() {
   // Reset mode and image zoom when navigating to a different document.
   useEffect(() => {
     initialModeDoneRef.current = false;
-    setActiveMode("original");
-    setImageZoom(null);
-    closeSearch();
+    startTransition(() => {
+      setActiveMode("original");
+      setImageZoom(null);
+      closeSearch();
+    });
   }, [docId, closeSearch]);
 
   // Poll for translation versions when there are in-progress translations.
@@ -100,7 +102,7 @@ export function DocumentPage() {
     if (!versions) return;
     initialModeDoneRef.current = true;
     if (versions.some((v) => v.status === "available")) {
-      setActiveMode("translation");
+      startTransition(() => { setActiveMode("translation"); });
     }
   }, [versions]);
 

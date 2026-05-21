@@ -37,7 +37,6 @@ beforeEach(() => {
 
 describe("PdfViewer", () => {
   it("shows loading state initially", () => {
-    const task = makeMockTask();
     // Never-resolving promise to keep loading state
     const neverTask = { promise: new Promise(() => {}), destroy: vi.fn() };
     mockGetDocument.mockReturnValue(neverTask);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { startTransition, useEffect, useRef, useState, useMemo } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -56,7 +56,7 @@ export function PdfViewer({ docId, searchQuery = "", onMatchCountChange }: PdfVi
       canvas.height = viewport.height;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      void page.render({ canvasContext: ctx, viewport }).promise;
+      void page.render({ canvas: canvasRef.current, canvasContext: ctx, viewport }).promise;
       if (pdfLoadTimer.current) {
         finishNamedPerformanceTimer(pdfLoadTimer.current, "viewer.pdf.load", "success");
         pdfLoadTimer.current = null;
@@ -69,10 +69,12 @@ export function PdfViewer({ docId, searchQuery = "", onMatchCountChange }: PdfVi
 
   // Load PDF document
   useEffect(() => {
-    setLoading(true);
-    setError(false);
-    setPageNum(1);
-    setPdfDoc(null);
+    startTransition(() => {
+      setLoading(true);
+      setError(false);
+      setPageNum(1);
+      setPdfDoc(null);
+    });
     const task = pdfjsLib.getDocument(downloadUrl);
     task.promise.then(
       (doc) => {

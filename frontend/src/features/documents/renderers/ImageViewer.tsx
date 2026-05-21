@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { UnsupportedPreview } from "./UnsupportedPreview";
 import { ExtractionFailedPreview } from "./ExtractionFailedPreview";
 import {
@@ -45,12 +45,8 @@ export function ImageViewer({ docId, mimeType, alt, zoom, onZoomChange }: ImageV
 
   // Reset pan when zoom changes.
   useEffect(() => {
-    setPan({ x: 0, y: 0 });
+    startTransition(() => { setPan({ x: 0, y: 0 }); });
   }, [zoom]);
-
-  if (mimeType === "image/tiff") {
-    return <UnsupportedPreview mimeType={mimeType} downloadUrl={src} />;
-  }
 
   const imageLoadTimer = useRef<string | null>(null);
   useEffect(() => {
@@ -59,6 +55,10 @@ export function ImageViewer({ docId, mimeType, alt, zoom, onZoomChange }: ImageV
       startNamedPerformanceTimer(imageLoadTimer.current);
     }
   }, [mimeType]);
+
+  if (mimeType === "image/tiff") {
+    return <UnsupportedPreview mimeType={mimeType} downloadUrl={src} />;
+  }
 
   function handleLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     setLoading(false);
