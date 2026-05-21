@@ -103,6 +103,44 @@ def preview(
         )
 
 
+@router.get("/documents/{document_id}/text")
+def get_document_text(
+    document_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+    translation_version_id: UUID | None = None,
+    show_original: bool = False,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=10000, ge=1, le=100000),
+) -> dict[str, Any]:
+    with request.app.state.engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(document_id, user, auth_repo)
+
+        doc_repo = DocumentRepository(connection)
+        if doc_repo.get_by_id(document_id) is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        preview_service = PreviewService(connection)
+        full_text = preview_service.get_full_text(
+            document_id,
+            translation_version_id=translation_version_id,
+            show_original=show_original,
+        )
+
+        total_length = len(full_text)
+        sliced = full_text[offset : offset + limit] if offset < total_length else ""
+        truncated = (offset + limit) < total_length
+
+        return {
+            "text": sliced,
+            "total_length": total_length,
+            "offset": offset,
+            "limit": limit,
+            "truncated": truncated,
+        }
+
+
 @router.get("/me/activity")
 def me_activity(
     request: Request,

@@ -38,7 +38,7 @@ export function PreviewPane({ preview }: PreviewPaneProps) {
   ) {
     return (
       <div className={styles.pane}>
-        <TextPreview text={text} />
+        <TextPreview docId={preview.document_id} />
       </div>
     );
   }
@@ -106,7 +106,7 @@ export function PreviewPane({ preview }: PreviewPaneProps) {
   ) {
     return (
       <div className={styles.pane}>
-        <TextPreview text={text} />
+        <TextPreview docId={preview.document_id} />
       </div>
     );
   }
