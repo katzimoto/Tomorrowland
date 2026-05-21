@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     feature_expertise_map: bool = True
     feature_related_docs: bool = True
     feature_auto_tagging: bool = True
+    feature_document_chat: bool = False
     auto_enrich_threshold: int = Field(default=5, ge=0)
     ingest_mode: Literal["hybrid", "watch", "poll"] = "hybrid"
 

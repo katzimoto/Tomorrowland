@@ -23,6 +23,27 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-21 — Phase B1-B2 chat_sessions + chat_messages migrations
+
+Status: Done
+Source: issue #473
+
+What changed:
+- Created `k1l2m3n4o5p6_add_chat_sessions_table.py` — `chat_sessions` with id, user_id (FK CASCADE), title, scope_type, scope_ids (JSON as Text), created_at, updated_at, archived_at, metadata (JSON as Text). Indexes on user_id and updated_at.
+- Created `q7r8s9t0u1v2_add_chat_messages_table.py` — `chat_messages` with id, session_id (FK CASCADE to chat_sessions), role, content, rewritten_query, citations (JSON as Text), retrieval_trace, model, latency_ms, created_at, metadata. Index on (session_id, created_at).
+- JSON fields use `sa.Text()` with JSON-serialized defaults for SQLite compat (project convention — no CheckConstraints, app-layer validation).
+
+Verification:
+- `ruff check` + `ruff format` — passed
+- `pytest tests/test_migrations.py` — 5 passed (all existing migration smoke tests + new tables created successfully)
+
+Open risks:
+- JSON-in-Text fields need app-layer encoding/decoding (ChatRepository handles this)
+- No check constraint on `role` — app-layer validation required
+
+Next mission:
+- B3 ChatRepository
+
 ## 2026-05-21 — Document Chat Phase A foundation complete
 
 Status: Done
