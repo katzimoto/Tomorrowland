@@ -100,6 +100,12 @@ def preview(
             is_latest=is_latest_val,
             latest_document_id=latest_document_id,
             has_newer_version=has_newer_version,
+            source_language=doc_row.source_language if doc_row else None,
+            target_language=doc_row.target_language if doc_row else None,
+            status=doc_row.status if doc_row else None,
+            content_sha256=doc_row.content_sha256 if doc_row else None,
+            created_at=doc_row.created_at.isoformat() if doc_row else None,
+            updated_at=doc_row.updated_at.isoformat() if doc_row else None,
         )
 
 

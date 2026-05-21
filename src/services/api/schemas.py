@@ -55,6 +55,12 @@ class PreviewResponse(BaseModel):
     is_latest: bool | None = None
     latest_document_id: str | None = None
     has_newer_version: bool | None = None
+    source_language: str | None = None
+    target_language: str | None = None
+    status: str | None = None
+    content_sha256: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 class ConnectionTestResult(BaseModel):

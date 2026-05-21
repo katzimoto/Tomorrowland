@@ -161,7 +161,7 @@ export function DocumentPage() {
           />
         </div>
         <div className={styles.insightCol}>
-          <InsightPane docId={docId} />
+          <InsightPane docId={docId} preview={preview} />
         </div>
       </div>
     </div>
