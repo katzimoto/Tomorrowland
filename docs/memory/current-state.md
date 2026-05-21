@@ -14,13 +14,15 @@ Finding:
 - #442 (PDF.js viewer) — Done. PR #456 merged to `feature/document-viewer`.
 - #443 (view mode switcher + fidelity bar) — Done. PR #457 merged to `feature/document-viewer`.
 - #444 (image viewer) — Done. PR #458 merged to `feature/document-viewer`.
-- #445 (metadata Details tab) — Done. PR #459 open, targets `feature/document-viewer`.
+- #445 (metadata Details tab) — Done. PR #459 merged to `feature/document-viewer`.
+- #447 (code/syntax viewer) — Done. PR #460 open, targets `feature/document-viewer`.
 - `feature/document-viewer` integration branch exists on remote.
 - TextPreview fetches full text via `GET /documents/{document_id}/text` in 10K chunks.
 - ViewModeSwitcher drives activeMode (original/extracted/translation) in DocumentPage.
 - FidelityStatusBar renders between toolbar and viewer body.
 - ImageViewer replaces ImagePreview; zoom state lifted to DocumentPage.
 - DetailsTab: `<dl>` component in InsightPane "Details" tab; uses PreviewResponse new fields.
+- CodeViewer: highlight.js bundled syntax viewer; dispatches JSON/XML/YAML/source MIMEs from PreviewPane.
 
 Impact:
 - PreviewPane accepts `activeMode`, `selectedVersionId`, `imageZoom`, `onImageZoomChange`.
@@ -29,7 +31,7 @@ Impact:
 - Backend PreviewResponse extended: `source_language`, `target_language`, `status`, `content_sha256`, `created_at`, `updated_at`.
 
 Next action:
-- Merge PR #459 into `feature/document-viewer`, then start #447 (Code/syntax viewer).
+- Merge PR #460 into `feature/document-viewer`, then start #448 (Media viewer).
 
 ## 2026-05-20 — Shared agent skills setup
 
