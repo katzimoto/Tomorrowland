@@ -5,23 +5,26 @@ Canonical shared memory for active project state. Keep this file compact and fac
 ## 2026-05-21 — Document viewer track in progress
 
 Status: Active
-Source: issues #440, #441, #442, #453; PRs #454, #455
+Source: issues #440–#443, #453; PRs #454–#457
 
 Finding:
 - Document viewer MVP track (parent #453) is underway.
 - #440 (HTML sandbox) — Done. PR #454 merged to `main`.
-- #441 (full text API) — Done. PR #455 open, targets `feature/document-viewer`.
-- #442 (PDF.js viewer) — Done. PR #456 open, targets `feature/document-viewer`.
-- `feature/document-viewer` integration branch exists on remote (created 2026-05-21).
-- TextPreview now fetches full text via `GET /documents/{document_id}/text` in 10K chunks.
+- #441 (full text API) — Done. PR #455 merged to `feature/document-viewer`.
+- #442 (PDF.js viewer) — Done. PR #456 merged to `feature/document-viewer`.
+- #443 (view mode switcher + fidelity bar) — Done. PR #457 open, targets `feature/document-viewer`.
+- `feature/document-viewer` integration branch exists on remote.
+- TextPreview fetches full text via `GET /documents/{document_id}/text` in 10K chunks.
+- ViewModeSwitcher drives activeMode (original/extracted/translation) in DocumentPage.
+- FidelityStatusBar renders between toolbar and viewer body.
 
 Impact:
-- #442 must branch from `feature/document-viewer` after #441 merges, not from `main`.
-- PreviewPane passes `docId` to TextPreview for all text-based MIME types.
-- `application/pdf` still dispatches to TextPreview (changed in #442 to PdfViewer).
+- PreviewPane now accepts `activeMode`/`selectedVersionId`; extracted/translation modes override MIME dispatch to TextPreview.
+- `showOriginal` is now derived from `activeMode` (not separate state) in DocumentPage.
+- DocumentPage.test.tsx now mocks `getDocumentText` in beforeEach.
 
 Next action:
-- Merge PR #455 into `feature/document-viewer`, then start #442.
+- Merge PR #457 into `feature/document-viewer`, then identify next issue in #453 track.
 
 ## 2026-05-20 — Shared agent skills setup
 
