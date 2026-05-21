@@ -11,6 +11,12 @@ vi.mock("./renderers/PdfViewer", () => ({
   ),
 }));
 
+vi.mock("./renderers/ImageViewer", () => ({
+  ImageViewer: ({ docId, mimeType }: { docId: string; mimeType: string }) => (
+    <div data-testid="image-viewer" data-doc-id={docId} data-mime={mimeType} />
+  ),
+}));
+
 vi.mock("./renderers/TextPreview", () => ({
   TextPreview: ({
     docId,
@@ -118,5 +124,37 @@ describe("PreviewPane dispatch", () => {
       />
     );
     expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
+  });
+
+  it("dispatches image/png to ImageViewer", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "image/png" })} />);
+    expect(screen.getByTestId("image-viewer")).toBeInTheDocument();
+  });
+
+  it("dispatches image/jpeg to ImageViewer", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "image/jpeg" })} />);
+    expect(screen.getByTestId("image-viewer")).toBeInTheDocument();
+  });
+
+  it("dispatches image/webp to ImageViewer", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "image/webp" })} />);
+    expect(screen.getByTestId("image-viewer")).toBeInTheDocument();
+  });
+
+  it("dispatches image/gif to ImageViewer", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "image/gif" })} />);
+    expect(screen.getByTestId("image-viewer")).toBeInTheDocument();
+  });
+
+  it("dispatches image/svg+xml to ImageViewer", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "image/svg+xml" })} />);
+    expect(screen.getByTestId("image-viewer")).toBeInTheDocument();
+  });
+
+  it("passes mimeType to ImageViewer", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "image/png", document_id: "img-1" })} />);
+    const viewer = screen.getByTestId("image-viewer");
+    expect(viewer).toHaveAttribute("data-mime", "image/png");
+    expect(viewer).toHaveAttribute("data-doc-id", "img-1");
   });
 });

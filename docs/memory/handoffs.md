@@ -23,6 +23,31 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-21 — #444 image viewer complete
+
+Status: Done
+Source: issue #444, PR #458
+
+What changed:
+- Added `ImageViewer.tsx` with zoom 25%–400%, pan, keyboard controls (+/-/0/arrows), Ctrl+scroll, double-click fit reset.
+- TIFF → UnsupportedPreview; load error → ExtractionFailedPreview; SVG as `<img>` (no inline SVG).
+- Image info bar shows dimensions + zoom level.
+- Keyboard help in visually-hidden `<p>`.
+- Zoom state lifted to DocumentPage (`imageZoom`, `setImageZoom`); toolbar shows zoom controls when `showImageControls=true`.
+- PreviewPane now passes `imageZoom`/`onImageZoomChange` to ImageViewer.
+- ImagePreview.tsx deleted.
+
+Verification:
+- 264/264 tests passed (50 test files). TypeScript clean.
+
+Open risks:
+- Ctrl+scroll preventDefault called on React synthetic event — needs browser test to verify scroll is suppressed in the container.
+- Pan boundary clamping not implemented; image can be panned off-screen.
+
+Next agent prompt:
+- Merge PR #458 into `feature/document-viewer`.
+- Start #445 (Metadata Details tab). Branch `feat/445-metadata-tab` from `feature/document-viewer`.
+
 ## 2026-05-21 — #443 view mode switcher complete
 
 Status: Done
