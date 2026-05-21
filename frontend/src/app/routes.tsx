@@ -5,6 +5,7 @@ import { LoginPage } from "@/features/auth/LoginPage";
 import { SearchPage } from "@/features/search/SearchPage";
 import { DocumentPage } from "@/features/documents/DocumentPage";
 import { QAPage } from "@/features/qa/QAPage";
+import { ChatPage } from "@/features/chat/ChatPage";
 import { SubscriptionsPage } from "@/features/subscriptions/SubscriptionsPage";
 import { NotificationsPage } from "@/features/notifications/NotificationsPage";
 import { HistoryPage } from "@/features/history/HistoryPage";
@@ -70,6 +71,12 @@ const qaRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/qa",
   component: QAPage,
+});
+
+const chatRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/chat",
+  component: ChatPage,
 });
 
 const subscriptionsRoute = createRoute({
@@ -140,6 +147,7 @@ const routeTree = rootRoute.addChildren([
     searchRoute,
     docRoute,
     qaRoute,
+    chatRoute,
     subscriptionsRoute,
     notificationsRoute,
     historyRoute,

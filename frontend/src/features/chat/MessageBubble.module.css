@@ -1,0 +1,38 @@
+.bubble {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 80%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.user {
+  align-self: flex-end;
+  background: var(--color-accent);
+  color: var(--color-on-accent, #fff);
+  border-bottom-right-radius: 2px;
+}
+
+.assistant {
+  align-self: flex-start;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-bottom-left-radius: 2px;
+  max-width: 90%;
+}
+
+.content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.groundingNote {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
