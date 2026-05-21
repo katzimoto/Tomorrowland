@@ -5,7 +5,7 @@ Canonical shared memory for active project state. Keep this file compact and fac
 ## 2026-05-21 — Document viewer track in progress
 
 Status: Active
-Source: issues #440–#445, #453; PRs #454–#459
+Source: issues #440–#449, #453; PRs #454–#462
 
 Finding:
 - Document viewer MVP track (parent #453) is underway.
@@ -16,7 +16,8 @@ Finding:
 - #444 (image viewer) — Done. PR #458 merged to `feature/document-viewer`.
 - #445 (metadata Details tab) — Done. PR #459 merged to `feature/document-viewer`.
 - #447 (code/syntax viewer) — Done. PR #460 merged to `feature/document-viewer`.
-- #448 (media viewer) — Done. PR #461 open, targets `feature/document-viewer`.
+- #448 (media viewer) — Done. PR #461 merged to `feature/document-viewer`.
+- #449 (in-document search) — Done. PR #462 merged to `feature/document-viewer`.
 - `feature/document-viewer` integration branch exists on remote.
 - TextPreview fetches full text via `GET /documents/{document_id}/text` in 10K chunks.
 - ViewModeSwitcher drives activeMode (original/extracted/translation) in DocumentPage.
@@ -25,15 +26,17 @@ Finding:
 - DetailsTab: `<dl>` component in InsightPane "Details" tab; uses PreviewResponse new fields.
 - CodeViewer: highlight.js bundled syntax viewer; dispatches JSON/XML/YAML/source MIMEs from PreviewPane.
 - MediaPreview: native audio/video with byte-range backend support; transcript from snippet.
+- In-document search: Ctrl+F/Cmd+F opens DocumentSearchBar; match highlights via `<mark>` in TextPreview/CodeViewer; match count reported by PdfViewer; cell highlight in TablePreview.
 
 Impact:
-- PreviewPane accepts `activeMode`, `selectedVersionId`, `imageZoom`, `onImageZoomChange`.
-- DocumentToolbar shows image zoom controls when `showImageControls=true` (image mime + original mode).
+- PreviewPane accepts `activeMode`, `selectedVersionId`, `imageZoom`, `onImageZoomChange`, `searchQuery`, `activeSearchIndex`, `onMatchCountChange`.
+- DocumentToolbar shows image zoom controls when `showImageControls=true`; shows search toggle button when `searchable=true`.
 - InsightPane accepts `preview?: DocumentPreview` prop for DetailsTab.
 - Backend PreviewResponse extended: `source_language`, `target_language`, `status`, `content_sha256`, `created_at`, `updated_at`.
+- `Element.prototype.scrollIntoView = vi.fn()` added to `frontend/src/test/setup.ts` (jsdom compat).
 
 Next action:
-- Merge PR #461 into `feature/document-viewer`, then start #449 (In-document search).
+- Check parent issue #453 for remaining MVP child issues after #449.
 
 ## 2026-05-20 — Shared agent skills setup
 

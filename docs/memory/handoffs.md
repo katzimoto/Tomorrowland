@@ -23,6 +23,31 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-21 — #449 in-document search complete
+
+Status: Done
+Source: issue #449, PR #462
+
+What changed:
+- Added `DocumentSearchBar.tsx` (`type="search"` input for `searchbox` ARIA role): debounced query, N of M counter, Prev/Next nav, Escape closes, Shift+Enter → Prev, `aria-live="polite"` counter.
+- Added `highlightMatches.tsx`: shared utility returning `{nodes, count}` with `<mark data-match-index>` elements; active match gets distinct CSS class. `countMatches()` for non-rendered count (PDF).
+- `DocumentPage`: Ctrl+F/Cmd+F toggles search bar; 200ms debounce; `searchable` computed (excludes image/audio/video/archive); search state threaded to PreviewPane.
+- `DocumentToolbar`: search toggle button with `aria-pressed`; shown when `searchable && onSearchToggle`.
+- `TextPreview` + `CodeViewer`: highlight matches inline, scroll active mark into view.
+- `PdfViewer`: extracts text from all pages via `getTextContent()`, reports match count via `onMatchCountChange`.
+- `TablePreview`: CSS class on matching cells.
+- `frontend/src/test/setup.ts`: added `Element.prototype.scrollIntoView = vi.fn()` for jsdom.
+
+Verification:
+- 77/77 targeted tests (DocumentSearchBar 13, DocumentToolbar 14, TextPreview, CodeViewer, PdfViewer). TypeScript clean.
+
+Open risks:
+- `scrollIntoView` for active match not verified in real browser; jsdom mock confirms call path only.
+- PdfViewer match highlighting is count-only (no visual marks in canvas-rendered PDF).
+
+Next agent prompt:
+- Check parent issue #453 for remaining MVP child issues after #449.
+
 ## 2026-05-21 — #448 media viewer complete
 
 Status: Done
