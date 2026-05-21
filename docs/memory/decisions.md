@@ -55,6 +55,38 @@ Impact:
 Next action:
 - Keep enforcing until the feature branch merges to `main`.
 
+## 2026-05-21 — Document Chat: TanStack Query v5 message seeding pattern
+
+Status: Active
+Source: issue #473, `feature/document-chat`; ChatWindow.tsx
+
+Decision:
+- TanStack Query v5 removed `onSuccess`/`onError`/`onSettled` from `useQuery` options. Use `useEffect` instead.
+- Chat message state is seeded once from the query result using a ref guard (`seededForSession = useRef<string | null>(null)`). The ref stores the last session ID for which messages were seeded.
+- After seeding, messages are managed entirely in local React state to allow optimistic updates without query invalidation.
+- Session change resets both input and the ref guard via a separate `useEffect` on `session.id`.
+- `staleTime: 5 * 60_000` on the chat-session query prevents background refetch from overwriting locally-appended messages during an active chat.
+
+Impact:
+- Any future query-driven local state that allows offline mutations must follow this seed-once pattern.
+- Never use `queryClient.setQueryData` to append optimistic chat messages — that would break the seed-once guard.
+
+Next action:
+- Phase C streaming changes should preserve the seed-once guard.
+
+## 2026-05-21 — Document Chat: backend DELETE returns 200 JSON (not 204)
+
+Status: Active
+Source: issue #473, `src/services/api/routers/chat.py`
+
+Decision:
+- `DELETE /chat/sessions/{id}` returns `{"ok": true}` with HTTP 200, not 204 No Content.
+- `deleteChatSession()` in `api/chat.ts` is typed as `Promise<{ ok: boolean }>`, not `Promise<void>`.
+- This differs from the standard REST convention used by other delete endpoints in the codebase.
+
+Impact:
+- If the backend is ever normalized to 204, update `deleteChatSession` return type and callers.
+
 ## 2026-05-20 — Repo memory is the durable record
 
 Status: Active

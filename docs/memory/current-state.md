@@ -87,19 +87,43 @@ Next action:
 - Complete implementation: ruff format, mypy, pytest.
 - Open PR targeting `main`.
 
-## 2026-05-20 — Shared agent skills setup
+## 2026-05-21 — Document Chat feature in progress (#471–#478)
 
 Status: Active
+Source: issue #471 (parent), #472 Phase A, #473 Phase B; PRs merged to `feature/document-chat`
+
+Finding:
+- Document Chat design doc at `docs/design/document-chat-design.md` (committed 06fae05 to main).
+- Phase A (RAG + backend foundation): merged to main via PR #472.
+- Phase B (backend API + frontend UI, B1–B6): implementation on `feature/document-chat`.
+  - Backend: `src/services/api/routers/chat.py` — sessions CRUD, message send, citations.
+  - Frontend: `frontend/src/features/chat/` — ChatPage, ChatSidebar, ChatWindow, MessageList, ChatInput, ChatCitationList, all CSS modules; route `/chat` added; NavRail entry added.
+  - i18n: full `chat` namespace in en.ts + he.ts.
+  - Tests: 11 cases in ChatPage.test.tsx covering empty state, session CRUD, send+reply, citations, loading/error.
+- B7 integration tests (session lifecycle, cross-user 403, degraded Qdrant 503) not yet written.
+- Phase C (scope selector, ScopeBadge, InsightPane migration) not started.
+
+Impact:
+- DELETE `/chat/sessions/{id}` returns `{"ok": true}` 200 (not 204) — `deleteChatSession` typed as `Promise<{ ok: boolean }>`.
+- TanStack Query v5: `onSuccess` removed from `useQuery`; seeding uses `useEffect` with seed-once ref guard.
+- Node 22 required for test/lint in frontend; CI runs on 22, local env at 20.9.0.
+
+Next action:
+- Write B7 integration tests (cross-user 403, Qdrant 503 fallback).
+- Start Phase C: scope model, `ChatScope` filter, `ScopeBadge`.
+
+## 2026-05-20 — Shared agent skills setup
+
+Status: Done
 Source: project manager chat summary
 
 Finding:
-- Add a shared `.claude/skills/` skill library for Claude Code and OpenCode.
-- Add project-local OpenCode agent definitions under `.opencode/agents/`.
-- Add repo-owned Markdown memory under `docs/memory/`.
+- Shared `.claude/skills/` skill library added for Claude Code and OpenCode.
+- Project-local OpenCode agent definitions added under `.opencode/agents/`.
+- Repo-owned Markdown memory live under `docs/memory/`.
 
 Impact:
-- Future agent work should load only the relevant skills and memory files before broad repo exploration.
-- Project memory should be easy to review in git.
+- Agents read relevant skills and memory before broad repo exploration.
 
 Next action:
-- Finish wiring skills, memory files, and OpenCode agent definitions.
+- None. Setup complete.
