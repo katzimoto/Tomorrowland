@@ -287,6 +287,34 @@ describe("DocumentToolbar", () => {
     expect(screen.queryByRole("button", { name: "Search within document" })).not.toBeInTheDocument();
   });
 
+  it("renders all primary actions at 375px viewport", () => {
+    window.innerWidth = 375;
+    window.dispatchEvent(new Event("resize"));
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original", "extracted", "translation"]}
+        activeMode="original"
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+        showImageControls={true}
+        imageZoom={null}
+        onImageZoomChange={vi.fn()}
+        searchable={true}
+        searchOpen={false}
+        onSearchToggle={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("link", { name: /download/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Search within document" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zoom out" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset zoom" })).toBeInTheDocument();
+  });
+
   it("search button toggles aria-pressed state", () => {
     const onSearchToggle = vi.fn();
     render(

@@ -535,9 +535,14 @@ def download(
     if not target.is_relative_to(files_root):
         request.app.state.metrics.download_requests_total.labels("failure").inc()
         raise HTTPException(status_code=400, detail="Invalid file path")
-    request.app.state.metrics.download_requests_total.labels("success").inc()
 
-    file_size = target.stat().st_size
+    try:
+        file_size = target.stat().st_size
+    except FileNotFoundError:
+        request.app.state.metrics.download_requests_total.labels("failure").inc()
+        raise HTTPException(status_code=404, detail="File not found on disk") from None
+
+    request.app.state.metrics.download_requests_total.labels("success").inc()
     range_header = request.headers.get("Range")
 
     if range_header:
