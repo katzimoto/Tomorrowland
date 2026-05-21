@@ -360,6 +360,86 @@ removes product data volumes.
 - Alert rules intentionally reference only existing Tomorrowland metrics. Add
   exporter-backed alerts in a follow-up after those exporters are introduced.
 
+## Resource Safety Guards
+
+Before scaling replicas or adding load, verify that the combined resource caps
+for all services fit within the host's physical RAM with at least 2 GB reserved
+for the operating system and Docker runtime.
+
+### Default resource caps
+
+| Service | CPUs | Memory limit | Memory reservation | PIDs |
+|---------|------|-------------|-------------------|------|
+| `postgres` | 1.00 | 1536m | 512m | 512 |
+| `elasticsearch` | 1.50 | 2g | 1g | 512 |
+| `qdrant` | 1.00 | 1536m | 512m | 512 |
+| `meilisearch` | 1.00 | 1g | 256m | 512 |
+| `libretranslate` | 1.00 | 2g | 512m | 512 |
+| `ollama` | 2.00 | 4g | 1g | 1024 |
+| `api` | 1.00 | 1g | 256m | 512 |
+| `pipeline-worker` | 1.00 | 1536m | 256m | 512 |
+| `vector-worker` | 1.00 | 1536m | 256m | 512 |
+
+**Total baseline (all services, 1 replica each): ~15 GB memory limit, ~4 GB reservation.**
+
+### Guidance by host RAM
+
+**8-16 GB RAM — minimum viable:**
+- Keep at 1 replica for every service.
+- Reduce Ollama: `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_MAX_LOADED_MODELS=1`,
+  `OLLAMA_CONTEXT_LENGTH=1024`.
+- Reduce Elasticsearch heap: `ES_JAVA_OPTS="-Xms256m -Xmx256m"`.
+- Do not enable Meilisearch (`FEATURE_MEILISEARCH_SEARCH=false`).
+
+**16-32 GB RAM — comfortable single-host:**
+- API and pipeline-worker may scale to 2 replicas if needed.
+- `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_CONTEXT_LENGTH=2048`.
+- Meilisearch can be enabled with caution.
+
+**32 GB+ RAM — operator-tuned only:**
+- Do not automatically raise the defaults above.
+- Tune based on actual Prometheus metrics, not host size.
+
+### Safe scaling commands
+
+```bash
+# Inspect rendered resource limits
+docker compose config
+
+# Check container status and resource usage
+docker compose ps
+docker compose stats
+docker stats
+
+# Scale specific services
+docker compose up -d --scale api=2
+docker compose up -d --scale pipeline-worker=2
+
+# Follow logs for overload signals
+docker compose logs -f api pipeline-worker vector-worker ollama
+```
+
+### Capacity warning
+
+> Do not scale API or workers until the combined memory caps for Postgres,
+> search, vector DB, translation, Ollama, API replicas, and worker replicas
+> fit within host RAM with at least 2 GB reserved for the host OS.
+
+### Overload response
+
+When the server shows signs of overload (OOM kills, swap usage, high p95
+latency, repeated worker retries):
+
+1. **Stop increasing replicas.** Adding more containers makes OOM more likely.
+2. **Reduce worker scale to 1.** `docker compose up -d --scale pipeline-worker=1 --scale vector-worker=1`
+3. **Reduce Ollama queue/parallelism/context length.** Lower
+   `OLLAMA_NUM_PARALLEL`, `OLLAMA_MAX_QUEUE`, and `OLLAMA_CONTEXT_LENGTH`.
+4. **Lower embedding/translation/indexing concurrency.** Keep each worker at
+   1 replica; do not run additional worker containers.
+5. **Inspect DB pool pressure and queue age.**
+   `docker compose logs --tail=50 pipeline-worker | grep "queue_depth"`
+6. **Only then consider larger hardware or distributed deployment.**
+
 ## Startup, Shutdown, And Logs
 
 Validate Compose without starting services:
@@ -871,6 +951,10 @@ to avoid stale search results.
 
 ## Current Limitations
 
+- Resource guards use Docker Compose `cpus`, `mem_limit`, `mem_reservation`, and
+  `pids_limit`. These are container-level limits; they do not replace cgroup
+  configuration, kernel tuning, or swap accounting at the host level. Hosts with
+  less than 8 GB RAM are not supported.
 - Long-running worker containers are not present yet; ingestion and intelligence
   work are synchronous or API-triggered in the current runtime.
 - NiFi event ingestion is release-usable through the bounded Kafka drain in

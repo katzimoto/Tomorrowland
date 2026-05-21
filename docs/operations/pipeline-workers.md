@@ -375,9 +375,11 @@ claim rate (`tomorrowland_pipeline_jobs_claimed_total`) flat.
 
 1. Confirm workers are running and heartbeating.
 2. If workers are running but not claiming, check `worker_loop_errors_total` —
-   loop errors cause the worker to sleep and skip the claim attempt.
-3. Scale workers if capacity is genuinely saturated:
-   `docker compose up -d --scale pipeline-worker=2`
+    loop errors cause the worker to sleep and skip the claim attempt.
+3. Check that resource limits (`cpus`, `mem_limit`) are not throttling the
+    worker — inspect with `docker stats` or `docker compose stats`.
+4. Scale workers if capacity is genuinely saturated:
+    `docker compose up -d --scale pipeline-worker=2`
 
 ---
 
