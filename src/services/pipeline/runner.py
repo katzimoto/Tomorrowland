@@ -616,6 +616,7 @@ if __name__ == "__main__":
             qdrant_client=qdrant_client,
             meili_provider=meili_provider,
             intelligence_worker=intelligence_worker,
+            embedding_max_tokens=settings.embedding_max_tokens,
         )
 
         run_loop(job_repo, worker, conn, worker_id="pipeline-worker")

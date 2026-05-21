@@ -35,6 +35,7 @@ def run_vector_once(
     extractor: ExtractorRegistry,
     worker_id: str = "vector-worker",
     metrics: MetricsRegistry | None = None,
+    embedding_max_tokens: int | None = None,
 ) -> bool:
     """Claim one vector job, encode chunks, and upsert Qdrant points.
 
@@ -46,6 +47,8 @@ def run_vector_once(
         extractor: Extractor registry for file content.
         worker_id: Identifier for lock tracking.
         metrics: Optional metrics registry; pass ``None`` to disable instrumentation.
+        embedding_max_tokens: Maximum estimated tokens per chunk before encoding.
+            Passed to chunking to prevent embedding context-length errors.
 
     Returns:
         ``True`` if a job was processed, ``False`` if none available.
@@ -114,7 +117,11 @@ def run_vector_once(
 
         # Original language chunks
         for idx, chunk_text_content in enumerate(
-            chunk_text(content_text, language=doc.source_language)
+            chunk_text(
+                content_text,
+                language=doc.source_language,
+                max_tokens=embedding_max_tokens,
+            )
         ):
             qdrant_chunks.append(
                 _build_chunk(
@@ -128,7 +135,11 @@ def run_vector_once(
         # Translated chunks (when translation exists and differs from original)
         if translated_text and translated_text != content_text:
             for idx, chunk_text_content in enumerate(
-                chunk_text(translated_text, language=doc.target_language)
+                chunk_text(
+                    translated_text,
+                    language=doc.target_language,
+                    max_tokens=embedding_max_tokens,
+                )
             ):
                 qdrant_chunks.append(
                     _build_chunk(
@@ -143,6 +154,33 @@ def run_vector_once(
             # Delete stale chunks from previous indexing runs before upserting
             # so re-indexed documents with fewer chunks don't leave orphaned points.
             qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
+
+    except ValueError as exc:
+        # Embedding context-length errors are permanent — retrying won't help.
+        elapsed = time.monotonic() - start
+        error_type = type(exc).__name__
+        job_repo.mark_dead_letter(job_id, exc)
+        if metrics is not None:
+            metrics.pipeline_jobs_dead_lettered_total.labels(
+                worker_type=_WORKER_TYPE, job_type=job_type
+            ).inc()
+            metrics.pipeline_job_duration_seconds.labels(
+                worker_type=_WORKER_TYPE,
+                job_type=job_type,
+                stage="vector_encode",
+                outcome="dead_lettered",
+            ).observe(elapsed)
+        logger.warning(
+            "vector job dead-lettered (permanent error): worker_id=%s job_type=%s job_id=%s "
+            "attempts=%d error_type=%s error=%s",
+            worker_id,
+            job_type,
+            job_id,
+            attempts,
+            error_type,
+            exc,
+        )
+        return True
 
     except Exception as exc:
         elapsed = time.monotonic() - start
@@ -224,6 +262,7 @@ def run_vector_loop(
     worker_id: str = "vector-worker",
     poll_interval: float = 1.0,
     metrics: MetricsRegistry | None = None,
+    embedding_max_tokens: int | None = None,
 ) -> None:
     """Run ``run_vector_once`` in a loop until interrupted.
 
@@ -273,6 +312,7 @@ def run_vector_loop(
                     extractor,
                     worker_id=worker_id,
                     metrics=metrics,
+                    embedding_max_tokens=embedding_max_tokens,
                 )
                 if ran:
                     conn.commit()
@@ -316,4 +356,12 @@ if __name__ == "__main__":
         doc_repo = DocumentRepository(conn)
         extractor = ExtractorRegistry()
 
-        run_vector_loop(job_repo, encoder, qdrant, doc_repo, extractor, conn)
+        run_vector_loop(
+            job_repo,
+            encoder,
+            qdrant,
+            doc_repo,
+            extractor,
+            conn,
+            embedding_max_tokens=settings.embedding_max_tokens,
+        )

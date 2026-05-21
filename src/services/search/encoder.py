@@ -78,11 +78,21 @@ def _parse_ollama_error(response: httpx.Response) -> str | None:
         return None
 
 
+def _estimate_tokens(text: str) -> int:
+    """Estimate the number of tokens in *text* using a character-based heuristic."""
+    return max(1, int(len(text) / 4.0))
+
+
 class OllamaEmbeddingEncoder:
     """Production encoder using Ollama's modern embedding endpoint.
 
     Calls the Ollama ``/api/embed`` endpoint for both single-text and batch
     embedding.  The legacy ``/api/embeddings`` endpoint is not used.
+
+    When *max_tokens* is set, every text is validated before being sent to
+    Ollama.  Texts that exceed the limit raise ``ValueError`` before any API
+    call — this serves as a defensive guard even when upstream chunking is
+    correct.
     """
 
     def __init__(
@@ -91,11 +101,13 @@ class OllamaEmbeddingEncoder:
         model: str = "nomic-embed-text",
         dimension: int = 768,
         timeout: float = 60.0,
+        max_tokens: int | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._dimension = dimension
         self._timeout = timeout
+        self._max_tokens = max_tokens
 
     @property
     def dimension(self) -> int:
@@ -117,6 +129,14 @@ class OllamaEmbeddingEncoder:
 
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Use the modern ``/api/embed`` endpoint."""
+        if self._max_tokens is not None:
+            for i, text in enumerate(texts):
+                token_count = _estimate_tokens(text)
+                if token_count > self._max_tokens:
+                    raise ValueError(
+                        f"Embedding text at index {i} exceeds max_tokens={self._max_tokens} "
+                        f"(estimated {token_count} tokens)"
+                    )
         url = f"{self._base_url}/api/embed"
         payload: dict[str, Any] = {
             "model": self._model,
@@ -139,7 +159,16 @@ class OllamaEmbeddingEncoder:
                 f"Ollama request timed out after {self._timeout}s. "
                 f"Model '{self._model}' may still be loading."
             ) from None
-        if response.status_code == 404:
+        if response.status_code == 400:
+            error_body = _parse_ollama_error(response)
+            if error_body and "input length exceeds" in error_body.lower():
+                raise ValueError(
+                    f"Ollama embedding text exceeds model context length. "
+                    f"Model='{self._model}' max_tokens={self._max_tokens} "
+                    f"error='{error_body}'"
+                )
+            response.raise_for_status()
+        elif response.status_code == 404:
             error_body = _parse_ollama_error(response)
             if error_body and "not found" in error_body and "pull" in error_body:
                 raise RuntimeError(

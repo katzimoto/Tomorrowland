@@ -43,6 +43,7 @@ def build_encoder(
             base_url=base_url,
             model=settings.embedding_model,
             dimension=settings.embedding_dimension,
+            max_tokens=settings.embedding_max_tokens,
         )
 
     raise ValueError(f"Unknown embedding provider: {provider}")

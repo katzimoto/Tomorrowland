@@ -51,6 +51,7 @@ class PipelineWorker:
         intelligence_worker: IntelligenceWorker | None = None,
         alert_matcher: AlertMatcher | None = None,
         metrics: MetricsRegistry | None = None,
+        embedding_max_tokens: int | None = None,
     ) -> None:
         self._doc_repo = document_repository
         self._extractor = extractor_registry
@@ -62,6 +63,7 @@ class PipelineWorker:
         self._intelligence = intelligence_worker
         self._alert_matcher = alert_matcher
         self._metrics = metrics
+        self._embedding_max_tokens = embedding_max_tokens
 
     @property
     def document_repository(self) -> DocumentRepository:
@@ -156,8 +158,20 @@ class PipelineWorker:
         #    Meilisearch record pairs original chunk text (content) with its
         #    corresponding translated chunk (content_en).
         start = time.perf_counter()
-        original_chunks = list(chunk_text(text, language=doc.source_language))
-        translated_chunks = list(chunk_text(translated, language=doc.target_language))
+        original_chunks = list(
+            chunk_text(
+                text,
+                language=doc.source_language,
+                max_tokens=self._embedding_max_tokens,
+            )
+        )
+        translated_chunks = list(
+            chunk_text(
+                translated,
+                language=doc.target_language,
+                max_tokens=self._embedding_max_tokens,
+            )
+        )
         if self._metrics is not None:
             self._metrics.pipeline_stage_duration_seconds.labels("chunking").observe(
                 time.perf_counter() - start
