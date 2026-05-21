@@ -8,22 +8,30 @@ import { useT } from "@/i18n/index";
 import { TrustDisplay } from "./TrustDisplay";
 import { TranslationVersionSelector } from "./TranslationVersionSelector";
 import { RequestTranslationDialog } from "./RequestTranslationDialog";
+import { ViewModeSwitcher } from "./ViewModeSwitcher";
+import type { ViewMode } from "./ViewModeSwitcher";
 import styles from "./DocumentToolbar.module.css";
 
 interface DocumentToolbarProps {
   preview: DocumentPreview;
   selectedVersionId: string | undefined;
   showOriginal: boolean;
+  availableModes: ViewMode[];
+  activeMode: ViewMode;
   onVersionChange: (versionId: string | undefined) => void;
   onShowOriginalChange: (showOriginal: boolean) => void;
+  onModeChange: (mode: ViewMode) => void;
 }
 
 export function DocumentToolbar({
   preview,
   selectedVersionId,
   showOriginal,
+  availableModes,
+  activeMode,
   onVersionChange,
   onShowOriginalChange,
+  onModeChange,
 }: DocumentToolbarProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -52,6 +60,11 @@ export function DocumentToolbar({
         </div>
 
         <div className={styles.controls}>
+          <ViewModeSwitcher
+            availableModes={availableModes}
+            activeMode={activeMode}
+            onModeChange={onModeChange}
+          />
           <TranslationVersionSelector
             docId={preview.document_id}
             selectedVersionId={selectedVersionId}

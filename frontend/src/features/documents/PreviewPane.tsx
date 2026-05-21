@@ -8,20 +8,40 @@ import { SlidesPreview } from "./renderers/SlidesPreview";
 import { ImagePreview } from "./renderers/ImagePreview";
 import { PdfViewer } from "./renderers/PdfViewer";
 import { UnsupportedPreview } from "./renderers/UnsupportedPreview";
+import type { ViewMode } from "./ViewModeSwitcher";
 import styles from "./PreviewPane.module.css";
 
 interface PreviewPaneProps {
   preview: DocumentPreview;
+  activeMode?: ViewMode;
+  selectedVersionId?: string;
 }
 
 function downloadUrl(docId: string) {
   return `/api/download/${docId}`;
 }
 
-export function PreviewPane({ preview }: PreviewPaneProps) {
+export function PreviewPane({ preview, activeMode, selectedVersionId }: PreviewPaneProps) {
   const mime = preview.mime_type;
   const text = preview.snippet;
   const dl = downloadUrl(preview.document_id);
+
+  // In extracted/translation mode, all non-HTML/non-image types render as text.
+  if (
+    (activeMode === "extracted" || activeMode === "translation") &&
+    mime !== "text/html" &&
+    !mime.startsWith("image/")
+  ) {
+    return (
+      <div className={styles.pane}>
+        <TextPreview
+          docId={preview.document_id}
+          translationVersionId={activeMode === "translation" ? selectedVersionId : undefined}
+          showOriginal={activeMode === "extracted"}
+        />
+      </div>
+    );
+  }
 
   if (mime === "text/html") {
     return (

@@ -12,8 +12,21 @@ vi.mock("./renderers/PdfViewer", () => ({
 }));
 
 vi.mock("./renderers/TextPreview", () => ({
-  TextPreview: ({ docId }: { docId?: string }) => (
-    <div data-testid="text-preview" data-doc-id={docId} />
+  TextPreview: ({
+    docId,
+    showOriginal,
+    translationVersionId,
+  }: {
+    docId?: string;
+    showOriginal?: boolean;
+    translationVersionId?: string;
+  }) => (
+    <div
+      data-testid="text-preview"
+      data-doc-id={docId}
+      data-show-original={showOriginal ? "true" : undefined}
+      data-version-id={translationVersionId}
+    />
   ),
 }));
 
@@ -59,5 +72,51 @@ describe("PreviewPane dispatch", () => {
   it("dispatches text/markdown to TextPreview", () => {
     render(<PreviewPane preview={makePreview({ mime_type: "text/markdown" })} />);
     expect(screen.getByTestId("text-preview")).toBeInTheDocument();
+  });
+
+  it("extracted mode overrides PDF to TextPreview with showOriginal", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({ mime_type: "application/pdf" })}
+        activeMode="extracted"
+      />
+    );
+    expect(screen.getByTestId("text-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("pdf-viewer")).not.toBeInTheDocument();
+    expect(screen.getByTestId("text-preview")).toHaveAttribute("data-show-original", "true");
+  });
+
+  it("translation mode overrides PDF to TextPreview with translationVersionId", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({ mime_type: "application/pdf" })}
+        activeMode="translation"
+        selectedVersionId="v-abc"
+      />
+    );
+    expect(screen.getByTestId("text-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("pdf-viewer")).not.toBeInTheDocument();
+    expect(screen.getByTestId("text-preview")).toHaveAttribute("data-version-id", "v-abc");
+  });
+
+  it("original mode still dispatches PDF to PdfViewer", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({ mime_type: "application/pdf" })}
+        activeMode="original"
+      />
+    );
+    expect(screen.getByTestId("pdf-viewer")).toBeInTheDocument();
+    expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
+  });
+
+  it("extracted mode does not override HTML to TextPreview", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({ mime_type: "text/html" })}
+        activeMode="extracted"
+      />
+    );
+    expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
   });
 });

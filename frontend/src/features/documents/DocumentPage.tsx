@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getPreview, getTranslationVersions } from "@/api/documents";
+import { getDownloadUrl, getPreview, getTranslationVersions } from "@/api/documents";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { useT } from "@/i18n/index";
 import { measurePerformance } from "@/lib/performanceTelemetry";
 import { DocumentToolbar } from "./DocumentToolbar";
+import { FidelityStatusBar } from "./FidelityStatusBar";
 import { PreviewPane } from "./PreviewPane";
 import { InsightPane } from "./InsightPane";
 import { VersionBanner } from "./VersionBanner";
+import type { ViewMode } from "./ViewModeSwitcher";
 import styles from "./DocumentPage.module.css";
 
 export function DocumentPage() {
@@ -19,9 +21,18 @@ export function DocumentPage() {
   const [selectedVersionId, setSelectedVersionId] = useState<
     string | undefined
   >(undefined);
-  const [showOriginal, setShowOriginal] = useState(false);
+  const [activeMode, setActiveMode] = useState<ViewMode>("original");
+  const initialModeDoneRef = useRef(false);
   const qc = useQueryClient();
   const hadInProgressRef = useRef(false);
+
+  const showOriginal = activeMode === "original" || activeMode === "extracted";
+
+  // Reset mode when navigating to a different document.
+  useEffect(() => {
+    initialModeDoneRef.current = false;
+    setActiveMode("original");
+  }, [docId]);
 
   // Poll for translation versions when there are in-progress translations.
   // When a pending/running translation completes, invalidate the preview
@@ -36,6 +47,16 @@ export function DocumentPage() {
         : false;
     },
   });
+
+  // Set default mode once per document when translation versions first load.
+  useEffect(() => {
+    if (initialModeDoneRef.current) return;
+    if (!versions) return;
+    initialModeDoneRef.current = true;
+    if (versions.some((v) => v.status === "available")) {
+      setActiveMode("translation");
+    }
+  }, [versions]);
 
   useEffect(() => {
     if (!versions) return;
@@ -64,6 +85,13 @@ export function DocumentPage() {
       ),
     staleTime: 2 * 60_000,
   });
+
+  const availableModes = useMemo<ViewMode[]>(() => {
+    const modes: ViewMode[] = ["original"];
+    if (preview?.snippet) modes.push("extracted");
+    if (versions?.some((v) => v.status === "available")) modes.push("translation");
+    return modes;
+  }, [preview?.snippet, versions]);
 
   if (isLoading) {
     return (
@@ -97,15 +125,27 @@ export function DocumentPage() {
         preview={preview}
         selectedVersionId={selectedVersionId}
         showOriginal={showOriginal}
+        availableModes={availableModes}
+        activeMode={activeMode}
         onVersionChange={setSelectedVersionId}
-        onShowOriginalChange={setShowOriginal}
+        onShowOriginalChange={(val) => setActiveMode(val ? "original" : "translation")}
+        onModeChange={setActiveMode}
       />
       {preview.has_newer_version && preview.latest_document_id && (
         <VersionBanner latestDocumentId={preview.latest_document_id} />
       )}
+      <FidelityStatusBar
+        activeMode={activeMode}
+        translationQuality={preview.translation_quality}
+        downloadUrl={getDownloadUrl(preview.document_id)}
+      />
       <div className={styles.body}>
         <div className={styles.previewCol}>
-          <PreviewPane preview={preview} />
+          <PreviewPane
+            preview={preview}
+            activeMode={activeMode}
+            selectedVersionId={selectedVersionId}
+          />
         </div>
         <div className={styles.insightCol}>
           <InsightPane docId={docId} />
