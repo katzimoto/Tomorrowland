@@ -52,7 +52,7 @@ function getStatus(
 }
 
 const DOT_LABELS: Record<DotColor, string> = {
-  green: "Good",
+  green: "OK",
   amber: "Info",
 };
 
@@ -70,6 +70,7 @@ export function FidelityStatusBar({
         role="img"
         aria-label={DOT_LABELS[dot]}
       />
+      <span className={styles.srOnly}>{DOT_LABELS[dot]}: </span>
       <span className={styles.text}>
         {text}
         {includesDownload && (

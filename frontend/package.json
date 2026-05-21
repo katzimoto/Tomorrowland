@@ -17,12 +17,14 @@
     "@hookform/resolvers": "^5.2.2",
     "@tanstack/react-query": "^5.80.7",
     "@tanstack/react-router": "^1.122.3",
+    "@types/react-window": "^2.0.0",
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.511.0",
     "pdfjs-dist": "^5.7.284",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-hook-form": "^7.57.0",
+    "react-window": "^2.2.7",
     "zod": "^3.25.46"
   },
   "devDependencies": {

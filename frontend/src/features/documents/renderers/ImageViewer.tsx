@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { UnsupportedPreview } from "./UnsupportedPreview";
 import { ExtractionFailedPreview } from "./ExtractionFailedPreview";
+import {
+  finishNamedPerformanceTimer,
+  startNamedPerformanceTimer,
+} from "@/lib/performanceTelemetry";
 import styles from "./ImageViewer.module.css";
 
 const ZOOM_STEPS = [25, 50, 75, 100, 125, 150, 200, 300, 400];
@@ -48,10 +52,22 @@ export function ImageViewer({ docId, mimeType, alt, zoom, onZoomChange }: ImageV
     return <UnsupportedPreview mimeType={mimeType} downloadUrl={src} />;
   }
 
+  const imageLoadTimer = useRef<string | null>(null);
+  useEffect(() => {
+    if (mimeType !== "image/tiff" && !imageLoadTimer.current) {
+      imageLoadTimer.current = `image-load-${Date.now()}`;
+      startNamedPerformanceTimer(imageLoadTimer.current);
+    }
+  }, [mimeType]);
+
   function handleLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     setLoading(false);
     const img = e.currentTarget;
     setDimensions({ w: img.naturalWidth, h: img.naturalHeight });
+    if (imageLoadTimer.current) {
+      finishNamedPerformanceTimer(imageLoadTimer.current, "viewer.image.load", "success");
+      imageLoadTimer.current = null;
+    }
   }
 
   function handleError() {

@@ -4,6 +4,10 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { ExtractionFailedPreview } from "./ExtractionFailedPreview";
 import { countMatches } from "../highlightMatches";
+import {
+  finishNamedPerformanceTimer,
+  startNamedPerformanceTimer,
+} from "@/lib/performanceTelemetry";
 import styles from "./renderers.module.css";
 
 // Configure worker once — Vite bundles this as a local asset, no CDN required
@@ -31,6 +35,37 @@ export function PdfViewer({ docId, searchQuery = "", onMatchCountChange }: PdfVi
   const [allPdfText, setAllPdfText] = useState("");
 
   const downloadUrl = `/api/download/${docId}`;
+
+  const pdfLoadTimer = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pdfLoadTimer.current) {
+      pdfLoadTimer.current = `pdf-load-${Date.now()}`;
+      startNamedPerformanceTimer(pdfLoadTimer.current);
+    }
+  }, []);
+
+  // Render current page to canvas — also report pdf load telemetry on first render
+  useEffect(() => {
+    if (!pdfDoc || !canvasRef.current) return;
+    let cancelled = false;
+    pdfDoc.getPage(pageNum).then((page) => {
+      if (cancelled || !canvasRef.current) return;
+      const viewport = page.getViewport({ scale });
+      const canvas = canvasRef.current;
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      void page.render({ canvasContext: ctx, viewport }).promise;
+      if (pdfLoadTimer.current) {
+        finishNamedPerformanceTimer(pdfLoadTimer.current, "viewer.pdf.load", "success");
+        pdfLoadTimer.current = null;
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfDoc, pageNum, scale]);
 
   // Load PDF document
   useEffect(() => {
@@ -84,25 +119,6 @@ export function PdfViewer({ docId, searchQuery = "", onMatchCountChange }: PdfVi
   useEffect(() => {
     onMatchCountChange?.(matchCount);
   }, [matchCount, onMatchCountChange]);
-
-  // Render current page to canvas
-  useEffect(() => {
-    if (!pdfDoc || !canvasRef.current) return;
-    let cancelled = false;
-    pdfDoc.getPage(pageNum).then((page) => {
-      if (cancelled || !canvasRef.current) return;
-      const viewport = page.getViewport({ scale });
-      const canvas = canvasRef.current;
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      void page.render({ canvasContext: ctx, viewport }).promise;
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [pdfDoc, pageNum, scale]);
 
   if (loading) {
     return <div className={styles.muted}>Loading PDF…</div>;

@@ -72,4 +72,18 @@ describe("performance telemetry", () => {
     expect(event?.durationMs).toEqual(expect.any(Number));
     expect(getPerformanceTelemetryEvents()).toHaveLength(1);
   });
+
+  it("accepts viewer.load event names", () => {
+    const events = [
+      recordPerformanceEvent("viewer.text.load", 150),
+      recordPerformanceEvent("viewer.pdf.load", 320),
+      recordPerformanceEvent("viewer.image.load", 85),
+    ];
+    expect(events).toHaveLength(3);
+    expect(getPerformanceTelemetryEvents().map((e) => e.name)).toEqual([
+      "viewer.text.load",
+      "viewer.pdf.load",
+      "viewer.image.load",
+    ]);
+  });
 });

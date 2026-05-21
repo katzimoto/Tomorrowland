@@ -124,4 +124,26 @@ describe("FidelityStatusBar", () => {
 
     expect(greenLabel).not.toBe(amberLabel);
   });
+
+  it("has visually hidden status text alongside the dot", () => {
+    render(
+      <FidelityStatusBar
+        activeMode="original"
+        translationQuality={null}
+        downloadUrl="/api/download/doc-1"
+      />
+    );
+    expect(screen.getByText("OK:")).toBeInTheDocument();
+  });
+
+  it("amber status has visually hidden 'Info:' text", () => {
+    render(
+      <FidelityStatusBar
+        activeMode="extracted"
+        translationQuality={null}
+        downloadUrl="/api/download/doc-1"
+      />
+    );
+    expect(screen.getByText("Info:")).toBeInTheDocument();
+  });
 });

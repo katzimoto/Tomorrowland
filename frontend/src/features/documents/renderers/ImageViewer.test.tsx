@@ -185,4 +185,16 @@ describe("ImageViewer", () => {
     setup();
     expect(screen.getByText(/Keyboard controls/i)).toBeInTheDocument();
   });
+
+  it("uses empty alt text when no title is provided", () => {
+    setup({ alt: "" });
+    const img = document.querySelector("img");
+    expect(img).toHaveAttribute("alt", "");
+  });
+
+  it("container gets fallback aria-label when alt is empty", () => {
+    setup({ alt: "" });
+    const container = document.querySelector("[tabindex]");
+    expect(container).toHaveAttribute("aria-label", "Document image");
+  });
 });

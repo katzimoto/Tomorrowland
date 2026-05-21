@@ -2,6 +2,24 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-05-21 — Virtualization uses react-window v2 with List + ARIA tables
+
+Status: Active
+Source: issue #450, PR #464
+
+Decision:
+- Use `react-window@2` for text/table virtualization. v2 API: `List` (not `FixedSizeList`), `rowCount`/`rowHeight`/`rowComponent` props, `rowProps={{}}` required.
+- Virtualized TablePreview uses ARIA role-based table (`role="table"`, `role="rowgroup"`, etc.) instead of native `<table>` elements, because react-window renders flat `div` children.
+- Always pass `rowProps={{}}` to `List` — v2 crashes with `Object.values(null)` if rowProps is undefined.
+
+Impact:
+- Non-virtualized TablePreview path (<1K rows) keeps native `<table>` for semantics.
+- Virtualization threshold: 10K lines for TextPreview, 1K rows for TablePreview.
+- Test setup must mock `ResizeObserver` globally (jsdom compat).
+
+Next action:
+- Consider browser-based virtualization verification (#451).
+
 ## 2026-05-21 — TextPreview is API-driven via docId prop
 
 Status: Active

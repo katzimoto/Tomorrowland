@@ -220,6 +220,31 @@ Next agent prompt:
 - Verify #441 is present on `feature/document-viewer` before starting (check `getDocumentText` exists in `frontend/src/api/documents.ts`).
 - PR must target `feature/document-viewer`, not `main`.
 
+## 2026-05-21 — #450 a11y, performance, and telemetry hardening complete
+
+Status: Done
+Source: issue #450, PR #464
+
+What changed:
+- A11y: download link aria-label in DocumentToolbar; table aria-label + th scope="col" in TablePreview; sr-only status text in FidelityStatusBar; focus management on view mode switch and search close in DocumentPage.
+- Perf: TextPreview virtualized with react-window v2 `List` when >10K lines (22px row height, max 600px); TablePreview virtualized with ARIA role-based table when >1K rows (32px row height).
+- Telemetry: viewer.text/pdf/image.load event names added to performanceTelemetry.ts; named timers in TextPreview/PdfViewer/ImageViewer.
+- Backend: X-Content-Type-Options: nosniff on both full and range download responses.
+- Test infrastructure: ResizeObserver global mock added to test setup (react-window v2 requirement); archive traversal unit tests for ZIP/TAR ".." paths; nosniff integration test.
+
+Verification:
+- 359/359 frontend tests passed (54 files). TypeScript clean.
+- 7/7 archive extraction tests passed. 1 nosniff integration test passed.
+- Lint: no new errors (only pre-existing).
+
+Open risks:
+- Virtualization tests limited in jsdom (no layout measurement) — browser-based verification deferred to #451 follow-up.
+- Virtualized TablePreview uses ARIA roles instead of native `<table>` — tradeoff required by react-window.
+
+Next agent prompt:
+- Check parent issue #453 for remaining MVP child issues.
+- If picking up #451 (browser-based test verification), note that virtualization rendering can only be verified in a real browser with layout.
+
 ## 2026-05-20 — Agent skills and memory branch
 
 Status: Active

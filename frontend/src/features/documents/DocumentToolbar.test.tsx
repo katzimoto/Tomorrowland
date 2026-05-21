@@ -48,6 +48,23 @@ describe("DocumentToolbar", () => {
     ).toBeInTheDocument();
   });
 
+  it("download link has aria-label", () => {
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+      />
+    );
+    const link = screen.getByRole("link", { name: /download/i });
+    expect(link).toHaveAttribute("aria-label", "Download original file");
+  });
+
   it("shows back to search button", () => {
     render(
       <DocumentToolbar
