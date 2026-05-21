@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { ExtractionFailedPreview } from "./ExtractionFailedPreview";
+import { countMatches } from "../highlightMatches";
 import styles from "./renderers.module.css";
 
 // Configure worker once — Vite bundles this as a local asset, no CDN required
@@ -15,9 +16,11 @@ const MAX_SCALE = 3.0;
 
 interface PdfViewerProps {
   docId: string;
+  searchQuery?: string;
+  onMatchCountChange?: (count: number) => void;
 }
 
-export function PdfViewer({ docId }: PdfViewerProps) {
+export function PdfViewer({ docId, searchQuery = "", onMatchCountChange }: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState(0);
@@ -25,6 +28,7 @@ export function PdfViewer({ docId }: PdfViewerProps) {
   const [scale, setScale] = useState(DEFAULT_SCALE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [allPdfText, setAllPdfText] = useState("");
 
   const downloadUrl = `/api/download/${docId}`;
 
@@ -50,6 +54,36 @@ export function PdfViewer({ docId }: PdfViewerProps) {
       task.destroy();
     };
   }, [downloadUrl]);
+
+  // Extract text from all pages for in-document search
+  useEffect(() => {
+    if (!pdfDoc) return;
+    let cancelled = false;
+    async function extractText() {
+      if (!pdfDoc) return;
+      const parts: string[] = [];
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const content = await page.getTextContent();
+        const pageText = content.items
+          .map((item) => ("str" in item ? item.str : ""))
+          .join(" ");
+        parts.push(pageText);
+      }
+      if (!cancelled) setAllPdfText(parts.join(" "));
+    }
+    void extractText();
+    return () => { cancelled = true; };
+  }, [pdfDoc]);
+
+  // Report match count when search query or text changes
+  const matchCount = useMemo(
+    () => countMatches(allPdfText, searchQuery),
+    [allPdfText, searchQuery],
+  );
+  useEffect(() => {
+    onMatchCountChange?.(matchCount);
+  }, [matchCount, onMatchCountChange]);
 
   // Render current page to canvas
   useEffect(() => {

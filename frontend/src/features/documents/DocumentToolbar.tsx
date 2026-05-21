@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Download, Languages } from "lucide-react";
+import { ArrowLeft, Download, Languages, Search } from "lucide-react";
 import { getDownloadUrl } from "@/api/documents";
 import { Button } from "@/components/primitives/Button";
 import type { DocumentPreview } from "@/api/documents";
@@ -26,6 +26,9 @@ interface DocumentToolbarProps {
   onShowOriginalChange: (showOriginal: boolean) => void;
   onModeChange: (mode: ViewMode) => void;
   onImageZoomChange?: (zoom: number | null) => void;
+  searchable?: boolean;
+  searchOpen?: boolean;
+  onSearchToggle?: () => void;
 }
 
 export function DocumentToolbar({
@@ -40,6 +43,9 @@ export function DocumentToolbar({
   onShowOriginalChange,
   onModeChange,
   onImageZoomChange,
+  searchable = false,
+  searchOpen = false,
+  onSearchToggle,
 }: DocumentToolbarProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -133,6 +139,16 @@ export function DocumentToolbar({
                 ↺
               </button>
             </div>
+          )}
+          {searchable && onSearchToggle && (
+            <button
+              className={`${styles.searchBtn} ${searchOpen ? styles.searchBtnActive : ""}`}
+              aria-label="Search within document"
+              aria-pressed={searchOpen}
+              onClick={onSearchToggle}
+            >
+              <Search size={14} />
+            </button>
           )}
           <a
             href={getDownloadUrl(preview.document_id)}

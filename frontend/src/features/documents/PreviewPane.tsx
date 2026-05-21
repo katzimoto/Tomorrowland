@@ -37,13 +37,25 @@ interface PreviewPaneProps {
   selectedVersionId?: string;
   imageZoom?: number | null;
   onImageZoomChange?: (zoom: number | null) => void;
+  searchQuery?: string;
+  activeSearchIndex?: number;
+  onMatchCountChange?: (count: number) => void;
 }
 
 function downloadUrl(docId: string) {
   return `/api/download/${docId}`;
 }
 
-export function PreviewPane({ preview, activeMode, selectedVersionId, imageZoom = null, onImageZoomChange }: PreviewPaneProps) {
+export function PreviewPane({
+  preview,
+  activeMode,
+  selectedVersionId,
+  imageZoom = null,
+  onImageZoomChange,
+  searchQuery = "",
+  activeSearchIndex = 0,
+  onMatchCountChange,
+}: PreviewPaneProps) {
   const mime = preview.mime_type;
   const text = preview.snippet;
   const dl = downloadUrl(preview.document_id);
@@ -60,6 +72,9 @@ export function PreviewPane({ preview, activeMode, selectedVersionId, imageZoom 
           docId={preview.document_id}
           translationVersionId={activeMode === "translation" ? selectedVersionId : undefined}
           showOriginal={activeMode === "extracted"}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
         />
       </div>
     );
@@ -76,7 +91,12 @@ export function PreviewPane({ preview, activeMode, selectedVersionId, imageZoom 
   if (mime === "text/plain" || mime === "text/markdown" || mime === "text/csv") {
     return (
       <div className={styles.pane}>
-        <TextPreview docId={preview.document_id} />
+        <TextPreview
+          docId={preview.document_id}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
       </div>
     );
   }
@@ -84,7 +104,14 @@ export function PreviewPane({ preview, activeMode, selectedVersionId, imageZoom 
   if (CODE_MIMES.has(mime)) {
     return (
       <div className={styles.pane}>
-        <CodeViewer docId={preview.document_id} mimeType={mime} title={preview.title ?? undefined} />
+        <CodeViewer
+          docId={preview.document_id}
+          mimeType={mime}
+          title={preview.title ?? undefined}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
       </div>
     );
   }
@@ -97,7 +124,7 @@ export function PreviewPane({ preview, activeMode, selectedVersionId, imageZoom 
   ) {
     return (
       <div className={styles.pane}>
-        <TablePreview text={text} />
+        <TablePreview text={text} searchQuery={searchQuery} />
       </div>
     );
   }
@@ -165,7 +192,11 @@ export function PreviewPane({ preview, activeMode, selectedVersionId, imageZoom 
   if (mime === "application/pdf") {
     return (
       <div className={styles.pane}>
-        <PdfViewer docId={preview.document_id} />
+        <PdfViewer
+          docId={preview.document_id}
+          searchQuery={searchQuery}
+          onMatchCountChange={onMatchCountChange}
+        />
       </div>
     );
   }

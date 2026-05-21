@@ -272,3 +272,15 @@
   cursor: pointer;
 }
 .loadMoreBtn:disabled { opacity: 0.5; cursor: default; }
+
+.match {
+  background: #fef08a;
+  color: inherit;
+  border-radius: 2px;
+}
+
+.activeMatch {
+  background: #fb923c;
+  color: #fff;
+  border-radius: 2px;
+}

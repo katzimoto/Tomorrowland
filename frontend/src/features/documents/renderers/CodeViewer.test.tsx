@@ -184,4 +184,61 @@ describe("CodeViewer", () => {
     await waitFor(() => screen.getByRole("button", { name: /wrap/i }));
     expect(screen.getByRole("button", { name: /wrap/i })).toBeInTheDocument();
   });
+
+  it("highlights matches with <mark> when searchQuery is provided", async () => {
+    vi.mocked(documentsApi.getDocumentText).mockResolvedValue({
+      text: "const x = 1;\nconst y = 2;\n",
+      truncated: false,
+      offset: 0,
+      limit: 50_000,
+    });
+    render(<CodeViewer docId="doc-1" mimeType="application/json" searchQuery="const" />);
+    await waitFor(() => {
+      const marks = document.querySelectorAll("mark");
+      expect(marks.length).toBe(2);
+    });
+  });
+
+  it("reports match count via onMatchCountChange when searching", async () => {
+    vi.mocked(documentsApi.getDocumentText).mockResolvedValue({
+      text: "foo bar foo baz",
+      truncated: false,
+      offset: 0,
+      limit: 50_000,
+    });
+    const onMatchCountChange = vi.fn();
+    render(
+      <CodeViewer
+        docId="doc-1"
+        mimeType="application/json"
+        searchQuery="foo"
+        onMatchCountChange={onMatchCountChange}
+      />
+    );
+    await waitFor(() => {
+      expect(onMatchCountChange).toHaveBeenCalledWith(2);
+    });
+  });
+
+  it("active match has a different class than passive matches", async () => {
+    vi.mocked(documentsApi.getDocumentText).mockResolvedValue({
+      text: "abc abc abc",
+      truncated: false,
+      offset: 0,
+      limit: 50_000,
+    });
+    render(
+      <CodeViewer
+        docId="doc-1"
+        mimeType="application/json"
+        searchQuery="abc"
+        activeSearchIndex={1}
+      />
+    );
+    await waitFor(() => {
+      const marks = document.querySelectorAll("mark");
+      expect(marks.length).toBe(3);
+      expect(marks[0].className).not.toBe(marks[1].className);
+    });
+  });
 });

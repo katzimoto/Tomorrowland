@@ -233,4 +233,63 @@ describe("DocumentToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     expect(onImageZoomChange).toHaveBeenCalledWith(125);
   });
+
+  it("shows search button when searchable is true", () => {
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+        searchable={true}
+        searchOpen={false}
+        onSearchToggle={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("button", { name: "Search within document" })).toBeInTheDocument();
+  });
+
+  it("hides search button when searchable is false", () => {
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+        searchable={false}
+      />
+    );
+    expect(screen.queryByRole("button", { name: "Search within document" })).not.toBeInTheDocument();
+  });
+
+  it("search button toggles aria-pressed state", () => {
+    const onSearchToggle = vi.fn();
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+        searchable={true}
+        searchOpen={true}
+        onSearchToggle={onSearchToggle}
+      />
+    );
+    const btn = screen.getByRole("button", { name: "Search within document" });
+    expect(btn).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(btn);
+    expect(onSearchToggle).toHaveBeenCalled();
+  });
 });
