@@ -643,7 +643,7 @@ def test_degraded_rag_returns_fallback_message(migrated_engine: Engine) -> None:
     _setup_users(migrated_engine)
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_qdrant.search.side_effect = RuntimeError("qdrant unavailable")
+    mock_qdrant.search_filtered.side_effect = RuntimeError("qdrant unavailable")
 
     client = TestClient(
         create_app(
@@ -670,3 +670,286 @@ def test_degraded_rag_returns_fallback_message(migrated_engine: Engine) -> None:
     data = resp.json()
     assert data["role"] == "assistant"
     assert data["content"]  # fallback message is non-empty
+
+
+# ---------------------------------------------------------------------------
+# Phase C: Scope-aware retrieval
+# ---------------------------------------------------------------------------
+
+
+def _make_qdrant_mock() -> MagicMock:
+    mock = MagicMock(spec=QdrantSearchClient)
+    mock.search_filtered.return_value = []
+    mock.search.return_value = []
+    return mock
+
+
+def test_single_document_scope_passes_document_id_to_qdrant(migrated_engine: Engine) -> None:
+    """single_document scope must call search_filtered with a document_id condition."""
+    _setup_users(migrated_engine)
+    mock_qdrant = _make_qdrant_mock()
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            _settings(feature_document_chat=True),
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _admin_token(client)
+    doc_id = "11111111-1111-1111-1111-111111111111"
+
+    create = client.post(
+        "/chat/sessions",
+        json={"scope_type": "single_document", "scope_ids": [doc_id]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create.status_code == 200
+    session_id = create.json()["id"]
+
+    resp = client.post(
+        f"/chat/sessions/{session_id}/messages",
+        json={"content": "Summarize this."},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+
+    mock_qdrant.search_filtered.assert_called_once()
+    call_kwargs = mock_qdrant.search_filtered.call_args.kwargs
+    flt = call_kwargs["query_filter"]
+    assert flt is not None
+    assert any(getattr(c, "key", None) == "document_id" for c in (flt.must or [])), (
+        "Expected document_id condition in Qdrant filter"
+    )
+
+
+def test_selected_documents_scope_passes_ids_to_qdrant(migrated_engine: Engine) -> None:
+    """selected_documents scope must call search_filtered with a MatchAny document_id condition."""
+    _setup_users(migrated_engine)
+    mock_qdrant = _make_qdrant_mock()
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            _settings(feature_document_chat=True),
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _admin_token(client)
+    doc_ids = ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"]
+
+    create = client.post(
+        "/chat/sessions",
+        json={"scope_type": "selected_documents", "scope_ids": doc_ids},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create.status_code == 200
+    session_id = create.json()["id"]
+
+    resp = client.post(
+        f"/chat/sessions/{session_id}/messages",
+        json={"content": "Compare them."},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+
+    mock_qdrant.search_filtered.assert_called_once()
+    flt = mock_qdrant.search_filtered.call_args.kwargs["query_filter"]
+    assert flt is not None
+    doc_condition = next(c for c in (flt.must or []) if getattr(c, "key", None) == "document_id")
+    assert set(doc_condition.match.any) == set(doc_ids)
+
+
+def test_current_search_results_behaves_like_selected_documents(migrated_engine: Engine) -> None:
+    """current_search_results scope produces the same document_id filter as selected_documents."""
+    _setup_users(migrated_engine)
+    mock_qdrant = _make_qdrant_mock()
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            _settings(feature_document_chat=True),
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _admin_token(client)
+    doc_ids = ["cccccccc-cccc-cccc-cccc-cccccccccccc"]
+
+    create = client.post(
+        "/chat/sessions",
+        json={"scope_type": "current_search_results", "scope_ids": doc_ids},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    session_id = create.json()["id"]
+
+    client.post(
+        f"/chat/sessions/{session_id}/messages",
+        json={"content": "What did I find?"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    flt = mock_qdrant.search_filtered.call_args.kwargs["query_filter"]
+    assert any(getattr(c, "key", None) == "document_id" for c in (flt.must or []))
+
+
+def test_all_accessible_scope_uses_search_filtered(migrated_engine: Engine) -> None:
+    """all_accessible_documents scope calls search_filtered (not search)."""
+    _setup_users(migrated_engine)
+    mock_qdrant = _make_qdrant_mock()
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            _settings(feature_document_chat=True),
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _admin_token(client)
+
+    create = client.post(
+        "/chat/sessions",
+        json={"scope_type": "all_accessible_documents"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    session_id = create.json()["id"]
+
+    client.post(
+        f"/chat/sessions/{session_id}/messages",
+        json={"content": "What's in the docs?"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    mock_qdrant.search_filtered.assert_called_once()
+    mock_qdrant.search.assert_not_called()
+
+
+def test_folder_scope_returns_400(migrated_engine: Engine) -> None:
+    """folder scope is not yet supported and must return 400."""
+    _setup_users(migrated_engine)
+    mock_qdrant = _make_qdrant_mock()
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            _settings(feature_document_chat=True),
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _admin_token(client)
+
+    create = client.post(
+        "/chat/sessions",
+        json={"scope_type": "folder", "scope_ids": ["folder-1"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    session_id = create.json()["id"]
+
+    resp = client.post(
+        f"/chat/sessions/{session_id}/messages",
+        json={"content": "What's in this folder?"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
+    assert "folder" in resp.json()["detail"].lower()
+
+
+def test_revoked_document_access_returns_409(migrated_engine: Engine) -> None:
+    """When a scoped document no longer exists (or access revoked), return 409."""
+    _setup_users(migrated_engine)
+    mock_qdrant = _make_qdrant_mock()
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            _settings(feature_document_chat=True),
+            qdrant_client=mock_qdrant,
+        )
+    )
+    # Use a non-admin user so the revocation check runs
+    token = _user_token(client, "user@example.com")
+    # This doc does not exist in the test DB — document_source_id() returns None → 409
+    missing_doc_id = "dddddddd-dddd-dddd-dddd-dddddddddddd"
+
+    create = client.post(
+        "/chat/sessions",
+        json={"scope_type": "single_document", "scope_ids": [missing_doc_id]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create.status_code == 200
+    session_id = create.json()["id"]
+
+    resp = client.post(
+        f"/chat/sessions/{session_id}/messages",
+        json={"content": "Tell me about this."},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 409
+    assert "accessible" in resp.json()["detail"].lower()
+
+
+def test_admin_bypasses_revocation_check(migrated_engine: Engine) -> None:
+    """Admin users skip the revocation check and proceed to RAG."""
+    _setup_users(migrated_engine)
+    mock_qdrant = _make_qdrant_mock()
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            _settings(feature_document_chat=True),
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _admin_token(client)
+    missing_doc_id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+
+    create = client.post(
+        "/chat/sessions",
+        json={"scope_type": "single_document", "scope_ids": [missing_doc_id]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    session_id = create.json()["id"]
+
+    resp = client.post(
+        f"/chat/sessions/{session_id}/messages",
+        json={"content": "Admin can always ask."},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    # Admin bypasses revocation check → reaches RAG → returns 200 (empty answer)
+    assert resp.status_code == 200
+
+
+def test_request_body_cannot_override_scope(migrated_engine: Engine) -> None:
+    """The message body has no scope field; scope always comes from the session."""
+    _setup_users(migrated_engine)
+    mock_qdrant = _make_qdrant_mock()
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            _settings(feature_document_chat=True),
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _admin_token(client)
+    scoped_doc_id = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+
+    create = client.post(
+        "/chat/sessions",
+        json={"scope_type": "single_document", "scope_ids": [scoped_doc_id]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    session_id = create.json()["id"]
+
+    # Send a message body that includes extra fields — they must be ignored.
+    resp = client.post(
+        f"/chat/sessions/{session_id}/messages",
+        json={"content": "What does it say?", "scope_ids": ["other-doc"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+
+    # Qdrant must have been called with the SESSION scope, not the body's scope_ids.
+    flt = mock_qdrant.search_filtered.call_args.kwargs["query_filter"]
+    doc_condition = next(c for c in (flt.must or []) if getattr(c, "key", None) == "document_id")
+    # single_document uses MatchValue, not MatchAny
+    assert doc_condition.match.value == scoped_doc_id

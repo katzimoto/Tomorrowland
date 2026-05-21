@@ -6,8 +6,10 @@ import time
 from typing import Any
 from uuid import UUID
 
+from qdrant_client.models import Condition, FieldCondition, Filter, MatchAny, MatchValue
 from sqlalchemy.engine import Connection
 
+from services.chat.models import ChatScope
 from services.documents.repository import DocumentRepository
 from services.intelligence.ollama_client import OllamaClient
 from services.search.encoder import TextEncoder
@@ -16,6 +18,36 @@ from services.search.qdrant import QdrantSearchClient
 from shared.metrics import current_metrics
 
 from .models import AnswerResponse, Citation
+
+
+def build_qdrant_filter(
+    scope: ChatScope,
+    group_ids: list[str],
+    allow_all: bool,
+) -> Filter | None:
+    """Build a Qdrant Filter combining permission and scope conditions.
+
+    Scope never grants access — both the group permission filter and the
+    scope filter are always applied together.  Returns None only when
+    allow_all=True and scope_type="all_accessible_documents" (admin, no
+    restriction).
+    """
+    must: list[Condition] = []
+
+    if not allow_all:
+        must.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
+
+    st = scope.scope_type
+    if st == "single_document":
+        must.append(FieldCondition(key="document_id", match=MatchValue(value=scope.scope_ids[0])))
+    elif st in ("selected_documents", "current_search_results"):
+        must.append(FieldCondition(key="document_id", match=MatchAny(any=scope.scope_ids)))
+    elif st == "source":
+        must.append(FieldCondition(key="source_id", match=MatchAny(any=scope.scope_ids)))
+    # all_accessible_documents: no extra scope condition
+    # folder: payload has no folder field — caller must reject before reaching here
+
+    return Filter(must=must) if must else None
 
 
 class RagService:
@@ -73,6 +105,7 @@ class RagService:
         top_k: int | None = None,
         document_id: str | None = None,
         allow_all: bool = False,
+        scope: ChatScope | None = None,
     ) -> AnswerResponse:
         """Answer a question using RAG.
 
@@ -97,6 +130,7 @@ class RagService:
             effective_top_k,
             document_id=document_id,
             allow_all=allow_all,
+            scope=scope,
         )
         if metrics is not None:
             metrics.rag_duration_seconds.labels("retrieval").observe(
@@ -191,6 +225,7 @@ class RagService:
         top_k: int,
         document_id: str | None = None,
         allow_all: bool = False,
+        scope: ChatScope | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve top-K chunks from Qdrant (+ Meilisearch when available).
 
@@ -200,15 +235,32 @@ class RagService:
         relevant chunks from a document are preserved, not just the highest
         scorer per document. Chunks scoring below ``score_threshold`` are
         dropped before context assembly.
+
+        When *scope* is provided, ``build_qdrant_filter`` produces the full
+        combined permission+scope filter and ``search_filtered`` is used.
+        When *scope* is None, the legacy ``document_id`` path is used (for /qa
+        backward compatibility).
         """
         query_vector = self._encoder.encode(question)
-        vector_results = self._qdrant.search(
-            vector=query_vector,
-            group_ids=group_ids,
-            limit=top_k,
-            document_id=document_id,
-            allow_all=allow_all,
-        )
+
+        if scope is not None:
+            if not group_ids and not allow_all:
+                # Safety: no groups and no admin bypass — return nothing.
+                return []
+            qdrant_filter = build_qdrant_filter(scope, group_ids, allow_all)
+            vector_results = self._qdrant.search_filtered(
+                vector=query_vector,
+                query_filter=qdrant_filter,
+                limit=top_k,
+            )
+        else:
+            vector_results = self._qdrant.search(
+                vector=query_vector,
+                group_ids=group_ids,
+                limit=top_k,
+                document_id=document_id,
+                allow_all=allow_all,
+            )
 
         if self._meili is not None:
             bm25_results = self._meili.search_rag(

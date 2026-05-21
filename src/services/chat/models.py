@@ -3,10 +3,38 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+
+ScopeType = Literal[
+    "all_accessible_documents",
+    "single_document",
+    "selected_documents",
+    "source",
+    "folder",
+    "current_search_results",
+]
+
+
+class ChatScope(BaseModel):
+    """Validated scope for a chat session's retrieval filter."""
+
+    scope_type: ScopeType
+    scope_ids: list[str] = []
+
+    @model_validator(mode="after")
+    def _validate_cardinality(self) -> ChatScope:
+        st = self.scope_type
+        if st == "all_accessible_documents" and self.scope_ids:
+            raise ValueError("scope_ids must be empty for all_accessible_documents")
+        if st == "single_document" and len(self.scope_ids) != 1:
+            raise ValueError("single_document scope requires exactly one scope_id")
+        multi_scope = ("selected_documents", "current_search_results", "source", "folder")
+        if st in multi_scope and not self.scope_ids:
+            raise ValueError(f"{st} scope requires at least one scope_id")
+        return self
 
 
 class ChatSession(BaseModel):

@@ -7,14 +7,14 @@ from uuid import UUID
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from services.api._helpers import _config_bool
 from services.api.main import current_user
 from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
 from services.chat import ChatMessage, ChatRepository, ChatSession
-from services.chat.models import ChatMessageCreate, ChatSessionCreate, ChatSessionUpdate
+from services.chat.models import ChatMessageCreate, ChatScope, ChatSessionCreate, ChatSessionUpdate
 from services.intelligence.ollama_client import OllamaClient
 from services.rag.reranker import NoOpReranker
 from services.rag.service import RagService
@@ -235,11 +235,54 @@ def create_message(
             )
         )
 
-        # 2. Build RAG service and answer
-        scope_document_id: str | None = None
-        if session.scope_type == "single_document" and len(session.scope_ids) == 1:
-            scope_document_id = session.scope_ids[0]
+        # 2. Build and validate session scope
+        try:
+            chat_scope = ChatScope(
+                scope_type=session.scope_type,  # type: ignore[arg-type]
+                scope_ids=session.scope_ids,
+            )
+        except ValidationError as exc:
+            msg = exc.errors()[0]["msg"]
+            raise HTTPException(status_code=400, detail=f"Invalid session scope: {msg}") from exc
 
+        if chat_scope.scope_type == "folder":
+            # Folder metadata is not stored in the Qdrant payload; full support is deferred.
+            # TODO: implement folder scope when folder_id is indexed in vector payloads.
+            raise HTTPException(
+                status_code=400,
+                detail="Folder-scoped chat is not yet supported. Please use a different scope.",
+            )
+
+        # Validate that the user still has access to scoped documents (revocation check).
+        if not user.is_admin and chat_scope.scope_type in (
+            "single_document",
+            "selected_documents",
+            "current_search_results",
+        ):
+            _scope_auth_repo = AuthRepository(connection)
+            for doc_id_str in chat_scope.scope_ids:
+                try:
+                    doc_uuid = UUID(doc_id_str)
+                except ValueError as exc:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            "One or more documents in this chat's scope are no longer accessible."
+                        ),
+                    ) from exc
+                source_id = _scope_auth_repo.document_source_id(doc_uuid)
+                if source_id is None or not _scope_auth_repo.user_can_access_source(
+                    user,  # type: ignore[arg-type]
+                    source_id,
+                ):
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            "One or more documents in this chat's scope are no longer accessible."
+                        ),
+                    )
+
+        # 3. Build RAG service and answer
         if user.is_admin:
             group_ids: list[str] = []
         else:
@@ -292,8 +335,8 @@ def create_message(
                 question=body.content,
                 group_ids=group_ids,
                 top_k=body.top_k,
-                document_id=scope_document_id,
                 allow_all=user.is_admin,
+                scope=chat_scope,
             )
         except Exception as exc:
             logger.warning(
@@ -313,7 +356,7 @@ def create_message(
 
         latency_ms = int((time.perf_counter() - phase_start) * 1000)
 
-        # 3. Persist assistant message
+        # 4. Persist assistant message
         citations = [
             {
                 "citation_id": c.citation_id,
