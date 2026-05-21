@@ -22,7 +22,7 @@ export function TablePreview({ text, searchQuery = "" }: TablePreviewProps) {
     .map((row) => row.split("\t"));
 
   const RowComponent = useCallback(
-    ({ index, style }: { index: number; style: React.CSSProperties; ariaAttributes?: Record<string, unknown> }) => (
+    ({ index, style }: { index: number; style: React.CSSProperties }) => (
       <div style={style} role="row">
         {rows[index + 1]?.map((cell, ci) => (
           <div key={ci} role="cell" className={`${styles.td} ${cellMatches(cell, searchQuery) ? styles.match : ""}`}>
@@ -40,7 +40,8 @@ export function TablePreview({ text, searchQuery = "" }: TablePreviewProps) {
 
   const [header, ...body] = rows;
   const isVirtualized = body.length > VIRTUALIZE_THRESHOLD;
-  const noopRowProps: Record<string, never> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rc: any = RowComponent;
 
   if (isVirtualized) {
     return (
@@ -59,8 +60,8 @@ export function TablePreview({ text, searchQuery = "" }: TablePreviewProps) {
             <List
               rowCount={body.length}
               rowHeight={ROW_HEIGHT}
-              rowComponent={RowComponent}
-              rowProps={noopRowProps}
+              rowComponent={rc}
+              rowProps={{}}
               style={{ height: Math.min(body.length * ROW_HEIGHT, 600), width: "100%" }}
             />
           </div>

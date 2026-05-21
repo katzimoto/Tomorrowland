@@ -33,7 +33,6 @@ export function TextPreview({
   onMatchCountChange,
 }: TextPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const noopRowProps: Record<string, never> = {};
   const [extraChunks, setExtraChunks] = useState<string[]>([]);
   const [extraTruncated, setExtraTruncated] = useState<boolean | null>(null);
   const [nextOffset, setNextOffset] = useState(CHUNK_SIZE);
@@ -112,13 +111,15 @@ export function TextPreview({
   }
 
   const RowComponent = useCallback(
-    ({ index, style }: { index: number; style: React.CSSProperties; ariaAttributes?: Record<string, unknown> }) => (
+    ({ index, style }: { index: number; style: React.CSSProperties }) => (
       <div style={style} className={styles.virtualRow}>
         {renderLine(lines[index] ?? "")}
       </div>
     ),
     [lines, searchQuery, activeSearchIndex],
   );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rc: any = RowComponent;
 
   if (!docId) {
     return (
@@ -160,8 +161,8 @@ export function TextPreview({
         <List
           rowCount={lines.length}
           rowHeight={ROW_HEIGHT}
-          rowComponent={RowComponent}
-          rowProps={noopRowProps}
+          rowComponent={rc}
+          rowProps={{}}
           style={{ height: Math.min(lines.length * ROW_HEIGHT, 600), width: "100%" }}
         />
         {isTruncated && (
