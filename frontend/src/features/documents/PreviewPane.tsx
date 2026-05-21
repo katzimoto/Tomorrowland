@@ -6,6 +6,7 @@ import { ArchivePreview } from "./renderers/ArchivePreview";
 import { EmailPreview } from "./renderers/EmailPreview";
 import { SlidesPreview } from "./renderers/SlidesPreview";
 import { ImagePreview } from "./renderers/ImagePreview";
+import { PdfViewer } from "./renderers/PdfViewer";
 import { UnsupportedPreview } from "./renderers/UnsupportedPreview";
 import styles from "./PreviewPane.module.css";
 
@@ -97,8 +98,15 @@ export function PreviewPane({ preview }: PreviewPaneProps) {
     );
   }
 
+  if (mime === "application/pdf") {
+    return (
+      <div className={styles.pane}>
+        <PdfViewer docId={preview.document_id} />
+      </div>
+    );
+  }
+
   if (
-    mime === "application/pdf" ||
     mime ===
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     mime === "application/msword" ||

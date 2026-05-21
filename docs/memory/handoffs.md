@@ -23,6 +23,31 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-21 — #442 PDF.js viewer complete; #443 view mode switcher next
+
+Status: Active
+Source: issue #442, PR #456
+
+What changed:
+- Added `PdfViewer.tsx` using `pdfjs-dist` with canvas rendering, page nav, zoom, loading state, and `ExtractionFailedPreview` on failure.
+- Worker configured via `pdfjs-dist/build/pdf.worker.min.mjs?url` — local bundled asset, no CDN.
+- `PreviewPane` dispatches `application/pdf` to `PdfViewer` (was TextPreview).
+- Added `PreviewPane.test.tsx` and `PdfViewer.test.tsx`.
+
+Verification:
+- Frontend: 18/18 tests passed. TypeScript clean.
+- jsdom logs canvas `getContext` not-implemented warnings — expected, guarded in component.
+
+Open risks:
+- Page/zoom controls are inside `PdfViewer` for this PR; #443 may want to move them to `DocumentToolbar`.
+- Text layer not enabled yet (canvas-only rendering); browser find-in-page won't work until added.
+- Canvas rendering is not verified in jsdom tests — needs manual/browser test.
+
+Next agent prompt:
+- Branch `feat/443-view-mode-switcher` from `feature/document-viewer` after PR #456 merges.
+- Read mission for issue #443 (`docs/agents/missions/` if it exists).
+- If moving PDF controls to DocumentToolbar, thread state up from PdfViewer via ref or callback.
+
 ## 2026-05-21 — #441 full text API complete; #442 PDF.js viewer next
 
 Status: Active
