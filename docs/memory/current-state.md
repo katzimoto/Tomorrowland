@@ -2,7 +2,24 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
-## 2026-05-21 — Document viewer a11y, perf, telemetry hardening
+## 2026-05-21 — Document viewer track in progress (#440–#449)
+
+Status: Superseded
+Source: issues #440–#449, #453; PRs #454–#462
+
+Finding:
+- Document viewer MVP track (parent #453) is underway.
+- #440 (HTML sandbox) — Done. PR #454 merged to `main`.
+- #441 (full text API) — Done. PR #455 merged to `feature/document-viewer`.
+- #442 (PDF.js viewer) — Done. PR #456 merged to `feature/document-viewer`.
+- #443 (view mode switcher + fidelity bar) — Done. PR #457 merged to `feature/document-viewer`.
+- #444 (image viewer) — Done. PR #458 merged to `feature/document-viewer`.
+- #445 (metadata Details tab) — Done. PR #459 merged to `feature/document-viewer`.
+- #447 (code/syntax viewer) — Done. PR #460 merged to `feature/document-viewer`.
+- #448 (media viewer) — Done. PR #461 merged to `feature/document-viewer`.
+- #449 (in-document search) — Done. PR #462 merged to `feature/document-viewer`.
+
+## 2026-05-21 — Document viewer a11y, perf, telemetry hardening (#450)
 
 Status: Active
 Source: issue #450; PR #464
