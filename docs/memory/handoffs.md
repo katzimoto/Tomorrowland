@@ -23,6 +23,27 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-21 — #448 media viewer complete
+
+Status: Done
+Source: issue #448, PR #461
+
+What changed:
+- Added `MediaPreview.tsx`: native `<audio controls>` / `<video controls>` (16:9 container). `onError` → `UnsupportedPreview`. Metadata row (title, MIME). Transcript section (`<h3>`) shown when `snippet` non-empty.
+- Backend download route: added `Accept-Ranges: bytes`, `Range` request parsing, 206 Partial Content response. `Content-Disposition` changed to `inline` for browser playback.
+- PreviewPane: `audio/*` and `video/*` prefix dispatch added before image branch.
+
+Verification:
+- 16/16 MediaPreview tests. 2 new PreviewPane dispatch tests. 185/185 full suite. TypeScript clean.
+
+Open risks:
+- Backend byte-range handling not covered by existing tests; only manually verified via code review.
+- `Content-Disposition: inline` change affects non-media downloads too (all MIME types now inline).
+
+Next agent prompt:
+- Merge PR #461 into `feature/document-viewer`.
+- Start #449 (In-document search). Branch `feat/449-in-document-search` from `feature/document-viewer`.
+
 ## 2026-05-21 — #447 code/syntax viewer complete
 
 Status: Done
