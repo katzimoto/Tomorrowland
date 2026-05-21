@@ -48,6 +48,58 @@
 
 .downloadLink { text-decoration: none; }
 
+.imageZoomControls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.zoomBtn {
+  background: none;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  padding: 4px 8px;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.zoomBtn:last-child { border-right: none; }
+.zoomBtn:hover:not(:disabled) { background: var(--color-surface-hover); color: var(--color-text-primary); }
+.zoomBtn:disabled { opacity: 0.4; cursor: default; }
+
+.zoomLevel {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  padding: 0 6px;
+  min-width: 3.5rem;
+  text-align: center;
+  line-height: 1.8;
+}
+
 @media (max-width: 767px) {
   .toolbar { padding: var(--space-3) var(--page-padding-mobile); }
+}
+
+.searchBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 4px 8px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+.searchBtn:hover { color: var(--color-text-primary); background: var(--color-surface-hover); }
+
+.searchBtnActive {
+  color: var(--color-accent);
+  background: var(--color-surface);
+  border-color: var(--color-accent);
 }

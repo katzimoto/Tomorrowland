@@ -5,22 +5,80 @@ import { TablePreview } from "./renderers/TablePreview";
 import { ArchivePreview } from "./renderers/ArchivePreview";
 import { EmailPreview } from "./renderers/EmailPreview";
 import { SlidesPreview } from "./renderers/SlidesPreview";
-import { ImagePreview } from "./renderers/ImagePreview";
+import { ImageViewer } from "./renderers/ImageViewer";
+import { PdfViewer } from "./renderers/PdfViewer";
+import { CodeViewer } from "./renderers/CodeViewer";
+import { MediaPreview } from "./renderers/MediaPreview";
 import { UnsupportedPreview } from "./renderers/UnsupportedPreview";
+import type { ViewMode } from "./ViewModeSwitcher";
 import styles from "./PreviewPane.module.css";
+
+const CODE_MIMES = new Set([
+  "application/json",
+  "text/xml",
+  "application/xml",
+  "text/yaml",
+  "application/yaml",
+  "application/x-yaml",
+  "text/x-python",
+  "text/javascript",
+  "application/javascript",
+  "text/typescript",
+  "text/x-typescript",
+  "text/x-sh",
+  "application/x-shellscript",
+  "text/x-sql",
+  "application/x-sql",
+]);
 
 interface PreviewPaneProps {
   preview: DocumentPreview;
+  activeMode?: ViewMode;
+  selectedVersionId?: string;
+  imageZoom?: number | null;
+  onImageZoomChange?: (zoom: number | null) => void;
+  searchQuery?: string;
+  activeSearchIndex?: number;
+  onMatchCountChange?: (count: number) => void;
 }
 
 function downloadUrl(docId: string) {
   return `/api/download/${docId}`;
 }
 
-export function PreviewPane({ preview }: PreviewPaneProps) {
+export function PreviewPane({
+  preview,
+  activeMode,
+  selectedVersionId,
+  imageZoom = null,
+  onImageZoomChange,
+  searchQuery = "",
+  activeSearchIndex = 0,
+  onMatchCountChange,
+}: PreviewPaneProps) {
   const mime = preview.mime_type;
   const text = preview.snippet;
   const dl = downloadUrl(preview.document_id);
+
+  // In extracted/translation mode, all non-HTML/non-image types render as text.
+  if (
+    (activeMode === "extracted" || activeMode === "translation") &&
+    mime !== "text/html" &&
+    !mime.startsWith("image/")
+  ) {
+    return (
+      <div className={styles.pane}>
+        <TextPreview
+          docId={preview.document_id}
+          translationVersionId={activeMode === "translation" ? selectedVersionId : undefined}
+          showOriginal={activeMode === "extracted"}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
+      </div>
+    );
+  }
 
   if (mime === "text/html") {
     return (
@@ -30,15 +88,30 @@ export function PreviewPane({ preview }: PreviewPaneProps) {
     );
   }
 
-  if (
-    mime === "text/plain" ||
-    mime === "text/markdown" ||
-    mime === "application/json" ||
-    mime === "text/csv"
-  ) {
+  if (mime === "text/plain" || mime === "text/markdown" || mime === "text/csv") {
     return (
       <div className={styles.pane}>
-        <TextPreview text={text} />
+        <TextPreview
+          docId={preview.document_id}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
+      </div>
+    );
+  }
+
+  if (CODE_MIMES.has(mime)) {
+    return (
+      <div className={styles.pane}>
+        <CodeViewer
+          docId={preview.document_id}
+          mimeType={mime}
+          title={preview.title ?? undefined}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
       </div>
     );
   }
@@ -51,7 +124,7 @@ export function PreviewPane({ preview }: PreviewPaneProps) {
   ) {
     return (
       <div className={styles.pane}>
-        <TablePreview text={text} />
+        <TablePreview text={text} searchQuery={searchQuery} />
       </div>
     );
   }
@@ -89,16 +162,46 @@ export function PreviewPane({ preview }: PreviewPaneProps) {
     );
   }
 
+  if (mime.startsWith("audio/") || mime.startsWith("video/")) {
+    return (
+      <div className={styles.pane}>
+        <MediaPreview
+          docId={preview.document_id}
+          mimeType={mime}
+          title={preview.title ?? null}
+          snippet={preview.snippet ?? ""}
+        />
+      </div>
+    );
+  }
+
   if (mime.startsWith("image/")) {
     return (
       <div className={styles.pane}>
-        <ImagePreview docId={preview.document_id} />
+        <ImageViewer
+          docId={preview.document_id}
+          mimeType={mime}
+          alt={preview.title ?? ""}
+          zoom={imageZoom}
+          onZoomChange={onImageZoomChange ?? (() => {})}
+        />
+      </div>
+    );
+  }
+
+  if (mime === "application/pdf") {
+    return (
+      <div className={styles.pane}>
+        <PdfViewer
+          docId={preview.document_id}
+          searchQuery={searchQuery}
+          onMatchCountChange={onMatchCountChange}
+        />
       </div>
     );
   }
 
   if (
-    mime === "application/pdf" ||
     mime ===
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     mime === "application/msword" ||
@@ -106,7 +209,7 @@ export function PreviewPane({ preview }: PreviewPaneProps) {
   ) {
     return (
       <div className={styles.pane}>
-        <TextPreview text={text} />
+        <TextPreview docId={preview.document_id} />
       </div>
     );
   }

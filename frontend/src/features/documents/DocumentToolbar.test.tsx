@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import { render } from "@/test/render";
 import { DocumentToolbar } from "./DocumentToolbar";
 import type { DocumentPreview } from "@/api/documents";
@@ -36,13 +36,33 @@ describe("DocumentToolbar", () => {
         preview={mockPreview}
         selectedVersionId={undefined}
         showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
         onVersionChange={vi.fn()}
         onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
       />
     );
     expect(
       screen.getByRole("heading", { name: "Vendor Risk Assessment" })
     ).toBeInTheDocument();
+  });
+
+  it("download link has aria-label", () => {
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+      />
+    );
+    const link = screen.getByRole("link", { name: /download/i });
+    expect(link).toHaveAttribute("aria-label", "Download original file");
   });
 
   it("shows back to search button", () => {
@@ -51,8 +71,11 @@ describe("DocumentToolbar", () => {
         preview={mockPreview}
         selectedVersionId={undefined}
         showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
         onVersionChange={vi.fn()}
         onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
       />
     );
     expect(
@@ -66,8 +89,11 @@ describe("DocumentToolbar", () => {
         preview={mockPreview}
         selectedVersionId={undefined}
         showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
         onVersionChange={vi.fn()}
         onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
       />
     );
     expect(screen.getByRole("link", { name: /download/i })).toHaveAttribute(
@@ -82,8 +108,11 @@ describe("DocumentToolbar", () => {
         preview={mockPreview}
         selectedVersionId={undefined}
         showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
         onVersionChange={vi.fn()}
         onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
       />
     );
     expect(
@@ -97,8 +126,11 @@ describe("DocumentToolbar", () => {
         preview={{ ...mockPreview, translation_quality: "high" }}
         selectedVersionId={undefined}
         showOriginal={false}
+        availableModes={["original", "translation"]}
+        activeMode="translation"
         onVersionChange={vi.fn()}
         onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
       />
     );
     expect(
@@ -112,10 +144,169 @@ describe("DocumentToolbar", () => {
         preview={mockPreview}
         selectedVersionId={undefined}
         showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
         onVersionChange={vi.fn()}
         onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
       />
     );
     expect(screen.getByText("Fast translation")).toBeInTheDocument();
+  });
+
+  it("shows image zoom controls when showImageControls is true", () => {
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        showImageControls={true}
+        imageZoom={null}
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+        onImageZoomChange={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zoom out" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset zoom" })).toBeInTheDocument();
+  });
+
+  it("hides image zoom controls when showImageControls is false", () => {
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        showImageControls={false}
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole("button", { name: "Zoom in" })).not.toBeInTheDocument();
+  });
+
+  it("shows Fit label when imageZoom is null", () => {
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        showImageControls={true}
+        imageZoom={null}
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+        onImageZoomChange={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Fit")).toBeInTheDocument();
+  });
+
+  it("shows zoom percentage label when imageZoom is set", () => {
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        showImageControls={true}
+        imageZoom={150}
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+        onImageZoomChange={vi.fn()}
+      />
+    );
+    expect(screen.getByText("150%")).toBeInTheDocument();
+  });
+
+  it("zoom in button calls onImageZoomChange", () => {
+    const onImageZoomChange = vi.fn();
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        showImageControls={true}
+        imageZoom={100}
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+        onImageZoomChange={onImageZoomChange}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(onImageZoomChange).toHaveBeenCalledWith(125);
+  });
+
+  it("shows search button when searchable is true", () => {
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+        searchable={true}
+        searchOpen={false}
+        onSearchToggle={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("button", { name: "Search within document" })).toBeInTheDocument();
+  });
+
+  it("hides search button when searchable is false", () => {
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+        searchable={false}
+      />
+    );
+    expect(screen.queryByRole("button", { name: "Search within document" })).not.toBeInTheDocument();
+  });
+
+  it("search button toggles aria-pressed state", () => {
+    const onSearchToggle = vi.fn();
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        showOriginal={false}
+        availableModes={["original"]}
+        activeMode="original"
+        onVersionChange={vi.fn()}
+        onShowOriginalChange={vi.fn()}
+        onModeChange={vi.fn()}
+        searchable={true}
+        searchOpen={true}
+        onSearchToggle={onSearchToggle}
+      />
+    );
+    const btn = screen.getByRole("button", { name: "Search within document" });
+    expect(btn).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(btn);
+    expect(onSearchToggle).toHaveBeenCalled();
   });
 });

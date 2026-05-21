@@ -30,6 +30,7 @@ import {
   type Annotation,
 } from "@/api/annotations";
 import { VersionBadge } from "./VersionBadge";
+import { DetailsTab } from "./DetailsTab";
 import { Badge } from "@/components/primitives/Badge";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
@@ -38,14 +39,16 @@ import { Tabs } from "@/components/primitives/Tabs";
 import { useToast } from "@/components/primitives/ToastContext";
 import { useT } from "@/i18n/index";
 import { QAPanel } from "@/features/qa/QAPanel";
+import type { DocumentPreview } from "@/api/documents";
 import type { InsightPaneTab } from "./insightPaneTabs";
 import styles from "./InsightPane.module.css";
 
 interface InsightPaneProps {
   docId: string;
+  preview?: DocumentPreview;
 }
 
-export function InsightPane({ docId }: InsightPaneProps) {
+export function InsightPane({ docId, preview }: InsightPaneProps) {
   const t = useT();
   const [activeTab, setActiveTab] = useState<InsightPaneTab>("summary");
 
@@ -57,6 +60,7 @@ export function InsightPane({ docId }: InsightPaneProps) {
     { id: "comments", label: t.insight.tabComments },
     { id: "subscriptions", label: t.insight.tabSubscriptions },
     { id: "versions", label: t.insight.tabVersions },
+    { id: "details", label: t.insight.tabDetails },
   ];
 
   return (
@@ -75,6 +79,7 @@ export function InsightPane({ docId }: InsightPaneProps) {
         {activeTab === "comments" && <CommentsTab docId={docId} />}
         {activeTab === "subscriptions" && <SubscriptionsStub />}
         {activeTab === "versions" && <VersionsTab docId={docId} />}
+        {activeTab === "details" && preview && <DetailsTab preview={preview} />}
       </div>
     </div>
   );

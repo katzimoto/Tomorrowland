@@ -5,7 +5,10 @@ export type PerformanceTelemetryEventName =
   | "search.firstResult"
   | "preview.load"
   | "qa.answer"
-  | "sourceSync.action";
+  | "sourceSync.action"
+  | "viewer.text.load"
+  | "viewer.pdf.load"
+  | "viewer.image.load";
 
 type TelemetryStatus = "success" | "error";
 

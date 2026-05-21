@@ -111,6 +111,39 @@ class PreviewService:
             "view_count": view_count,
         }
 
+    def get_full_text(
+        self,
+        document_id: UUID,
+        translation_version_id: UUID | None = None,
+        show_original: bool = False,
+    ) -> str:
+        """Return the full resolved text for *document_id* without truncation.
+
+        Resolution priority matches _generate_snippet:
+        1. If show_original=True, skip translation and use content_text.
+        2. Otherwise try get_translated_text (version → latest → legacy payload).
+        3. Fall back to document_payloads.content_text.
+        4. Return "" if nothing is found.
+        """
+        if not show_original:
+            translated = self.get_translated_text(
+                document_id, translation_version_id=translation_version_id
+            )
+            if translated:
+                return translated
+
+        payload_row = (
+            self._connection.execute(
+                sa.text("SELECT content_text FROM document_payloads WHERE document_id = :id"),
+                {"id": db_uuid(document_id)},
+            )
+            .mappings()
+            .first()
+        )
+        if payload_row and payload_row["content_text"]:
+            return str(payload_row["content_text"])
+        return ""
+
     def get_translated_text(
         self,
         document_id: UUID,

@@ -18,6 +18,11 @@ vi.mock("@/api/documents");
 vi.mock("@/api/comments");
 vi.mock("@/api/annotations");
 
+// pdfjs-dist requires DOMMatrix which is unavailable in jsdom
+vi.mock("./renderers/PdfViewer", () => ({
+  PdfViewer: ({ docId }: { docId: string }) => <div data-testid="pdf-viewer" data-doc-id={docId} />,
+}));
+
 const mockPreview: documentsApi.DocumentPreview = {
   document_id: "doc-123",
   title: "Vendor Risk Assessment 2024",
@@ -35,6 +40,13 @@ beforeEach(() => {
     "/api/download/doc-123"
   );
   vi.mocked(documentsApi.getTranslationVersions).mockResolvedValue([]);
+  vi.mocked(documentsApi.getDocumentText).mockResolvedValue({
+    text: "This document covers vendor risk.",
+    total_length: 33,
+    offset: 0,
+    limit: 10000,
+    truncated: false,
+  });
   vi.mocked(documentsApi.getSummary).mockRejectedValue(new Error("not found"));
   vi.mocked(documentsApi.getEntities).mockRejectedValue(new Error("not found"));
   vi.mocked(documentsApi.getTags).mockRejectedValue(new Error("not found"));
@@ -153,5 +165,57 @@ describe("DocumentPage", () => {
         screen.getByRole("option", { name: "Original" })
       ).toBeInTheDocument();
     });
+  });
+
+  it("shows FidelityStatusBar after preview loads", async () => {
+    render(<DocumentPage />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Vendor Risk Assessment 2024" })
+      ).toBeInTheDocument();
+    });
+    // Status bar is rendered (text visible)
+    expect(screen.getByText(/Viewing/i)).toBeInTheDocument();
+  });
+
+  it("defaults to original mode when no translations are available", async () => {
+    vi.mocked(documentsApi.getTranslationVersions).mockResolvedValue([]);
+    render(<DocumentPage />);
+    await waitFor(() => {
+      expect(screen.getByText(/Viewing original file/i)).toBeInTheDocument();
+    });
+  });
+
+  it("switches to translation mode when available translations exist", async () => {
+    vi.mocked(documentsApi.getTranslationVersions).mockResolvedValue([
+      {
+        version_id: "v1",
+        label: "Version 1",
+        version_number: 1,
+        quality: "fast",
+        status: "available",
+        target_language: "es",
+        requested_at: "2026-01-01T00:00:00Z",
+      },
+    ]);
+    render(<DocumentPage />);
+    await waitFor(() => {
+      expect(screen.getByText(/Viewing fast translation/i)).toBeInTheDocument();
+    });
+  });
+
+  it("ViewModeSwitcher is hidden when only one mode is available", async () => {
+    vi.mocked(documentsApi.getTranslationVersions).mockResolvedValue([]);
+    vi.mocked(documentsApi.getPreview).mockResolvedValue({
+      ...mockPreview,
+      snippet: "", // no extracted text
+    });
+    render(<DocumentPage />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Vendor Risk Assessment 2024" })
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("group", { name: "View mode" })).not.toBeInTheDocument();
   });
 });

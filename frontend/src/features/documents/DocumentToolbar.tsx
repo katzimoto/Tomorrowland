@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Download, Languages } from "lucide-react";
+import { ArrowLeft, Download, Languages, Search } from "lucide-react";
 import { getDownloadUrl } from "@/api/documents";
 import { Button } from "@/components/primitives/Button";
 import type { DocumentPreview } from "@/api/documents";
@@ -8,22 +8,44 @@ import { useT } from "@/i18n/index";
 import { TrustDisplay } from "./TrustDisplay";
 import { TranslationVersionSelector } from "./TranslationVersionSelector";
 import { RequestTranslationDialog } from "./RequestTranslationDialog";
+import { ViewModeSwitcher } from "./ViewModeSwitcher";
+import type { ViewMode } from "./ViewModeSwitcher";
 import styles from "./DocumentToolbar.module.css";
+
+const ZOOM_STEPS = [25, 50, 75, 100, 125, 150, 200, 300, 400];
 
 interface DocumentToolbarProps {
   preview: DocumentPreview;
   selectedVersionId: string | undefined;
   showOriginal: boolean;
+  availableModes: ViewMode[];
+  activeMode: ViewMode;
+  showImageControls?: boolean;
+  imageZoom?: number | null;
   onVersionChange: (versionId: string | undefined) => void;
   onShowOriginalChange: (showOriginal: boolean) => void;
+  onModeChange: (mode: ViewMode) => void;
+  onImageZoomChange?: (zoom: number | null) => void;
+  searchable?: boolean;
+  searchOpen?: boolean;
+  onSearchToggle?: () => void;
 }
 
 export function DocumentToolbar({
   preview,
   selectedVersionId,
   showOriginal,
+  availableModes,
+  activeMode,
+  showImageControls = false,
+  imageZoom = null,
   onVersionChange,
   onShowOriginalChange,
+  onModeChange,
+  onImageZoomChange,
+  searchable = false,
+  searchOpen = false,
+  onSearchToggle,
 }: DocumentToolbarProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -52,6 +74,11 @@ export function DocumentToolbar({
         </div>
 
         <div className={styles.controls}>
+          <ViewModeSwitcher
+            availableModes={availableModes}
+            activeMode={activeMode}
+            onModeChange={onModeChange}
+          />
           <TranslationVersionSelector
             docId={preview.document_id}
             selectedVersionId={selectedVersionId}
@@ -69,10 +96,65 @@ export function DocumentToolbar({
               {t.document.requestTranslation}
             </Button>
           )}
+          {showImageControls && onImageZoomChange && (
+            <div className={styles.imageZoomControls}>
+              <button
+                className={styles.zoomBtn}
+                aria-label="Zoom out"
+                disabled={imageZoom !== null && imageZoom <= ZOOM_STEPS[0]}
+                onClick={() => {
+                  if (imageZoom === null || imageZoom <= ZOOM_STEPS[0]) {
+                    onImageZoomChange(null);
+                  } else {
+                    const below = ZOOM_STEPS.filter((s) => s < imageZoom);
+                    onImageZoomChange(below.length ? below[below.length - 1] : null);
+                  }
+                }}
+              >
+                −
+              </button>
+              <span className={styles.zoomLevel} aria-live="polite">
+                {imageZoom === null ? "Fit" : `${imageZoom}%`}
+              </span>
+              <button
+                className={styles.zoomBtn}
+                aria-label="Zoom in"
+                disabled={imageZoom !== null && imageZoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
+                onClick={() => {
+                  if (imageZoom === null) {
+                    onImageZoomChange(100);
+                  } else {
+                    const above = ZOOM_STEPS.filter((s) => s > imageZoom);
+                    onImageZoomChange(above.length ? above[0] : imageZoom);
+                  }
+                }}
+              >
+                +
+              </button>
+              <button
+                className={styles.zoomBtn}
+                aria-label="Reset zoom"
+                onClick={() => onImageZoomChange(null)}
+              >
+                ↺
+              </button>
+            </div>
+          )}
+          {searchable && onSearchToggle && (
+            <button
+              className={`${styles.searchBtn} ${searchOpen ? styles.searchBtnActive : ""}`}
+              aria-label="Search within document"
+              aria-pressed={searchOpen}
+              onClick={onSearchToggle}
+            >
+              <Search size={14} />
+            </button>
+          )}
           <a
             href={getDownloadUrl(preview.document_id)}
             download
             className={styles.downloadLink}
+            aria-label="Download original file"
           >
             <Button variant="secondary" size="sm">
               <Download size={14} />

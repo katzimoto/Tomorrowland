@@ -100,7 +100,51 @@ def preview(
             is_latest=is_latest_val,
             latest_document_id=latest_document_id,
             has_newer_version=has_newer_version,
+            source_language=doc_row.source_language if doc_row else None,
+            target_language=doc_row.target_language if doc_row else None,
+            status=doc_row.status if doc_row else None,
+            content_sha256=doc_row.content_sha256 if doc_row else None,
+            created_at=doc_row.created_at.isoformat() if doc_row else None,
+            updated_at=doc_row.updated_at.isoformat() if doc_row else None,
         )
+
+
+@router.get("/documents/{document_id}/text")
+def get_document_text(
+    document_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+    translation_version_id: UUID | None = None,
+    show_original: bool = False,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=10000, ge=1, le=100000),
+) -> dict[str, Any]:
+    with request.app.state.engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(document_id, user, auth_repo)
+
+        doc_repo = DocumentRepository(connection)
+        if doc_repo.get_by_id(document_id) is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        preview_service = PreviewService(connection)
+        full_text = preview_service.get_full_text(
+            document_id,
+            translation_version_id=translation_version_id,
+            show_original=show_original,
+        )
+
+        total_length = len(full_text)
+        sliced = full_text[offset : offset + limit] if offset < total_length else ""
+        truncated = (offset + limit) < total_length
+
+        return {
+            "text": sliced,
+            "total_length": total_length,
+            "offset": offset,
+            "limit": limit,
+            "truncated": truncated,
+        }
 
 
 @router.get("/me/activity")
@@ -493,6 +537,53 @@ def download(
         raise HTTPException(status_code=400, detail="Invalid file path")
     request.app.state.metrics.download_requests_total.labels("success").inc()
 
+    file_size = target.stat().st_size
+    range_header = request.headers.get("Range")
+
+    if range_header:
+        try:
+            unit, ranges = range_header.split("=", 1)
+            if unit.strip() != "bytes":
+                raise ValueError("unsupported unit")
+            start_str, end_str = ranges.split("-", 1)
+            start = int(start_str) if start_str else 0
+            end = int(end_str) if end_str else file_size - 1
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=416, detail="Invalid Range header") from None
+
+        if start >= file_size or end >= file_size or start > end:
+            raise HTTPException(
+                status_code=416,
+                detail="Range Not Satisfiable",
+                headers={"Content-Range": f"bytes */{file_size}"},
+            )
+
+        length = end - start + 1
+
+        def range_iterator() -> Iterator[bytes]:
+            with target.open("rb") as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    chunk = f.read(min(8192, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+
+        return StreamingResponse(
+            range_iterator(),
+            status_code=206,
+            media_type=doc.mime_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{target.name}"',
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Content-Length": str(length),
+                "Accept-Ranges": "bytes",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
     def file_iterator() -> Iterator[bytes]:
         with target.open("rb") as f:
             while chunk := f.read(8192):
@@ -501,5 +592,10 @@ def download(
     return StreamingResponse(
         file_iterator(),
         media_type=doc.mime_type,
-        headers={"Content-Disposition": f'attachment; filename="{target.name}"'},
+        headers={
+            "Content-Disposition": f'inline; filename="{target.name}"',
+            "Content-Length": str(file_size),
+            "Accept-Ranges": "bytes",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
