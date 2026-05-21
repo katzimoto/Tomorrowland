@@ -11,7 +11,7 @@ Finding:
 - Document viewer MVP track (parent #453) is underway.
 - #440 (HTML sandbox) — Done. PR #454 merged to `main`.
 - #441 (full text API) — Done. PR #455 open, targets `feature/document-viewer`.
-- #442 (PDF.js viewer) — Ready to start. Blocked on #441 merging first.
+- #442 (PDF.js viewer) — Done. PR #456 open, targets `feature/document-viewer`.
 - `feature/document-viewer` integration branch exists on remote (created 2026-05-21).
 - TextPreview now fetches full text via `GET /documents/{document_id}/text` in 10K chunks.
 
