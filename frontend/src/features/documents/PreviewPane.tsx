@@ -7,9 +7,28 @@ import { EmailPreview } from "./renderers/EmailPreview";
 import { SlidesPreview } from "./renderers/SlidesPreview";
 import { ImageViewer } from "./renderers/ImageViewer";
 import { PdfViewer } from "./renderers/PdfViewer";
+import { CodeViewer } from "./renderers/CodeViewer";
 import { UnsupportedPreview } from "./renderers/UnsupportedPreview";
 import type { ViewMode } from "./ViewModeSwitcher";
 import styles from "./PreviewPane.module.css";
+
+const CODE_MIMES = new Set([
+  "application/json",
+  "text/xml",
+  "application/xml",
+  "text/yaml",
+  "application/yaml",
+  "application/x-yaml",
+  "text/x-python",
+  "text/javascript",
+  "application/javascript",
+  "text/typescript",
+  "text/x-typescript",
+  "text/x-sh",
+  "application/x-shellscript",
+  "text/x-sql",
+  "application/x-sql",
+]);
 
 interface PreviewPaneProps {
   preview: DocumentPreview;
@@ -53,15 +72,18 @@ export function PreviewPane({ preview, activeMode, selectedVersionId, imageZoom 
     );
   }
 
-  if (
-    mime === "text/plain" ||
-    mime === "text/markdown" ||
-    mime === "application/json" ||
-    mime === "text/csv"
-  ) {
+  if (mime === "text/plain" || mime === "text/markdown" || mime === "text/csv") {
     return (
       <div className={styles.pane}>
         <TextPreview docId={preview.document_id} />
+      </div>
+    );
+  }
+
+  if (CODE_MIMES.has(mime)) {
+    return (
+      <div className={styles.pane}>
+        <CodeViewer docId={preview.document_id} mimeType={mime} title={preview.title ?? undefined} />
       </div>
     );
   }

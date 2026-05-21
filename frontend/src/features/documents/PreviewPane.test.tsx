@@ -17,6 +17,12 @@ vi.mock("./renderers/ImageViewer", () => ({
   ),
 }));
 
+vi.mock("./renderers/CodeViewer", () => ({
+  CodeViewer: ({ docId, mimeType }: { docId: string; mimeType: string }) => (
+    <div data-testid="code-viewer" data-doc-id={docId} data-mime={mimeType} />
+  ),
+}));
+
 vi.mock("./renderers/TextPreview", () => ({
   TextPreview: ({
     docId,
@@ -156,5 +162,23 @@ describe("PreviewPane dispatch", () => {
     const viewer = screen.getByTestId("image-viewer");
     expect(viewer).toHaveAttribute("data-mime", "image/png");
     expect(viewer).toHaveAttribute("data-doc-id", "img-1");
+  });
+
+  it("dispatches application/json to CodeViewer", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "application/json" })} />);
+    expect(screen.getByTestId("code-viewer")).toBeInTheDocument();
+    expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
+  });
+
+  it("dispatches text/xml to CodeViewer", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "text/xml" })} />);
+    expect(screen.getByTestId("code-viewer")).toBeInTheDocument();
+    expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
+  });
+
+  it("dispatches text/plain to TextPreview (not CodeViewer)", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "text/plain" })} />);
+    expect(screen.getByTestId("text-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("code-viewer")).not.toBeInTheDocument();
   });
 });
