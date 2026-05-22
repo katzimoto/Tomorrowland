@@ -1,12 +1,17 @@
-"""Unit tests for Document Chat scope model and Qdrant filter builder."""
+"""Unit tests for Document Chat scope model, Qdrant filter builder, and query rewrite."""
 
 from __future__ import annotations
+
+from datetime import datetime
+from unittest.mock import MagicMock
+from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
 from qdrant_client.models import Filter, MatchAny, MatchValue
 
-from services.chat.models import ChatScope
+from services.chat.message_service import rewrite_query
+from services.chat.models import ChatMessage, ChatScope
 from services.rag.service import build_qdrant_filter
 
 # ---------------------------------------------------------------------------
@@ -163,3 +168,98 @@ def test_group_filter_skipped_when_allow_all() -> None:
     flt = build_qdrant_filter(scope, GROUP_IDS, allow_all=True)
     assert flt is not None
     assert not any(c.key == "group_id" for c in (flt.must or []))  # type: ignore[union-attr]
+
+
+# ---------------------------------------------------------------------------
+# Query rewrite
+# ---------------------------------------------------------------------------
+
+_UUID1 = UUID("00000000-0000-0000-0000-000000000001")
+_UUID2 = UUID("00000000-0000-0000-0000-000000000002")
+_NOW = datetime(2026, 1, 1)
+
+
+def _msg(role: str, content: str) -> ChatMessage:
+    return ChatMessage(
+        id=_UUID1,
+        session_id=_UUID2,
+        role=role,
+        content=content,
+        created_at=_NOW,
+    )
+
+
+def _mock_ollama(response: str = "") -> MagicMock:
+    client = MagicMock()
+    client.generate.return_value = response
+    return client
+
+
+def test_rewrite_skipped_for_first_turn() -> None:
+    """No rewrite call when session has fewer than one prior turn."""
+    client = _mock_ollama("standalone query")
+    result = rewrite_query("What about renewal?", [], client)
+    assert result == "What about renewal?"
+    client.generate.assert_not_called()
+
+
+def test_rewrite_skipped_for_single_message() -> None:
+    """No rewrite call with only a user message (no prior assistant reply)."""
+    client = _mock_ollama("standalone query")
+    prior = [_msg("user", "What does the contract say?")]
+    result = rewrite_query("What about renewal?", prior, client)
+    assert result == "What about renewal?"
+    client.generate.assert_not_called()
+
+
+def test_rewrite_resolves_references() -> None:
+    """Multi-turn: 'what about renewal?' rewrites to standalone query."""
+    client = _mock_ollama("contract renewal terms and conditions")
+    prior = [
+        _msg("user", "What does the contract say about termination?"),
+        _msg("assistant", "The contract allows termination with 30 days notice."),
+    ]
+    result = rewrite_query("What about renewal?", prior, client)
+    assert result == "contract renewal terms and conditions"
+    assert client.generate.called
+
+
+def test_rewrite_uses_last_four_pairs() -> None:
+    """Only the last 4 user+assistant pairs are included in the prompt."""
+    client = _mock_ollama("standalone query")
+    prior = []
+    for i in range(6):
+        prior.append(_msg("user", f"Q{i}"))
+        prior.append(_msg("assistant", f"A{i}"))
+    rewrite_query("Final question?", prior, client)
+    assert client.generate.called
+    prompt = client.generate.call_args[0][0]
+    # Should only contain last 4 pairs (Q2-A2 through Q5-A5)
+    assert "Q0" not in prompt
+    assert "Q1" not in prompt
+    assert "Q2" in prompt
+    assert "Q5" in prompt
+
+
+def test_rewrite_fallback_on_ollama_error() -> None:
+    """Ollama unavailable falls back to raw message, does not raise."""
+    client = _mock_ollama()
+    client.generate.side_effect = RuntimeError("Ollama is down")
+    prior = [
+        _msg("user", "What about deadline?"),
+        _msg("assistant", "The deadline is Dec 31."),
+    ]
+    result = rewrite_query("What about penalties?", prior, client)
+    assert result == "What about penalties?"
+    assert client.generate.called
+
+
+def test_rewrite_fallback_on_empty_response() -> None:
+    """Empty response from Ollama falls back to raw message."""
+    client = _mock_ollama("")
+    prior = [
+        _msg("user", "Q1"),
+        _msg("assistant", "A1"),
+    ]
+    result = rewrite_query("Q2", prior, client)
+    assert result == "Q2"

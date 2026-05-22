@@ -39,6 +39,7 @@ SYSTEM_CONFIG_DEFAULTS: Final[MappingProxyType[str, JsonValue]] = MappingProxyTy
 ENV_FEATURE_TO_CONFIG_KEY: Final[MappingProxyType[str, str]] = MappingProxyType(
     {
         "FEATURE_DOCUMENT_CHAT": "feature.document_chat",
+        "FEATURE_DOCUMENT_CHAT_QUERY_REWRITE": "feature.document_chat_query_rewrite",
         "FEATURE_DOCUMENT_COMMENTS": "feature.document_comments",
         "FEATURE_RAG_QA": "feature.rag_qa",
         "FEATURE_SUMMARIZATION": "feature.summarization",

@@ -80,21 +80,31 @@ Finding:
 - Missing tests added (commit 48153a9): 8 test files covering all AC #5 criteria — PreviewPane prop routing, PdfViewer page nav, virtualized global index, DocumentPage Ctrl+F toggle, EmailPreview/SlidesPreview/ArchivePreview/TablePreview search.
 - TypeScript check clean. Issue closed.
 
-## 2026-05-22 — Document Chat Phases A–C complete (#471–#474)
+## 2026-05-22 — Document Chat Phase D — query rewrite (#475)
 
-Status: Active (Phases D–G pending)
-Source: issues #471–#474; PRs #472, #473, #474 on `feature/document-chat`
+Status: Active (D1–D3 done, D4 pending)
+Source: issue #475; design §9
 
 Finding:
-- #472 Phase A (Q&A foundation) — Done. Merged to `main`. Issue closed.
-- #473 Phase B (persistent chat sessions) — CI verified (58 files, 410 tests). Issue closed.
-- #474 Phase C (scope-aware chat) — Done. On `feature/document-chat`. Pending merge to `main`.
-- Remaining phases D–G (#475–#478) not started; listed on GitHub as `status:next`.
-- Pre-existing bugs discovered during #473 verification: CitationList.tsx `idx` variable, PdfViewer.tsx `allPdfText` state (both fixed).
+- D1: `rewrite_query()` — created `src/services/chat/message_service.py`. Handles
+  history window (last 4 user+assistant pairs), skip on first turn, fallback on Ollama error.
+- D2: Wired into router — `POST /chat/sessions/{id}/messages` loads prior messages,
+  calls `rewrite_query` when `FEATURE_DOCUMENT_CHAT_QUERY_REWRITE=true`, passes
+  `rewritten_query` to the persisted assistant message.
+- D3: 6 unit tests added to `tests/unit/test_chat_service.py` covering: skip first
+  turn, skip single message, resolve references, history window truncation, Ollama
+  error fallback, empty response fallback.
+- Feature flag: `FEATURE_DOCUMENT_CHAT_QUERY_REWRITE` (default `false`), wired in
+  config.py, feature_flags.py, and the router dual-gate.
+- Pre-existing bug fixed en-route: `rag.answer(question=body.content)` used raw
+  input instead of variable that may have been rewritten.
+- All 44 chat unit tests pass; ruff, ruff format, mypy strict — clean.
+
+D4 (admin debug panel, Codex): not started.
 
 Next action:
-- Open integration PR `feature/document-chat` → `main`.
-- Phase D (#475): conversation-aware query rewrite.
+- D4: Admin debug panel showing `rewritten_query` in assistant message bubble.
+- After D4, merge Phase D into `feature/document-chat`.
 
 ## 2026-05-20 — Shared agent skills setup
 

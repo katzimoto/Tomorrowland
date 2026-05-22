@@ -13,7 +13,7 @@ from services.api._helpers import _config_bool
 from services.api.main import current_user
 from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
-from services.chat import ChatMessage, ChatRepository, ChatSession
+from services.chat import ChatMessage, ChatRepository, ChatSession, rewrite_query
 from services.chat.models import ChatMessageCreate, ChatScope, ChatSessionCreate, ChatSessionUpdate
 from services.intelligence.ollama_client import OllamaClient
 from services.rag.reranker import NoOpReranker
@@ -226,7 +226,10 @@ def create_message(
         if session is None:
             raise HTTPException(status_code=404, detail="Session not found")
 
-        # 1. Persist user message
+        # 1. Load prior messages for query rewrite (before persisting current user message)
+        prior_messages = repo.list_messages(session_id)
+
+        # 2. Persist user message
         repo.create_message(
             ChatMessageCreate(
                 session_id=session_id,
@@ -235,7 +238,7 @@ def create_message(
             )
         )
 
-        # 2. Build and validate session scope
+        # 3. Build and validate session scope
         try:
             chat_scope = ChatScope(
                 scope_type=session.scope_type,  # type: ignore[arg-type]
@@ -282,7 +285,18 @@ def create_message(
                         ),
                     )
 
-        # 3. Build RAG service and answer
+        # 4. Optionally rewrite query for follow-up turns
+        question = body.content
+        rewritten_query: str | None = None
+        rewrite_client = request.app.state.ollama_client or OllamaClient(
+            base_url=request.app.state.settings.ollama_url,
+            model=request.app.state.settings.ollama_model,
+        )
+        if request.app.state.settings.feature_document_chat_query_rewrite and prior_messages:
+            rewritten_query = rewrite_query(question, prior_messages, rewrite_client)
+            question = rewritten_query
+
+        # 5. Build RAG service and answer
         if user.is_admin:
             group_ids: list[str] = []
         else:
@@ -332,7 +346,7 @@ def create_message(
         phase_start = time.perf_counter()
         try:
             result = rag.answer(
-                question=body.content,
+                question=question,
                 group_ids=group_ids,
                 top_k=body.top_k,
                 allow_all=user.is_admin,
@@ -350,6 +364,7 @@ def create_message(
                     session_id=session_id,
                     role="assistant",
                     content="I could not search the document collection right now.",
+                    rewritten_query=rewritten_query,
                 )
             )
             return _message_response(assistant_msg)
@@ -374,6 +389,7 @@ def create_message(
                 session_id=session_id,
                 role="assistant",
                 content=result.answer,
+                rewritten_query=rewritten_query,
                 citations=citations,
                 model=result.model,
                 latency_ms=latency_ms,
