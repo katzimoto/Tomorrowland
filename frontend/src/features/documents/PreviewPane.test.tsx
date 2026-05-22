@@ -53,6 +53,16 @@ vi.mock("./renderers/SlidesPreview", () => ({
   ),
 }));
 
+vi.mock("./renderers/MarkdownPreview", () => ({
+  MarkdownPreview: ({ docId, fallbackText }: { docId: string; fallbackText?: string }) => (
+    <div
+      data-testid="markdown-preview"
+      data-doc-id={docId}
+      data-fallback={fallbackText}
+    />
+  ),
+}));
+
 vi.mock("./renderers/TextPreview", () => ({
   TextPreview: ({
     docId,
@@ -117,9 +127,57 @@ describe("PreviewPane dispatch", () => {
     expect(screen.queryByTestId("pdf-viewer")).not.toBeInTheDocument();
   });
 
-  it("dispatches text/markdown to TextPreview", () => {
+  it("dispatches text/markdown to MarkdownPreview", () => {
     render(<PreviewPane preview={makePreview({ mime_type: "text/markdown" })} />);
+    expect(screen.getByTestId("markdown-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
+  });
+
+  it("dispatches text/x-markdown to MarkdownPreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "text/x-markdown" })} />);
+    expect(screen.getByTestId("markdown-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches application/markdown to MarkdownPreview", () => {
+    render(<PreviewPane preview={makePreview({ mime_type: "application/markdown" })} />);
+    expect(screen.getByTestId("markdown-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches text/plain with .md title to MarkdownPreview", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({
+          mime_type: "text/plain",
+          title: "README.md",
+        })}
+      />
+    );
+    expect(screen.getByTestId("markdown-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches text/plain with .markdown title to MarkdownPreview", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({
+          mime_type: "text/plain",
+          title: "doc.markdown",
+        })}
+      />
+    );
+    expect(screen.getByTestId("markdown-preview")).toBeInTheDocument();
+  });
+
+  it("dispatches text/plain without .md title to TextPreview", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({
+          mime_type: "text/plain",
+          title: "readme.txt",
+        })}
+      />
+    );
     expect(screen.getByTestId("text-preview")).toBeInTheDocument();
+    expect(screen.queryByTestId("markdown-preview")).not.toBeInTheDocument();
   });
 
   it("extracted mode overrides PDF to TextPreview with showOriginal", () => {
@@ -231,6 +289,16 @@ describe("PreviewPane dispatch", () => {
   });
 
   describe("search prop passing", () => {
+    it("passes docId to MarkdownPreview for text/markdown", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "text/markdown", document_id: "md-doc-1" })}
+          searchQuery="md"
+          activeSearchIndex={1}
+        />
+      );
+      expect(screen.getByTestId("markdown-preview")).toHaveAttribute("data-doc-id", "md-doc-1");
+    });
     it("passes searchQuery to TextPreview for text/plain", () => {
       render(
         <PreviewPane

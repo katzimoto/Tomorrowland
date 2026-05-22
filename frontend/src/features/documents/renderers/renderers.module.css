@@ -292,6 +292,38 @@
   align-items: center;
 }
 
+.markdownToolbar {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.markdownToolbarBtn {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+
+.markdownToolbarBtn:hover {
+  background: var(--color-surface-hover);
+}
+
+.markdownToolbarBtnActive {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  background: var(--color-accent);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+
 .match {
   background: #fef08a;
   color: inherit;
