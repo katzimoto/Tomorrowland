@@ -56,6 +56,9 @@ export function SearchPage() {
   if (typeof routeSearch.source === "string" && routeSearch.source) {
     initialFilters.source = routeSearch.source.split(",");
   }
+  if (typeof routeSearch.file_extension === "string" && routeSearch.file_extension) {
+    initialFilters.file_extension = routeSearch.file_extension.split(",");
+  }
   if (typeof routeSearch.sort_by === "string") {
     initialFilters.sort_by = routeSearch.sort_by as SearchFilters["sort_by"];
   }
@@ -104,6 +107,9 @@ export function SearchPage() {
     }
     if (currentFilters.source?.length) {
       params.source = currentFilters.source.join(",");
+    }
+    if (currentFilters.file_extension?.length) {
+      params.file_extension = currentFilters.file_extension.join(",");
     }
     if (currentFilters.sort_by && currentFilters.sort_by !== "relevance") {
       params.sort_by = currentFilters.sort_by;

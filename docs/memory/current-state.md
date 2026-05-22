@@ -2,18 +2,21 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
-## 2026-05-22 — Document details & advanced search track in progress (#483–#489)
+## 2026-05-22 — Document details & advanced search track complete (#483–#489)
 
-Status: In progress — #485, #486, #487, #488, #483 done; #484, #489 pending
-Source: PRs #493–#497; plan at `docs/implementation/document-details-and-search.md`
+Status: Done — all 7 issues implemented
+Source: PRs #493–#499; plan at `docs/implementation/document-details-and-search.md`
 
 Finding:
-- **#485 done** — MarkdownPreview renderer
-- **#486 done** — User-managed private/public document tags
-- **#487 done** — Comments unified into annotations with threaded replies
-- **#488 done** — Document relationships table + pipeline wiring + DetailsTab source context
-- **#483 done** — DetailsTab reorganized into collapsible grouped sections (File, Source, Processing, Intelligence, Source Context, My Tags, Metadata)
-- Remaining: #484 (advanced search), #489 (clickable detail values)
+- All 7 issues in the track complete:
+  - #485 Markdown preview
+  - #486 User-managed private/public document tags
+  - #487 Comments unified into annotations with threaded replies
+  - #488 Document relationships table + pipeline wiring
+  - #483 Expanded details panel with grouped collapsible sections
+  - #484 Advanced search filter pipeline + URL-driven filter state
+  - #489 Clickable detail values linking to pre-populated search
+- Next: integration PR from `feature/document-details-and-search` → `main`
 - Remaining: #487, #488, #483, #484, #489.
 - Feature branch: `feature/document-details-and-search`. Sub-PRs target the feature branch.
 
