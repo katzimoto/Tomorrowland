@@ -47,20 +47,21 @@ export function SearchPage() {
   const initialMode = (routeSearch.mode as SearchMode) ?? "hybrid";
 
   const initialFilters: SearchFilters = {};
-  if (typeof routeSearch.file_type === "string" && routeSearch.file_type) {
-    initialFilters.file_type = routeSearch.file_type.split(",");
+  const extra = routeSearch as Record<string, unknown>;
+  if (typeof extra.file_type === "string" && extra.file_type) {
+    initialFilters.file_type = (extra.file_type as string).split(",");
   }
-  if (typeof routeSearch.tags === "string" && routeSearch.tags) {
-    initialFilters.tags = routeSearch.tags.split(",");
+  if (typeof extra.tags === "string" && extra.tags) {
+    initialFilters.tags = (extra.tags as string).split(",");
   }
-  if (typeof routeSearch.source === "string" && routeSearch.source) {
-    initialFilters.source = routeSearch.source.split(",");
+  if (typeof extra.source === "string" && extra.source) {
+    initialFilters.source = (extra.source as string).split(",");
   }
-  if (typeof routeSearch.file_extension === "string" && routeSearch.file_extension) {
-    initialFilters.file_extension = routeSearch.file_extension.split(",");
+  if (typeof extra.file_extension === "string" && extra.file_extension) {
+    initialFilters.file_extension = (extra.file_extension as string).split(",");
   }
-  if (typeof routeSearch.sort_by === "string") {
-    initialFilters.sort_by = routeSearch.sort_by as SearchFilters["sort_by"];
+  if (typeof extra.sort_by === "string") {
+    initialFilters.sort_by = extra.sort_by as SearchFilters["sort_by"];
   }
 
   const [inputValue, setInputValue] = useState(initialQ);
@@ -114,7 +115,7 @@ export function SearchPage() {
     if (currentFilters.sort_by && currentFilters.sort_by !== "relevance") {
       params.sort_by = currentFilters.sort_by;
     }
-    void navigate({ to: "/search", search: () => params });
+    void navigate({ to: "/search", search: () => params as { q: string; mode: string } });
   }
 
   const { data, isLoading, isFetching, isError } = useQuery({

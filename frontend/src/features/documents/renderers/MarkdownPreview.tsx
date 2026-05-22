@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { marked } from "marked";
+import type { Config as DOMPurifyConfig } from "dompurify";
 import DOMPurify from "dompurify";
 import { getDocumentText } from "@/api/documents";
 import styles from "./renderers.module.css";
@@ -24,7 +25,7 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   }
 });
 
-const SANITIZE_CONFIG: DOMPurify.Config = {
+const SANITIZE_CONFIG: DOMPurifyConfig = {
   FORBID_TAGS: ["script", "style"],
 };
 
