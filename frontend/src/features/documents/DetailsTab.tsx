@@ -1,5 +1,8 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import type { DocumentPreview } from "@/api/documents";
+import { UserTagEditor } from "./UserTagEditor";
+import { FilterLink } from "./FilterLink";
 import styles from "./DetailsTab.module.css";
 
 const MIME_LABELS: Record<string, string> = {
@@ -39,6 +42,21 @@ function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
+function formatFileSize(bytes: number | string): string {
+  const b = typeof bytes === "string" ? parseInt(bytes, 10) : bytes;
+  if (isNaN(b) || b <= 0) return String(bytes);
+  return b >= 1_048_576
+    ? `${(b / 1_048_576).toFixed(1)} MB`
+    : b >= 1024
+    ? `${(b / 1024).toFixed(1)} KB`
+    : `${b} B`;
+}
+
+function truncatePath(path: string, max = 60): string {
+  if (path.length <= max) return path;
+  return "…" + path.slice(-(max - 1));
+}
+
 interface RowProps {
   label: string;
   children: React.ReactNode;
@@ -53,12 +71,50 @@ function Row({ label, children }: RowProps) {
   );
 }
 
-interface DetailsTabProps {
-  preview: DocumentPreview;
+function SectionHeader({
+  title,
+  open,
+  onToggle,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={styles.sectionHeader}
+      aria-expanded={open}
+      onClick={onToggle}
+    >
+      <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}>
+        ▸
+      </span>
+      {title}
+    </button>
+  );
 }
 
-export function DetailsTab({ preview }: DetailsTabProps) {
+interface DetailsTabProps {
+  preview: DocumentPreview;
+  docId?: string;
+}
+
+export function DetailsTab({ preview, docId }: DetailsTabProps) {
   const [copied, setCopied] = useState(false);
+  const [rawJson, setRawJson] = useState(false);
+
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    file: true,
+    source: false,
+    processing: false,
+    intelligence: false,
+  });
+
+  function toggleSection(id: string) {
+    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
   const meta = preview.metadata as Record<string, unknown>;
 
   const source =
@@ -74,6 +130,13 @@ export function DetailsTab({ preview }: DetailsTabProps) {
     (meta.file_size as number | string | undefined) ??
     (meta.size as number | string | undefined);
 
+  const extension = preview.title?.includes(".")
+    ? preview.title.split(".").pop() ?? null
+    : preview.mime_type.split("/")[1] ?? null;
+
+  const systemTags = preview.tags ?? [];
+  const entities = preview.entities_summary ?? [];
+
   function handleCopyHash(hash: string) {
     void navigator.clipboard.writeText(hash).then(() => {
       setCopied(true);
@@ -81,89 +144,266 @@ export function DetailsTab({ preview }: DetailsTabProps) {
     });
   }
 
+  const hasFile =
+    !!preview.title || !!preview.mime_type || fileSize != null;
+  const hasSource = !!source || !!sourcePath;
+  const hasProcessing =
+    !!preview.status || preview.version_number != null || !!preview.created_at ||
+    !!preview.updated_at || !!preview.content_sha256;
+  const hasIntelligence =
+    systemTags.length > 0 || entities.length > 0;
+  const hasRelationships =
+    preview.relationships && preview.relationships.length > 0;
+  const hasMeta =
+    meta && Object.keys(meta).length > 0;
+
+  const metaEntries = Object.entries(meta)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "");
+
   return (
-    <dl className={styles.list}>
-      {preview.title && <Row label="File name">{preview.title}</Row>}
-
-      <Row label="File type">{mimeLabel(preview.mime_type)}</Row>
-
-      <Row label="MIME type">
-        <code className={styles.code}>{preview.mime_type}</code>
-      </Row>
-
-      {fileSize != null && (
-        <Row label="File size">
-          {typeof fileSize === "number"
-            ? fileSize >= 1_048_576
-              ? `${(fileSize / 1_048_576).toFixed(1)} MB`
-              : fileSize >= 1024
-              ? `${(fileSize / 1024).toFixed(1)} KB`
-              : `${fileSize} B`
-            : String(fileSize)}
-        </Row>
-      )}
-
-      {source && <Row label="Source">{source}</Row>}
-
-      {sourcePath && <Row label="Source path">{sourcePath}</Row>}
-
-      {preview.source_language && (
-        <Row label="Original language">{preview.source_language}</Row>
-      )}
-
-      {preview.target_language && (
-        <Row label="Translation language">{preview.target_language}</Row>
-      )}
-
-      {preview.translation_quality && (
-        <Row label="Translation quality">
-          <span className={`${styles.badge} ${styles[`quality_${preview.translation_quality}`]}`}>
-            {preview.translation_quality === "high" ? "High" : "Fast"}
-          </span>
-        </Row>
-      )}
-
-      {preview.status && (
-        <Row label="Processing status">
-          <span className={`${styles.badge} ${styles[`status_${preview.status}`]}`}>
-            {preview.status.charAt(0).toUpperCase() + preview.status.slice(1)}
-          </span>
-        </Row>
-      )}
-
-      {preview.version_number != null && (
-        <Row label="Version">
-          {preview.version_number}
-          {preview.is_latest === true && (
-            <span className={styles.latestBadge}> (latest)</span>
+    <div className={styles.container}>
+      {/* File section */}
+      {hasFile && (
+        <section className={styles.section}>
+          <SectionHeader
+            title="File"
+            open={openSections["file"]}
+            onToggle={() => toggleSection("file")}
+          />
+          {openSections["file"] && (
+            <dl className={styles.list}>
+              {preview.title && <Row label="File name">{preview.title}</Row>}
+              <Row label="File type">{mimeLabel(preview.mime_type)}</Row>
+              <Row label="MIME type">
+                <code className={styles.code}><FilterLink field="file_type" value={preview.mime_type}>{preview.mime_type}</FilterLink></code>
+              </Row>
+              {extension && <Row label="Extension"><FilterLink field="file_extension" value={extension} /></Row>}
+              {fileSize != null && (
+                <Row label="File size">{formatFileSize(fileSize)}</Row>
+              )}
+            </dl>
           )}
-        </Row>
+        </section>
       )}
 
-      {preview.created_at && (
-        <Row label="Imported">{formatDateTime(preview.created_at)}</Row>
+      {/* Source section */}
+      {hasSource && (
+        <section className={styles.section}>
+          <SectionHeader
+            title="Source"
+            open={openSections["source"]}
+            onToggle={() => toggleSection("source")}
+          />
+          {openSections["source"] && (
+            <dl className={styles.list}>
+              {source && <Row label="Source"><FilterLink field="source" value={source} /></Row>}
+              {sourcePath && (
+                <Row label="Source path">
+                  <span
+                    title={String(sourcePath)}
+                    className={styles.pathCell}
+                  >
+                    {truncatePath(String(sourcePath))}
+                  </span>
+                  {" "}
+                  <button
+                    type="button"
+                    className={styles.copyBtn}
+                    aria-label="Copy full path"
+                    onClick={() => handleCopyHash(String(sourcePath))}
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </Row>
+              )}
+              {preview.source_language && (
+                <Row label="Original language">{preview.source_language}</Row>
+              )}
+              {preview.target_language && (
+                <Row label="Translation language">{preview.target_language}</Row>
+              )}
+            </dl>
+          )}
+        </section>
       )}
 
-      {preview.updated_at && (
-        <Row label="Updated">{formatDateTime(preview.updated_at)}</Row>
+      {/* Processing section */}
+      {hasProcessing && (
+        <section className={styles.section}>
+          <SectionHeader
+            title="Processing"
+            open={openSections["processing"]}
+            onToggle={() => toggleSection("processing")}
+          />
+          {openSections["processing"] && (
+            <dl className={styles.list}>
+              {preview.status && (
+                <Row label="Status">
+                  <span className={`${styles.badge} ${styles[`status_${preview.status}`]}`}>
+                    {preview.status.charAt(0).toUpperCase() + preview.status.slice(1)}
+                  </span>
+                </Row>
+              )}
+              {preview.translation_quality && (
+                <Row label="Translation quality">
+                  <span className={`${styles.badge} ${styles[`quality_${preview.translation_quality}`]}`}>
+                    {preview.translation_quality === "high" ? "High" : "Fast"}
+                  </span>
+                </Row>
+              )}
+              {preview.version_number != null && (
+                <Row label="Version">
+                  {preview.version_number}
+                  {preview.is_latest === true && (
+                    <span className={styles.latestBadge}> (latest)</span>
+                  )}
+                </Row>
+              )}
+              {preview.created_at && (
+                <Row label="Imported">{formatDateTime(preview.created_at)}</Row>
+              )}
+              {preview.indexed_at && (
+                <Row label="Indexed">{formatDateTime(preview.indexed_at)}</Row>
+              )}
+              {preview.updated_at && (
+                <Row label="Updated">{formatDateTime(preview.updated_at)}</Row>
+              )}
+              {preview.content_sha256 && (
+                <Row label="Content SHA-256">
+                  <span className={styles.hashGroup}>
+                    <code className={styles.code}>
+                      {preview.content_sha256.slice(0, 12)}…
+                    </code>
+                    <button
+                      className={styles.copyBtn}
+                      aria-label="Copy full SHA-256 hash"
+                      onClick={() => handleCopyHash(preview.content_sha256!)}
+                    >
+                      {copied ? "Copied" : "Copy"}
+                    </button>
+                  </span>
+                </Row>
+              )}
+            </dl>
+          )}
+        </section>
       )}
 
-      {preview.content_sha256 && (
-        <Row label="Content SHA-256">
-          <span className={styles.hashGroup}>
-            <code className={styles.code}>
-              {preview.content_sha256.slice(0, 12)}…
-            </code>
+      {/* Intelligence section */}
+      {hasIntelligence && (
+        <section className={styles.section}>
+          <SectionHeader
+            title="Intelligence"
+            open={openSections["intelligence"]}
+            onToggle={() => toggleSection("intelligence")}
+          />
+          {openSections["intelligence"] && (
+            <dl className={styles.list}>
+              {systemTags.length > 0 && (
+                <Row label="System tags">
+                  <div className={styles.tagList}>
+                    {systemTags.map((tag) => (
+                      <FilterLink key={tag} field="tags" value={tag}>
+                        <span className={styles.tagChip}>{tag}</span>
+                      </FilterLink>
+                    ))}
+                  </div>
+                </Row>
+              )}
+              {entities.length > 0 && (
+                <Row label="Entities">
+                  {entities.map((e, i) => (
+                    <div key={i} className={styles.entityRow}>
+                      <FilterLink field="tags" value={e.name}>
+                        <span className={styles.entityName}>{e.name}</span>
+                      </FilterLink>
+                      <span className={styles.entityType}>({e.type})</span>
+                    </div>
+                  ))}
+                </Row>
+              )}
+            </dl>
+          )}
+        </section>
+      )}
+
+      {/* Source context (relationships) */}
+      {hasRelationships && (
+        <section className={styles.section}>
+          <SectionHeaderDefault title="Source context" />
+          <div className={styles.relList}>
+            {preview.relationships!.map((rel, idx) => (
+              <div key={`${rel.other_document_id}-${idx}`} className={styles.relRow}>
+                <span className={styles.relBadge}>
+                  {rel.direction === "parent" ? "Parent" : "Child"}
+                </span>
+                <Link
+                  to="/doc/$docId"
+                  params={{ docId: rel.other_document_id }}
+                  className={styles.relLink}
+                >
+                  {rel.title || rel.other_document_id.slice(0, 8)}
+                </Link>
+                {rel.path_in_parent && (
+                  <span className={styles.relPath}>in {rel.path_in_parent}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* My Tags */}
+      {docId && (
+        <section className={styles.section}>
+          <SectionHeaderDefault title="My Tags" />
+          <UserTagEditor docId={docId} />
+        </section>
+      )}
+
+      {/* Metadata */}
+      {hasMeta && (
+        <section className={styles.section}>
+          <SectionHeaderDefault title="Metadata" />
+          <div className={styles.metaToggle}>
             <button
-              className={styles.copyBtn}
-              aria-label="Copy full SHA-256 hash"
-              onClick={() => handleCopyHash(preview.content_sha256!)}
+              type="button"
+              className={`${styles.toggleBtn} ${!rawJson ? styles.toggleBtnActive : ""}`}
+              onClick={() => setRawJson(false)}
             >
-              {copied ? "Copied" : "Copy"}
+              Fields
             </button>
-          </span>
-        </Row>
+            <button
+              type="button"
+              className={`${styles.toggleBtn} ${rawJson ? styles.toggleBtnActive : ""}`}
+              onClick={() => setRawJson(true)}
+            >
+              Raw JSON
+            </button>
+          </div>
+          {rawJson ? (
+            <pre className={styles.jsonBlock}>
+              {JSON.stringify(meta, null, 2)}
+            </pre>
+          ) : (
+            <dl className={styles.list}>
+              {metaEntries.map(([key, value]) => (
+                <Row key={key} label={key}>
+                  {typeof value === "object"
+                    ? JSON.stringify(value)
+                    : String(value)}
+                </Row>
+              ))}
+            </dl>
+          )}
+        </section>
       )}
-    </dl>
+    </div>
+  );
+}
+
+function SectionHeaderDefault({ title }: { title: string }) {
+  return (
+    <div className={styles.sectionHeaderStatic}>{title}</div>
   );
 }

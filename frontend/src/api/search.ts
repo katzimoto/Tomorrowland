@@ -5,12 +5,15 @@ export type SearchMode = "hybrid" | "keyword" | "semantic";
 export interface SearchFilters {
   source?: string[];
   file_type?: string[];
+  file_extension?: string[];
   date_from?: string;
   date_to?: string;
   tags?: string[];
   language?: string;
   translation_quality?: string[];
   include_older_versions?: boolean;
+  sort_by?: "relevance" | "updated_at" | "created_at" | "title";
+  sort_dir?: "asc" | "desc";
 }
 
 export interface SearchResult {
@@ -47,12 +50,14 @@ export function search(
   filters: SearchFilters = {},
   top_k = 20,
 ): Promise<SearchResponse> {
-  const { include_older_versions, ...backendFilters } = filters;
+  const { include_older_versions, sort_by, sort_dir, ...backendFilters } = filters;
   return api.post<SearchResponse>("/search", {
     query,
     mode,
     filters: backendFilters,
     top_k,
     include_older_versions: include_older_versions ?? false,
+    sort_by: sort_by ?? "relevance",
+    sort_dir: sort_dir ?? "desc",
   });
 }

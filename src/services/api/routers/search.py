@@ -4,7 +4,7 @@ import logging
 import time
 from contextlib import suppress
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -20,9 +20,11 @@ from services.documents.repository import DocumentRepository
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.factory import build_encoder
 from services.search.hybrid import SearchResult, merge_results
-from services.search.meili_types import DocumentSearchQuery
+from services.search.meili_types import DocumentSearchFilters, DocumentSearchQuery
 from services.search.qdrant import QdrantSearchClient
 from shared.correlation import get_correlation_id
+
+_MeiliSort = Literal["relevance", "updatedAt:desc", "createdAt:desc", "importedAt:desc"]
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +60,14 @@ def search(
     if http_request.app.state.meili_provider is not None:
         try:
             backend_start = time.perf_counter()
+            meili_filters = _map_filters(request.filters)
+            meili_sort = _map_sort(request.sort_by, request.sort_dir)
             meili_results = http_request.app.state.meili_provider.search(
                 query=DocumentSearchQuery(
                     q=request.query,
                     limit=request.top_k,
+                    filters=meili_filters,
+                    sort=meili_sort,
                 ),
                 user=user,
             )
@@ -264,3 +270,58 @@ def search(
         total=len(merged),
         query=request.query,
     )
+
+
+# ---------------------------------------------------------------------------
+# Filter mapping helpers
+# ---------------------------------------------------------------------------
+
+
+def _map_filters(raw: dict[str, Any]) -> DocumentSearchFilters:
+    """Convert the generic frontend filters dict to DocumentSearchFilters."""
+    f = DocumentSearchFilters()
+
+    if isinstance(raw.get("source"), list):
+        f.source = [str(s) for s in raw["source"] if s]
+    if isinstance(raw.get("file_type"), list):
+        f.mime_type = [str(m) for m in raw["file_type"] if m]
+    if isinstance(raw.get("file_extension"), list):
+        f.file_extension = [str(e) for e in raw["file_extension"] if e]
+    if isinstance(raw.get("tags"), list):
+        f.tags = [str(t) for t in raw["tags"] if t]
+    if isinstance(raw.get("language"), str) and raw["language"]:
+        f.language = [raw["language"]]
+    if isinstance(raw.get("date_from"), str):
+        f.created_after = raw["date_from"]
+    if isinstance(raw.get("date_to"), str):
+        f.updated_after = None  # no "before" field in Meili model; applied client-side if needed
+        f.created_after = raw.get("date_from") or None
+        f.updated_after = raw.get("date_to") or None
+
+    return f
+
+
+_MEILI_SORT_MAP = {
+    "relevance": "relevance",
+    "updated_at": "updatedAt:desc",
+    "created_at": "createdAt:desc",
+    "title": "relevance",  # Meilisearch doesn't sort by title natively
+}
+
+
+def _map_sort(sort_by: str, sort_dir: str) -> _MeiliSort:
+    """Map frontend sort to Meilisearch sort string."""
+    if sort_by == "relevance":
+        return "relevance"
+    suffix = "desc" if sort_dir == "desc" else "asc"
+    label = f"{sort_by}:{suffix}"
+    if label in (
+        "updatedAt:desc",
+        "createdAt:desc",
+        "importedAt:desc",
+        "updatedAt:asc",
+        "createdAt:asc",
+        "importedAt:asc",
+    ):
+        return label  # type: ignore[return-value]
+    return "relevance"

@@ -1,6 +1,14 @@
 import { api, ApiError } from "./client";
 import type { RelatedDocument } from "./generated-or-shared-types";
 
+export interface DocumentRelationship {
+  direction: "parent" | "child";
+  relationship_type: string;
+  other_document_id: string;
+  title: string | null;
+  path_in_parent: string | null;
+}
+
 export interface DocumentPreview {
   document_id: string;
   title: string | null;
@@ -20,6 +28,10 @@ export interface DocumentPreview {
   content_sha256?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  indexed_at?: string | null;
+  tags?: string[];
+  entities_summary?: { name: string; type: string; frequency?: number }[] | null;
+  relationships?: DocumentRelationship[] | null;
 }
 
 export interface DocumentVersion {
@@ -161,6 +173,41 @@ export function getDocumentText(
   if (options.limit !== undefined) params.set("limit", String(options.limit));
   const qs = params.toString();
   return api.get<DocumentText>(`/documents/${docId}/text${qs ? `?${qs}` : ""}`);
+}
+
+// ---------------------------------------------------------------------------
+// User document tags
+// ---------------------------------------------------------------------------
+
+export type TagVisibility = "private" | "public";
+
+export interface UserDocumentTag {
+  id: string;
+  tag: string;
+  visibility: TagVisibility;
+  created_at: string | null;
+  owned_by_me: boolean;
+}
+
+export interface UserTagsResponse {
+  document_id: string;
+  tags: UserDocumentTag[];
+}
+
+export function listUserTags(docId: string): Promise<UserTagsResponse> {
+  return api.get<UserTagsResponse>(`/documents/${docId}/user-tags`);
+}
+
+export function addUserTag(
+  docId: string,
+  tag: string,
+  visibility: TagVisibility,
+): Promise<UserDocumentTag> {
+  return api.post<UserDocumentTag>(`/documents/${docId}/user-tags`, { tag, visibility });
+}
+
+export function deleteUserTag(docId: string, tagId: string): Promise<void> {
+  return api.delete<void>(`/documents/${docId}/user-tags/${tagId}`);
 }
 
 

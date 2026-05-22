@@ -11,6 +11,7 @@ export interface Annotation {
   created_at: string;
   updated_at?: string | null;
   can_modify: boolean;
+  reply_count?: number;
 }
 
 export interface AnnotationRaw {
@@ -87,4 +88,59 @@ export async function updateAnnotation(annotationId: string, payload: Annotation
 
 export function deleteAnnotation(annotationId: string): Promise<void> {
   return api.delete<void>(`/annotations/${annotationId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Annotation replies
+// ---------------------------------------------------------------------------
+
+export interface AnnotationReplyRaw {
+  id: string;
+  user_id: string;
+  user_display_name?: string | null;
+  body: string;
+  created_at: string;
+  edited_at?: string | null;
+  can_modify?: boolean;
+}
+
+export interface AnnotationReplyListEnvelope {
+  annotation_id: string;
+  replies: AnnotationReplyRaw[];
+}
+
+export interface AnnotationReply {
+  id: string;
+  author_id: string;
+  author_name?: string;
+  body: string;
+  created_at: string;
+  edited_at?: string | null;
+  can_modify: boolean;
+}
+
+function mapReply(raw: AnnotationReplyRaw): AnnotationReply {
+  return {
+    id: raw.id,
+    author_id: raw.user_id,
+    author_name: raw.user_display_name ?? undefined,
+    body: raw.body,
+    created_at: raw.created_at,
+    edited_at: raw.edited_at ?? null,
+    can_modify: raw.can_modify ?? false,
+  };
+}
+
+export async function listReplies(annotationId: string): Promise<AnnotationReply[]> {
+  const envelope = await api.get<AnnotationReplyListEnvelope>(`/annotations/${annotationId}/replies`);
+  return envelope.replies.map(mapReply);
+}
+
+export async function createReply(annotationId: string, body: string): Promise<AnnotationReply> {
+  const raw = await api.post<AnnotationReplyRaw>(`/annotations/${annotationId}/replies`, { body });
+  return mapReply(raw);
+}
+
+export async function deleteReply(replyId: string): Promise<void> {
+  return api.delete<void>(`/annotation-replies/${replyId}`);
 }

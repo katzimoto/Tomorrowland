@@ -46,10 +46,28 @@ export function SearchPage() {
   const initialQ = typeof routeSearch.q === "string" ? routeSearch.q : "";
   const initialMode = (routeSearch.mode as SearchMode) ?? "hybrid";
 
+  const initialFilters: SearchFilters = {};
+  const extra = routeSearch as Record<string, unknown>;
+  if (typeof extra.file_type === "string" && extra.file_type) {
+    initialFilters.file_type = (extra.file_type as string).split(",");
+  }
+  if (typeof extra.tags === "string" && extra.tags) {
+    initialFilters.tags = (extra.tags as string).split(",");
+  }
+  if (typeof extra.source === "string" && extra.source) {
+    initialFilters.source = (extra.source as string).split(",");
+  }
+  if (typeof extra.file_extension === "string" && extra.file_extension) {
+    initialFilters.file_extension = (extra.file_extension as string).split(",");
+  }
+  if (typeof extra.sort_by === "string") {
+    initialFilters.sort_by = extra.sort_by as SearchFilters["sort_by"];
+  }
+
   const [inputValue, setInputValue] = useState(initialQ);
   const [submittedQuery, setSubmittedQuery] = useState(initialQ);
   const [mode, setMode] = useState<SearchMode>(initialMode);
-  const [filters, setFilters] = useState<SearchFilters>({});
+  const [filters, setFilters] = useState<SearchFilters>(initialFilters);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [previewResult, setPreviewResult] = useState<SearchResult | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -75,12 +93,29 @@ export function SearchPage() {
 
   function submitSearch(
     q: string = inputValue,
-    currentMode: SearchMode = mode
+    currentMode: SearchMode = mode,
+    currentFilters: SearchFilters = filters,
   ) {
     finishFirstResultTimer.current = q.trim() ? startPerformanceTimer() : null;
     resetSearchWorkflow();
     setSubmittedQuery(q);
-    void navigate({ to: "/search", search: () => ({ q, mode: currentMode }) });
+    const params: Record<string, string> = { q, mode: currentMode };
+    if (currentFilters.file_type?.length) {
+      params.file_type = currentFilters.file_type.join(",");
+    }
+    if (currentFilters.tags?.length) {
+      params.tags = currentFilters.tags.join(",");
+    }
+    if (currentFilters.source?.length) {
+      params.source = currentFilters.source.join(",");
+    }
+    if (currentFilters.file_extension?.length) {
+      params.file_extension = currentFilters.file_extension.join(",");
+    }
+    if (currentFilters.sort_by && currentFilters.sort_by !== "relevance") {
+      params.sort_by = currentFilters.sort_by;
+    }
+    void navigate({ to: "/search", search: () => params as { q: string; mode: string } });
   }
 
   const { data, isLoading, isFetching, isError } = useQuery({

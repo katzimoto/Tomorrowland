@@ -13,7 +13,7 @@ from uuid import UUID
 
 from services.alerts.service import AlertMatcher
 from services.chunking.splitter import chunk_text
-from services.documents.repository import DocumentRepository
+from services.documents.repository import DocumentRelationshipRepository, DocumentRepository
 from services.extraction.base import AttachmentData
 from services.extraction.registry import ExtractorRegistry
 from services.intelligence.worker import IntelligenceWorker
@@ -406,6 +406,14 @@ class PipelineWorker:
                     # Already ingested — dedup hit
                     Path(tmp_path).unlink(missing_ok=True)
                     continue
+
+                rel_repo = DocumentRelationshipRepository(self._doc_repo._connection)
+                rel_type = (
+                    "email_attachment"
+                    if parent_doc.mime_type in ("message/rfc822", "application/vnd.ms-outlook")
+                    else "archive_child"
+                )
+                rel_repo.create_relationship(parent_id, child_doc.id, rel_type, att.filename)
 
                 try:
                     self._run(child_doc.id, _seen=_seen | {sha256})

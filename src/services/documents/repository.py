@@ -13,6 +13,7 @@ from services.documents.models import (
     DocumentRow,
     DocumentSource,
     DocumentStatus,
+    UserDocumentTag,
 )
 from shared.db import db_uuid, to_uuid
 
@@ -517,3 +518,214 @@ class TranslationVersionRepository:
             {"document_id": db_uuid(document_id)},
         ).scalar_one()
         return int(result)
+
+
+class UserDocumentTagRepository:
+    """CRUD for the user_document_tags table."""
+
+    MAX_TAGS_PER_USER_PER_DOC = 50
+
+    def __init__(self, connection: Connection) -> None:
+        self._connection = connection
+
+    def list_tags(self, document_id: UUID, viewer_user_id: UUID) -> list[UserDocumentTag]:
+        """Return own private tags + all public tags for a document."""
+        rows = (
+            self._connection.execute(
+                sa.text("""
+                SELECT id, document_id, user_id, tag, is_private, created_at
+                FROM user_document_tags
+                WHERE document_id = :doc_id
+                  AND (is_private = 0 OR user_id = :user_id)
+                ORDER BY created_at ASC
+                """),
+                {"doc_id": db_uuid(document_id), "user_id": db_uuid(viewer_user_id)},
+            )
+            .mappings()
+            .all()
+        )
+        return [self._row_to_model(r) for r in rows]
+
+    def create_tag(
+        self,
+        document_id: UUID,
+        user_id: UUID,
+        tag: str,
+        is_private: bool,
+    ) -> UserDocumentTag:
+        """Create a user tag; raises ValueError on limit or duplicate."""
+        # Enforce per-user-per-document limit
+        count = self._connection.execute(
+            sa.text("""
+                SELECT COUNT(*) FROM user_document_tags
+                WHERE document_id = :doc_id AND user_id = :user_id
+                """),
+            {"doc_id": db_uuid(document_id), "user_id": db_uuid(user_id)},
+        ).scalar_one()
+        if int(count) >= self.MAX_TAGS_PER_USER_PER_DOC:
+            raise ValueError(
+                f"Maximum {self.MAX_TAGS_PER_USER_PER_DOC} tags per document per user reached"
+            )
+
+        # Check for duplicate (same tag text, same visibility, same user+doc)
+        existing = self._connection.execute(
+            sa.text("""
+                SELECT id FROM user_document_tags
+                WHERE document_id = :doc_id
+                  AND user_id = :user_id
+                  AND tag = :tag
+                """),
+            {"doc_id": db_uuid(document_id), "user_id": db_uuid(user_id), "tag": tag},
+        ).scalar_one_or_none()
+        if existing is not None:
+            raise ValueError(f"Tag '{tag}' already exists for this document")
+
+        tag_id = uuid4()
+        self._connection.execute(
+            sa.text("""
+                INSERT INTO user_document_tags (id, document_id, user_id, tag, is_private)
+                VALUES (:id, :doc_id, :user_id, :tag, :is_private)
+                """),
+            {
+                "id": db_uuid(tag_id),
+                "doc_id": db_uuid(document_id),
+                "user_id": db_uuid(user_id),
+                "tag": tag,
+                "is_private": 1 if is_private else 0,
+            },
+        )
+        row = (
+            self._connection.execute(
+                sa.text("""
+                SELECT id, document_id, user_id, tag, is_private, created_at
+                FROM user_document_tags WHERE id = :id
+                """),
+                {"id": db_uuid(tag_id)},
+            )
+            .mappings()
+            .one()
+        )
+        return self._row_to_model(row)
+
+    def delete_tag(self, tag_id: UUID, requesting_user_id: UUID, is_admin: bool) -> bool:
+        """Delete a tag. Returns True if deleted, False if not found.
+        Raises PermissionError if the requesting user does not own the tag and is not admin.
+        """
+        row = (
+            self._connection.execute(
+                sa.text("""
+                SELECT id, user_id FROM user_document_tags WHERE id = :id
+                """),
+                {"id": db_uuid(tag_id)},
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is None:
+            return False
+        owner_id = to_uuid(row["user_id"])
+        if not is_admin and owner_id != requesting_user_id:
+            raise PermissionError("You do not own this tag")
+        self._connection.execute(
+            sa.text("DELETE FROM user_document_tags WHERE id = :id"),
+            {"id": db_uuid(tag_id)},
+        )
+        return True
+
+    @staticmethod
+    def _row_to_model(row: RowMapping) -> UserDocumentTag:
+        return UserDocumentTag(
+            id=to_uuid(row["id"]),
+            document_id=to_uuid(row["document_id"]),
+            user_id=to_uuid(row["user_id"]),
+            tag=str(row["tag"]),
+            is_private=bool(row["is_private"]),
+            created_at=row["created_at"],
+        )
+
+
+class DocumentRelationshipRepository:
+    """CRUD for the document_relationships table."""
+
+    def __init__(self, connection: Connection) -> None:
+        self._connection = connection
+
+    def create_relationship(
+        self,
+        parent_id: UUID,
+        child_id: UUID,
+        relationship_type: str,
+        path_in_parent: str | None = None,
+    ) -> None:
+        """Record a parent→child relationship. No-op if it already exists."""
+        existing = self._connection.execute(
+            sa.text("""
+                SELECT 1 FROM document_relationships
+                WHERE parent_document_id = :parent_id
+                  AND child_document_id = :child_id
+                """),
+            {"parent_id": db_uuid(parent_id), "child_id": db_uuid(child_id)},
+        ).scalar_one_or_none()
+        if existing is not None:
+            return
+        self._connection.execute(
+            sa.text("""
+                INSERT INTO document_relationships
+                    (id, parent_document_id, child_document_id,
+                     relationship_type, path_in_parent)
+                VALUES
+                    (:id, :parent_id, :child_id, :type, :path)
+                """),
+            {
+                "id": db_uuid(uuid4()),
+                "parent_id": db_uuid(parent_id),
+                "child_id": db_uuid(child_id),
+                "type": relationship_type,
+                "path": path_in_parent,
+            },
+        )
+
+    def get_relationships(self, document_id: UUID) -> list[dict[str, Any]]:
+        """Return relationships for *document_id*.
+
+        Each row represents the other document's perspective:
+        - direction = 'child' when document_id is the parent
+        - direction = 'parent' when document_id is the child
+        """
+        rows = (
+            self._connection.execute(
+                sa.text("""
+                SELECT
+                    'child' AS direction,
+                    relationship_type,
+                    child_document_id AS other_id,
+                    d.title
+                FROM document_relationships r
+                JOIN documents d ON d.id = r.child_document_id
+                WHERE r.parent_document_id = :doc_id
+                UNION ALL
+                SELECT
+                    'parent' AS direction,
+                    relationship_type,
+                    parent_document_id AS other_id,
+                    d.title
+                FROM document_relationships r
+                JOIN documents d ON d.id = r.parent_document_id
+                WHERE r.child_document_id = :doc_id
+                ORDER BY direction, other_id
+                """),
+                {"doc_id": db_uuid(document_id)},
+            )
+            .mappings()
+            .all()
+        )
+        return [
+            {
+                "direction": r["direction"],
+                "relationship_type": r["relationship_type"],
+                "other_document_id": str(to_uuid(r["other_id"])),
+                "title": r["title"],
+                "path_in_parent": None,  # populated for children in a follow-up
+            }
+            for r in rows
+        ]

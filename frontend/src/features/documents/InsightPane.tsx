@@ -1,13 +1,11 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
-  useInfiniteQuery,
   useQuery,
   useMutation,
   useQueryClient,
-  type InfiniteData,
 } from "@tanstack/react-query";
-import { Trash2, Pencil } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import {
   getSummary,
   getEntities,
@@ -15,14 +13,6 @@ import {
   getRelated,
   listDocumentVersions,
 } from "@/api/documents";
-import {
-  listCommentsPage,
-  createComment,
-  updateComment,
-  deleteComment,
-  type Comment,
-  type CommentPage,
-} from "@/api/comments";
 import {
   listAnnotations,
   createAnnotation,
@@ -57,7 +47,6 @@ export function InsightPane({ docId, preview }: InsightPaneProps) {
     { id: "chat", label: t.insight.tabChat },
     { id: "related", label: t.insight.tabRelated },
     { id: "annotations", label: t.insight.tabAnnotations },
-    { id: "comments", label: t.insight.tabComments },
     { id: "subscriptions", label: t.insight.tabSubscriptions },
     { id: "versions", label: t.insight.tabVersions },
     { id: "details", label: t.insight.tabDetails },
@@ -76,10 +65,9 @@ export function InsightPane({ docId, preview }: InsightPaneProps) {
         {activeTab === "chat" && <DocumentChatPanel docId={docId} docTitle={preview?.title} />}
         {activeTab === "related" && <RelatedTab docId={docId} />}
         {activeTab === "annotations" && <AnnotationsTab docId={docId} />}
-        {activeTab === "comments" && <CommentsTab docId={docId} />}
         {activeTab === "subscriptions" && <SubscriptionsStub />}
         {activeTab === "versions" && <VersionsTab docId={docId} />}
-        {activeTab === "details" && preview && <DetailsTab preview={preview} />}
+        {activeTab === "details" && preview && <DetailsTab preview={preview} docId={docId} />}
       </div>
     </div>
   );
@@ -230,8 +218,6 @@ function RelatedTab({ docId }: { docId: string }) {
   );
 }
 
-const COMMENTS_PAGE_SIZE = 20;
-
 function AnnotationsTab({ docId }: { docId: string }) {
   const t = useT();
   const [newText, setNewText] = useState("");
@@ -372,260 +358,6 @@ function AnnotationsTab({ docId }: { docId: string }) {
           disabled={!newText.trim() || addMut.isPending}
         >
           {t.insight.annotationAddBtn}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function CommentsTab({ docId }: { docId: string }) {
-  const t = useT();
-  const [newBody, setNewBody] = useState("");
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editBody, setEditBody] = useState("");
-  const { show: showToast } = useToast();
-  const qc = useQueryClient();
-
-  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useInfiniteQuery({
-      queryKey: ["doc-comments", docId],
-      queryFn: ({ pageParam }) =>
-        listCommentsPage(docId, pageParam, COMMENTS_PAGE_SIZE),
-      initialPageParam: 0,
-      getNextPageParam: (lastPage, allPages) => {
-        const loaded = allPages.reduce(
-          (count, page) => count + page.comments.length,
-          0
-        );
-        return loaded < lastPage.total ? loaded : undefined;
-      },
-      staleTime: 2 * 60_000,
-    });
-
-  const invalidate = () =>
-    void qc.invalidateQueries({ queryKey: ["doc-comments", docId] });
-
-  const addMut = useMutation({
-    mutationFn: (body: string) => createComment(docId, body),
-    onMutate: async (body) => {
-      await qc.cancelQueries({ queryKey: ["doc-comments", docId] });
-      const previous = qc.getQueryData<InfiniteData<CommentPage>>([
-        "doc-comments",
-        docId,
-      ]);
-      const optimistic: Comment = {
-        id: `optimistic-${Date.now()}`,
-        document_id: docId,
-        author_id: "current-user",
-        author_name: "Reader",
-        body,
-        created_at: new Date().toISOString(),
-        updated_at: null,
-        can_edit: true,
-        can_delete: true,
-      };
-      qc.setQueryData<InfiniteData<CommentPage>>(
-        ["doc-comments", docId],
-        (current) => {
-          if (!current) return current;
-          return {
-            ...current,
-            pages: current.pages.map((page, idx) =>
-              idx === 0
-                ? {
-                    ...page,
-                    comments: [...page.comments, optimistic],
-                    total: page.total + 1,
-                  }
-                : page
-            ),
-          };
-        }
-      );
-      setNewBody("");
-      return { previous };
-    },
-    onError: (_error, _body, context) => {
-      if (context?.previous)
-        qc.setQueryData(["doc-comments", docId], context.previous);
-      showToast("error", t.insight.commentPostError);
-    },
-    onSettled: invalidate,
-  });
-
-  const editMut = useMutation({
-    mutationFn: (body: string) => updateComment(docId, editId!, body),
-    onMutate: async (body) => {
-      await qc.cancelQueries({ queryKey: ["doc-comments", docId] });
-      const previous = qc.getQueryData<InfiniteData<CommentPage>>([
-        "doc-comments",
-        docId,
-      ]);
-      const editingId = editId;
-      qc.setQueryData<InfiniteData<CommentPage>>(
-        ["doc-comments", docId],
-        (current) => {
-          if (!current) return current;
-          return {
-            ...current,
-            pages: current.pages.map((page) => ({
-              ...page,
-              comments: page.comments.map((comment) =>
-                comment.id === editingId
-                  ? { ...comment, body, updated_at: new Date().toISOString() }
-                  : comment
-              ),
-            })),
-          };
-        }
-      );
-      setEditId(null);
-      return { previous };
-    },
-    onError: (_error, _body, context) => {
-      if (context?.previous)
-        qc.setQueryData(["doc-comments", docId], context.previous);
-      showToast("error", t.insight.commentUpdateError);
-    },
-    onSettled: invalidate,
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: (id: string) => deleteComment(docId, id),
-    onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: ["doc-comments", docId] });
-      const previous = qc.getQueryData<InfiniteData<CommentPage>>([
-        "doc-comments",
-        docId,
-      ]);
-      qc.setQueryData<InfiniteData<CommentPage>>(
-        ["doc-comments", docId],
-        (current) => {
-          if (!current) return current;
-          return {
-            ...current,
-            pages: current.pages.map((page) => ({
-              ...page,
-              comments: page.comments.filter(
-                (comment) => comment.id !== id
-              ),
-              total: Math.max(page.total - 1, 0),
-            })),
-          };
-        }
-      );
-      return { previous };
-    },
-    onError: (_error, _id, context) => {
-      if (context?.previous)
-        qc.setQueryData(["doc-comments", docId], context.previous);
-      showToast("error", t.insight.commentDeleteError);
-    },
-    onSettled: invalidate,
-  });
-
-  const activeComments = useMemo(
-    () =>
-      data?.pages
-        .flatMap((page) => page.comments) ?? [],
-    [data]
-  );
-
-  return (
-    <div className={styles.commentsSection}>
-      {isLoading && <p className={styles.muted}>{t.insight.commentsLoading}</p>}
-      {!isLoading && activeComments.length === 0 && (
-        <p className={styles.muted}>{t.insight.commentsEmpty}</p>
-      )}
-      <ul className={styles.commentList}>
-        {activeComments.map((c) => (
-          <li key={c.id} className={styles.comment}>
-            {editId === c.id ? (
-              <div className={styles.commentEditRow}>
-                <input
-                  className={styles.inlineInput}
-                  value={editBody}
-                  onChange={(e) => setEditBody(e.target.value)}
-                  aria-label={t.insight.commentEditLabel}
-                />
-                <Button
-                  size="sm"
-                  onClick={() => editMut.mutate(editBody.trim())}
-                  disabled={!editBody.trim() || editMut.isPending}
-                >
-                  {t.insight.commentSaveBtn}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setEditId(null)}
-                >
-                  {t.insight.commentCancelBtn}
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className={styles.commentMeta}>
-                  <span className={styles.commentAuthor}>
-                    {c.author_name ?? c.author?.display_name ?? ""}
-                  </span>
-                  <span className={styles.commentDate}>
-                    {new Date(c.created_at).toLocaleDateString()}
-                  </span>
-                  {c.can_edit && (
-                    <button
-                      className={styles.iconAction}
-                      aria-label={t.insight.commentEditLabel}
-                      onClick={() => {
-                        setEditId(c.id);
-                        setEditBody(c.body);
-                      }}
-                    >
-                      <Pencil size={13} />
-                    </button>
-                  )}
-                  {c.can_delete && (
-                    <button
-                      className={styles.iconAction}
-                      aria-label={t.insight.commentDeleteLabel}
-                      onClick={() => deleteMut.mutate(c.id)}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  )}
-                </div>
-                <p className={styles.commentBody}>{c.body}</p>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
-      {hasNextPage && (
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => void fetchNextPage()}
-          disabled={isFetchingNextPage}
-        >
-          {isFetchingNextPage
-            ? t.insight.commentsLoadingMore
-            : t.insight.commentsLoadMore}
-        </Button>
-      )}
-      <div className={styles.addComment}>
-        <input
-          className={styles.inlineInput}
-          value={newBody}
-          onChange={(e) => setNewBody(e.target.value)}
-          placeholder={t.insight.commentAddPlaceholder}
-          aria-label={t.insight.commentNewLabel}
-        />
-        <Button
-          size="sm"
-          onClick={() => addMut.mutate(newBody.trim())}
-          disabled={!newBody.trim() || addMut.isPending}
-        >
-          {t.insight.commentPostBtn}
         </Button>
       </div>
     </div>

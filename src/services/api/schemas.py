@@ -13,6 +13,8 @@ class SearchRequest(BaseModel):
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
     include_older_versions: bool = False
+    sort_by: Literal["relevance", "updated_at", "created_at", "title"] = "relevance"
+    sort_dir: Literal["asc", "desc"] = "desc"
 
 
 class SearchResultItem(BaseModel):
@@ -61,6 +63,18 @@ class PreviewResponse(BaseModel):
     content_sha256: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    indexed_at: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    entities_summary: list[dict[str, Any]] | None = None
+    relationships: list[DocumentRelationshipInfo] | None = None
+
+
+class DocumentRelationshipInfo(BaseModel):
+    direction: Literal["parent", "child"]
+    relationship_type: str
+    other_document_id: str
+    title: str | None = None
+    path_in_parent: str | None = None
 
 
 class ConnectionTestResult(BaseModel):

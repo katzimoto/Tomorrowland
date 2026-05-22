@@ -18,12 +18,15 @@ from services.api._helpers import (
     require_related_docs_enabled,
 )
 from services.api.main import current_user
-from services.api.schemas import PreviewResponse
+from services.api.schemas import DocumentRelationshipInfo, PreviewResponse
 from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
+from services.documents.models import UserDocumentTagCreate
 from services.documents.repository import (
+    DocumentRelationshipRepository,
     DocumentRepository,
     TranslationVersionRepository,
+    UserDocumentTagRepository,
 )
 from services.intelligence.repository import IntelligenceRepository
 from services.permissions.enforcer import assert_doc_access
@@ -87,6 +90,31 @@ def preview(
                 raw = family_map.get(doc_row.version_family_id)
                 latest_document_id = str(raw) if raw else None
 
+        rel_repo = DocumentRelationshipRepository(connection)
+        raw_rels = rel_repo.get_relationships(document_id)
+        relationships = [
+            DocumentRelationshipInfo(
+                direction=r["direction"],
+                relationship_type=r["relationship_type"],
+                other_document_id=r["other_document_id"],
+                title=r["title"],
+                path_in_parent=r["path_in_parent"],
+            )
+            for r in raw_rels
+        ] or None
+
+        intelligence_repo = IntelligenceRepository(connection)
+        preview_tags = intelligence_repo.get_tags(document_id)
+        raw_entities = intelligence_repo.get_entities(document_id)
+        entities_summary: list[dict[str, Any]] | None = (
+            [
+                {"name": e["name"], "type": e["type"], "frequency": e.get("frequency", 0)}
+                for e in raw_entities
+            ]
+            if raw_entities
+            else None
+        )
+
         return PreviewResponse(
             document_id=result["document_id"],
             title=result["title"],
@@ -106,6 +134,10 @@ def preview(
             content_sha256=doc_row.content_sha256 if doc_row else None,
             created_at=doc_row.created_at.isoformat() if doc_row else None,
             updated_at=doc_row.updated_at.isoformat() if doc_row else None,
+            indexed_at=doc_row.updated_at.isoformat() if doc_row else None,
+            tags=preview_tags,
+            entities_summary=entities_summary,
+            relationships=relationships,
         )
 
 
@@ -599,3 +631,85 @@ def download(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# User document tags
+# ---------------------------------------------------------------------------
+
+
+@router.get("/documents/{document_id}/user-tags")
+def list_user_tags(
+    document_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    with request.app.state.engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(document_id, user, auth_repo)
+
+        tag_repo = UserDocumentTagRepository(connection)
+        tags = tag_repo.list_tags(document_id, user.sub)
+        return {
+            "document_id": str(document_id),
+            "tags": [
+                {
+                    "id": str(t.id),
+                    "tag": t.tag,
+                    "visibility": t.visibility,
+                    "created_at": t.created_at.isoformat() if t.created_at else None,
+                    "owned_by_me": t.user_id == user.sub,
+                }
+                for t in tags
+            ],
+        }
+
+
+@router.post("/documents/{document_id}/user-tags", status_code=201)
+def create_user_tag(
+    document_id: UUID,
+    body: UserDocumentTagCreate,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    with request.app.state.engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(document_id, user, auth_repo)
+
+        tag_repo = UserDocumentTagRepository(connection)
+        try:
+            tag = tag_repo.create_tag(
+                document_id=document_id,
+                user_id=user.sub,
+                tag=body.tag,
+                is_private=body.visibility == "private",
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {
+            "id": str(tag.id),
+            "tag": tag.tag,
+            "visibility": tag.visibility,
+            "created_at": tag.created_at.isoformat() if tag.created_at else None,
+            "owned_by_me": True,
+        }
+
+
+@router.delete("/documents/{document_id}/user-tags/{tag_id}", status_code=204)
+def delete_user_tag(
+    document_id: UUID,
+    tag_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> None:
+    with request.app.state.engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(document_id, user, auth_repo)
+
+        tag_repo = UserDocumentTagRepository(connection)
+        try:
+            found = tag_repo.delete_tag(tag_id, user.sub, user.is_admin)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        if not found:
+            raise HTTPException(status_code=404, detail="Tag not found")

@@ -29,6 +29,7 @@ class AnnotationRepository:
         Returns:
         - All shared (is_private = false) annotations
         - Own private annotations (is_private = true AND user_id = user_id)
+        - Includes reply_count for each annotation.
         """
         if is_admin:
             rows = self._connection.execute(
@@ -43,9 +44,16 @@ class AnnotationRepository:
                         a.position,
                         a.is_private,
                         a.created_at,
-                        a.updated_at
+                        a.updated_at,
+                        COALESCE(rc.cnt, 0) AS reply_count
                     FROM annotations a
                     JOIN users u ON u.id = a.user_id
+                    LEFT JOIN (
+                        SELECT annotation_id, COUNT(*) AS cnt
+                        FROM annotation_replies
+                        WHERE deleted_at IS NULL
+                        GROUP BY annotation_id
+                    ) rc ON rc.annotation_id = a.id
                     WHERE a.document_id = :document_id
                     ORDER BY a.created_at DESC
                     """),
@@ -64,9 +72,16 @@ class AnnotationRepository:
                         a.position,
                         a.is_private,
                         a.created_at,
-                        a.updated_at
+                        a.updated_at,
+                        COALESCE(rc.cnt, 0) AS reply_count
                     FROM annotations a
                     JOIN users u ON u.id = a.user_id
+                    LEFT JOIN (
+                        SELECT annotation_id, COUNT(*) AS cnt
+                        FROM annotation_replies
+                        WHERE deleted_at IS NULL
+                        GROUP BY annotation_id
+                    ) rc ON rc.annotation_id = a.id
                     WHERE a.document_id = :document_id
                       AND (
                           a.is_private = false
@@ -212,6 +227,100 @@ class AnnotationRepository:
                     WHERE id = :id
                     """),
                 {"id": db_uuid(annotation_id)},
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            return False
+        return UUID(str(row["user_id"])) == user_id
+
+    # ------------------------------------------------------------------
+    # Annotation replies
+    # ------------------------------------------------------------------
+
+    def list_replies(self, annotation_id: UUID) -> list[dict[str, Any]]:
+        """List non-deleted replies for *annotation_id*."""
+        rows = (
+            self._connection.execute(
+                sa.text("""
+                SELECT
+                    r.id,
+                    r.annotation_id,
+                    r.user_id,
+                    u.display_name AS user_display_name,
+                    r.body,
+                    r.created_at,
+                    r.edited_at
+                FROM annotation_replies r
+                JOIN users u ON u.id = r.user_id
+                WHERE r.annotation_id = :annotation_id
+                  AND r.deleted_at IS NULL
+                ORDER BY r.created_at ASC
+                """),
+                {"annotation_id": db_uuid(annotation_id)},
+            )
+            .mappings()
+            .all()
+        )
+        return [dict(row) for row in rows]
+
+    def create_reply(
+        self,
+        annotation_id: UUID,
+        user_id: UUID,
+        body: str,
+    ) -> dict[str, Any]:
+        """Create a reply to an annotation. Returns the reply row."""
+        reply_id = uuid4()
+        row = (
+            self._connection.execute(
+                sa.text("""
+                    INSERT INTO annotation_replies (id, annotation_id, user_id, body)
+                    VALUES (:id, :annotation_id, :user_id, :body)
+                    RETURNING id, annotation_id, user_id, body, created_at
+                    """),
+                {
+                    "id": db_uuid(reply_id),
+                    "annotation_id": db_uuid(annotation_id),
+                    "user_id": db_uuid(user_id),
+                    "body": body,
+                },
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            raise RuntimeError("reply insert did not persist")
+        return dict(row)
+
+    def delete_reply(self, reply_id: UUID) -> None:
+        """Soft-delete a reply."""
+        self._connection.execute(
+            sa.text("""
+                UPDATE annotation_replies
+                SET deleted_at = CURRENT_TIMESTAMP
+                WHERE id = :id AND deleted_at IS NULL
+                """),
+            {"id": db_uuid(reply_id)},
+        )
+
+    def can_modify_reply(
+        self,
+        reply_id: UUID,
+        user_id: UUID,
+        is_admin: bool,
+    ) -> bool:
+        """Return whether *user_id* can delete the reply."""
+        if is_admin:
+            return True
+        row = (
+            self._connection.execute(
+                sa.text("""
+                    SELECT user_id FROM annotation_replies
+                    WHERE id = :id AND deleted_at IS NULL
+                    """),
+                {"id": db_uuid(reply_id)},
             )
             .mappings()
             .first()
