@@ -39,3 +39,21 @@ class AnnotationUpdateRequest(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
     position: dict[str, Any] | None = None
     is_private: bool | None = None
+
+
+class AnnotationReply(BaseModel):
+    """Row model for the annotation_replies table."""
+
+    id: UUID
+    annotation_id: UUID
+    user_id: UUID
+    body: str
+    created_at: datetime
+    edited_at: datetime | None = None
+    deleted_at: datetime | None = None
+
+
+class AnnotationReplyCreateRequest(BaseModel):
+    """Request body for creating an annotation reply."""
+
+    body: str = Field(..., min_length=1, max_length=5000)

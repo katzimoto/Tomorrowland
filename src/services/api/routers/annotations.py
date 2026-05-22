@@ -5,7 +5,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from services.annotations.models import AnnotationCreateRequest, AnnotationUpdateRequest
+from services.annotations.models import (
+    AnnotationCreateRequest,
+    AnnotationReplyCreateRequest,
+    AnnotationUpdateRequest,
+)
 from services.annotations.repository import AnnotationRepository
 from services.api._helpers import _fmt_dt, _parse_json
 from services.api.main import current_user
@@ -41,6 +45,7 @@ def list_annotations(
                     "position": _parse_json(a["position"]),
                     "is_private": bool(a["is_private"]),
                     "created_at": _fmt_dt(a["created_at"]),
+                    "reply_count": int(a.get("reply_count", 0)),
                     "can_modify": repo.can_modify(to_uuid(a["id"]), user.sub, user.is_admin),
                 }
                 for a in annotations
@@ -151,3 +156,79 @@ def delete_annotation(
         visibility = "private" if annotation["is_private"] else "shared"
         repo.delete(annotation_id)
         request.app.state.metrics.annotations_total.labels("delete", visibility, "success").inc()
+
+
+# ---------------------------------------------------------------------------
+# Annotation replies
+# ---------------------------------------------------------------------------
+
+
+@router.get("/annotations/{annotation_id}/replies")
+def list_replies(
+    annotation_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    with request.app.state.engine.begin() as connection:
+        repo = AnnotationRepository(connection)
+        annotation = repo.get_by_id(annotation_id)
+        if annotation is None:
+            raise HTTPException(status_code=404, detail="Annotation not found")
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(to_uuid(annotation["document_id"]), user, auth_repo)
+
+        replies = repo.list_replies(annotation_id)
+        return {
+            "annotation_id": str(annotation_id),
+            "replies": [
+                {
+                    "id": str(to_uuid(r["id"])),
+                    "user_id": str(to_uuid(r["user_id"])),
+                    "user_display_name": r.get("user_display_name"),
+                    "body": r["body"],
+                    "created_at": _fmt_dt(r["created_at"]),
+                    "edited_at": _fmt_dt(r["edited_at"]) if r.get("edited_at") else None,
+                    "can_modify": repo.can_modify_reply(to_uuid(r["id"]), user.sub, user.is_admin),
+                }
+                for r in replies
+            ],
+        }
+
+
+@router.post("/annotations/{annotation_id}/replies", status_code=201)
+def create_reply(
+    annotation_id: UUID,
+    body: AnnotationReplyCreateRequest,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    with request.app.state.engine.begin() as connection:
+        repo = AnnotationRepository(connection)
+        annotation = repo.get_by_id(annotation_id)
+        if annotation is None:
+            raise HTTPException(status_code=404, detail="Annotation not found")
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(to_uuid(annotation["document_id"]), user, auth_repo)
+
+        reply = repo.create_reply(annotation_id, user.sub, body.body)
+        return {
+            "id": str(to_uuid(reply["id"])),
+            "annotation_id": str(to_uuid(reply["annotation_id"])),
+            "user_id": str(to_uuid(reply["user_id"])),
+            "body": reply["body"],
+            "created_at": _fmt_dt(reply["created_at"]),
+            "can_modify": True,
+        }
+
+
+@router.delete("/annotation-replies/{reply_id}", status_code=204)
+def delete_reply(
+    reply_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> None:
+    with request.app.state.engine.begin() as connection:
+        repo = AnnotationRepository(connection)
+        if not repo.can_modify_reply(reply_id, user.sub, user.is_admin):
+            raise HTTPException(status_code=404, detail="Reply not found")
+        repo.delete_reply(reply_id)
