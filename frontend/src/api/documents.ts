@@ -1,6 +1,14 @@
 import { api, ApiError } from "./client";
 import type { RelatedDocument } from "./generated-or-shared-types";
 
+export interface DocumentRelationship {
+  direction: "parent" | "child";
+  relationship_type: string;
+  other_document_id: string;
+  title: string | null;
+  path_in_parent: string | null;
+}
+
 export interface DocumentPreview {
   document_id: string;
   title: string | null;
@@ -20,6 +28,7 @@ export interface DocumentPreview {
   content_sha256?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  relationships?: DocumentRelationship[] | null;
 }
 
 export interface DocumentVersion {
