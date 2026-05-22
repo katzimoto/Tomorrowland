@@ -18,6 +18,10 @@ export interface DocumentChatCitation {
   text_excerpt?: string;
   chunk_text?: string;
   score: number;
+  page_number?: number | null;
+  section_heading?: string | null;
+  language?: string | null;
+  translated_from?: string | null;
 }
 
 export interface ChatMessage {
@@ -94,4 +98,83 @@ export function sendChatMessage(
   input: { content: string; top_k?: number },
 ): Promise<ChatMessage> {
   return api.post<ChatMessage>(`/chat/sessions/${sessionId}/messages`, input);
+}
+
+export type ChatStreamPhase = "searching" | "reading_sources" | "generating";
+
+export interface ChatStreamEvent {
+  type: "phase" | "token" | "done";
+  phase?: ChatStreamPhase;
+  token?: string;
+  answer?: string;
+  citations?: DocumentChatCitation[];
+  message_id?: string;
+  model?: string;
+  latency_ms?: number;
+}
+
+export async function sendChatMessageStream(
+  sessionId: string,
+  input: { content: string; top_k?: number },
+  onEvent: (event: ChatStreamEvent) => void,
+): Promise<void> {
+  const token = sessionStorage.getItem("tomorrowland_token");
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`/api/chat/sessions/${sessionId}/messages/stream`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(input),
+  });
+
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const body = (await res.json()) as { detail?: string };
+      if (body.detail) message = body.detail;
+    } catch { /* ignore */ }
+    throw new Error(message);
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) return;
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    let currentEvent = "";
+    for (const line of lines) {
+      if (line.startsWith("event: ")) {
+        currentEvent = line.slice(7).trim();
+      } else if (line.startsWith("data: ") && currentEvent) {
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (currentEvent === "phase") {
+            onEvent({ type: "phase", phase: data.phase });
+          } else if (currentEvent === "token") {
+            onEvent({ type: "token", token: data.token });
+          } else if (currentEvent === "done") {
+            onEvent({
+              type: "done",
+              answer: data.answer,
+              citations: data.citations,
+              message_id: data.message_id,
+              model: data.model,
+              latency_ms: data.latency_ms,
+            });
+          }
+        } catch { /* skip malformed JSON */ }
+        currentEvent = "";
+      }
+    }
+  }
 }

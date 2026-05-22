@@ -31,6 +31,17 @@
   white-space: nowrap;
 }
 
+.location {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.translated {
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--color-info);
+}
+
 .excerpt {
   margin: 0;
   color: var(--color-text-muted);
@@ -39,4 +50,15 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.openLink {
+  font-size: 0.8rem;
+  color: var(--color-accent);
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+.openLink:hover {
+  text-decoration: underline;
 }

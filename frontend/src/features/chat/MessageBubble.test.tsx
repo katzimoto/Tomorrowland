@@ -1,8 +1,24 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { render } from "@/test/render";
 import { MessageBubble } from "./MessageBubble";
 import type { ChatMessage } from "@/api/chat";
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    children,
+    params,
+    search,
+  }: {
+    children: React.ReactNode;
+    params?: Record<string, string>;
+    search?: Record<string, string | undefined>;
+  }) => {
+    const docId = params?.docId ?? "";
+    const href = `/doc/${docId}?page=${search?.page ?? ""}&chunk=${search?.chunk ?? ""}`;
+    return <a href={href}>{children}</a>;
+  },
+}));
 
 function makeMsg(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {

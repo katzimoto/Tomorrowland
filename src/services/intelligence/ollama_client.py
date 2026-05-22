@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Generator
 from typing import Any
 
 import httpx
@@ -68,6 +69,54 @@ class OllamaClient:
             metrics.ollama_requests_total.labels("generate", "success").inc()
             metrics.ollama_duration_seconds.labels("generate").observe(time.perf_counter() - start)
         return str(data.get("response", ""))
+
+    def generate_stream(self, prompt: str, model: str | None = None) -> Generator[str, None, None]:
+        """Stream generated tokens from Ollama.
+
+        Yields each token as it is produced by the model. Used by the SSE
+        streaming chat endpoint (Phase G).
+        """
+        target_model = model or self._model
+        url = f"{self._base_url}/api/generate"
+        payload: dict[str, Any] = {
+            "model": target_model,
+            "prompt": prompt,
+            "stream": True,
+        }
+
+        logger.debug(
+            "Ollama generate_stream model=%s prompt_len=%d",
+            target_model,
+            len(prompt),
+        )
+
+        metrics = current_metrics()
+        start = time.perf_counter()
+        tokens = 0
+        try:
+            with httpx.stream("POST", url, json=payload, timeout=DEFAULT_TIMEOUT) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    data = json.loads(line)
+                    token = data.get("response", "")
+                    if token:
+                        tokens += 1
+                        yield token
+        except Exception:
+            if metrics is not None:
+                metrics.ollama_requests_total.labels("generate_stream", "failure").inc()
+                metrics.ollama_duration_seconds.labels("generate_stream").observe(
+                    time.perf_counter() - start
+                )
+            raise
+        if metrics is not None:
+            metrics.ollama_requests_total.labels("generate_stream", "success").inc()
+            metrics.ollama_duration_seconds.labels("generate_stream").observe(
+                time.perf_counter() - start
+            )
 
     @staticmethod
     def parse_json_array(text: str) -> list[Any]:

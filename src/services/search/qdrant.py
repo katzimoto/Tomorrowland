@@ -104,6 +104,10 @@ class QdrantSearchClient:
                 payload["title"] = chunk["title"]
             if "source_language" in chunk:
                 payload["source_language"] = chunk["source_language"]
+            if "content_en" in chunk:
+                payload["content_en"] = chunk["content_en"]
+            if "content_he" in chunk:
+                payload["content_he"] = chunk["content_he"]
             # Qdrant point IDs must be valid UUIDs or unsigned integers.
             # chunk_id is a human-readable string (e.g. "<uuid>-orig-0") that
             # is not itself a valid UUID, so derive a stable UUID5 from it.
@@ -165,7 +169,14 @@ class QdrantSearchClient:
         for point in response.points:
             payload = point.payload or {}
             meta: dict[str, Any] = {"chunk_id": payload.get("chunk_id", str(point.id))}
-            for extra_key in ("source_id", "title", "source_language", "chunk_index"):
+            for extra_key in (
+                "source_id",
+                "title",
+                "source_language",
+                "chunk_index",
+                "page_number",
+                "section_heading",
+            ):
                 if extra_key in payload:
                     meta[extra_key] = payload[extra_key]
             search_results.append(
@@ -205,7 +216,14 @@ class QdrantSearchClient:
         for point in response.points:
             payload = point.payload or {}
             meta: dict[str, Any] = {"chunk_id": payload.get("chunk_id", str(point.id))}
-            for extra_key in ("source_id", "title", "source_language", "chunk_index"):
+            for extra_key in (
+                "source_id",
+                "title",
+                "source_language",
+                "chunk_index",
+                "page_number",
+                "section_heading",
+            ):
                 if extra_key in payload:
                     meta[extra_key] = payload[extra_key]
             search_results.append(

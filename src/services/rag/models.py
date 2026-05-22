@@ -17,6 +17,10 @@ class Citation(BaseModel):
     score: float
     chunk_index: int | None = None
     source_id: str | None = None
+    page_number: int | None = None
+    section_heading: str | None = None
+    language: str | None = None
+    translated_from: str | None = None
 
 
 class QuestionRequest(BaseModel):

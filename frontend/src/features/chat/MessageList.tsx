@@ -5,9 +5,10 @@ import styles from "./MessageList.module.css";
 
 interface MessageListProps {
   messages: ChatMessage[];
+  busy?: boolean;
 }
 
-export function MessageList({ messages }: MessageListProps) {
+export function MessageList({ messages, busy }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -15,7 +16,7 @@ export function MessageList({ messages }: MessageListProps) {
   }, [messages]);
 
   return (
-    <div className={styles.list} role="log" aria-live="polite" aria-label="Chat messages">
+    <div className={styles.list} role="log" aria-live="polite" aria-label="Chat messages" aria-busy={busy}>
       {messages.map((m) => (
         <MessageBubble key={m.id} message={m} />
       ))}

@@ -61,10 +61,23 @@ const searchRoute = createRoute({
   }),
 });
 
+function parseNum(v: unknown): number | undefined {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
 const docRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/doc/$docId",
   component: DocumentPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    page: parseNum(search.page),
+    chunk: parseNum(search.chunk),
+  }),
 });
 
 const qaRoute = createRoute({

@@ -108,6 +108,11 @@ beforeEach(() => {
   vi.mocked(chatApi.createChatSession).mockResolvedValue(NEW_SESSION);
   vi.mocked(chatApi.getChatSession).mockResolvedValue(SESSION_WITH_MESSAGES);
   vi.mocked(chatApi.sendChatMessage).mockResolvedValue(ASSISTANT_REPLY);
+  vi.mocked(chatApi.sendChatMessageStream).mockImplementation(
+    async (_sessionId, _input, onEvent) => {
+      onEvent({ type: "done", answer: ASSISTANT_REPLY.content, citations: ASSISTANT_REPLY.citations ?? [], message_id: ASSISTANT_REPLY.id });
+    },
+  );
   vi.mocked(chatApi.deleteChatSession).mockResolvedValue({ ok: true });
   vi.mocked(chatApi.patchChatSession).mockResolvedValue(SESSION_1);
 });
@@ -195,9 +200,11 @@ describe("ChatPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => {
-      expect(chatApi.sendChatMessage).toHaveBeenCalledWith("session-1", {
-        content: "What about renewal?",
-      });
+      expect(chatApi.sendChatMessageStream).toHaveBeenCalledWith(
+        "session-1",
+        { content: "What about renewal?" },
+        expect.any(Function),
+      );
     });
     await waitFor(() => {
       expect(
@@ -406,7 +413,7 @@ describe("ChatWindow loading and error states", () => {
   });
 
   it("disables input and send button while message is pending", async () => {
-    vi.mocked(chatApi.sendChatMessage).mockReturnValue(new Promise(() => {}));
+    vi.mocked(chatApi.sendChatMessageStream).mockReturnValue(new Promise(() => {}));
 
     render(<ChatPage />);
     const sessionBtn = await screen.findByText("Contract Review");

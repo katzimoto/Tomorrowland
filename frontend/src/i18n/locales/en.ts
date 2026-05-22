@@ -187,6 +187,7 @@ export interface Translations {
     untitledDocument: string;
     scopeSwitchLabel: string;
     askAboutSelected: string;
+    starterHeading: string;
   };
   notifications: {
     title: string;
@@ -514,6 +515,7 @@ export const en: Translations = {
     untitledDocument: "Untitled document",
     scopeSwitchLabel: "Change scope",
     askAboutSelected: "Ask about selected",
+    starterHeading: "Try asking",
   },
   notifications: {
     title: "Notifications",

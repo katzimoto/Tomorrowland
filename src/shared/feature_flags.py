@@ -40,6 +40,10 @@ ENV_FEATURE_TO_CONFIG_KEY: Final[MappingProxyType[str, str]] = MappingProxyType(
     {
         "FEATURE_DOCUMENT_CHAT": "feature.document_chat",
         "FEATURE_DOCUMENT_CHAT_QUERY_REWRITE": "feature.document_chat_query_rewrite",
+        "FEATURE_DOCUMENT_CHAT_RERANKER": "feature.document_chat_reranker",
+        "FEATURE_DOCUMENT_CHAT_METADATA_SEARCH": "feature.document_chat_metadata_search",
+        "FEATURE_DOCUMENT_CHAT_TRANSLATED_TEXT": "feature.document_chat_translated_text",
+        "FEATURE_DOCUMENT_CHAT_STREAMING": "feature.document_chat_streaming",
         "FEATURE_DOCUMENT_COMMENTS": "feature.document_comments",
         "FEATURE_RAG_QA": "feature.rag_qa",
         "FEATURE_SUMMARIZATION": "feature.summarization",

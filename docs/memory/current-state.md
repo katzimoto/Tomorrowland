@@ -82,29 +82,53 @@ Finding:
 
 ## 2026-05-22 — Document Chat Phase D — query rewrite (#475)
 
-Status: Active (D1–D3 done, D4 pending)
+Status: Done
 Source: issue #475; design §9
 
 Finding:
-- D1: `rewrite_query()` — created `src/services/chat/message_service.py`. Handles
+- D1: `rewrite_query()` — `src/services/chat/message_service.py`. Handles
   history window (last 4 user+assistant pairs), skip on first turn, fallback on Ollama error.
 - D2: Wired into router — `POST /chat/sessions/{id}/messages` loads prior messages,
   calls `rewrite_query` when `FEATURE_DOCUMENT_CHAT_QUERY_REWRITE=true`, passes
   `rewritten_query` to the persisted assistant message.
-- D3: 6 unit tests added to `tests/unit/test_chat_service.py` covering: skip first
-  turn, skip single message, resolve references, history window truncation, Ollama
-  error fallback, empty response fallback.
-- Feature flag: `FEATURE_DOCUMENT_CHAT_QUERY_REWRITE` (default `false`), wired in
-  config.py, feature_flags.py, and the router dual-gate.
-- Pre-existing bug fixed en-route: `rag.answer(question=body.content)` used raw
-  input instead of variable that may have been rewritten.
-- All 44 chat unit tests pass; ruff, ruff format, mypy strict — clean.
-
-D4 (admin debug panel, Codex): not started.
+- D3: 6 unit tests covering all rewrite behaviors.
+- D4: Admin debug panel — collapsed `<details>` block in assistant message bubble
+  shows `rewritten_query` when present. 6 component tests.
+- Bugfix: `rag.answer(question=body.content)` → `question=question` (used raw
+  input instead of possibly-rewritten query).
+- Feature flag: `FEATURE_DOCUMENT_CHAT_QUERY_REWRITE` (default `false`).
+- Verified: ruff, ruff format, mypy strict — clean. 44 unit + 28 frontend tests pass.
+- Issue #475 closed.
 
 Next action:
-- D4: Admin debug panel showing `rewritten_query` in assistant message bubble.
-- After D4, merge Phase D into `feature/document-chat`.
+- Phase E (#476): retrieval quality (hybrid, metadata, translations, reranker).
+
+## 2026-05-22 — Document Chat Phase F — Citation UX (#477)
+
+Status: Done
+Source: issue #477; commits on `feature/document-chat`
+
+Finding:
+- F1: `page_number`, `section_heading`, `language`, `translated_from` in backend Citation model, Qdrant/Meili metadata, router response.
+- F2: `ChatCitationCard` displays `p. N · Section Name` when present.
+- F3: Citation `<Link>` includes `?page=N&chunk=M`, opens in new tab.
+- F4: `DocumentPage` reads `?page=N` search param via `useSearch`, `scrollIntoView` on mount.
+- F5: "Translated from [language]" italic indicator on translated citations.
+- 7 new `ChatCitationCard.test.tsx` tests.
+- Verified: 423 frontend + 124 backend tests pass.
+
+## 2026-05-22 — Document Chat Phase G — Streaming and polish
+
+Status: Done
+Source: Phase G table in document-chat-design.md; commits on `feature/document-chat`
+
+Finding:
+- G1: SSE streaming endpoint `POST /chat/sessions/{id}/messages/stream` — Ollama streaming via `generate_stream()`, `RagService.answer_stream()` yielding `(event, data)` tuples, `StreamingResponse` SSE formatting. Behind `FEATURE_DOCUMENT_CHAT_STREAMING` flag.
+- G2: Frontend streaming UI — `sendChatMessageStream()` SSE reader in `api/chat.ts`, phase indicators ("Searching"/"Reading sources"/"Generating") in `ChatInput`, incremental message rendering in `ChatWindow`.
+- G3: `StarterQuestions` component — scope-aware question suggestions when session is empty.
+- G5: `autoFocus` on `ChatInput` when session loads, `aria-busy` on `MessageList` during streaming, 6 `StarterQuestions` tests.
+- G4: Grafana panel — human task, not yet started.
+- Verified: 429 frontend tests (61 files), 44 backend chat unit tests, `tsc --noEmit` clean.
 
 ## 2026-05-20 — Shared agent skills setup
 

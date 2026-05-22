@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Generator
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from qdrant_client.models import Condition, FieldCondition, Filter, MatchAny, MatchValue
 from sqlalchemy.engine import Connection
@@ -18,6 +19,8 @@ from services.search.qdrant import QdrantSearchClient
 from shared.metrics import current_metrics
 
 from .models import AnswerResponse, Citation
+
+CANDIDATE_LIMIT = 40
 
 
 def build_qdrant_filter(
@@ -70,6 +73,8 @@ class RagService:
         score_threshold: float = 0.0,
         meili_provider: Any | None = None,
         reranker: Any | None = None,
+        enable_metadata_search: bool = False,
+        enable_translated_text: bool = False,
     ) -> None:
         self._qdrant = qdrant_client
         self._encoder = encoder
@@ -97,6 +102,8 @@ class RagService:
         self._score_threshold = score_threshold
         self._meili = meili_provider
         self._reranker = reranker
+        self._enable_metadata_search = enable_metadata_search
+        self._enable_translated_text = enable_translated_text
 
     def answer(
         self,
@@ -162,7 +169,10 @@ class RagService:
                     time.perf_counter() - phase_start
                 )
 
-        # 3. Assemble context
+        # 3. Truncate to top_k (E6: candidate pool → final context size)
+        chunks = chunks[:effective_top_k]
+
+        # 4. Assemble context
         phase_start = time.perf_counter()
         context = self._assemble_context(chunks)
         if metrics is not None:
@@ -202,6 +212,10 @@ class RagService:
                     score=c["score"],
                     chunk_index=c.get("chunk_index"),
                     source_id=c.get("source_id"),
+                    page_number=c.get("page_number"),
+                    section_heading=c.get("section_heading"),
+                    language=c.get("source_language"),
+                    translated_from=None,
                 )
             )
 
@@ -218,6 +232,103 @@ class RagService:
             model=self._ollama._model,
         )
 
+    def answer_stream(
+        self,
+        question: str,
+        group_ids: list[str],
+        top_k: int | None = None,
+        document_id: str | None = None,
+        allow_all: bool = False,
+        scope: ChatScope | None = None,
+    ) -> Generator[tuple[str, dict[str, Any]], None, None]:
+        """Stream a RAG answer with SSE phase/token events.
+
+        Yields ``(event_type, data)`` tuples for the SSE streaming endpoint.
+        Phase events: ``searching``, ``reading_sources``, ``generating``.
+        Token events: ``token`` — each yielded string fragment.
+        Final event: ``done`` with the full citation list and metadata.
+        """
+        yield ("phase", {"phase": "searching"})
+        effective_top_k = top_k if top_k is not None else self._max_chunks
+        request_start = time.perf_counter()
+
+        chunks = self._retrieve_chunks(
+            question,
+            group_ids,
+            effective_top_k,
+            document_id=document_id,
+            allow_all=allow_all,
+            scope=scope,
+        )
+
+        if self._reranker is not None:
+            chunks = self._reranker.rerank(chunks, question)
+        chunks = chunks[:effective_top_k]
+
+        if not chunks:
+            yield (
+                "done",
+                {
+                    "message_id": None,
+                    "citations": [],
+                    "model": self._ollama._model,
+                    "latency_ms": int((time.perf_counter() - request_start) * 1000),
+                },
+            )
+            return
+
+        yield ("phase", {"phase": "reading_sources"})
+        context = self._assemble_context(chunks)
+
+        yield ("phase", {"phase": "generating"})
+        prompt = self._build_prompt(question, context)
+        answer_text_parts: list[str] = []
+        try:
+            for token in self._ollama.generate_stream(prompt):
+                answer_text_parts.append(token)
+                yield ("token", {"token": token})
+        except Exception:
+            answer_text_parts.append(
+                "I encountered an issue generating an answer. "
+                "Here are the relevant passages I found:\n\n" + context
+            )
+
+        answer_text = "".join(answer_text_parts)
+
+        seen_citations: set[tuple[str, int | None]] = set()
+        citations = []
+        for c in chunks:
+            key = (c["document_id"], c.get("chunk_index"))
+            if key in seen_citations:
+                continue
+            seen_citations.add(key)
+            citations.append(
+                {
+                    "citation_id": str(uuid4()),
+                    "document_id": c["document_id"],
+                    "doc_title": c.get("doc_title"),
+                    "chunk_text": c["chunk_text"],
+                    "score": c["score"],
+                    "chunk_index": c.get("chunk_index"),
+                    "source_id": c.get("source_id"),
+                    "page_number": c.get("page_number"),
+                    "section_heading": c.get("section_heading"),
+                    "language": c.get("source_language"),
+                    "translated_from": None,
+                }
+            )
+
+        yield (
+            "done",
+            {
+                "message_id": None,
+                "answer": answer_text,
+                "citations": citations,
+                "model": self._ollama._model,
+                "latency_ms": int((time.perf_counter() - request_start) * 1000),
+            },
+        )
+
     def _retrieve_chunks(
         self,
         question: str,
@@ -227,14 +338,17 @@ class RagService:
         allow_all: bool = False,
         scope: ChatScope | None = None,
     ) -> list[dict[str, Any]]:
-        """Retrieve top-K chunks from Qdrant (+ Meilisearch when available).
+        """Retrieve chunks from Qdrant (+ Meilisearch when available).
 
-        When a Meilisearch provider is configured, BM25 candidates are fused
-        with the vector results via ``merge_results()`` using equal weights.
-        Deduplication is performed at the chunk level (by chunk_id) so all
-        relevant chunks from a document are preserved, not just the highest
-        scorer per document. Chunks scoring below ``score_threshold`` are
-        dropped before context assembly.
+        Retrieves a candidate pool of up to ``CANDIDATE_LIMIT`` per source
+        (vector + lexical). When a Meilisearch provider is configured, BM25
+        candidates are fused with the vector results via ``merge_results()``
+        using equal weights. Deduplication is performed at the chunk level
+        (by chunk_id).
+
+        After retrieval, a reranker (if configured) re-orders and may filter
+        the pool. Chunks scoring below ``score_threshold`` are dropped before
+        context assembly.
 
         When *scope* is provided, ``build_qdrant_filter`` produces the full
         combined permission+scope filter and ``search_filtered`` is used.
@@ -245,19 +359,18 @@ class RagService:
 
         if scope is not None:
             if not group_ids and not allow_all:
-                # Safety: no groups and no admin bypass — return nothing.
                 return []
             qdrant_filter = build_qdrant_filter(scope, group_ids, allow_all)
             vector_results = self._qdrant.search_filtered(
                 vector=query_vector,
                 query_filter=qdrant_filter,
-                limit=top_k,
+                limit=CANDIDATE_LIMIT,
             )
         else:
             vector_results = self._qdrant.search(
                 vector=query_vector,
                 group_ids=group_ids,
-                limit=top_k,
+                limit=CANDIDATE_LIMIT,
                 document_id=document_id,
                 allow_all=allow_all,
             )
@@ -267,7 +380,7 @@ class RagService:
                 text=question,
                 group_ids=group_ids,
                 allow_all=allow_all,
-                limit=top_k,
+                limit=CANDIDATE_LIMIT,
             )
             results = merge_results(
                 bm25_results=bm25_results,
@@ -275,6 +388,34 @@ class RagService:
                 vector_weight=0.5,
                 bm25_weight=0.5,
             )
+
+            if self._enable_metadata_search:
+                meta_results = self._meili.search_rag_metadata(
+                    text=question,
+                    group_ids=group_ids,
+                    allow_all=allow_all,
+                    limit=CANDIDATE_LIMIT,
+                )
+                results = merge_results(
+                    bm25_results=meta_results,
+                    vector_results=results,
+                    vector_weight=0.2,
+                    bm25_weight=0.8,
+                )
+
+            if self._enable_translated_text:
+                trans_results = self._meili.search_rag_translated(
+                    text=question,
+                    group_ids=group_ids,
+                    allow_all=allow_all,
+                    limit=CANDIDATE_LIMIT,
+                )
+                results = merge_results(
+                    bm25_results=trans_results,
+                    vector_results=results,
+                    vector_weight=0.2,
+                    bm25_weight=0.8,
+                )
         else:
             results = vector_results
 
@@ -306,6 +447,8 @@ class RagService:
                 "doc_title": title_cache.get(r.document_id),
                 "source_id": (r.metadata or {}).get("source_id"),
                 "source_language": (r.metadata or {}).get("source_language"),
+                "page_number": (r.metadata or {}).get("page_number"),
+                "section_heading": (r.metadata or {}).get("section_heading"),
             }
             for r in unique_results
         ]

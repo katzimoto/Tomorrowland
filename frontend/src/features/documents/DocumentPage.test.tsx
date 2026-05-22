@@ -9,9 +9,12 @@ import * as annotationsApi from "@/api/annotations";
 vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({ docId: "doc-123" }),
   useNavigate: () => vi.fn(),
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
-    <a href={to}>{children}</a>
-  ),
+  useSearch: () => ({}),
+  Link: ({ children, to, params, search }: { children: React.ReactNode; to: string; params?: Record<string, string>; search?: Record<string, string | undefined> }) => {
+    const docId = params?.docId ?? "";
+    const href = `/doc/${docId}?page=${search?.page ?? ""}&chunk=${search?.chunk ?? ""}`;
+    return <a href={href}>{children}</a>;
+  },
 }));
 
 vi.mock("@/api/documents");
