@@ -2,46 +2,14 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
-## 2026-05-21 — Document viewer track in progress (#440–#449)
-
-Status: Superseded
-Source: issues #440–#449, #453; PRs #454–#462
-
-Finding:
-- Document viewer MVP track (parent #453) is underway.
-- #440 (HTML sandbox) — Done. PR #454 merged to `main`.
-- #441 (full text API) — Done. PR #455 merged to `feature/document-viewer`.
-- #442 (PDF.js viewer) — Done. PR #456 merged to `feature/document-viewer`.
-- #443 (view mode switcher + fidelity bar) — Done. PR #457 merged to `feature/document-viewer`.
-- #444 (image viewer) — Done. PR #458 merged to `feature/document-viewer`.
-- #445 (metadata Details tab) — Done. PR #459 merged to `feature/document-viewer`.
-- #447 (code/syntax viewer) — Done. PR #460 merged to `feature/document-viewer`.
-- #448 (media viewer) — Done. PR #461 merged to `feature/document-viewer`.
-- #449 (in-document search) — Done. PR #462 merged to `feature/document-viewer`.
-
-## 2026-05-21 — Document viewer a11y, perf, telemetry hardening (#450)
+## 2026-05-22 — Document viewer MVP complete (#453 closed)
 
 Status: Done
-Source: issue #450; PR #464
+Source: issues #440–#451; PRs #454–#465; integration PR #466 merged to `main`
 
 Finding:
-- #450 (a11y, perf, telemetry hardening) — Done. PR #464 targets `feature/document-viewer`.
-- A11y: download link aria-label, table aria-label + th scope="col", sr-only status text, focus management on view mode switch and search close.
-- Perf: TextPreview virtualized with react-window v2 `List` when >10K lines; TablePreview virtualized with ARIA role-based table when >1K rows.
-- Telemetry: viewer.text/pdf/image.load events via named performance timers.
-- Backend: X-Content-Type-Options: nosniff on download endpoint.
-- react-window v2 key differences from v1: `List` replaces `FixedSizeList`, `rowCount`/`rowHeight`/`rowComponent` props, `rowProps={{}}` required (crashes if undefined).
-- ResizeObserver global mock added to test setup (required by react-window v2 in jsdom).
-
-Impact:
-- react-window@2.2.7 added to frontend dependencies.
-- Virtualized TablePreview uses `role="table"` / `role="rowgroup"` / `role="row"` / `role="columnheader"` / `role="cell"` instead of native `<table>` / `<thead>` / `<tbody>` / `<tr>` / `<th>` / `<td>` (react-window constraint).
-- `src/test/setup.ts` now includes ResizeObserver mock, scrollIntoView mock, HTMLDialogElement mocks.
-- Download endpoint returns `X-Content-Type-Options: nosniff` on both full and range responses.
-
-Next action:
-- Check parent issue #453 for remaining MVP child issues.
-- Consider browser-based virtualization verification (#451 follow-up).
+- All 12 document viewer child issues implemented and merged to `main` via PR #466.
+- Parent issue #453 closed. All child issues (440-451) closed.
 
 ## 2026-05-21 — Resource safety guards (#463)
 
@@ -112,18 +80,20 @@ Finding:
 - Missing tests added (commit 48153a9): 8 test files covering all AC #5 criteria — PreviewPane prop routing, PdfViewer page nav, virtualized global index, DocumentPage Ctrl+F toggle, EmailPreview/SlidesPreview/ArchivePreview/TablePreview search.
 - TypeScript check clean. Issue closed.
 
-## 2026-05-21 — Document Chat feature in progress (#471–#478)
+## 2026-05-22 — Document Chat Phases A–C complete (#471–#474)
 
-Status: Superseded
-Source: issue #471 (parent), #472 Phase A, #473 Phase B; PRs merged to `feature/document-chat`
+Status: Active (Phases D–G pending)
+Source: issues #471–#474; PRs #472, #473, #474 on `feature/document-chat`
 
 Finding:
-- Document Chat design doc at `docs/design/document-chat-design.md` (committed 06fae05 to main).
-- Phase A (RAG + backend foundation): merged to main via PR #472.
-- Phase B (backend API + frontend UI, B1–B6): implementation on `feature/document-chat`.
-- B7 integration tests: done. 25 integration + 18 unit backend tests pass.
-- Phase C backend (scope-aware chat): done.
-- Phase C frontend: Done (see separate entry above).
+- #472 Phase A (Q&A foundation) — Done. Merged to `main`. Issue closed.
+- #473 Phase B (persistent chat sessions) — Done. On `feature/document-chat`. Pending merge to `main`.
+- #474 Phase C (scope-aware chat) — Done. On `feature/document-chat`. Pending merge to `main`.
+- Remaining phases D–G (#475–#478) not started; listed on GitHub as `status:next`.
+
+Next action:
+- Verify CI on `feature/document-chat`; open integration PR to `main`.
+- Phase D (#475): conversation-aware query rewrite.
 
 ## 2026-05-20 — Shared agent skills setup
 
