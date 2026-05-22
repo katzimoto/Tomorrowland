@@ -144,7 +144,7 @@ Finding:
 ## 2026-05-22 — Sign-out button added to NavRail (#490)
 
 Status: Done
-Source: Issue #490
+Source: Issue #490; commit 2a239ae
 
 Finding:
 - User identity (display_name + email) and Sign out button added to NavRail sidebar bottom section.
@@ -153,6 +153,19 @@ Finding:
 - Button disabled during sign-out. User info hidden on mobile (same as other bottom items).
 - 6 new NavRail tests cover: nav items, admin item, user info, sign-out button, click behavior, disabled state.
 - Verified: 62 test files / 435 tests pass, `tsc --noEmit` clean, `npm run lint` 0 errors.
+
+## 2026-05-22 — Admin Users UI (#491)
+
+Status: Done
+Source: Issue #491; commit a5c56b6
+
+Finding:
+- Backend: PATCH /admin/users/{user_id} with UpdateUserRequest (display_name, is_admin). Last-admin guard prevents removing admin from the sole admin.
+- Frontend: AdminUsersPage with user table (email, display_name, admin badge, auth source). AdminUserDetailPage with editable display_name, is_admin toggle, group membership list.
+- AdminHubPage: added Users card linking to AdminUsersPage.
+- Integration tests: 51 passing (5 new for PATCH — last-admin, role change, display name, bad user_id, invalid payload).
+- Unit tests: 34 passing (6 AdminUsersPage + 6 AdminUserDetailPage).
+- Verified: ruff check, ruff format, mypy --strict, npm run lint (0 errors), npm run typecheck — all clean.
 
 ## 2026-05-20 — Shared agent skills setup
 
