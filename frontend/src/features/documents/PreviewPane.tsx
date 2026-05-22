@@ -1,5 +1,6 @@
 import type { DocumentPreview } from "@/api/documents";
 import { TextPreview } from "./renderers/TextPreview";
+import { MarkdownPreview } from "./renderers/MarkdownPreview";
 import { HtmlPreview } from "./renderers/HtmlPreview";
 import { TablePreview } from "./renderers/TablePreview";
 import { ArchivePreview } from "./renderers/ArchivePreview";
@@ -12,6 +13,14 @@ import { MediaPreview } from "./renderers/MediaPreview";
 import { UnsupportedPreview } from "./renderers/UnsupportedPreview";
 import type { ViewMode } from "./ViewModeSwitcher";
 import styles from "./PreviewPane.module.css";
+
+const MARKDOWN_MIMES = new Set([
+  "text/markdown",
+  "text/x-markdown",
+  "application/markdown",
+]);
+
+const MARKDOWN_EXTS = [".md", ".markdown", ".mdown"];
 
 const CODE_MIMES = new Set([
   "application/json",
@@ -88,7 +97,24 @@ export function PreviewPane({
     );
   }
 
-  if (mime === "text/plain" || mime === "text/markdown" || mime === "text/csv") {
+  const isMarkdown =
+    MARKDOWN_MIMES.has(mime) ||
+    (mime === "text/plain" &&
+      preview.title != null &&
+      MARKDOWN_EXTS.some((ext) => preview.title!.endsWith(ext)));
+
+  if (isMarkdown) {
+    return (
+      <div className={styles.pane}>
+        <MarkdownPreview
+          docId={preview.document_id}
+          fallbackText={text ?? ""}
+        />
+      </div>
+    );
+  }
+
+  if (mime === "text/plain" || mime === "text/csv") {
     return (
       <div className={styles.pane}>
         <TextPreview
