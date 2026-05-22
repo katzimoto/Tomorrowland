@@ -23,6 +23,34 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-22 — In-document search fix tests verified and closed (#469)
+
+Status: Done
+Source: issue #469; commits 2927a50 (fix) + 48153a9 (tests) on feature/document-chat + main
+
+What changed:
+- Verified existing fix (2927a50): all renderers receive search props, PdfViewer page-jump, virtualized cumulative offsets.
+- Added missing tests (48153a9):
+  - PreviewPane: search prop passing verified for all renderer paths (text/plain, DOCX/RTF, extracted, PDF, table, archive, email, slides, code)
+  - PdfViewer: activeSearchIndex navigates to page containing the match
+  - ArchivePreview: match highlighting + count via onMatchCountChange
+  - EmailPreview (new file): match highlighting + count
+  - SlidesPreview (new file): cross-slide match count
+  - TablePreview: cell highlighting + match count
+  - TextPreview: virtualized global active-match index stability
+  - DocumentPage: Ctrl+F opens search for text, suppressed for image/audio/video
+
+Verification:
+- `tsc --noEmit` — clean
+- `ruff check`, `mypy` — backend unaffected (frontend-only change)
+
+Open risks:
+- Frontend vitest still blocked locally by Node 20.9.0 (needs 22+) — CI must verify test suite
+
+Next agent prompt:
+- Verify CI passes for commit 48153a9 on feature/document-chat
+- Close issue #469 on GitHub (already closed)
+
 ## 2026-05-22 — Document Chat Phase C frontend complete (#474)
 
 Status: Done

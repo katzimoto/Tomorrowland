@@ -85,41 +85,45 @@ Impact:
 - Encoder validates each text's estimated token count before API call.
 - ValueError (context-length exceeded) dead-letters immediately instead of retrying 5 times.
 
+## 2026-05-22 — Document Chat Phase C frontend complete (#474)
+
+Status: Done
+Source: issue #474; commits d352ed2 + 8fa4f95 on `feature/document-chat`
+
+Finding:
+- ScopeBadge, ScopeSelector, DocumentChatPanel, InsightPane Chat tab migration complete.
+- `single_document` scope auto-created via DocumentChatPanel; `all_accessible_documents` switchable via ScopeSelector.
+- Document Page InsightPane's "QA" tab replaced with "Chat" tab using DocumentChatPanel.
+- `feature.document_chat` removed from SYSTEM_CONFIG_DEFAULTS (env-var is correct gate).
+- Sidebar, message list, citations, empty/loading/error states all tested.
+
+Next action:
+- Verify CI on `feature/document-chat`; open PR targeting `main`.
+
+## 2026-05-22 — In-document search fix verified + closed (#469)
+
+Status: Done
+Source: issue #469; commit 2927a50 on `main`
+
+Finding:
+- Fix commit 2927a50 covers all 7 renderers: PreviewPane passes search props to DOCX/RTF TextPreview, TablePreview, ArchivePreview, EmailPreview, SlidesPreview, PdfViewer, CodeViewer.
+- PdfViewer: per-page text extraction + page-jump navigation via activeSearchIndex.
+- TextPreview virtualized: per-line cumulative match offsets for correct global active-match navigation.
+- Missing tests added (commit 48153a9): 8 test files covering all AC #5 criteria — PreviewPane prop routing, PdfViewer page nav, virtualized global index, DocumentPage Ctrl+F toggle, EmailPreview/SlidesPreview/ArchivePreview/TablePreview search.
+- TypeScript check clean. Issue closed.
+
 ## 2026-05-21 — Document Chat feature in progress (#471–#478)
 
-Status: Active
+Status: Superseded
 Source: issue #471 (parent), #472 Phase A, #473 Phase B; PRs merged to `feature/document-chat`
 
 Finding:
 - Document Chat design doc at `docs/design/document-chat-design.md` (committed 06fae05 to main).
 - Phase A (RAG + backend foundation): merged to main via PR #472.
 - Phase B (backend API + frontend UI, B1–B6): implementation on `feature/document-chat`.
-  - Backend: `src/services/api/routers/chat.py` — sessions CRUD, message send, citations.
-  - Frontend: `frontend/src/features/chat/` — ChatPage, ChatSidebar, ChatWindow, MessageList, ChatInput, ChatCitationList, all CSS modules; route `/chat` added; NavRail entry added.
-  - i18n: full `chat` namespace in en.ts + he.ts.
-  - Tests: 11 cases in ChatPage.test.tsx covering empty state, session CRUD, send+reply, citations, loading/error.
-- B7 integration tests: done. 25 integration + 18 unit backend tests pass (43 total). 16 frontend tests cover lifecycle, error, and citation fields.
-- Phase C backend (scope-aware chat): done. Commit d7ab8e8 on feature/document-chat.
-  - `ChatScope` model + `build_qdrant_filter()` in `src/services/rag/service.py`.
-  - `QdrantSearchClient.search_filtered()` for pre-built filter path.
-  - Chat router validates revoked doc access (409) and passes `ChatScope` to RAG.
-  - 17 unit tests (scope validation + filter builder) + 8 new integration tests.
-  - 68 total tests pass (unit + repository + integration).
-- Phase C frontend (ScopeBadge, ScopeSelector, InsightPane migration) not started.
-
-Impact:
-- DELETE `/chat/sessions/{id}` returns `{"ok": true}` 200 (not 204) — `deleteChatSession` typed as `Promise<{ ok: boolean }>`.
-- TanStack Query v5: `onSuccess` removed from `useQuery`; seeding uses `useEffect` with seed-once ref guard.
-- Node 22 required for test/lint in frontend; CI runs on 22, local env at 20.9.0.
-- Session_id path params typed as `UUID`; FastAPI validates on entry (422 on malformed, not 500).
-- Dual-gate feature flag: tests must seed `system_config` key `feature.document_chat = true` AND pass `feature_document_chat=True` in Settings.
-- Foundation migration seeds `feature.document_chat = False` by default (production safety) — test harness overrides this in `_setup_users()`.
-- `folder` scope returns 400 (Qdrant payload has no folder field — deferred).
-- `source` scope: Qdrant filter by `source_id` built; revocation validation TODO (group filter still applied for safety).
-
-Next action:
-- Phase C frontend: ScopeBadge, ScopeSelector, InsightPane Chat tab migration.
-- Open PR for #473/#474 when frontend Phase C is ready.
+- B7 integration tests: done. 25 integration + 18 unit backend tests pass.
+- Phase C backend (scope-aware chat): done.
+- Phase C frontend: Done (see separate entry above).
 
 ## 2026-05-20 — Shared agent skills setup
 
