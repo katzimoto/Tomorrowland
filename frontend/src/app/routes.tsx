@@ -77,6 +77,10 @@ const chatRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/chat",
   component: ChatPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    scope: typeof search.scope === "string" ? search.scope : undefined,
+    ids: typeof search.ids === "string" ? search.ids : undefined,
+  }),
 });
 
 const subscriptionsRoute = createRoute({

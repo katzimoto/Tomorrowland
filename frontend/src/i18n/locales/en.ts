@@ -92,6 +92,7 @@ export interface Translations {
   insight: {
     tabSummary: string;
     tabQa: string;
+    tabChat: string;
     tabRelated: string;
     tabAnnotations: string;
     tabComments: string;
@@ -179,10 +180,13 @@ export interface Translations {
     scopeAll: string;
     scopeSingleDocument: string;
     scopeSelectedDocuments: string;
+    scopeSelectedDocumentsCount: (n: number) => string;
     scopeSource: string;
     scopeFolder: string;
     scopeSearchResults: string;
     untitledDocument: string;
+    scopeSwitchLabel: string;
+    askAboutSelected: string;
   };
   notifications: {
     title: string;
@@ -415,6 +419,7 @@ export const en: Translations = {
   insight: {
     tabSummary: "Summary",
     tabQa: "Q&A",
+    tabChat: "Chat",
     tabRelated: "Related",
     tabAnnotations: "Annotations",
     tabComments: "Comments",
@@ -502,10 +507,13 @@ export const en: Translations = {
     scopeAll: "All accessible documents",
     scopeSingleDocument: "Single document",
     scopeSelectedDocuments: "Selected documents",
+    scopeSelectedDocumentsCount: (n) => `${n} selected documents`,
     scopeSource: "Source",
     scopeFolder: "Folder",
     scopeSearchResults: "Search results",
     untitledDocument: "Untitled document",
+    scopeSwitchLabel: "Change scope",
+    askAboutSelected: "Ask about selected",
   },
   notifications: {
     title: "Notifications",

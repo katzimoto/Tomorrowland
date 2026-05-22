@@ -5,6 +5,7 @@ import {
   sendChatMessage,
   type ChatMessage,
   type ChatSession,
+  type ChatScopeType,
 } from "@/api/chat";
 import { useToast } from "@/components/primitives/ToastContext";
 import { useT } from "@/i18n/index";
@@ -12,32 +13,21 @@ import { EmptyState } from "@/components/primitives/EmptyState";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
+import { ScopeBadge } from "./ScopeBadge";
+import { ScopeSelector } from "./ScopeSelector";
 import styles from "./ChatWindow.module.css";
-
-function scopeLabel(scopeType: string, t: ReturnType<typeof useT>): string {
-  switch (scopeType) {
-    case "all_accessible_documents":
-      return t.chat.scopeAll;
-    case "single_document":
-      return t.chat.scopeSingleDocument;
-    case "selected_documents":
-      return t.chat.scopeSelectedDocuments;
-    case "source":
-      return t.chat.scopeSource;
-    case "folder":
-      return t.chat.scopeFolder;
-    case "current_search_results":
-      return t.chat.scopeSearchResults;
-    default:
-      return scopeType;
-  }
-}
 
 interface ChatWindowProps {
   session: ChatSession;
+  onRequestNewScope?: (scopeType: ChatScopeType, scopeIds: string[]) => void;
+  isCreatingScope?: boolean;
 }
 
-export function ChatWindow({ session }: ChatWindowProps) {
+export function ChatWindow({
+  session,
+  onRequestNewScope,
+  isCreatingScope = false,
+}: ChatWindowProps) {
   const t = useT();
   const { show: showToast } = useToast();
   const [input, setInput] = useState("");
@@ -128,9 +118,18 @@ export function ChatWindow({ session }: ChatWindowProps) {
   return (
     <div className={styles.window}>
       <header className={styles.header}>
-        <span className={styles.scopeBadge}>
-          {t.chat.chattingWith}: {scopeLabel(session.scope_type, t)}
-        </span>
+        {onRequestNewScope ? (
+          <ScopeSelector
+            session={session}
+            onNewScope={onRequestNewScope}
+            isCreating={isCreatingScope}
+          />
+        ) : (
+          <ScopeBadge
+            scopeType={session.scope_type}
+            scopeIds={session.scope_ids}
+          />
+        )}
         <span className={styles.sessionTitle}>{session.title}</span>
       </header>
       <MessageList messages={messages} />

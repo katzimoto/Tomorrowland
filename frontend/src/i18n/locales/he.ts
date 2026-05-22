@@ -94,6 +94,7 @@ export const he: Translations = {
   insight: {
     tabSummary: "סיכום",
     tabQa: "שאלות ותשובות",
+    tabChat: "שיחה",
     tabRelated: "קשורים",
     tabAnnotations: "הערות",
     tabComments: "תגובות",
@@ -181,10 +182,13 @@ export const he: Translations = {
     scopeAll: "כל המסמכים הנגישים",
     scopeSingleDocument: "מסמך בודד",
     scopeSelectedDocuments: "מסמכים נבחרים",
+    scopeSelectedDocumentsCount: (n) => `${n} מסמכים נבחרים`,
     scopeSource: "מקור",
     scopeFolder: "תיקייה",
     scopeSearchResults: "תוצאות חיפוש",
     untitledDocument: "מסמך ללא כותרת",
+    scopeSwitchLabel: "שנה היקף",
+    askAboutSelected: "שאל על הנבחרים",
   },
   notifications: {
     title: "התראות",

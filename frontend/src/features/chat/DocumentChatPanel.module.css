@@ -1,0 +1,10 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.loading {
+  padding: var(--space-4, 16px);
+}

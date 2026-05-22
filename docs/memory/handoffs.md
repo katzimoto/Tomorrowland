@@ -23,6 +23,69 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-22 — Document Chat B4-B5 Chat API router + message endpoint
+
+Status: Active
+Source: Issue #473, Phase B4-B5 on feature/document-chat
+
+What changed:
+- Added `feature_document_chat: bool = False` to Settings (config.py)
+- Registered `FEATURE_DOCUMENT_CHAT` → `feature.document_chat` mapping in `ENV_FEATURE_TO_CONFIG_KEY` (feature_flags.py)
+- Did NOT add to `SYSTEM_CONFIG_DEFAULTS` to avoid migration inserting `false` into `system_config` table
+- Created `src/services/api/routers/chat.py` — 6 endpoints gated by `_require_chat_enabled` + `_check_system_config_flag`
+- Router registered in `src/services/api/main.py`
+- Created `tests/integration/test_chat_api.py` — 14 integration tests
+- Fixed B3 test: replaced `sa.func.now()` with `datetime.now(tz=timezone.utc)`
+
+Verification:
+- `ruff check --fix` → all pass
+- `ruff format` → all pass
+- `mypy src --strict` → no issues
+- `pytest tests/unit/test_chat_repository.py tests/integration/test_chat_api.py -q` → 51 passed
+
+Open risks:
+- System_config default insertion gotcha: `SYSTEM_CONFIG_DEFAULTS` is bulk-inserted by the foundation migration. Adding `feature.document_chat: False` would break the `_check_system_config_flag` check because migration inserts `false` into DB, making the flag always appear disabled. Solution: don't add to `SYSTEM_CONFIG_DEFAULTS`, rely on Settings env-var default only.
+- `test_delete_session_cascades_to_messages` acknowledges SQLite FK cascade limitation (messages persist after session delete in SQLite tests).
+- `test_post_message_creates_user_and_assistant` relies on mocked Qdrant returning empty results; RAG fallback message is returned instead of a real answer.
+- Cross-user access returns 404 (not 403) to avoid leaking existence — matches existing repo convention.
+- Message endpoint uses `NoOpReranker()` — full reranker support is Phase C.
+
+Next recommended mission:
+- B6 frontend chat UI (session list, chat input, message display)
+
+What changed:
+- `frontend/src/api/chat.ts` — Added `ChatScopeType` literal union; tightened `ChatSession.scope_type` and `createChatSession` input.
+- `frontend/src/features/chat/ScopeBadge.tsx` + `.module.css` — Display-only badge showing "Chatting with: <label>" for all 6 scope types.
+- `frontend/src/features/chat/ScopeSelector.tsx` + `.module.css` — Dropdown to switch scope; only `all_accessible_documents` enabled in Phase C; `source`/`folder` shown as disabled with "(coming soon)" note; a11y: `aria-expanded`, `aria-haspopup="listbox"`, keyboard Escape to close.
+- `frontend/src/features/chat/DocumentChatPanel.tsx` + `.module.css` — Lazily creates `single_document` scoped session on mount; StrictMode-safe via `seededForDoc` ref guard + `cancelled` flag; cleanup resets ref so tab-switch remounts work.
+- `frontend/src/features/chat/ChatWindow.tsx` — Removed inline `scopeLabel()`, added `ScopeBadge`/`ScopeSelector`; conditional: `ScopeSelector` when `onRequestNewScope` provided, else `ScopeBadge`.
+- `frontend/src/features/chat/ChatPage.tsx` — Added URL-based session creation from `?scope=&ids=` params; `parseScopeFromSearch()` validates against `VALID_SCOPE_TYPES` set; after creation navigates to `/chat` with empty search; `handleScopeChange` wired to `ChatWindow`.
+- `frontend/src/app/routes.tsx` — Added `validateSearch` to `chatRoute` for `scope` + `ids` params.
+- `frontend/src/features/documents/insightPaneTabs.ts` — Renamed `"qa"` to `"chat"` in `InsightPaneTab` type.
+- `frontend/src/features/documents/InsightPane.tsx` — Replaced `QAPanel` with `DocumentChatPanel`; tab id `"qa"` → `"chat"`, label `t.insight.tabQa` → `t.insight.tabChat`; passes `preview?.title` as `docTitle`.
+- `frontend/src/i18n/locales/en.ts` + `he.ts` — Added `tabChat`, `scopeSelectedDocumentsCount`, `scopeSwitchLabel`, `askAboutSelected` keys.
+- `frontend/src/features/chat/ChatPage.test.tsx` — Added `useSearch`/`useNavigate` mocks; 4 new URL-scope tests.
+- `frontend/src/features/documents/InsightPane.test.tsx` — New file: 5 tests for Chat tab label, `DocumentChatPanel` mount, `single_document` scope, docTitle passing, error state.
+
+Key decisions:
+- "Ask about selected" toolbar deferred: SearchPage has no checkbox multi-select, only keyboard-nav `selectedIndex`. URL-based `/chat?scope=selected_documents&ids=...` is the route-level entry point instead.
+- `tabQa` key preserved in i18n (not removed) — QAPanel still exists for `/qa` route; only InsightPane tab migrated.
+- `seededForDoc.current = null` in cleanup (not keeping the docId) — allows remount after error/tab-switch without permanent session lock.
+
+Verification:
+- `tsc --noEmit` — exit 0 (clean)
+- `npx vitest run` — blocked locally by Node 20.9.0 (requires ≥21.7 for `styleText`); CI is sole gate.
+
+Open risks:
+- Frontend vitest not run locally — CI is sole gate for new tests.
+- `QAPanel` is now orphaned from InsightPane but still used by the standalone `/qa` route. Deletion is out of Phase C scope.
+- `selected_documents` scope from URL params: the `/chat` route receives them but there's no UI in SearchPage to generate the URL yet (deferred multi-select work).
+
+Next agent prompt:
+- Run CI on `feature/document-chat` and resolve any frontend vitest failures.
+- Phase D: consider adding `selected_documents` multi-select to SearchPage (see #474 backlog).
+- Consider closing #474 once CI is green.
+
 ## 2026-05-21 — Document Chat Phase C backend scope-aware chat complete
 
 Status: Done

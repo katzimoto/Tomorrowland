@@ -1,5 +1,13 @@
 import { api } from "./client";
 
+export type ChatScopeType =
+  | "all_accessible_documents"
+  | "single_document"
+  | "selected_documents"
+  | "source"
+  | "folder"
+  | "current_search_results";
+
 export interface DocumentChatCitation {
   citation_id: string;
   document_id: string;
@@ -28,7 +36,7 @@ export interface ChatSession {
   id: string;
   user_id: string;
   title: string;
-  scope_type: string;
+  scope_type: ChatScopeType;
   scope_ids: string[];
   created_at: string;
   updated_at: string;
@@ -59,7 +67,7 @@ export function listChatSessions(params?: {
 }
 
 export function createChatSession(input: {
-  scope_type: string;
+  scope_type: ChatScopeType;
   scope_ids?: string[];
   title?: string | null;
 }): Promise<ChatSession> {

@@ -6,10 +6,15 @@ import * as chatApi from "@/api/chat";
 
 vi.mock("@/api/chat");
 
+const mockNavigate = vi.fn();
+let mockSearchParams: Record<string, unknown> = {};
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
+  useSearch: () => mockSearchParams,
+  useNavigate: () => mockNavigate,
 }));
 
 const SESSION_1: chatApi.ChatSession = {
@@ -93,6 +98,8 @@ const NEW_SESSION: chatApi.ChatSession = {
 };
 
 beforeEach(() => {
+  mockSearchParams = {};
+  mockNavigate.mockReset();
   vi.mocked(chatApi.listChatSessions).mockResolvedValue({
     sessions: [SESSION_1, SESSION_2],
     total: 2,
@@ -331,6 +338,55 @@ describe("ChatCitationCard", () => {
       expect(screen.getByText("New Doc Title")).toBeInTheDocument();
       expect(screen.getByText("New excerpt text.")).toBeInTheDocument();
     });
+  });
+});
+
+describe("URL-based scope session creation", () => {
+  it("auto-creates a session when valid scope params are in the URL", async () => {
+    mockSearchParams = { scope: "selected_documents", ids: "doc-a,doc-b" };
+    vi.mocked(chatApi.getChatSession).mockResolvedValue({
+      ...NEW_SESSION,
+      messages: [],
+    });
+    render(<ChatPage />);
+    await waitFor(() => {
+      expect(chatApi.createChatSession).toHaveBeenCalledWith({
+        scope_type: "selected_documents",
+        scope_ids: ["doc-a", "doc-b"],
+        title: null,
+      });
+    });
+  });
+
+  it("clears URL scope params after session creation", async () => {
+    mockSearchParams = { scope: "single_document", ids: "doc-x" };
+    vi.mocked(chatApi.getChatSession).mockResolvedValue({
+      ...NEW_SESSION,
+      messages: [],
+    });
+    render(<ChatPage />);
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/chat",
+        search: {},
+        replace: true,
+      });
+    });
+  });
+
+  it("does not auto-create when scope param is invalid", async () => {
+    mockSearchParams = { scope: "not_a_real_scope", ids: "doc-x" };
+    render(<ChatPage />);
+    // Give async effects time to run
+    await new Promise((r) => setTimeout(r, 50));
+    expect(chatApi.createChatSession).not.toHaveBeenCalled();
+  });
+
+  it("does not auto-create when no scope params are present", async () => {
+    mockSearchParams = {};
+    render(<ChatPage />);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(chatApi.createChatSession).not.toHaveBeenCalled();
   });
 });
 
