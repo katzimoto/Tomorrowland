@@ -23,7 +23,7 @@ const mockPreview: documentsApi.DocumentPreview = {
   title: "Annual Report 2025",
   mime_type: "application/pdf",
   translation_quality: null,
-  translation_score: null,
+  translation_score: 0,
   metadata: {},
   snippet: "Fiscal year results.",
   view_count: 1,

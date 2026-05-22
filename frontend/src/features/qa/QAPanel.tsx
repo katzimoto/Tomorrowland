@@ -11,11 +11,10 @@ import { AnswerPanel } from "./AnswerPanel";
 import styles from "./QAPanel.module.css";
 
 interface QAPanelProps {
-  returnPath?: string;
   docId?: string;
 }
 
-export function QAPanel({ returnPath, docId }: QAPanelProps) {
+export function QAPanel({ docId }: QAPanelProps) {
   const t = useT();
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<QAResponse | null>(null);
@@ -65,7 +64,7 @@ export function QAPanel({ returnPath, docId }: QAPanelProps) {
         <EmptyState title={t.qa.emptyTitle} body={t.qa.emptyBody} />
       )}
 
-      {result && <AnswerPanel result={result} returnPath={returnPath} />}
+      {result && <AnswerPanel result={result} />}
     </div>
   );
 }

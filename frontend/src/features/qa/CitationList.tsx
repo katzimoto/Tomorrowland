@@ -4,10 +4,9 @@ import styles from "./CitationList.module.css";
 
 interface CitationListProps {
   citations: QACitation[];
-  returnPath?: string;
 }
 
-export function CitationList({ citations, returnPath }: CitationListProps) {
+export function CitationList({ citations }: CitationListProps) {
   if (!citations.length) return null;
 
   return (
@@ -18,7 +17,6 @@ export function CitationList({ citations, returnPath }: CitationListProps) {
           <CitationCard
             key={c.citation_id ?? `${c.document_id}-${c.chunk_index ?? idx}`}
             citation={c}
-            returnPath={returnPath}
           />
         ))}
       </ul>

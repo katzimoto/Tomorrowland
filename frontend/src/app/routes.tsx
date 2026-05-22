@@ -74,10 +74,11 @@ const docRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/doc/$docId",
   component: DocumentPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    page: parseNum(search.page),
-    chunk: parseNum(search.chunk),
-  }),
+  validateSearch: (search: Record<string, unknown>) => {
+    const page = parseNum(search.page);
+    const chunk = parseNum(search.chunk);
+    return { ...(page !== undefined ? { page } : {}), ...(chunk !== undefined ? { chunk } : {}) };
+  },
 });
 
 const qaRoute = createRoute({

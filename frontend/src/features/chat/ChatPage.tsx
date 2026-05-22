@@ -39,7 +39,7 @@ export function ChatPage() {
   const t = useT();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const routeSearch = useSearch({ from: "/chat" }) as Record<string, unknown>;
+  const routeSearch = useSearch({ from: "/app/chat" }) as Record<string, unknown>;
   const { scope: urlScope, ids: urlIds } = parseScopeFromSearch(routeSearch);
 
   const [selectedSession, setSelectedSession] = useState<ChatSession | null>(null);
@@ -56,7 +56,7 @@ export function ChatPage() {
       void qc.invalidateQueries({ queryKey: ["chat-sessions"] });
       setSelectedSession(session);
       // Clear the URL scope params after session creation so refresh doesn't re-create
-      void navigate({ to: "/chat", search: {}, replace: true });
+      void navigate({ to: "/chat", search: { scope: undefined, ids: undefined }, replace: true });
     },
   });
 
