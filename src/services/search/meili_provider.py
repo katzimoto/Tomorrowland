@@ -280,7 +280,7 @@ class MeilisearchSearchProvider:
             return []
 
         acl_filter = build_permission_filter(user)
-        user_filter: str = ""  # _build_user_filter(query.filters)
+        user_filter: str = _build_user_filter(query.filters)
         combined_filter = compose_filters(acl_filter, user_filter)
 
         if not user.groups:

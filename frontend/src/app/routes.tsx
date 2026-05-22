@@ -60,6 +60,10 @@ const searchRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => ({
     q: typeof search.q === "string" ? search.q : "",
     mode: typeof search.mode === "string" ? search.mode : "hybrid",
+    file_type: typeof search.file_type === "string" ? search.file_type : "",
+    tags: typeof search.tags === "string" ? search.tags : "",
+    source: typeof search.source === "string" ? search.source : "",
+    sort_by: typeof search.sort_by === "string" ? search.sort_by : "",
   }),
 });
 
