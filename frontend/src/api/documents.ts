@@ -28,6 +28,9 @@ export interface DocumentPreview {
   content_sha256?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  indexed_at?: string | null;
+  tags?: string[];
+  entities_summary?: { name: string; type: string; frequency?: number }[] | null;
   relationships?: DocumentRelationship[] | null;
 }
 

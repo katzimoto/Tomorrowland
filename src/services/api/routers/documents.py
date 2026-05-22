@@ -103,6 +103,18 @@ def preview(
             for r in raw_rels
         ] or None
 
+        intelligence_repo = IntelligenceRepository(connection)
+        preview_tags = intelligence_repo.get_tags(document_id)
+        raw_entities = intelligence_repo.get_entities(document_id)
+        entities_summary: list[dict[str, Any]] | None = (
+            [
+                {"name": e["name"], "type": e["type"], "frequency": e.get("frequency", 0)}
+                for e in raw_entities
+            ]
+            if raw_entities
+            else None
+        )
+
         return PreviewResponse(
             document_id=result["document_id"],
             title=result["title"],
@@ -122,6 +134,9 @@ def preview(
             content_sha256=doc_row.content_sha256 if doc_row else None,
             created_at=doc_row.created_at.isoformat() if doc_row else None,
             updated_at=doc_row.updated_at.isoformat() if doc_row else None,
+            indexed_at=doc_row.updated_at.isoformat() if doc_row else None,
+            tags=preview_tags,
+            entities_summary=entities_summary,
             relationships=relationships,
         )
 

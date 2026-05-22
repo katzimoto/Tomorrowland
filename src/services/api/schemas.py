@@ -61,6 +61,9 @@ class PreviewResponse(BaseModel):
     content_sha256: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    indexed_at: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    entities_summary: list[dict[str, Any]] | None = None
     relationships: list[DocumentRelationshipInfo] | None = None
 
 
