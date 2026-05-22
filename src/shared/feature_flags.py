@@ -7,7 +7,6 @@ JsonValue = bool | int | float | str
 
 SYSTEM_CONFIG_DEFAULTS: Final[MappingProxyType[str, JsonValue]] = MappingProxyType(
     {
-        "feature.document_chat": False,
         "feature.document_comments": True,
         "feature.rag_qa": True,
         "feature.summarization": True,
