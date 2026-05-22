@@ -116,16 +116,14 @@ export function AnnotationItem({ docId, annotation, currentUser }: AnnotationIte
                 </Button>
               </>
             )}
-            {replyCount > 0 || true ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                onClick={() => setShowReplies(!showReplies)}
-              >
-                {showReplies ? "Hide replies" : `Replies${replyCount > 0 ? ` (${replyCount})` : ""}`}
-              </Button>
-            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setShowReplies(!showReplies)}
+            >
+              {showReplies ? "Hide replies" : `Replies${replyCount > 0 ? ` (${replyCount})` : ""}`}
+            </Button>
           </div>
 
           {showReplies && (
