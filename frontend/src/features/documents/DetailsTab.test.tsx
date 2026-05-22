@@ -11,8 +11,7 @@ vi.mock("@/api/documents", () => ({
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...props }: Record<string, unknown>) => (
-    // eslint-disable-next-line jsx-a11y/anchor-has-content
-    <a href={(props.to as string) ?? ""} {...props}>{children as React.ReactNode}</a>
+    <a href={(props.to as string) ?? ""} {...props} aria-label="mock link">{children as React.ReactNode}</a>
   ),
   useSearch: () => ({}),
 }));

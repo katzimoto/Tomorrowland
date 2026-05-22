@@ -8,8 +8,7 @@ vi.mock("@tanstack/react-router", () => ({
     const params = new URLSearchParams(sp).toString();
     const href = `${to as string}?${params}`;
     return (
-      // eslint-disable-next-line jsx-a11y/anchor-has-content
-      <a href={href} {...props}>{children as React.ReactNode}</a>
+      <a href={href} {...props} aria-label="mock link">{children as React.ReactNode}</a>
     );
   },
   useSearch: () => ({}),
