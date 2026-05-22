@@ -642,3 +642,90 @@ class UserDocumentTagRepository:
             is_private=bool(row["is_private"]),
             created_at=row["created_at"],
         )
+
+
+class DocumentRelationshipRepository:
+    """CRUD for the document_relationships table."""
+
+    def __init__(self, connection: Connection) -> None:
+        self._connection = connection
+
+    def create_relationship(
+        self,
+        parent_id: UUID,
+        child_id: UUID,
+        relationship_type: str,
+        path_in_parent: str | None = None,
+    ) -> None:
+        """Record a parent→child relationship. No-op if it already exists."""
+        existing = self._connection.execute(
+            sa.text("""
+                SELECT 1 FROM document_relationships
+                WHERE parent_document_id = :parent_id
+                  AND child_document_id = :child_id
+                """),
+            {"parent_id": db_uuid(parent_id), "child_id": db_uuid(child_id)},
+        ).scalar_one_or_none()
+        if existing is not None:
+            return
+        self._connection.execute(
+            sa.text("""
+                INSERT INTO document_relationships
+                    (id, parent_document_id, child_document_id,
+                     relationship_type, path_in_parent)
+                VALUES
+                    (:id, :parent_id, :child_id, :type, :path)
+                """),
+            {
+                "id": db_uuid(uuid4()),
+                "parent_id": db_uuid(parent_id),
+                "child_id": db_uuid(child_id),
+                "type": relationship_type,
+                "path": path_in_parent,
+            },
+        )
+
+    def get_relationships(self, document_id: UUID) -> list[dict[str, Any]]:
+        """Return relationships for *document_id*.
+
+        Each row represents the other document's perspective:
+        - direction = 'child' when document_id is the parent
+        - direction = 'parent' when document_id is the child
+        """
+        rows = (
+            self._connection.execute(
+                sa.text("""
+                SELECT
+                    'child' AS direction,
+                    relationship_type,
+                    child_document_id AS other_id,
+                    d.title
+                FROM document_relationships r
+                JOIN documents d ON d.id = r.child_document_id
+                WHERE r.parent_document_id = :doc_id
+                UNION ALL
+                SELECT
+                    'parent' AS direction,
+                    relationship_type,
+                    parent_document_id AS other_id,
+                    d.title
+                FROM document_relationships r
+                JOIN documents d ON d.id = r.parent_document_id
+                WHERE r.child_document_id = :doc_id
+                ORDER BY direction, other_id
+                """),
+                {"doc_id": db_uuid(document_id)},
+            )
+            .mappings()
+            .all()
+        )
+        return [
+            {
+                "direction": r["direction"],
+                "relationship_type": r["relationship_type"],
+                "other_document_id": str(to_uuid(r["other_id"])),
+                "title": r["title"],
+                "path_in_parent": None,  # populated for children in a follow-up
+            }
+            for r in rows
+        ]

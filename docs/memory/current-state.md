@@ -4,12 +4,14 @@ Canonical shared memory for active project state. Keep this file compact and fac
 
 ## 2026-05-22 — Document details & advanced search track in progress (#483–#489)
 
-Status: In progress — #485 done, #486 done, #487–#489 pending
-Source: PR #493 (#485), PR #494 (#486); plan at `docs/implementation/document-details-and-search.md`
+Status: In progress — #485 done, #486 done, #487 done, #488–#489 pending
+Source: PR #493 (#485), PR #494 (#486), PR #495 (#487); plan at `docs/implementation/document-details-and-search.md`
 
 Finding:
 - **#485 done** — MarkdownPreview renderer (marked + DOMPurify), Raw/Rendered toggle, Copy button, wired into PreviewPane with MIME + extension dispatch.
 - **#486 done** — User-managed private/public document tags: `user_document_tags` table, repository, 3 API endpoints, `UserTagEditor` component in DetailsTab.
+- **#487 done** — Comments unified into annotations (migration INSERTs comments as document-level annotations), `annotation_replies` table with threaded reply CRUD, reply_count in annotation list, comments router returns 410, comments tab removed from InsightPane.
+- Remaining: #488, #483, #484, #489.
 - Remaining: #487, #488, #483, #484, #489.
 - Feature branch: `feature/document-details-and-search`. Sub-PRs target the feature branch.
 

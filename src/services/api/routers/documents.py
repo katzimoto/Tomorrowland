@@ -18,11 +18,12 @@ from services.api._helpers import (
     require_related_docs_enabled,
 )
 from services.api.main import current_user
-from services.api.schemas import PreviewResponse
+from services.api.schemas import DocumentRelationshipInfo, PreviewResponse
 from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
 from services.documents.models import UserDocumentTagCreate
 from services.documents.repository import (
+    DocumentRelationshipRepository,
     DocumentRepository,
     TranslationVersionRepository,
     UserDocumentTagRepository,
@@ -89,6 +90,19 @@ def preview(
                 raw = family_map.get(doc_row.version_family_id)
                 latest_document_id = str(raw) if raw else None
 
+        rel_repo = DocumentRelationshipRepository(connection)
+        raw_rels = rel_repo.get_relationships(document_id)
+        relationships = [
+            DocumentRelationshipInfo(
+                direction=r["direction"],
+                relationship_type=r["relationship_type"],
+                other_document_id=r["other_document_id"],
+                title=r["title"],
+                path_in_parent=r["path_in_parent"],
+            )
+            for r in raw_rels
+        ] or None
+
         return PreviewResponse(
             document_id=result["document_id"],
             title=result["title"],
@@ -108,6 +122,7 @@ def preview(
             content_sha256=doc_row.content_sha256 if doc_row else None,
             created_at=doc_row.created_at.isoformat() if doc_row else None,
             updated_at=doc_row.updated_at.isoformat() if doc_row else None,
+            relationships=relationships,
         )
 
 

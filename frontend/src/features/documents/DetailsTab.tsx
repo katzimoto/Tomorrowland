@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import type { DocumentPreview } from "@/api/documents";
 import { UserTagEditor } from "./UserTagEditor";
 import styles from "./DetailsTab.module.css";
@@ -165,6 +166,31 @@ export function DetailsTab({ preview, docId }: DetailsTabProps) {
             </button>
           </span>
         </Row>
+      )}
+
+      {preview.relationships && preview.relationships.length > 0 && (
+        <div className={styles.tagsSection}>
+          <dt className={styles.label}>Source context</dt>
+          <dd>
+            {preview.relationships.map((rel, idx) => (
+              <div key={`${rel.other_document_id}-${idx}`} className={styles.relRow}>
+                <span className={styles.relBadge}>
+                  {rel.direction === "parent" ? "Parent" : "Child"}
+                </span>
+                <Link
+                  to="/doc/$docId"
+                  params={{ docId: rel.other_document_id }}
+                  className={styles.relLink}
+                >
+                  {rel.title || rel.other_document_id.slice(0, 8)}
+                </Link>
+                {rel.path_in_parent && (
+                  <span className={styles.relPath}>in {rel.path_in_parent}</span>
+                )}
+              </div>
+            ))}
+          </dd>
+        </div>
       )}
 
       {docId && (

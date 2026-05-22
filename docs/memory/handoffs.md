@@ -461,6 +461,28 @@ Next agent prompt:
 - Check parent issue #453 for remaining MVP child issues.
 - If picking up #451 (browser-based test verification), note that virtualization rendering can only be verified in a real browser with layout.
 
+## 2026-05-22 — #487 unify comments into annotations complete
+
+Status: Done
+Source: issue #487; PR #495 (targeting feature/document-details-and-search); commit aa5f32e on 487-unify-comments-annotations
+
+What changed:
+- Migration: `annotation_replies` table + INSERT comments as document-level annotations (position=NULL).
+- Annotation replies: list_replies, create_reply, delete_reply (soft), can_modify_reply; reply_count in list_annotations.
+- Reply API: GET/POST /annotations/{id}/replies, DELETE /annotation-replies/{id}.
+- Comments router: all endpoints return 410 Gone.
+- Frontend: removed comments tab from InsightPane; AnnotationItem gains inline reply list/composer.
+
+Verification:
+- ruff/mypy clean; 9 unit + 11 integration + 9 existing + 5 migration = 34 backend tests pass; tsc clean.
+
+Open risks:
+- Vitest blocked by Node 20.9.0; comment i18n keys are now dead (no harm).
+- Branch targets feature/document-details-and-search.
+
+Next agent prompt:
+- Pick up #488 (document relationships) or #483 (expand details panel).
+
 ## 2026-05-22 — #486 user-managed private/public document tags complete
 
 Status: Done

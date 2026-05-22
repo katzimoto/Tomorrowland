@@ -83,3 +83,35 @@
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--color-border);
 }
+
+.relRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: 0.8125rem;
+}
+
+.relBadge {
+  font-size: 0.6875rem;
+  padding: 1px var(--space-1);
+  border-radius: 3px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.relLink {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.relLink:hover {
+  text-decoration: underline;
+}
+
+.relPath {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
