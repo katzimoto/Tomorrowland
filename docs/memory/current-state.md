@@ -2,6 +2,18 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-22 — Document details & advanced search track planned (#483–#489)
+
+Status: Planned — ready for OpenCode implementation
+Source: issues #483–#489; plan at `docs/implementation/document-details-and-search.md`
+
+Finding:
+- 7-issue track covering: Markdown preview (#485), user tags (#486), unify comments→annotations (#487), document relationships (#488), expand details panel (#483), advanced search (#484), clickable detail values (#489).
+- Feature branch: `feature/document-details-and-search`.
+- Parallel-safe first batch: #485, #486, #487, #488.
+- #483 enriched-but-not-blocked by #486 + #488. #489 strictly requires #483 + #484.
+- Shared-file conflict: `src/services/api/schemas.py` touched by #483 then #484 (rebase required).
+
 ## 2026-05-22 — Document viewer MVP complete (#453 closed)
 
 Status: Done
