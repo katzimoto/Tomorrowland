@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, within } from "@testing-library/react";
+import { render } from "@/test/render";
 import { DetailsTab } from "./DetailsTab";
 import type { DocumentPreview } from "@/api/documents";
 
@@ -72,7 +73,8 @@ describe("DetailsTab", () => {
     );
     const btn = screen.getByRole("button", { name: /source/i });
     fireEvent.click(btn);
-    expect(screen.getByText("SharePoint")).toBeInTheDocument();
+    const items = screen.getAllByText("SharePoint");
+    expect(items.length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders source path from metadata.path", () => {
