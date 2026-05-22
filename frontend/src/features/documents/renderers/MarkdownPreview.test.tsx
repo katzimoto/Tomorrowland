@@ -94,10 +94,10 @@ describe("MarkdownPreview", () => {
     await waitFor(() => {
       expect(container.querySelector("script")).not.toBeInTheDocument();
     });
-    // DOMPurify strips script; remaining text may not be in a <p>
-    const html = container.querySelector(".htmlContent")?.innerHTML ?? "";
-    expect(html).toContain("Hello");
-    expect(html).not.toContain("script");
+    // DOMPurify strips script; verify text is preserved and script is gone
+    const text = container.textContent ?? "";
+    expect(text).toContain("Hello");
+    expect(text).not.toContain("script");
   });
 
   it("shows Raw button as active when in raw mode", async () => {

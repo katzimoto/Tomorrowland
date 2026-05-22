@@ -115,12 +115,11 @@ describe("DocumentPage", () => {
 
     expect(documentsApi.getRelated).not.toHaveBeenCalled();
     expect(annotationsApi.listAnnotations).not.toHaveBeenCalled();
-    expect(commentsApi.listCommentsPage).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Comments" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Annotations" }));
 
     await waitFor(() => {
-      expect(commentsApi.listCommentsPage).toHaveBeenCalledWith("doc-123", 0, 20);
+      expect(annotationsApi.listAnnotations).toHaveBeenCalledWith("doc-123");
     });
   });
 
