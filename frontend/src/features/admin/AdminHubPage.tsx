@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ServerIcon, Users } from "lucide-react";
+import { ServerIcon, Users, UserCircle } from "lucide-react";
 import styles from "./AdminHubPage.module.css";
 
 export function AdminHubPage() {
@@ -7,8 +7,17 @@ export function AdminHubPage() {
   return (
     <div className={styles.page}>
       <h1 className={styles.title}>Admin</h1>
-      <p className={styles.subtitle}>Manage sources, groups, and system settings.</p>
+      <p className={styles.subtitle}>Manage sources, users, groups, and system settings.</p>
       <div className={styles.grid}>
+        <button
+          type="button"
+          className={styles.card}
+          onClick={() => navigate({ to: "/admin/users" })}
+        >
+          <UserCircle size={32} className={styles.cardIcon} />
+          <span className={styles.cardTitle}>Users</span>
+          <span className={styles.cardDesc}>View and manage users, roles, and group memberships</span>
+        </button>
         <button
           type="button"
           className={styles.card}

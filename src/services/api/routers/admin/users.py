@@ -15,6 +15,7 @@ from services.api.schemas import (
     CreateGroupRequest,
     CreateUserRequest,
     UpdateGroupRequest,
+    UpdateUserRequest,
 )
 from services.auth.models import TokenPayload
 from services.auth.passwords import hash_password
@@ -146,6 +147,95 @@ def admin_get_user(
             "created_at": _fmt_dt(row["created_at"]),
             "groups": [{"id": str(to_uuid(g["id"])), "name": g["name"]} for g in groups],
         }
+
+
+@router.patch("/admin/users/{user_id}")
+def admin_update_user(
+    user_id: UUID,
+    body: UpdateUserRequest,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    require_admin(user)
+    if body.display_name is None and body.is_admin is None:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    _user_select = sa.text(
+        "SELECT id, email, display_name, auth_source, is_admin, created_at"
+        " FROM users WHERE id = :id"
+    )
+
+    with request.app.state.engine.begin() as connection:
+        row = connection.execute(_user_select, {"id": user_id.hex}).mappings().first()
+        if row is None:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        updates: list[str] = []
+        params: dict[str, Any] = {"id": user_id.hex}
+        details: dict[str, Any] = {}
+
+        if body.display_name is not None and body.display_name != row["display_name"]:
+            updates.append("display_name = :display_name")
+            params["display_name"] = body.display_name
+            details["display_name"] = body.display_name
+
+        if body.is_admin is not None and body.is_admin != row["is_admin"]:
+            if not body.is_admin:
+                admin_count = connection.execute(
+                    sa.text("SELECT COUNT(*) FROM users WHERE is_admin = TRUE")
+                ).scalar()
+                if admin_count <= 1:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Cannot remove admin role from the last admin",
+                    )
+            updates.append("is_admin = :is_admin")
+            params["is_admin"] = body.is_admin
+            details["is_admin"] = body.is_admin
+
+        if not updates:
+            return _format_user_row(row, connection)
+
+        connection.execute(
+            sa.text(f"UPDATE users SET {', '.join(updates)} WHERE id = :id"),
+            params,
+        )
+        _audit_log(
+            connection,
+            user.sub,
+            "update",
+            "user",
+            str(user_id),
+            details,
+        )
+
+        row = connection.execute(_user_select, {"id": user_id.hex}).mappings().first()
+        return _format_user_row(row, connection)
+
+
+def _format_user_row(row: sa.RowMapping, connection: sa.Connection) -> dict[str, Any]:
+    groups = (
+        connection.execute(
+            sa.text("""
+                SELECT g.id, g.name
+                FROM user_groups ug
+                JOIN groups g ON g.id = ug.group_id
+                WHERE ug.user_id = :user_id
+                ORDER BY g.name
+            """),
+            {"user_id": row["id"]},
+        )
+        .mappings()
+        .all()
+    )
+    return {
+        "id": str(to_uuid(row["id"])),
+        "email": row["email"],
+        "display_name": row["display_name"],
+        "auth_source": row["auth_source"],
+        "is_admin": row["is_admin"],
+        "created_at": _fmt_dt(row["created_at"]),
+        "groups": [{"id": str(to_uuid(g["id"])), "name": g["name"]} for g in groups],
+    }
 
 
 @router.put("/admin/users/{user_id}/groups")

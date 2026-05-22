@@ -111,6 +111,11 @@ class AdminUpdateUserGroupsRequest(BaseModel):
     group_names: list[str]
 
 
+class UpdateUserRequest(BaseModel):
+    display_name: str | None = None
+    is_admin: bool | None = None
+
+
 class AddUserToGroupRequest(BaseModel):
     user_id: str
 

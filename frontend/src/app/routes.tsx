@@ -16,6 +16,8 @@ import { AdminSourceDetailPage } from "@/features/admin/AdminSourceDetailPage";
 import { AdminAddSourceWizard } from "@/features/admin/AdminAddSourceWizard";
 import { AdminGroupsPage } from "@/features/admin/AdminGroupsPage";
 import { AdminGroupDetailPage } from "@/features/admin/AdminGroupDetailPage";
+import { AdminUsersPage } from "@/features/admin/AdminUsersPage";
+import { AdminUserDetailPage } from "@/features/admin/AdminUserDetailPage";
 import { AppLayout } from "./AppLayout";
 
 function requireAuth() {
@@ -157,6 +159,18 @@ const adminGroupDetailRoute = createRoute({
   component: AdminGroupDetailPage,
 });
 
+const adminUsersRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/users",
+  component: AdminUsersPage,
+});
+
+const adminUserDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/users/$userId",
+  component: AdminUserDetailPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -176,6 +190,8 @@ const routeTree = rootRoute.addChildren([
     adminSourceDetailRoute,
     adminGroupsRoute,
     adminGroupDetailRoute,
+    adminUsersRoute,
+    adminUserDetailRoute,
   ]),
 ]);
 

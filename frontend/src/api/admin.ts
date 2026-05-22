@@ -103,6 +103,8 @@ export const adminApi = {
     api.put(`/admin/sources/${sourceId}`, payload),
   listUsers: () => api.get<UserDetail[]>("/admin/users"),
   getUser: (userId: string) => api.get<UserDetail>(`/admin/users/${userId}`),
+  updateUser: (userId: string, payload: { display_name?: string | null; is_admin?: boolean | null }) =>
+    api.patch<UserDetail>(`/admin/users/${userId}`, payload),
   setUserGroups: (userId: string, groupNames: string[]) =>
     api.put(`/admin/users/${userId}/groups`, { group_names: groupNames }),
   createGroup: (name: string) =>

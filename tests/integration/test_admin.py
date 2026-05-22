@@ -144,6 +144,107 @@ def test_admin_delete_nonexistent_user_returns_404(migrated_engine: Engine) -> N
     assert response.status_code == 404
 
 
+# PATCH user
+
+
+def test_admin_update_user_display_name(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    users = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"}).json()
+    target = [u for u in users if u["email"] == "user@example.com"][0]
+
+    response = client.patch(
+        f"/admin/users/{target['id']}",
+        json={"display_name": "Updated User"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["display_name"] == "Updated User"
+
+
+def test_admin_update_user_admin_role(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    users = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"}).json()
+    target = [u for u in users if u["email"] == "user@example.com"][0]
+
+    response = client.patch(
+        f"/admin/users/{target['id']}",
+        json={"is_admin": True},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["is_admin"] == True
+
+
+def test_admin_update_user_no_fields_returns_400(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    users = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"}).json()
+    target = [u for u in users if u["email"] == "user@example.com"][0]
+
+    response = client.patch(
+        f"/admin/users/{target['id']}",
+        json={},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+
+
+def test_admin_update_nonexistent_user_returns_404(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.patch(
+        f"/admin/users/{uuid4()}",
+        json={"display_name": "Ghost"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 404
+
+
+def test_admin_cannot_remove_last_admin(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    users = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"}).json()
+    admin_local = [u for u in users if u["email"] == "admin@local.com"][0]
+
+    # Delete admin@local.com so admin@example.com is the sole admin
+    client.delete(
+        f"/admin/users/{admin_local['id']}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    # Now try to remove admin role from the last admin
+    admin_user = [u for u in users if u["email"] == "admin@example.com"][0]
+    response = client.patch(
+        f"/admin/users/{admin_user['id']}",
+        json={"is_admin": False},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+    assert "last admin" in response.json()["detail"].lower()
+
+
 # Groups
 
 
