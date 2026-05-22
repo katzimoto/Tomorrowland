@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { DocumentPreview } from "@/api/documents";
 import { UserTagEditor } from "./UserTagEditor";
+import { FilterLink } from "./FilterLink";
 import styles from "./DetailsTab.module.css";
 
 const MIME_LABELS: Record<string, string> = {
@@ -174,9 +175,9 @@ export function DetailsTab({ preview, docId }: DetailsTabProps) {
               {preview.title && <Row label="File name">{preview.title}</Row>}
               <Row label="File type">{mimeLabel(preview.mime_type)}</Row>
               <Row label="MIME type">
-                <code className={styles.code}>{preview.mime_type}</code>
+                <code className={styles.code}><FilterLink field="file_type" value={preview.mime_type}>{preview.mime_type}</FilterLink></code>
               </Row>
-              {extension && <Row label="Extension">{extension}</Row>}
+              {extension && <Row label="Extension"><FilterLink field="file_extension" value={extension} /></Row>}
               {fileSize != null && (
                 <Row label="File size">{formatFileSize(fileSize)}</Row>
               )}
@@ -195,7 +196,7 @@ export function DetailsTab({ preview, docId }: DetailsTabProps) {
           />
           {openSections["source"] && (
             <dl className={styles.list}>
-              {source && <Row label="Source">{source}</Row>}
+              {source && <Row label="Source"><FilterLink field="source" value={source} /></Row>}
               {sourcePath && (
                 <Row label="Source path">
                   <span
@@ -302,7 +303,9 @@ export function DetailsTab({ preview, docId }: DetailsTabProps) {
                 <Row label="System tags">
                   <div className={styles.tagList}>
                     {systemTags.map((tag) => (
-                      <span key={tag} className={styles.tagChip}>{tag}</span>
+                      <FilterLink key={tag} field="tags" value={tag}>
+                        <span className={styles.tagChip}>{tag}</span>
+                      </FilterLink>
                     ))}
                   </div>
                 </Row>
@@ -311,7 +314,9 @@ export function DetailsTab({ preview, docId }: DetailsTabProps) {
                 <Row label="Entities">
                   {entities.map((e, i) => (
                     <div key={i} className={styles.entityRow}>
-                      <span className={styles.entityName}>{e.name}</span>
+                      <FilterLink field="tags" value={e.name}>
+                        <span className={styles.entityName}>{e.name}</span>
+                      </FilterLink>
                       <span className={styles.entityType}>({e.type})</span>
                     </div>
                   ))}
