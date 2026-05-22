@@ -10,8 +10,8 @@ vi.mock("@/api/documents", () => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, ...props }: Record<string, unknown>) => (
-    <a href={(props.to as string) ?? ""} {...props} aria-label="mock link">{children as React.ReactNode}</a>
+  Link: ({ children, ...rest }: Record<string, unknown>) => (
+    <a href={(rest.to as string) ?? ""} {...rest}>{children as React.ReactNode}</a>
   ),
   useSearch: () => ({}),
 }));
@@ -70,8 +70,8 @@ describe("DetailsTab", () => {
         preview={{ ...basePreview, metadata: { connector_name: "SharePoint", path: "/a/b" } }}
       />
     );
-    // Source section starts collapsed; click to open
-    fireEvent.click(screen.getByText("Source"));
+    const btn = screen.getByRole("button", { name: /source/i });
+    fireEvent.click(btn);
     expect(screen.getByText("SharePoint")).toBeInTheDocument();
   });
 
@@ -81,8 +81,14 @@ describe("DetailsTab", () => {
         preview={{ ...basePreview, metadata: { source: "Local", path: "/docs/reports/a.pdf" } }}
       />
     );
-    fireEvent.click(screen.getByText("Source"));
+    const btn = screen.getByRole("button", { name: /source/i });
+    fireEvent.click(btn);
     expect(screen.getByText(/docs\/reports\/a.pdf/)).toBeInTheDocument();
+  });
+
+  it("renders My Tags section when docId is provided", () => {
+    render(<DetailsTab preview={basePreview} docId="doc-1" />);
+    expect(screen.getByText("My Tags")).toBeInTheDocument();
   });
 
   it("renders processing details when Processing section is opened", () => {

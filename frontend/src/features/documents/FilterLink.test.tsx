@@ -3,12 +3,11 @@ import { screen } from "@testing-library/react";
 import { render } from "@/test/render";
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to, search, ...props }: Record<string, unknown>) => {
-    const sp = search as Record<string, string>;
-    const params = new URLSearchParams(sp).toString();
-    const href = `${to as string}?${params}`;
+  Link: ({ children, to, search, ...rest }: Record<string, unknown>) => {
+    const sp = (search ?? {}) as Record<string, string>;
+    const qs = new URLSearchParams(sp).toString();
     return (
-      <a href={href} {...props} aria-label="mock link">{children as React.ReactNode}</a>
+      <a href={`${to as string}?${qs}`} {...rest}>{children as React.ReactNode}</a>
     );
   },
   useSearch: () => ({}),
