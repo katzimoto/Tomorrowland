@@ -461,6 +461,29 @@ Next agent prompt:
 - Check parent issue #453 for remaining MVP child issues.
 - If picking up #451 (browser-based test verification), note that virtualization rendering can only be verified in a real browser with layout.
 
+## 2026-05-22 — #488 document relationships complete
+
+Status: Done
+Source: issue #488; PR #496 (targeting feature/document-details-and-search); commit c3cd4a0 on 488-document-relationships
+
+What changed:
+- Migration: `document_relationships` table with unique constraint on (parent, child).
+- `DocumentRelationshipRepository`: create_relationship (idempotent), get_relationships (UNION both directions).
+- Pipeline: worker records `email_attachment` or `archive_child` relationships after child doc creation.
+- PreviewResponse extended with `relationships` field.
+- DetailsTab: "Source context" section with parent/child badges + linked titles.
+
+Verification:
+- ruff/mypy/tsc clean; 7 unit + 3 integration tests pass.
+- Branch targets feature/document-details-and-search.
+
+Open risks:
+- Relationship population only happens for newly ingested docs (no retroactive backfill).
+- Vitest blocked by Node 20.9.0.
+
+Next agent prompt:
+- Pick up #483 (expand details panel) or #484 (advanced search).
+
 ## 2026-05-22 — #487 unify comments into annotations complete
 
 Status: Done
