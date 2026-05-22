@@ -66,26 +66,24 @@ Finding:
 - pip CVEs (CVE-2025-8869, CVE-2026-1703, CVE-2026-3219, CVE-2026-6357) are infrastructure-only — CI runner already has pip 26.1.1.
 - Fix: added `--ignore-vuln PYSEC-2025-183` to pip-audit command in security.yml.
 
-## 2026-05-21 — Vector embedding context-length safety (#468)
+## 2026-05-22 — Vector embedding context-length safety (#468)
 
-Status: Active
-Source: issue #468
+Status: Done
+Source: issue #468; commit 30bc196 merged to `main`
 
 Finding:
-- `chunk_text()` splits by word count (default 512 words), but embedding models tokenize at sub-word level — a 512-word chunk can exceed model context length.
-- Ollama's `/api/embed` returns `"input length exceeds the context length"` for oversized chunks.
-- Error repeats deterministically across 5 retries before dead-lettering — affected documents get incomplete Qdrant coverage.
-- Fix adds token-estimation (chars/3 heuristic) in chunking, defensive max-tokens guard in encoder, and permanent-error classification for ValueError in workers.
+- `chunk_text()` accepts `max_tokens` param; oversized chunks split via token-estimate heuristic (chars/4).
+- OllamaEmbeddingEncoder validates text token count before API call, catches 400 as ValueError.
+- ValueError dead-letters immediately in vector_worker (permanent error).
+- PipelineWorker threads `embedding_max_tokens` to chunking calls.
 - New config: `EMBEDDING_MAX_TOKENS` (default 1024).
+- Verified: ruff check, ruff format, mypy (strict) — all clean.
+- Tests: 19 chunking + 32 encoder/worker tests pass.
 
 Impact:
 - Oversized chunks are recursively split before reaching the encoder.
 - Encoder validates each text's estimated token count before API call.
 - ValueError (context-length exceeded) dead-letters immediately instead of retrying 5 times.
-
-Next action:
-- Complete implementation: ruff format, mypy, pytest.
-- Open PR targeting `main`.
 
 ## 2026-05-21 — Document Chat feature in progress (#471–#478)
 
