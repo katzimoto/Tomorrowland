@@ -105,14 +105,14 @@
     "semantic_hash": "188a017cdb2d821affe2dc1013313f9d"
   },
   "/home/user/projects/Tomorrowland/src/shared/config.py": {
-    "mtime": 1779385465.0742304,
-    "ast_hash": "3ac25d14d275f5c0d95c869b45737570",
-    "semantic_hash": "3ac25d14d275f5c0d95c869b45737570"
+    "mtime": 1779469690.082432,
+    "ast_hash": "d8612d4bf1bae484d79b38b0e9009348",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/src/shared/feature_flags.py": {
-    "mtime": 1779449054.1440625,
-    "ast_hash": "bc938ff1819a3555a11cdff9b6e3c93d",
-    "semantic_hash": "bc938ff1819a3555a11cdff9b6e3c93d"
+    "mtime": 1779469690.082432,
+    "ast_hash": "1e53a21c38d46e2c3b474333de9eb040",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/src/shared/db.py": {
     "mtime": 1779215797.9832985,
@@ -175,9 +175,9 @@
     "semantic_hash": "9d8a80f7dcc6828a6af56d134004bc9f"
   },
   "/home/user/projects/Tomorrowland/src/services/intelligence/ollama_client.py": {
-    "mtime": 1779215797.9792917,
-    "ast_hash": "846326cbb5465a4ed62d37a0fd57fab5",
-    "semantic_hash": "846326cbb5465a4ed62d37a0fd57fab5"
+    "mtime": 1779469690.082432,
+    "ast_hash": "dcfd80c010c3373bfcb61e533ff986dd",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/src/services/intelligence/__init__.py": {
     "mtime": 1779215797.9792917,
@@ -190,14 +190,14 @@
     "semantic_hash": "dc26daf636fba094f2c1556f40775726"
   },
   "/home/user/projects/Tomorrowland/src/services/rag/service.py": {
-    "mtime": 1779394631.4831276,
-    "ast_hash": "5ac58b0fa10c3f4e8b08a578f9e3e2a1",
-    "semantic_hash": "5ac58b0fa10c3f4e8b08a578f9e3e2a1"
+    "mtime": 1779469690.082432,
+    "ast_hash": "46ba357f980befe82fbd35d559ff4035",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/src/services/rag/reranker.py": {
-    "mtime": 1779220947.1402333,
-    "ast_hash": "0105b52ea30af0451980e15dc87ca797",
-    "semantic_hash": "0105b52ea30af0451980e15dc87ca797"
+    "mtime": 1779469690.082432,
+    "ast_hash": "55889dbe59e20d67e681061387dc8217",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/src/services/rag/__init__.py": {
     "mtime": 1779220947.1402333,
@@ -205,9 +205,9 @@
     "semantic_hash": "f3236f95203f1cde6358edc621c36033"
   },
   "/home/user/projects/Tomorrowland/src/services/rag/models.py": {
-    "mtime": 1779384635.2283251,
-    "ast_hash": "b72cc9efb13f212ef895b447595efca8",
-    "semantic_hash": "b72cc9efb13f212ef895b447595efca8"
+    "mtime": 1779469690.082432,
+    "ast_hash": "bb7caf10d62d2448000eb4dd7a86375d",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/src/services/comments/repository.py": {
     "mtime": 1779215797.9772882,
@@ -270,7 +270,7 @@
     "semantic_hash": "c72ac80e9c8463d827cd1add9ba61dfa"
   },
   "/home/user/projects/Tomorrowland/src/services/api/main.py": {
-    "mtime": 1779385497.0322893,
+    "mtime": 1779469690.081432,
     "ast_hash": "b8c2d981b970a631e24f7a93ba024d1b",
     "semantic_hash": "b8c2d981b970a631e24f7a93ba024d1b"
   },
@@ -315,9 +315,9 @@
     "semantic_hash": "7b0e455bdb6fcac75a82b345635fa1eb"
   },
   "/home/user/projects/Tomorrowland/src/services/api/routers/chat.py": {
-    "mtime": 1779449063.3020678,
-    "ast_hash": "6bbe9812cefc2c2583499fa6e45903a2",
-    "semantic_hash": "6bbe9812cefc2c2583499fa6e45903a2"
+    "mtime": 1779469690.081432,
+    "ast_hash": "b96b8c0a4871e179235b780232fdd9bb",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/src/services/api/routers/annotations.py": {
     "mtime": 1779215797.9762866,
@@ -330,7 +330,7 @@
     "semantic_hash": "6a8f6516cc8c808515913d5c9d15f553"
   },
   "/home/user/projects/Tomorrowland/src/services/api/routers/qa.py": {
-    "mtime": 1779384635.2283251,
+    "mtime": 1779469690.081432,
     "ast_hash": "97bcba7a628018584707c04be7b72fe1",
     "semantic_hash": "97bcba7a628018584707c04be7b72fe1"
   },
@@ -415,17 +415,17 @@
     "semantic_hash": "fc3c938f635cae16e3f71693c830f5c8"
   },
   "/home/user/projects/Tomorrowland/src/services/chat/repository.py": {
-    "mtime": 1779385362.3570938,
+    "mtime": 1779469690.082432,
     "ast_hash": "6f92cfb7e865d1747f05b146bd4841ce",
     "semantic_hash": "6f92cfb7e865d1747f05b146bd4841ce"
   },
   "/home/user/projects/Tomorrowland/src/services/chat/__init__.py": {
-    "mtime": 1779385169.2080586,
-    "ast_hash": "a668253ceb278e5263c2dd8a9835b82f",
-    "semantic_hash": "a668253ceb278e5263c2dd8a9835b82f"
+    "mtime": 1779469690.082432,
+    "ast_hash": "b952767e1339031da0efe15361982033",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/src/services/chat/models.py": {
-    "mtime": 1779394592.66677,
+    "mtime": 1779469690.082432,
     "ast_hash": "4ded2f2484735ee23f7eec592fff6785",
     "semantic_hash": "4ded2f2484735ee23f7eec592fff6785"
   },
@@ -560,9 +560,9 @@
     "semantic_hash": "1de2b02539c4db7c9a9e2d1ef0fcc8ff"
   },
   "/home/user/projects/Tomorrowland/src/services/search/qdrant.py": {
-    "mtime": 1779394419.5536094,
-    "ast_hash": "8118c3c5cb395906e59949e122b18b38",
-    "semantic_hash": "8118c3c5cb395906e59949e122b18b38"
+    "mtime": 1779469690.082432,
+    "ast_hash": "33b1f52d3b2babfe924259078352f2ba",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/src/services/search/meili_rollout.py": {
     "mtime": 1779215797.9822967,
@@ -605,9 +605,9 @@
     "semantic_hash": "28abb2a0c4e86474e084b3bf7dd81c88"
   },
   "/home/user/projects/Tomorrowland/src/services/search/meili_provider.py": {
-    "mtime": 1779220947.1402333,
-    "ast_hash": "0b105d3e0e09a1f316018aafc03ab0ab",
-    "semantic_hash": "0b105d3e0e09a1f316018aafc03ab0ab"
+    "mtime": 1779469690.082432,
+    "ast_hash": "9bd185dc512f4f580334d13c3cf611bb",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/src/services/search/models.py": {
     "mtime": 1779215797.9822967,
@@ -745,9 +745,9 @@
     "semantic_hash": "3a1c9f56c5c2fb247722a2e558864e8b"
   },
   "/home/user/projects/Tomorrowland/.opencode/opencode.json": {
-    "mtime": 1779351652.851412,
-    "ast_hash": "e9f07066a97175a83c59b201124e55b2",
-    "semantic_hash": "e9f07066a97175a83c59b201124e55b2"
+    "mtime": 1779462815.9592657,
+    "ast_hash": "523801e8816e1b9ac00388d2ce3df6e6",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/migrations/env.py": {
     "mtime": 1779215797.9632647,
@@ -760,7 +760,7 @@
     "semantic_hash": "687e7d94b19169db5506a2f2ff60f467"
   },
   "/home/user/projects/Tomorrowland/migrations/versions/k1l2m3n4o5p6_add_chat_sessions_table.py": {
-    "mtime": 1779385000.3917544,
+    "mtime": 1779469690.081432,
     "ast_hash": "65bc3ec7e1a7965913a25f9a5057cfad",
     "semantic_hash": "65bc3ec7e1a7965913a25f9a5057cfad"
   },
@@ -825,7 +825,7 @@
     "semantic_hash": "ee5d31236c0c193b2b2747f7b5daa835"
   },
   "/home/user/projects/Tomorrowland/migrations/versions/q7r8s9t0u1v2_add_chat_messages_table.py": {
-    "mtime": 1779385023.7661715,
+    "mtime": 1779469690.081432,
     "ast_hash": "853d30abb662000d29a86692e79cb147",
     "semantic_hash": "853d30abb662000d29a86692e79cb147"
   },
@@ -1020,7 +1020,7 @@
     "semantic_hash": "b340e91987eff9628e50f1739aa84fce"
   },
   "/home/user/projects/Tomorrowland/tests/unit/test_chat_repository.py": {
-    "mtime": 1779392936.689798,
+    "mtime": 1779469690.0834322,
     "ast_hash": "6a36a8449bec14afc272ea5a320278c4",
     "semantic_hash": "6a36a8449bec14afc272ea5a320278c4"
   },
@@ -1100,9 +1100,9 @@
     "semantic_hash": "ad76f5b251c24353a9c757170ee39067"
   },
   "/home/user/projects/Tomorrowland/tests/unit/test_rag_reranker.py": {
-    "mtime": 1779220947.1412332,
-    "ast_hash": "cb580ba66264293a3b3c2d712b2e96c9",
-    "semantic_hash": "cb580ba66264293a3b3c2d712b2e96c9"
+    "mtime": 1779469690.0834322,
+    "ast_hash": "4f84aa39c3a5b4bb880a2760e8a9fecc",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/tests/unit/test_index_worker.py": {
     "mtime": 1779215797.9873052,
@@ -1145,9 +1145,9 @@
     "semantic_hash": "dc9d81055d475c286436356f15d0be7c"
   },
   "/home/user/projects/Tomorrowland/tests/unit/test_chat_service.py": {
-    "mtime": 1779394569.7369642,
-    "ast_hash": "c9d57f4799193ee5003144d1220e8030",
-    "semantic_hash": "c9d57f4799193ee5003144d1220e8030"
+    "mtime": 1779469690.0834322,
+    "ast_hash": "4d487fda9337ba27e2f8ee634eb92aa0",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/tests/unit/test_rag_retrieval_eval.py": {
     "mtime": 1779220947.1412332,
@@ -1355,7 +1355,7 @@
     "semantic_hash": "beaaf7753c04af695722f0c6249c30b4"
   },
   "/home/user/projects/Tomorrowland/tests/integration/test_chat_api.py": {
-    "mtime": 1779394605.7542286,
+    "mtime": 1779469690.0834322,
     "ast_hash": "3c7fac42df44ec98b176271ad72a3bd1",
     "semantic_hash": "3c7fac42df44ec98b176271ad72a3bd1"
   },
@@ -1510,62 +1510,62 @@
     "semantic_hash": "8ba38fa3f9a75f84d339226b62d3f8f6"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/chat/MessageList.tsx": {
-    "mtime": 1779391109.7538638,
-    "ast_hash": "c6eef99c2506d2d84b1cff3d813a769d",
-    "semantic_hash": "c6eef99c2506d2d84b1cff3d813a769d"
+    "mtime": 1779469690.0284312,
+    "ast_hash": "785c09f69d3cb71f73a1bd07c360aa86",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/chat/MessageBubble.tsx": {
-    "mtime": 1779391098.452711,
-    "ast_hash": "3f729aa673782609f2cbc5708a1d283a",
-    "semantic_hash": "3f729aa673782609f2cbc5708a1d283a"
+    "mtime": 1779469690.0274312,
+    "ast_hash": "41ded301b11b28ab257447690bb2294d",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/chat/ScopeBadge.tsx": {
-    "mtime": 1779396070.2041094,
+    "mtime": 1779469690.0284312,
     "ast_hash": "19c7812085b84c24820ebc510a5bb054",
     "semantic_hash": "19c7812085b84c24820ebc510a5bb054"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/chat/ChatCitationCard.tsx": {
-    "mtime": 1779391073.2866926,
-    "ast_hash": "74eccb8c5aeea9975ecc1d1471fa7405",
-    "semantic_hash": "74eccb8c5aeea9975ecc1d1471fa7405"
+    "mtime": 1779469690.026431,
+    "ast_hash": "f4f8be7d26a41800e1a18258f96b9133",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/chat/DocumentChatPanel.tsx": {
-    "mtime": 1779396167.373032,
-    "ast_hash": "2e584ba7d0f56ba5ef14f74fd097d7f3",
-    "semantic_hash": "2e584ba7d0f56ba5ef14f74fd097d7f3"
+    "mtime": 1779469690.0274312,
+    "ast_hash": "aeb72d3399d7eccdc9c64c327a46155d",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/chat/ScopeSelector.tsx": {
-    "mtime": 1779396090.869624,
+    "mtime": 1779469690.0284312,
     "ast_hash": "3caa4096796838ed599212ba12bd8605",
     "semantic_hash": "3caa4096796838ed599212ba12bd8605"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/chat/ChatPage.test.tsx": {
-    "mtime": 1779396359.7082193,
-    "ast_hash": "26c07da634cd60e579bd89ad29605c85",
-    "semantic_hash": "26c07da634cd60e579bd89ad29605c85"
+    "mtime": 1779469690.026431,
+    "ast_hash": "e79511f1ce6cb1fa51b5a299ba5b7821",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/chat/ChatPage.tsx": {
-    "mtime": 1779396144.531475,
-    "ast_hash": "0c99c7a86e3957f060ff4f8ca3fd3f39",
-    "semantic_hash": "0c99c7a86e3957f060ff4f8ca3fd3f39"
+    "mtime": 1779469690.026431,
+    "ast_hash": "00d3cb4fe0ae6922acf539221f3baea8",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/chat/ChatInput.tsx": {
-    "mtime": 1779391119.398057,
-    "ast_hash": "909b5e307fc02f6f96ab2c8476821bcf",
-    "semantic_hash": "909b5e307fc02f6f96ab2c8476821bcf"
+    "mtime": 1779469690.026431,
+    "ast_hash": "77aea24464d7f93280489025aebf8dd6",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/chat/ChatCitationList.tsx": {
-    "mtime": 1779391087.2276447,
+    "mtime": 1779469690.026431,
     "ast_hash": "e4cb3f287a076acff88b756d12423f8c",
     "semantic_hash": "e4cb3f287a076acff88b756d12423f8c"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/chat/ChatWindow.tsx": {
-    "mtime": 1779396124.7838798,
-    "ast_hash": "1ea0ba38dcdf1a5dd900fe7cd8dcc949",
-    "semantic_hash": "1ea0ba38dcdf1a5dd900fe7cd8dcc949"
+    "mtime": 1779469690.0274312,
+    "ast_hash": "cb2eac5f53b901d11e0d5fc6b3387e26",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/chat/ChatSidebar.tsx": {
-    "mtime": 1779391163.527565,
+    "mtime": 1779469690.0274312,
     "ast_hash": "d53cd00363d6c63289e6b0d82889b207",
     "semantic_hash": "d53cd00363d6c63289e6b0d82889b207"
   },
@@ -1645,7 +1645,7 @@
     "semantic_hash": "601b9f43c60e0c0a44d02da56a69f194"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/InsightPane.tsx": {
-    "mtime": 1779396315.2397394,
+    "mtime": 1779469690.0294313,
     "ast_hash": "0cee5c2e72a0ec651d7c381e8332bbcd",
     "semantic_hash": "0cee5c2e72a0ec651d7c381e8332bbcd"
   },
@@ -1710,14 +1710,14 @@
     "semantic_hash": "d803f445d56b4630f5ac6a1340a856b1"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/InsightPane.test.tsx": {
-    "mtime": 1779396379.684008,
-    "ast_hash": "4fdb23fe7fe56c43eb2c27f15f2d3ff7",
-    "semantic_hash": "4fdb23fe7fe56c43eb2c27f15f2d3ff7"
+    "mtime": 1779469690.0294313,
+    "ast_hash": "b7af2bfdbd9790126ac5ecd6e9478efa",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/PreviewPane.test.tsx": {
-    "mtime": 1779357637.1151683,
-    "ast_hash": "49d398bfc8d6171476dd4793de539c46",
-    "semantic_hash": "49d398bfc8d6171476dd4793de539c46"
+    "mtime": 1779469690.0294313,
+    "ast_hash": "10b5c5318fca3b36f7b4c3a1c9f7e888",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/TrustDisplay.test.tsx": {
     "mtime": 1779215797.9572544,
@@ -1730,7 +1730,7 @@
     "semantic_hash": "ab7c35a43828287f18c688f1a6b1d293"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/insightPaneTabs.ts": {
-    "mtime": 1779396181.2677753,
+    "mtime": 1779469690.0294313,
     "ast_hash": "4d0177bd56a0ab578f866125474e10ee",
     "semantic_hash": "4d0177bd56a0ab578f866125474e10ee"
   },
@@ -1740,9 +1740,9 @@
     "semantic_hash": "c58468b2bce9e235263fab0c9e0dd471"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/DocumentPage.test.tsx": {
-    "mtime": 1779357637.1141684,
-    "ast_hash": "a81488dddcff7ea67a96bd05a9367c15",
-    "semantic_hash": "a81488dddcff7ea67a96bd05a9367c15"
+    "mtime": 1779469690.0284312,
+    "ast_hash": "7bb0727ecd65d8439ae96647b7f873a0",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/FidelityStatusBar.tsx": {
     "mtime": 1779357637.1151683,
@@ -1765,9 +1765,9 @@
     "semantic_hash": "fb97925541b8ae4b3f610d16c3f9cf9c"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/DocumentPage.tsx": {
-    "mtime": 1779357637.1141684,
-    "ast_hash": "3dc44148cce361784a87327d016b5d41",
-    "semantic_hash": "3dc44148cce361784a87327d016b5d41"
+    "mtime": 1779469690.0284312,
+    "ast_hash": "000022a3b757deb89d1bfe9920c20734",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/LoadingTimeoutPreview.tsx": {
     "mtime": 1779215797.9572544,
@@ -1780,9 +1780,9 @@
     "semantic_hash": "038075c153a99de76f6f5b0fa14518fb"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/EmailPreview.tsx": {
-    "mtime": 1779360393.494985,
-    "ast_hash": "c42259b76791858ec160aa0d27b628d1",
-    "semantic_hash": "c42259b76791858ec160aa0d27b628d1"
+    "mtime": 1779469690.0294313,
+    "ast_hash": "ce9fce1d113e1602ea27d7cd12410492",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/SlidesPreview.tsx": {
     "mtime": 1779360402.7610078,
@@ -1790,19 +1790,19 @@
     "semantic_hash": "0ef929030eaf6f17c88827e7e02657c7"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/TextPreview.test.tsx": {
-    "mtime": 1779357637.1171684,
-    "ast_hash": "2932e6b32f5adde5b245cc8c8bd15b3a",
-    "semantic_hash": "2932e6b32f5adde5b245cc8c8bd15b3a"
+    "mtime": 1779469690.0304313,
+    "ast_hash": "7a47516fccbc8c8d65126ce858dd281f",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/ArchivePreview.test.tsx": {
-    "mtime": 1779215797.9572544,
-    "ast_hash": "4e6e1d5a71c437f67a8411d25bc9811b",
-    "semantic_hash": "4e6e1d5a71c437f67a8411d25bc9811b"
+    "mtime": 1779469690.0294313,
+    "ast_hash": "029d3bfd4f311c388b1379c5d0c6a236",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/PdfViewer.tsx": {
-    "mtime": 1779360445.5101154,
-    "ast_hash": "5b649326621acc36a46e0d566b4602cb",
-    "semantic_hash": "5b649326621acc36a46e0d566b4602cb"
+    "mtime": 1779469690.0304313,
+    "ast_hash": "a04797f41857da6e647c7442d01e1e50",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/ImageViewer.tsx": {
     "mtime": 1779357637.1161685,
@@ -1845,19 +1845,19 @@
     "semantic_hash": "46ab36b2a7b0ef4f6e499a172438a99a"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/TablePreview.tsx": {
-    "mtime": 1779360385.5159657,
-    "ast_hash": "01ed78bb7e7d51bae639e21e08bc7955",
-    "semantic_hash": "01ed78bb7e7d51bae639e21e08bc7955"
+    "mtime": 1779469690.0304313,
+    "ast_hash": "16e715ae5688eb5eee98ae3260ec2e2a",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/PdfViewer.test.tsx": {
-    "mtime": 1779357637.1161685,
-    "ast_hash": "e1172f1160afe52ecb18baa4bc022474",
-    "semantic_hash": "e1172f1160afe52ecb18baa4bc022474"
+    "mtime": 1779469690.0294313,
+    "ast_hash": "20f7d7b9ed468581cef26966a06bc2b8",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/TablePreview.test.tsx": {
-    "mtime": 1779357637.1161685,
-    "ast_hash": "c5acea16dafd164826d83c289f661a4b",
-    "semantic_hash": "c5acea16dafd164826d83c289f661a4b"
+    "mtime": 1779469690.0304313,
+    "ast_hash": "a4257346d00a04642df4a891d2eab494",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/ExtractionFailedPreview.tsx": {
     "mtime": 1779215797.9572544,
@@ -1910,29 +1910,29 @@
     "semantic_hash": "75643e467c7608b83a8cd1001f414c2d"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/qa/QAPage.tsx": {
-    "mtime": 1779215797.9592578,
-    "ast_hash": "8fff54c424b7481f5719fe87a0db12a9",
-    "semantic_hash": "8fff54c424b7481f5719fe87a0db12a9"
+    "mtime": 1779469690.0304313,
+    "ast_hash": "625d71193f8d150021a552725b6e98f8",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/qa/QAPanel.test.tsx": {
-    "mtime": 1779215797.9592578,
-    "ast_hash": "ff33923b0e5ac5d491768c3b2d89e83a",
-    "semantic_hash": "ff33923b0e5ac5d491768c3b2d89e83a"
+    "mtime": 1779469690.0314312,
+    "ast_hash": "07793bb0df8b491f0d68ea82f74ebedc",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/qa/QAPanel.tsx": {
-    "mtime": 1779215797.9592578,
-    "ast_hash": "6e491c6b0330fe1fe7ddbf35950c54ef",
-    "semantic_hash": "6e491c6b0330fe1fe7ddbf35950c54ef"
+    "mtime": 1779469690.0314312,
+    "ast_hash": "3de6f23e6539b78397f4f249b480798f",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/qa/CitationList.tsx": {
-    "mtime": 1779384635.2283251,
-    "ast_hash": "b4969852ce51f5335050a7ef8efd38b3",
-    "semantic_hash": "b4969852ce51f5335050a7ef8efd38b3"
+    "mtime": 1779469690.0304313,
+    "ast_hash": "294c2c0f44841fb11e7c0ab8f028dfe2",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/qa/QAPage.test.tsx": {
-    "mtime": 1779215797.9592578,
-    "ast_hash": "336c63027e3a59e4cd5aa68fb8526bc2",
-    "semantic_hash": "336c63027e3a59e4cd5aa68fb8526bc2"
+    "mtime": 1779469690.0304313,
+    "ast_hash": "e871ccbb9b7b4149eeffd78d45f07ca7",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/qa/QuestionInput.tsx": {
     "mtime": 1779215797.9592578,
@@ -1940,14 +1940,14 @@
     "semantic_hash": "684e5947462cee7539635c8fe47eddd9"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/qa/AnswerPanel.tsx": {
-    "mtime": 1779215797.9592578,
-    "ast_hash": "45c183f86cf596ace5e88a4a676ea79d",
-    "semantic_hash": "45c183f86cf596ace5e88a4a676ea79d"
+    "mtime": 1779469690.0304313,
+    "ast_hash": "d0bb718986802bf6a11f1df50a0e42fe",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/qa/CitationCard.tsx": {
-    "mtime": 1779215797.9592578,
-    "ast_hash": "a5bd29c9727bbc7c70b46e139492d2eb",
-    "semantic_hash": "a5bd29c9727bbc7c70b46e139492d2eb"
+    "mtime": 1779469690.0304313,
+    "ast_hash": "1839643b87383703ba153cfa15eba91b",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/qa/QuestionInput.test.tsx": {
     "mtime": 1779215797.9592578,
@@ -1955,14 +1955,14 @@
     "semantic_hash": "2c9bc9c81a42791868689fb50ccfc2f0"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/qa/CitationCard.test.tsx": {
-    "mtime": 1779215797.9592578,
-    "ast_hash": "4b364a372f51d8f06d12f4e250123b45",
-    "semantic_hash": "4b364a372f51d8f06d12f4e250123b45"
+    "mtime": 1779469690.0304313,
+    "ast_hash": "65f3b4836bf5f9c1fe7415d4f09d1055",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/qa/AnswerPanel.test.tsx": {
-    "mtime": 1779215797.9592578,
-    "ast_hash": "445767c2982d5600395521e0cddd39f2",
-    "semantic_hash": "445767c2982d5600395521e0cddd39f2"
+    "mtime": 1779469690.0304313,
+    "ast_hash": "bf39ac37f4b1d790e0ace3a53d0d566b",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/admin/AdminHubPage.tsx": {
     "mtime": 1779215797.9542494,
@@ -1990,9 +1990,9 @@
     "semantic_hash": "7b4c777e16389a82cb2ced4c7a5e757f"
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/admin/AdminSourcesPage.tsx": {
-    "mtime": 1779215797.9542494,
-    "ast_hash": "332d149af528bbf85d3751078e82b08f",
-    "semantic_hash": "332d149af528bbf85d3751078e82b08f"
+    "mtime": 1779469690.026431,
+    "ast_hash": "fd6009b27b4d353d26a16870073adf00",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/features/admin/AdminAddSourceWizard.tsx": {
     "mtime": 1779215797.9542494,
@@ -2075,7 +2075,7 @@
     "semantic_hash": "c115fdb62e2c48dad5aaded04414f00f"
   },
   "/home/user/projects/Tomorrowland/frontend/src/api/qa.ts": {
-    "mtime": 1779384635.2283251,
+    "mtime": 1779469690.0254312,
     "ast_hash": "50fd283be50286c4b5096bb362057816",
     "semantic_hash": "50fd283be50286c4b5096bb362057816"
   },
@@ -2085,9 +2085,9 @@
     "semantic_hash": "226cb561eb7d848d9982c87939637e76"
   },
   "/home/user/projects/Tomorrowland/frontend/src/api/chat.ts": {
-    "mtime": 1779396008.8527048,
-    "ast_hash": "d679c973efea604242c5c158ba240bec",
-    "semantic_hash": "d679c973efea604242c5c158ba240bec"
+    "mtime": 1779469690.0254312,
+    "ast_hash": "bebea72eaf2fd0cd05c136a99a753ba9",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/api/generated-or-shared-types.ts": {
     "mtime": 1779215797.9512444,
@@ -2145,9 +2145,9 @@
     "semantic_hash": "4a688dad6ad9a5afbc247811d30e6192"
   },
   "/home/user/projects/Tomorrowland/frontend/src/app/routes.tsx": {
-    "mtime": 1779396151.573336,
-    "ast_hash": "7007aed9cc141b2b3ec6ae6ecee7263a",
-    "semantic_hash": "7007aed9cc141b2b3ec6ae6ecee7263a"
+    "mtime": 1779469690.0254312,
+    "ast_hash": "462d849c481f244b3b2a368600d66bd3",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/app/providers.tsx": {
     "mtime": 1779215797.952246,
@@ -2170,17 +2170,17 @@
     "semantic_hash": "147d7f80f9f92ea5abedc4d3cfe06f5c"
   },
   "/home/user/projects/Tomorrowland/frontend/src/i18n/locales/en.ts": {
-    "mtime": 1779396044.417751,
-    "ast_hash": "793bea8dbad2f350117c96fdc560c845",
-    "semantic_hash": "793bea8dbad2f350117c96fdc560c845"
+    "mtime": 1779469690.0314312,
+    "ast_hash": "561982fcb981cf7f5f5017fb9956b71d",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/i18n/locales/he.ts": {
-    "mtime": 1779396060.1973536,
-    "ast_hash": "7db1961b30f655e39ec4e48349fbff96",
-    "semantic_hash": "7db1961b30f655e39ec4e48349fbff96"
+    "mtime": 1779469690.0314312,
+    "ast_hash": "4941706693b333e5c784a4b39cf36d07",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/frontend/src/components/layout/NavRail.tsx": {
-    "mtime": 1779391281.9429386,
+    "mtime": 1779469690.026431,
     "ast_hash": "163addc4cbbd9c393bda7035a205aabf",
     "semantic_hash": "163addc4cbbd9c393bda7035a205aabf"
   },
@@ -2330,9 +2330,9 @@
     "semantic_hash": "947fa5f45fdc9e56a80e78b62a6c554e"
   },
   "/home/user/projects/Tomorrowland/AGENTS.md": {
-    "mtime": 1779352584.9608526,
-    "ast_hash": "4f116f60fc6fd70af1097d738d30821c",
-    "semantic_hash": "4f116f60fc6fd70af1097d738d30821c"
+    "mtime": 1779469690.0244312,
+    "ast_hash": "6c4670f5666dab25bad3433745790717",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/skill.md": {
     "mtime": 1779215797.9712782,
@@ -2375,9 +2375,9 @@
     "semantic_hash": "228b33c28f473e31610014e0c7a00255"
   },
   "/home/user/projects/Tomorrowland/CLAUDE.md": {
-    "mtime": 1779352584.9618528,
-    "ast_hash": "e40b5251337b513e1ca5b3ede6af02ef",
-    "semantic_hash": "e40b5251337b513e1ca5b3ede6af02ef"
+    "mtime": 1779469690.0244312,
+    "ast_hash": "edaf9db29f3a8c63149b86225010a978",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/CODEX.md": {
     "mtime": 1779215797.936219,
@@ -2855,24 +2855,24 @@
     "semantic_hash": "aff969433bcea95f61b219840e648515"
   },
   "/home/user/projects/Tomorrowland/docs/memory/decisions.md": {
-    "mtime": 1779393860.4466681,
+    "mtime": 1779469690.0254312,
     "ast_hash": "17bf34d449e30cac55b54e794819b5be",
     "semantic_hash": "17bf34d449e30cac55b54e794819b5be"
   },
   "/home/user/projects/Tomorrowland/docs/memory/glossary.md": {
-    "mtime": 1779391726.9857132,
+    "mtime": 1779469690.0254312,
     "ast_hash": "d474ab2b58701855636c14e43b5d2e72",
     "semantic_hash": "d474ab2b58701855636c14e43b5d2e72"
   },
   "/home/user/projects/Tomorrowland/docs/memory/current-state.md": {
-    "mtime": 1779394838.7672648,
-    "ast_hash": "46258d63e3ba600b67f52110e8557d65",
-    "semantic_hash": "46258d63e3ba600b67f52110e8557d65"
+    "mtime": 1779469728.12406,
+    "ast_hash": "585360b2a8368a33717c684930b53ea0",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/docs/memory/handoffs.md": {
-    "mtime": 1779449322.9392686,
-    "ast_hash": "5e72c1ec8bd1f2f9a85dc4b7ff6204fd",
-    "semantic_hash": "5e72c1ec8bd1f2f9a85dc4b7ff6204fd"
+    "mtime": 1779469690.0254312,
+    "ast_hash": "cc12272b8eef514173854a58b2df22ef",
+    "semantic_hash": ""
   },
   "/home/user/projects/Tomorrowland/docs/design/document-viewer-design.md": {
     "mtime": 1779313732.389035,
@@ -3238,5 +3238,45 @@
     "mtime": 1779215797.9512444,
     "ast_hash": "deba6e1924a12d79f720c7ee980319fa",
     "semantic_hash": "deba6e1924a12d79f720c7ee980319fa"
+  },
+  "/home/user/projects/Tomorrowland/src/services/chat/message_service.py": {
+    "mtime": 1779469690.082432,
+    "ast_hash": "82b38830d7204e7c054e825212779e29",
+    "semantic_hash": ""
+  },
+  "/home/user/projects/Tomorrowland/.opencode/plugins/graphify.js": {
+    "mtime": 1779462815.9582658,
+    "ast_hash": "64ccd3c03dbfe0980b6095766f5c4e52",
+    "semantic_hash": ""
+  },
+  "/home/user/projects/Tomorrowland/frontend/src/features/chat/ChatCitationCard.test.tsx": {
+    "mtime": 1779469690.026431,
+    "ast_hash": "c8c8492591da7b9404cd16ded080df7e",
+    "semantic_hash": ""
+  },
+  "/home/user/projects/Tomorrowland/frontend/src/features/chat/StarterQuestions.test.tsx": {
+    "mtime": 1779469690.0284312,
+    "ast_hash": "97225ee248eee8977ada5d85f7369759",
+    "semantic_hash": ""
+  },
+  "/home/user/projects/Tomorrowland/frontend/src/features/chat/MessageBubble.test.tsx": {
+    "mtime": 1779469690.0274312,
+    "ast_hash": "da5edf763a6e8fb32f83c022c279b273",
+    "semantic_hash": ""
+  },
+  "/home/user/projects/Tomorrowland/frontend/src/features/chat/StarterQuestions.tsx": {
+    "mtime": 1779469690.0284312,
+    "ast_hash": "397063595136ad2a65d0a78e52ac8c97",
+    "semantic_hash": ""
+  },
+  "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/EmailPreview.test.tsx": {
+    "mtime": 1779469690.0294313,
+    "ast_hash": "16cddd9dfceb2356cc0f434aedec8066",
+    "semantic_hash": ""
+  },
+  "/home/user/projects/Tomorrowland/frontend/src/features/documents/renderers/SlidesPreview.test.tsx": {
+    "mtime": 1779469690.0304313,
+    "ast_hash": "4199a16c251d0765162937609852be9d",
+    "semantic_hash": ""
   }
 }

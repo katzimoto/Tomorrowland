@@ -130,6 +130,17 @@ Finding:
 - G4: Grafana panel — human task, not yet started.
 - Verified: 429 frontend tests (61 files), 44 backend chat unit tests, `tsc --noEmit` clean.
 
+## 2026-05-22 — Document Chat merged to main (#492)
+
+Status: Done
+Source: PR #492; commit e299390 on `main`
+
+Finding:
+- `feature/document-chat` branch merged to `main` via squash commit e299390.
+- All prior issues (#473–#477) closed.
+- Final CI: Frontend CI, Container CI, Docs CI all green. 429 frontend tests, 44 backend chat unit tests. `npm run build` passes. `npm run lint`: 0 errors. `npm run typecheck`: clean. `ruff check` clean, `mypy --strict` clean.
+- Feature branch deleted. All automated phases complete.
+
 ## 2026-05-20 — Shared agent skills setup
 
 Status: Done
