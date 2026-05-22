@@ -15,6 +15,7 @@ export const he: Translations = {
     expand: "הרחבת ניווט",
     primary: "ניווט ראשי",
     unread: (n: number) => `${n} לא נקרא`,
+    signOut: "התנתק",
   },
   app: {
     loadingApp: "טוען יישום",

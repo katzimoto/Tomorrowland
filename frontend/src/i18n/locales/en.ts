@@ -13,6 +13,7 @@ export interface Translations {
     expand: string;
     primary: string;
     unread: (n: number) => string;
+    signOut: string;
   };
   app: {
     loadingApp: string;
@@ -341,6 +342,7 @@ export const en: Translations = {
     expand: "Expand navigation",
     primary: "Primary navigation",
     unread: (n) => `${n} unread`,
+    signOut: "Sign out",
   },
   app: {
     loadingApp: "Loading application",

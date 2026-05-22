@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { Link } from "@tanstack/react-router";
+import { useState, useEffect, useCallback } from "react";
+import { Link, useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Search,
   MessageSquare,
@@ -11,10 +12,12 @@ import {
   Network,
   ChevronRight,
   ChevronLeft,
+  LogOut,
 } from "lucide-react";
 import { useT } from "@/i18n/index";
 import { LanguageSelector } from "@/components/settings/LanguageSelector";
 import { TomorrowlandLogo } from "@/components/brand/TomorrowlandLogo";
+import { logout } from "@/api/auth";
 import styles from "./NavRail.module.css";
 
 type NavKey = "search" | "qa" | "chat" | "subscriptions" | "notifications" | "history" | "expertise" | "admin";
@@ -46,10 +49,15 @@ const STORAGE_KEY = "tomorrowland_rail_expanded";
 interface NavRailProps {
   isAdmin: boolean;
   unreadCount?: number;
+  userDisplayName?: string | null;
+  userEmail?: string | null;
 }
 
-export function NavRail({ isAdmin, unreadCount = 0 }: NavRailProps) {
+export function NavRail({ isAdmin, unreadCount = 0, userDisplayName = null, userEmail = null }: NavRailProps) {
   const t = useT();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [signingOut, setSigningOut] = useState(false);
   const [expanded, setExpanded] = useState<boolean>(() => {
     try {
       return localStorage.getItem(STORAGE_KEY) === "1";
@@ -65,6 +73,18 @@ export function NavRail({ isAdmin, unreadCount = 0 }: NavRailProps) {
       // ignore storage errors in sandboxed environments
     }
   }, [expanded]);
+
+  const handleSignOut = useCallback(async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await logout();
+    } catch {
+      // Token cleared in finally; continue cleaning up client state
+    }
+    queryClient.clear();
+    router.navigate({ to: "/login" });
+  }, [signingOut, queryClient, router]);
 
   const items = isAdmin ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS;
 
@@ -116,6 +136,26 @@ export function NavRail({ isAdmin, unreadCount = 0 }: NavRailProps) {
       </ul>
 
       <div className={styles.bottom}>
+        {userDisplayName && (
+          <div className={styles.userInfo} aria-label={`${userDisplayName}${userEmail ? ` · ${userEmail}` : ""}`}>
+            <span className={styles.userName}>{userDisplayName}</span>
+            {expanded && userEmail && (
+              <span className={styles.userEmail}>{userEmail}</span>
+            )}
+          </div>
+        )}
+        <button
+          className={styles.signOutBtn}
+          onClick={handleSignOut}
+          disabled={signingOut}
+          aria-label={t.nav.signOut}
+          title={!expanded ? t.nav.signOut : undefined}
+        >
+          <span className={styles.icon} aria-hidden>
+            <LogOut size={20} />
+          </span>
+          <span className={styles.label}>{signingOut ? "…" : t.nav.signOut}</span>
+        </button>
         <LanguageSelector />
       </div>
     </nav>

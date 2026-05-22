@@ -62,6 +62,8 @@ export function AppLayout() {
     <AppShell
       isAdmin={user?.is_admin ?? false}
       unreadCount={unreadNotifications?.length ?? 0}
+      userDisplayName={user?.display_name ?? null}
+      userEmail={user?.email ?? null}
     >
       <CommandMenu />
       <Outlet />

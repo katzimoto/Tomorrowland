@@ -141,6 +141,19 @@ Finding:
 - Final CI: Frontend CI, Container CI, Docs CI all green. 429 frontend tests, 44 backend chat unit tests. `npm run build` passes. `npm run lint`: 0 errors. `npm run typecheck`: clean. `ruff check` clean, `mypy --strict` clean.
 - Feature branch deleted. All automated phases complete.
 
+## 2026-05-22 — Sign-out button added to NavRail (#490)
+
+Status: Done
+Source: Issue #490
+
+Finding:
+- User identity (display_name + email) and Sign out button added to NavRail sidebar bottom section.
+- `NavRail` receives `userDisplayName`/`userEmail` from `AppLayout` → `AppShell`.
+- Clicking Sign out calls existing `logout()` (API + token clear), clears TanStack Query cache via `queryClient.clear()`, navigates to `/login`.
+- Button disabled during sign-out. User info hidden on mobile (same as other bottom items).
+- 6 new NavRail tests cover: nav items, admin item, user info, sign-out button, click behavior, disabled state.
+- Verified: 62 test files / 435 tests pass, `tsc --noEmit` clean, `npm run lint` 0 errors.
+
 ## 2026-05-20 — Shared agent skills setup
 
 Status: Done
