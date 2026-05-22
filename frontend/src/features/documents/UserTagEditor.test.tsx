@@ -131,7 +131,8 @@ describe("UserTagEditor", () => {
   it("shows error when trying to add empty tag", async () => {
     render(<UserTagEditor docId="doc-1" />);
     await waitFor(() => screen.getByText("No tags yet"));
-    fireEvent.click(screen.getByRole("button", { name: "Add tag" }));
+    const input = screen.getByLabelText("New tag text");
+    fireEvent.keyDown(input, { key: "Enter" });
     expect(screen.getByRole("alert")).toHaveTextContent(/must not be empty/i);
     expect(mockAddUserTag).not.toHaveBeenCalled();
   });
