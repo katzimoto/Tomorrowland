@@ -85,7 +85,9 @@ describe("DetailsTab", () => {
     );
     const btn = screen.getByRole("button", { name: /source/i });
     fireEvent.click(btn);
-    expect(screen.getByText(/docs\/reports\/a.pdf/)).toBeInTheDocument();
+    // Path is truncated at 60 chars with ellipsis prefix; FilterLink also renders the value
+    const matches = screen.getAllByText(/reports\/a\.pdf/);
+    expect(matches.length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders My Tags section when docId is provided", () => {
