@@ -63,6 +63,7 @@ const searchRoute = createRoute({
     file_type: typeof search.file_type === "string" ? search.file_type : "",
     tags: typeof search.tags === "string" ? search.tags : "",
     source: typeof search.source === "string" ? search.source : "",
+    file_extension: typeof search.file_extension === "string" ? search.file_extension : "",
     sort_by: typeof search.sort_by === "string" ? search.sort_by : "",
   }),
 });
