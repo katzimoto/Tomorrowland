@@ -182,7 +182,7 @@ def test_admin_update_user_admin_role(migrated_engine: Engine) -> None:
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
-    assert response.json()["is_admin"] == True
+    assert response.json()["is_admin"]
 
 
 def test_admin_update_user_no_fields_returns_400(migrated_engine: Engine) -> None:
