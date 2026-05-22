@@ -218,4 +218,41 @@ describe("DocumentPage", () => {
     });
     expect(screen.queryByRole("group", { name: "View mode" })).not.toBeInTheDocument();
   });
+
+  describe("in-document search (Ctrl+F)", () => {
+    it("opens DocumentSearchBar on Ctrl+F for text/plain documents", async () => {
+      render(<DocumentPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByRole("heading", { name: "Vendor Risk Assessment 2024" })
+        ).toBeInTheDocument();
+      });
+      fireEvent.keyDown(document.querySelector('[tabindex="-1"]') ?? document.body, {
+        key: "f",
+        ctrlKey: true,
+      });
+      await waitFor(() => {
+        expect(screen.getByRole("searchbox")).toBeInTheDocument();
+      });
+    });
+
+    it("does not open DocumentSearchBar on Ctrl+F for unsupported types", async () => {
+      vi.mocked(documentsApi.getPreview).mockResolvedValue({
+        ...mockPreview,
+        mime_type: "image/png",
+      });
+      render(<DocumentPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByRole("heading", { name: "Vendor Risk Assessment 2024" })
+        ).toBeInTheDocument();
+      });
+      fireEvent.keyDown(document.querySelector('[tabindex="-1"]') ?? document.body, {
+        key: "f",
+        ctrlKey: true,
+      });
+      // No searchbox should appear for images
+      expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    });
+  });
 });

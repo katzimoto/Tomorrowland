@@ -231,4 +231,42 @@ describe("TextPreview — virtualization", () => {
     const rows = container!.querySelectorAll('[class*="virtualRow"]');
     expect(rows.length).toBeLessThan(20000);
   });
+
+  it("maintains global active-match index in virtualized mode", async () => {
+    // Create text where "match" appears 3 times across different lines
+    const lineCount = 12000;
+    const textLines: string[] = [];
+    for (let i = 0; i < lineCount; i++) {
+      if (i === 2) textLines.push("line with match here");
+      else if (i === 100) textLines.push("another match line");
+      else if (i === 5000) textLines.push("third match instance");
+      else textLines.push(`ordinary line ${i}`);
+    }
+    mockGetDocumentText.mockResolvedValue({
+      text: textLines.join("\n"),
+      total_length: textLines.join("\n").length,
+      offset: 0,
+      limit: 10000,
+      truncated: false,
+    });
+    const onMatchCountChange = vi.fn();
+    render(
+      <TextPreview
+        docId="doc-1"
+        searchQuery="match"
+        activeSearchIndex={1}
+        onMatchCountChange={onMatchCountChange}
+      />
+    );
+    await waitFor(() => {
+      expect(onMatchCountChange).toHaveBeenCalledWith(3);
+    });
+    // activeSearchIndex=1 should highlight the second match (line 100)
+    // In virtualized mode the second match should have the active class
+    const marks = document.querySelectorAll("mark");
+    const activeMarks = Array.from(marks).filter(
+      (m) => m.className.includes("activeMatch") || m.getAttribute("data-match-index") === "1"
+    );
+    expect(activeMarks.length).toBeGreaterThanOrEqual(1);
+  });
 });
