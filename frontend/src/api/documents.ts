@@ -163,4 +163,39 @@ export function getDocumentText(
   return api.get<DocumentText>(`/documents/${docId}/text${qs ? `?${qs}` : ""}`);
 }
 
+// ---------------------------------------------------------------------------
+// User document tags
+// ---------------------------------------------------------------------------
+
+export type TagVisibility = "private" | "public";
+
+export interface UserDocumentTag {
+  id: string;
+  tag: string;
+  visibility: TagVisibility;
+  created_at: string | null;
+  owned_by_me: boolean;
+}
+
+export interface UserTagsResponse {
+  document_id: string;
+  tags: UserDocumentTag[];
+}
+
+export function listUserTags(docId: string): Promise<UserTagsResponse> {
+  return api.get<UserTagsResponse>(`/documents/${docId}/user-tags`);
+}
+
+export function addUserTag(
+  docId: string,
+  tag: string,
+  visibility: TagVisibility,
+): Promise<UserDocumentTag> {
+  return api.post<UserDocumentTag>(`/documents/${docId}/user-tags`, { tag, visibility });
+}
+
+export function deleteUserTag(docId: string, tagId: string): Promise<void> {
+  return api.delete<void>(`/documents/${docId}/user-tags/${tagId}`);
+}
+
 

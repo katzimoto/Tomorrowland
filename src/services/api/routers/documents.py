@@ -21,9 +21,11 @@ from services.api.main import current_user
 from services.api.schemas import PreviewResponse
 from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
+from services.documents.models import UserDocumentTagCreate
 from services.documents.repository import (
     DocumentRepository,
     TranslationVersionRepository,
+    UserDocumentTagRepository,
 )
 from services.intelligence.repository import IntelligenceRepository
 from services.permissions.enforcer import assert_doc_access
@@ -599,3 +601,85 @@ def download(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# User document tags
+# ---------------------------------------------------------------------------
+
+
+@router.get("/documents/{document_id}/user-tags")
+def list_user_tags(
+    document_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    with request.app.state.engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(document_id, user, auth_repo)
+
+        tag_repo = UserDocumentTagRepository(connection)
+        tags = tag_repo.list_tags(document_id, user.sub)
+        return {
+            "document_id": str(document_id),
+            "tags": [
+                {
+                    "id": str(t.id),
+                    "tag": t.tag,
+                    "visibility": t.visibility,
+                    "created_at": t.created_at.isoformat() if t.created_at else None,
+                    "owned_by_me": t.user_id == user.sub,
+                }
+                for t in tags
+            ],
+        }
+
+
+@router.post("/documents/{document_id}/user-tags", status_code=201)
+def create_user_tag(
+    document_id: UUID,
+    body: UserDocumentTagCreate,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    with request.app.state.engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(document_id, user, auth_repo)
+
+        tag_repo = UserDocumentTagRepository(connection)
+        try:
+            tag = tag_repo.create_tag(
+                document_id=document_id,
+                user_id=user.sub,
+                tag=body.tag,
+                is_private=body.visibility == "private",
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {
+            "id": str(tag.id),
+            "tag": tag.tag,
+            "visibility": tag.visibility,
+            "created_at": tag.created_at.isoformat() if tag.created_at else None,
+            "owned_by_me": True,
+        }
+
+
+@router.delete("/documents/{document_id}/user-tags/{tag_id}", status_code=204)
+def delete_user_tag(
+    document_id: UUID,
+    tag_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> None:
+    with request.app.state.engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(document_id, user, auth_repo)
+
+        tag_repo = UserDocumentTagRepository(connection)
+        try:
+            found = tag_repo.delete_tag(tag_id, user.sub, user.is_admin)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        if not found:
+            raise HTTPException(status_code=404, detail="Tag not found")

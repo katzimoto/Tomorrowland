@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 DocumentStatus = Literal["pending", "indexed", "deleted", "failed"]
 DocumentSource = Literal["folder", "nifi", "confluence", "jira", "smb"]
@@ -73,3 +73,38 @@ class DocumentTranslationVersion(BaseModel):
     source_content_hash: str | None = None
     translated_text: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+TagVisibility = Literal["private", "public"]
+
+
+class UserDocumentTag(BaseModel):
+    """Row model for the user_document_tags table."""
+
+    id: UUID
+    document_id: UUID
+    user_id: UUID
+    tag: str
+    is_private: bool
+    created_at: datetime
+
+    @property
+    def visibility(self) -> TagVisibility:
+        return "private" if self.is_private else "public"
+
+
+class UserDocumentTagCreate(BaseModel):
+    """Input model for creating a user document tag."""
+
+    tag: str
+    visibility: TagVisibility = "private"
+
+    @field_validator("tag")
+    @classmethod
+    def normalize_tag(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("tag must not be empty")
+        if len(v) > 100:
+            raise ValueError("tag must be 100 characters or fewer")
+        return v

@@ -79,7 +79,7 @@ export function InsightPane({ docId, preview }: InsightPaneProps) {
         {activeTab === "comments" && <CommentsTab docId={docId} />}
         {activeTab === "subscriptions" && <SubscriptionsStub />}
         {activeTab === "versions" && <VersionsTab docId={docId} />}
-        {activeTab === "details" && preview && <DetailsTab preview={preview} />}
+        {activeTab === "details" && preview && <DetailsTab preview={preview} docId={docId} />}
       </div>
     </div>
   );
