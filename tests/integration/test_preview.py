@@ -10,7 +10,11 @@ from sqlalchemy import Engine
 from services.api.main import create_app
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
-from services.documents.repository import DocumentRepository, TranslationVersionRepository
+from services.documents.repository import (
+    DocumentRelationshipRepository,
+    DocumentRepository,
+    TranslationVersionRepository,
+)
 from shared.config import Settings
 from shared.db import db_uuid
 
@@ -572,3 +576,101 @@ def test_download_returns_nosniff_header(
 
     assert response.status_code == 200
     assert response.headers.get("x-content-type-options") == "nosniff"
+
+
+# ---------------------------------------------------------------------------
+# Relationships in /preview/{doc_id}
+# ---------------------------------------------------------------------------
+
+
+def test_preview_includes_relationships_when_present(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    _setup_users(migrated_engine)
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("hello")
+    _, parent_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+    _, child_id = _create_source_with_doc(
+        migrated_engine, "users", path=str(test_file), doc_title="Child Doc"
+    )
+    with migrated_engine.begin() as conn:
+        rel_repo = DocumentRelationshipRepository(conn)
+        rel_repo.create_relationship(
+            UUID(parent_id), UUID(child_id), "archive_child", "nested/file.txt"
+        )
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _user_token(client)
+
+    resp = client.get(
+        f"/preview/{parent_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["relationships"] is not None
+    assert len(data["relationships"]) == 1
+    assert data["relationships"][0]["direction"] == "child"
+    assert data["relationships"][0]["other_document_id"] == child_id
+    assert data["relationships"][0]["title"] == "Child Doc"
+
+
+def test_preview_relationships_null_when_none(migrated_engine: Engine, tmp_path: Path) -> None:
+    _setup_users(migrated_engine)
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("hello")
+    _, doc_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _user_token(client)
+    resp = client.get(
+        f"/preview/{doc_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["relationships"] is None
+
+
+def test_preview_relationships_child_sees_parent(migrated_engine: Engine, tmp_path: Path) -> None:
+    _setup_users(migrated_engine)
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("hello")
+    _, parent_id = _create_source_with_doc(
+        migrated_engine, "users", path=str(test_file), doc_title="Email Parent"
+    )
+    _, child_id = _create_source_with_doc(
+        migrated_engine, "users", path=str(test_file), doc_title="Attached PDF"
+    )
+    with migrated_engine.begin() as conn:
+        rel_repo = DocumentRelationshipRepository(conn)
+        rel_repo.create_relationship(
+            UUID(parent_id), UUID(child_id), "email_attachment", "invoice.pdf"
+        )
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _user_token(client)
+    resp = client.get(
+        f"/preview/{child_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    rels = resp.json()["relationships"]
+    assert rels is not None
+    assert len(rels) == 1
+    assert rels[0]["direction"] == "parent"
+    assert rels[0]["title"] == "Email Parent"

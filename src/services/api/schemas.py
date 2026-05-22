@@ -61,6 +61,15 @@ class PreviewResponse(BaseModel):
     content_sha256: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    relationships: list[DocumentRelationshipInfo] | None = None
+
+
+class DocumentRelationshipInfo(BaseModel):
+    direction: Literal["parent", "child"]
+    relationship_type: str
+    other_document_id: str
+    title: str | None = None
+    path_in_parent: str | None = None
 
 
 class ConnectionTestResult(BaseModel):
