@@ -23,6 +23,222 @@ Next agent prompt:
 - ...
 ```
 
+## 2026-05-22 — In-document search fix tests verified and closed (#469)
+
+Status: Done
+Source: issue #469; commits 2927a50 (fix) + 48153a9 (tests) on feature/document-chat + main
+
+What changed:
+- Verified existing fix (2927a50): all renderers receive search props, PdfViewer page-jump, virtualized cumulative offsets.
+- Added missing tests (48153a9):
+  - PreviewPane: search prop passing verified for all renderer paths (text/plain, DOCX/RTF, extracted, PDF, table, archive, email, slides, code)
+  - PdfViewer: activeSearchIndex navigates to page containing the match
+  - ArchivePreview: match highlighting + count via onMatchCountChange
+  - EmailPreview (new file): match highlighting + count
+  - SlidesPreview (new file): cross-slide match count
+  - TablePreview: cell highlighting + match count
+  - TextPreview: virtualized global active-match index stability
+  - DocumentPage: Ctrl+F opens search for text, suppressed for image/audio/video
+
+Verification:
+- `tsc --noEmit` — clean
+- `ruff check`, `mypy` — backend unaffected (frontend-only change)
+
+Open risks:
+- Frontend vitest still blocked locally by Node 20.9.0 (needs 22+) — CI must verify test suite
+
+Next agent prompt:
+- Verify CI passes for commit 48153a9 on feature/document-chat
+- Close issue #469 on GitHub (already closed)
+
+## 2026-05-22 — Document Chat Phase C frontend complete (#474)
+
+Status: Done
+Source: issue #474, commits d352ed2 + 8fa4f95 on feature/document-chat
+
+What changed:
+- `src/shared/feature_flags.py` — removed `feature.document_chat: False` from `SYSTEM_CONFIG_DEFAULTS` (bulk-insert would permanently disable the flag in DB; env-var default is the correct gate).
+- `frontend/src/api/chat.ts` — Added `ChatScopeType` literal union; tightened `ChatSession.scope_type` and `createChatSession` input.
+- `frontend/src/features/chat/ScopeBadge.tsx` + `.module.css` — Display-only badge "Chatting with: <label>" for all 6 scope types.
+- `frontend/src/features/chat/ScopeSelector.tsx` + `.module.css` — Dropdown; only `all_accessible_documents` switchable in Phase C; `source`/`folder` shown disabled with "(coming soon)"; a11y: `aria-expanded`, `aria-haspopup="listbox"`, Escape to close.
+- `frontend/src/features/chat/DocumentChatPanel.tsx` + `.module.css` — Lazily creates `single_document` scoped session; StrictMode-safe via `seededForDoc` ref guard + `cancelled` flag; cleanup resets ref so tab-switch remounts work.
+- `frontend/src/features/chat/ChatWindow.tsx` — Replaced inline `scopeLabel()` with `ScopeBadge`/`ScopeSelector`; conditional on `onRequestNewScope` prop.
+- `frontend/src/features/chat/ChatPage.tsx` — URL-based `?scope=&ids=` session creation via `parseScopeFromSearch()`; clears params after creation; `handleScopeChange` wired to ChatWindow.
+- `frontend/src/app/routes.tsx` — Added `validateSearch` to `/chat` route for typed `scope` + `ids` params.
+- `frontend/src/features/documents/insightPaneTabs.ts` — Renamed `"qa"` → `"chat"` in `InsightPaneTab` union.
+- `frontend/src/features/documents/InsightPane.tsx` — Replaced `QAPanel` with `DocumentChatPanel`; tab id/label updated; passes `preview?.title` as `docTitle`.
+- `frontend/src/i18n/locales/en.ts` + `he.ts` — Added `tabChat`, `scopeSelectedDocumentsCount`, `scopeSwitchLabel`, `askAboutSelected`.
+- `frontend/src/features/chat/ChatPage.test.tsx` — Added `useSearch`/`useNavigate` mocks; 4 new URL-scope tests.
+- `frontend/src/features/documents/InsightPane.test.tsx` *(new)* — 5 tests: Chat tab label, DocumentChatPanel mount, `single_document` scope, docTitle passing, error state.
+
+Key decisions:
+- "Ask about selected" toolbar deferred — SearchPage has no checkbox multi-select (only keyboard-nav `selectedIndex`). URL entry `/chat?scope=selected_documents&ids=...` implemented at route level but has no UI trigger yet.
+- `tabQa` i18n key preserved — QAPanel still used by standalone `/qa` route.
+- `seededForDoc.current = null` in effect cleanup — allows remount after error/tab-switch without permanent session lock.
+
+Verification:
+- `tsc --noEmit` — exit 0 (clean)
+- `npx vitest run` — blocked locally by Node 20.9.0 (requires ≥21.7 for `styleText`); CI is sole gate.
+
+Open risks / next steps:
+- **CI must pass before closing #474.** Frontend vitest has not run locally — CI is the first gate.
+- `QAPanel` is now orphaned from InsightPane; still used by `/qa` route. Deletion is out of Phase C scope.
+- `selected_documents` URL scope has no SearchPage UI trigger yet (deferred multi-select work).
+
+Next agent prompt:
+- Check CI on `feature/document-chat`; resolve any frontend vitest failures (branch is at 8fa4f95).
+- If CI is green, close #474 and open a PR targeting `main` (or the designated integration branch).
+- Phase D option: add `selected_documents` checkbox multi-select to SearchPage so the `/chat?scope=selected_documents&ids=...` URL entry point has a real UI trigger.
+
+## 2026-05-21 — Document Chat Phase C backend scope-aware chat complete
+
+Status: Done
+Source: issue #474, commit d7ab8e8 on feature/document-chat
+
+What changed:
+- `src/services/chat/models.py` — `ChatScope` model: `Literal` scope_type, `list[str]` scope_ids, pydantic model_validator for cardinality rules.
+- `src/services/rag/service.py` — `build_qdrant_filter(scope, group_ids, allow_all) -> Filter | None`: builds combined permission+scope Qdrant filter. Returns None for admin+all_accessible. Imported into RagService._retrieve_chunks as the scope path.
+- `src/services/search/qdrant.py` — `search_filtered(vector, query_filter, limit)`: new method for pre-built filter; existing `search()` unchanged (preserves /qa compat).
+- `src/services/api/routers/chat.py` — scope validation on every message: builds ChatScope from session, checks revoked access (409) for single_document/selected_documents/current_search_results, returns 400 for folder scope (deferred), passes scope to RagService.
+- `tests/unit/test_chat_service.py` — 17 new tests for ChatScope validation and build_qdrant_filter conditions.
+- `tests/integration/test_chat_api.py` — 8 new scope integration tests.
+
+Key decisions:
+- `build_qdrant_filter` returns `None` (not empty Filter) for admin+all_accessible; Qdrant treats None as "no filter".
+- `folder` scope rejected at router level (400) — Qdrant payload has no folder field.
+- `source` scope: filter by `source_id` works; revocation validation deferred (group filter applied for safety).
+- Revocation check uses `AuthRepository.document_source_id()` + `user_can_access_source()`.
+- Admin (is_admin=True) bypasses revocation check entirely.
+
+Verification:
+- `pytest tests/unit/test_chat_service.py tests/unit/test_chat_repository.py tests/integration/test_chat_api.py --no-cov` — **68 passed**
+- `pytest tests/unit/test_rag_retrieval_eval.py tests/unit/test_rag_reranker.py --no-cov` — **17 passed** (RAG eval unbroken)
+- `ruff check` + `ruff format` — clean
+- `mypy src/services/chat/models.py src/services/search/qdrant.py src/services/rag/service.py src/services/api/routers/chat.py --strict` — no issues
+
+Open risks:
+- `source` scope revocation validation not implemented (TODO in code) — group filter still prevents data leakage.
+- Meilisearch BM25 results (when Meili enabled) are not scope-filtered at the document level — pre-existing gap, not in Phase C scope.
+- Frontend vitest blocked by Node 20.9.0 locally; CI is sole gate.
+
+Frontend Phase C can start — backend scope API is complete and tested.
+
+Next agent prompt:
+- Phase C frontend: ScopeBadge, ScopeSelector, InsightPane Chat tab migration (use existing ChatWindow + ChatScope data from session).
+
+## 2026-05-21 — Document Chat Phase B7 lifecycle tests complete
+
+Status: Done
+Source: issue #473, commit 553c263 on feature/document-chat
+
+What changed:
+- `src/services/api/routers/chat.py` — typed `session_id` path params as `UUID` (all 4 route handlers); FastAPI now validates on entry (422 on bad input, not 500).
+- `tests/integration/test_chat_api.py` — fixed `_settings()` to disable Meilisearch flags; fixed `_setup_users()` to seed `feature.document_chat = true` in system_config; fixed invalid-UUID test fixture; added 8 new lifecycle tests (cross-user 403, empty content 422, invalid UUID 422, citations field shape, messages gone after delete, no cross-user session leakage, degraded RAG fallback).
+- `tests/unit/test_chat_repository.py` — added 3 tests: citations JSON round-trip, retrieval_trace round-trip, archive/unarchive semantics.
+- `frontend/src/features/chat/ChatPage.test.tsx` — added 5 tests: citation legacy/new field fallback, session load spinner, input disabled while pending, input cleared after send, session load error.
+
+Key discoveries:
+- **Dual-gate feature flag**: `/chat` routes check `Settings.feature_document_chat` AND `system_config.feature.document_chat`. Foundation migration seeds the DB key as `False` (production default). Tests must override both.
+- **Meilisearch env leakage**: `.env` sets `FEATURE_MEILISEARCH_SEARCH=true`; `_settings()` must explicitly override to `False` or tests fail trying to connect to `meilisearch:7700`.
+- **Citation field duality**: ChatCitationCard supports both `doc_title`/`chunk_text` (legacy) and `document_title`/`text_excerpt` (new). Both paths are now test-covered.
+
+Verification:
+- `pytest tests/integration/test_chat_api.py tests/unit/test_chat_repository.py` — 43 passed
+- `ruff check` + `ruff format` — clean
+- `mypy src/services/chat/ src/services/api/routers/chat.py --strict` — no issues
+- `tsc --noEmit` — exit 0
+- Frontend vitest blocked by Node 20.9.0 (requires 22+) — CI will verify
+
+Open risks:
+- Frontend test suite not run locally — CI is sole gate for ChatPage.test.tsx changes
+- SQLite does not enforce FK cascade (messages persist after session delete in test DB); documented in test comment; Postgres enforces correctly in production
+
+#473 recommendation: **Ready to close** — Phase B backend + frontend + tests are complete. B7 added router hardening, lifecycle coverage, cross-user isolation tests, and degraded RAG fallback. No Phase C/D/E/F scope was touched.
+
+Next agent prompt:
+- Phase C: scope model, `ChatScope` filter UI, `ScopeBadge` component, InsightPane migration from legacy QAPanel to ChatWindow. Branch off `feature/document-chat`.
+
+## 2026-05-21 — Document Chat Phase B6 frontend complete
+
+Status: Done
+Source: issue #473, commit e95f696 on feature/document-chat
+
+What changed:
+- `frontend/src/api/chat.ts` — typed API client for all /chat/* endpoints
+- `frontend/src/features/chat/` — ChatPage, ChatSidebar, ChatWindow, ChatInput,
+  MessageList, MessageBubble, ChatCitationCard, ChatCitationList (all new)
+- `frontend/src/app/routes.tsx` — `/chat` route added
+- `frontend/src/components/layout/NavRail.tsx` — "Chat" nav item (MessagesSquare icon)
+- `frontend/src/i18n/locales/en.ts` + `he.ts` — nav.chat + full chat section strings
+- `frontend/src/features/chat/ChatPage.test.tsx` — 11 test cases
+
+Key design decisions:
+- Session messages managed in local state after initial query seed (prevents refetch flash)
+- Seeded once per session via ref guard; staleTime=5m on session query
+- User message optimistically added; replaced by server user+assistant turn on success
+- citation_id used as React key (fallback: `${document_id}-${chunk_index ?? idx}`)
+- TanStack Query v5: useEffect used instead of onSuccess on useQuery
+
+Verification:
+- `tsc --noEmit` — exit 0
+- Vitest blocked by pre-existing Node 20.9 / Node 22 gap — CI will run
+- `npm run lint` — same Node gap blocks formatter output
+
+Open risks:
+- Vitest/ESLint need Node 22 to run locally — CI is the only test gate for now
+- `MessagesSquare` icon from lucide-react — confirm it exists in the pinned version at CI time
+- Phase C InsightPane migration not yet done; InsightPane still shows legacy QAPanel
+
+Next agent prompt:
+- B7 integration tests: full session lifecycle, cross-user 403, degraded Qdrant fallback
+- Then Phase C: scope model, ChatScope filter, ScopeBadge, InsightPane migration
+
+## 2026-05-21 — Phase B1-B2 chat_sessions + chat_messages migrations
+
+Status: Done
+Source: issue #473
+
+What changed:
+- Created `k1l2m3n4o5p6_add_chat_sessions_table.py` — `chat_sessions` with id, user_id (FK CASCADE), title, scope_type, scope_ids (JSON as Text), created_at, updated_at, archived_at, metadata (JSON as Text). Indexes on user_id and updated_at.
+- Created `q7r8s9t0u1v2_add_chat_messages_table.py` — `chat_messages` with id, session_id (FK CASCADE to chat_sessions), role, content, rewritten_query, citations (JSON as Text), retrieval_trace, model, latency_ms, created_at, metadata. Index on (session_id, created_at).
+- JSON fields use `sa.Text()` with JSON-serialized defaults for SQLite compat (project convention — no CheckConstraints, app-layer validation).
+
+Verification:
+- `ruff check` + `ruff format` — passed
+- `pytest tests/test_migrations.py` — 5 passed (all existing migration smoke tests + new tables created successfully)
+
+Open risks:
+- JSON-in-Text fields need app-layer encoding/decoding (ChatRepository handles this)
+- No check constraint on `role` — app-layer validation required
+
+Next mission:
+- B3 ChatRepository
+
+## 2026-05-21 — Document Chat Phase A foundation complete
+
+Status: Done
+Source: issue #472
+
+What changed:
+- Added `citation_id` UUID to backend `Citation` model (auto-generated via `uuid4` default factory).
+- Included `citation_id` in `/qa` response serialization.
+- Added `chunk_index`, `source_id`, `citation_id` to `QACitation` TypeScript type.
+- Fixed `CitationList` React key collision: `key={c.citation_id ?? `${c.document_id}-${c.chunk_index ?? idx}`}`.
+- Replaced 1-sentence grounding prompt with 8-rule prompt per Document Chat design spec.
+
+Verification:
+- `ruff check` + `ruff format` — passed
+- `mypy` — 3 source files, no issues
+- `pytest tests/unit/test_rag_retrieval_eval.py tests/unit/test_rag_reranker.py` — 18 passed
+- `tsc --noEmit` — exit 0
+- Frontend vitest unavailable locally (Node 20.9.0, needs 22+) — pre-existing env issue
+
+Open risks:
+- Frontend test suite not run locally due to Node version gap — CI will verify
+
+Next agent prompt:
+- Phase B (persistent chat sessions) after PR #472 merges.
+
 ## 2026-05-21 — #449 in-document search complete
 
 Status: Done

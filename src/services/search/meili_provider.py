@@ -363,6 +363,114 @@ class MeilisearchSearchProvider:
                 metadata={
                     "chunk_id": hit.get("id"),
                     "chunk_index": hit.get("chunk_index"),
+                    "page_number": (hit.get("position") or {}).get("page_number"),
+                    "section_heading": hit.get("heading"),
+                    "source_language": (hit.get("metadata") or {}).get("language"),
+                },
+            )
+            for hit in raw.get("hits", [])
+        ]
+
+    def search_rag_metadata(
+        self,
+        text: str,
+        group_ids: list[str],
+        allow_all: bool = False,
+        limit: int = 20,
+    ) -> list[SearchResult]:
+        """Search metadata fields (tags, entities, summary, document_type).
+
+        Uses ``attributes_to_search_on`` to restrict the query to metadata
+        fields. Requires Meilisearch 1.8+. Fused into the main result set
+        with a lower weight than the full-text BM25 search.
+        """
+        from services.search.meili_acl import build_permission_filter_for_ids
+
+        filter_expr = build_permission_filter_for_ids(list(group_ids), is_admin=allow_all)
+
+        params: dict[str, Any] = {
+            "limit": limit,
+            "showRankingScore": True,
+            "attributesToSearchOn": [
+                "summary",
+                "summary_en",
+                "summary_he",
+                "metadata_text",
+                "metadata.tags",
+                "metadata.labels",
+                "metadata.topics",
+                "metadata.project",
+                "metadata.collection",
+                "metadata.file_name",
+                "metadata.author",
+                "metadata.owner",
+            ],
+        }
+        if filter_expr:
+            params["filter"] = filter_expr
+
+        raw = self._client.index(INDEX_NAME).search(text, params)
+
+        return [
+            SearchResult(
+                document_id=hit["document_id"],
+                score=hit.get("_rankingScore") or 0.0,
+                title=hit.get("title") or "",
+                chunk_text=hit.get("content") or "",
+                metadata={
+                    "chunk_id": hit.get("id"),
+                    "chunk_index": hit.get("chunk_index"),
+                    "page_number": (hit.get("position") or {}).get("page_number"),
+                    "section_heading": hit.get("heading"),
+                    "source_language": (hit.get("metadata") or {}).get("language"),
+                },
+            )
+            for hit in raw.get("hits", [])
+        ]
+
+    def search_rag_translated(
+        self,
+        text: str,
+        group_ids: list[str],
+        allow_all: bool = False,
+        limit: int = 20,
+    ) -> list[SearchResult]:
+        """Search translated text fields (content_en, content_he).
+
+        Uses ``attributes_to_search_on`` to restrict the query to translated
+        content fields. Fused into the main result set with a lower weight.
+        """
+        from services.search.meili_acl import build_permission_filter_for_ids
+
+        filter_expr = build_permission_filter_for_ids(list(group_ids), is_admin=allow_all)
+
+        params: dict[str, Any] = {
+            "limit": limit,
+            "showRankingScore": True,
+            "attributesToSearchOn": [
+                "content_en",
+                "content_he",
+                "summary_en",
+                "summary_he",
+            ],
+        }
+        if filter_expr:
+            params["filter"] = filter_expr
+
+        raw = self._client.index(INDEX_NAME).search(text, params)
+
+        return [
+            SearchResult(
+                document_id=hit["document_id"],
+                score=hit.get("_rankingScore") or 0.0,
+                title=hit.get("title") or "",
+                chunk_text=hit.get("content") or "",
+                metadata={
+                    "chunk_id": hit.get("id"),
+                    "chunk_index": hit.get("chunk_index"),
+                    "page_number": (hit.get("position") or {}).get("page_number"),
+                    "section_heading": hit.get("heading"),
+                    "source_language": (hit.get("metadata") or {}).get("language"),
                 },
             )
             for hit in raw.get("hits", [])

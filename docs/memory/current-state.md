@@ -2,46 +2,14 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
-## 2026-05-21 — Document viewer track in progress (#440–#449)
+## 2026-05-22 — Document viewer MVP complete (#453 closed)
 
-Status: Superseded
-Source: issues #440–#449, #453; PRs #454–#462
-
-Finding:
-- Document viewer MVP track (parent #453) is underway.
-- #440 (HTML sandbox) — Done. PR #454 merged to `main`.
-- #441 (full text API) — Done. PR #455 merged to `feature/document-viewer`.
-- #442 (PDF.js viewer) — Done. PR #456 merged to `feature/document-viewer`.
-- #443 (view mode switcher + fidelity bar) — Done. PR #457 merged to `feature/document-viewer`.
-- #444 (image viewer) — Done. PR #458 merged to `feature/document-viewer`.
-- #445 (metadata Details tab) — Done. PR #459 merged to `feature/document-viewer`.
-- #447 (code/syntax viewer) — Done. PR #460 merged to `feature/document-viewer`.
-- #448 (media viewer) — Done. PR #461 merged to `feature/document-viewer`.
-- #449 (in-document search) — Done. PR #462 merged to `feature/document-viewer`.
-
-## 2026-05-21 — Document viewer a11y, perf, telemetry hardening (#450)
-
-Status: Active
-Source: issue #450; PR #464
+Status: Done
+Source: issues #440–#451; PRs #454–#465; integration PR #466 merged to `main`
 
 Finding:
-- #450 (a11y, perf, telemetry hardening) — Done. PR #464 targets `feature/document-viewer`.
-- A11y: download link aria-label, table aria-label + th scope="col", sr-only status text, focus management on view mode switch and search close.
-- Perf: TextPreview virtualized with react-window v2 `List` when >10K lines; TablePreview virtualized with ARIA role-based table when >1K rows.
-- Telemetry: viewer.text/pdf/image.load events via named performance timers.
-- Backend: X-Content-Type-Options: nosniff on download endpoint.
-- react-window v2 key differences from v1: `List` replaces `FixedSizeList`, `rowCount`/`rowHeight`/`rowComponent` props, `rowProps={{}}` required (crashes if undefined).
-- ResizeObserver global mock added to test setup (required by react-window v2 in jsdom).
-
-Impact:
-- react-window@2.2.7 added to frontend dependencies.
-- Virtualized TablePreview uses `role="table"` / `role="rowgroup"` / `role="row"` / `role="columnheader"` / `role="cell"` instead of native `<table>` / `<thead>` / `<tbody>` / `<tr>` / `<th>` / `<td>` (react-window constraint).
-- `src/test/setup.ts` now includes ResizeObserver mock, scrollIntoView mock, HTMLDialogElement mocks.
-- Download endpoint returns `X-Content-Type-Options: nosniff` on both full and range responses.
-
-Next action:
-- Check parent issue #453 for remaining MVP child issues.
-- Consider browser-based virtualization verification (#451 follow-up).
+- All 12 document viewer child issues implemented and merged to `main` via PR #466.
+- Parent issue #453 closed. All child issues (440-451) closed.
 
 ## 2026-05-21 — Resource safety guards (#463)
 
@@ -66,40 +34,114 @@ Finding:
 - pip CVEs (CVE-2025-8869, CVE-2026-1703, CVE-2026-3219, CVE-2026-6357) are infrastructure-only — CI runner already has pip 26.1.1.
 - Fix: added `--ignore-vuln PYSEC-2025-183` to pip-audit command in security.yml.
 
-## 2026-05-21 — Vector embedding context-length safety (#468)
+## 2026-05-22 — Vector embedding context-length safety (#468)
 
-Status: Active
-Source: issue #468
+Status: Done
+Source: issue #468; commit 30bc196 merged to `main`
 
 Finding:
-- `chunk_text()` splits by word count (default 512 words), but embedding models tokenize at sub-word level — a 512-word chunk can exceed model context length.
-- Ollama's `/api/embed` returns `"input length exceeds the context length"` for oversized chunks.
-- Error repeats deterministically across 5 retries before dead-lettering — affected documents get incomplete Qdrant coverage.
-- Fix adds token-estimation (chars/3 heuristic) in chunking, defensive max-tokens guard in encoder, and permanent-error classification for ValueError in workers.
+- `chunk_text()` accepts `max_tokens` param; oversized chunks split via token-estimate heuristic (chars/4).
+- OllamaEmbeddingEncoder validates text token count before API call, catches 400 as ValueError.
+- ValueError dead-letters immediately in vector_worker (permanent error).
+- PipelineWorker threads `embedding_max_tokens` to chunking calls.
 - New config: `EMBEDDING_MAX_TOKENS` (default 1024).
+- Verified: ruff check, ruff format, mypy (strict) — all clean.
+- Tests: 19 chunking + 32 encoder/worker tests pass.
 
 Impact:
 - Oversized chunks are recursively split before reaching the encoder.
 - Encoder validates each text's estimated token count before API call.
 - ValueError (context-length exceeded) dead-letters immediately instead of retrying 5 times.
 
+## 2026-05-22 — Document Chat Phase C frontend complete (#474)
+
+Status: Done
+Source: issue #474; commits d352ed2 + 8fa4f95 on `feature/document-chat`
+
+Finding:
+- ScopeBadge, ScopeSelector, DocumentChatPanel, InsightPane Chat tab migration complete.
+- `single_document` scope auto-created via DocumentChatPanel; `all_accessible_documents` switchable via ScopeSelector.
+- Document Page InsightPane's "QA" tab replaced with "Chat" tab using DocumentChatPanel.
+- `feature.document_chat` removed from SYSTEM_CONFIG_DEFAULTS (env-var is correct gate).
+- Sidebar, message list, citations, empty/loading/error states all tested.
+
 Next action:
-- Complete implementation: ruff format, mypy, pytest.
-- Open PR targeting `main`.
+- Verify CI on `feature/document-chat`; open PR targeting `main`.
+
+## 2026-05-22 — In-document search fix verified + closed (#469)
+
+Status: Done
+Source: issue #469; commit 2927a50 on `main`
+
+Finding:
+- Fix commit 2927a50 covers all 7 renderers: PreviewPane passes search props to DOCX/RTF TextPreview, TablePreview, ArchivePreview, EmailPreview, SlidesPreview, PdfViewer, CodeViewer.
+- PdfViewer: per-page text extraction + page-jump navigation via activeSearchIndex.
+- TextPreview virtualized: per-line cumulative match offsets for correct global active-match navigation.
+- Missing tests added (commit 48153a9): 8 test files covering all AC #5 criteria — PreviewPane prop routing, PdfViewer page nav, virtualized global index, DocumentPage Ctrl+F toggle, EmailPreview/SlidesPreview/ArchivePreview/TablePreview search.
+- TypeScript check clean. Issue closed.
+
+## 2026-05-22 — Document Chat Phase D — query rewrite (#475)
+
+Status: Done
+Source: issue #475; design §9
+
+Finding:
+- D1: `rewrite_query()` — `src/services/chat/message_service.py`. Handles
+  history window (last 4 user+assistant pairs), skip on first turn, fallback on Ollama error.
+- D2: Wired into router — `POST /chat/sessions/{id}/messages` loads prior messages,
+  calls `rewrite_query` when `FEATURE_DOCUMENT_CHAT_QUERY_REWRITE=true`, passes
+  `rewritten_query` to the persisted assistant message.
+- D3: 6 unit tests covering all rewrite behaviors.
+- D4: Admin debug panel — collapsed `<details>` block in assistant message bubble
+  shows `rewritten_query` when present. 6 component tests.
+- Bugfix: `rag.answer(question=body.content)` → `question=question` (used raw
+  input instead of possibly-rewritten query).
+- Feature flag: `FEATURE_DOCUMENT_CHAT_QUERY_REWRITE` (default `false`).
+- Verified: ruff, ruff format, mypy strict — clean. 44 unit + 28 frontend tests pass.
+- Issue #475 closed.
+
+Next action:
+- Phase E (#476): retrieval quality (hybrid, metadata, translations, reranker).
+
+## 2026-05-22 — Document Chat Phase F — Citation UX (#477)
+
+Status: Done
+Source: issue #477; commits on `feature/document-chat`
+
+Finding:
+- F1: `page_number`, `section_heading`, `language`, `translated_from` in backend Citation model, Qdrant/Meili metadata, router response.
+- F2: `ChatCitationCard` displays `p. N · Section Name` when present.
+- F3: Citation `<Link>` includes `?page=N&chunk=M`, opens in new tab.
+- F4: `DocumentPage` reads `?page=N` search param via `useSearch`, `scrollIntoView` on mount.
+- F5: "Translated from [language]" italic indicator on translated citations.
+- 7 new `ChatCitationCard.test.tsx` tests.
+- Verified: 423 frontend + 124 backend tests pass.
+
+## 2026-05-22 — Document Chat Phase G — Streaming and polish
+
+Status: Done
+Source: Phase G table in document-chat-design.md; commits on `feature/document-chat`
+
+Finding:
+- G1: SSE streaming endpoint `POST /chat/sessions/{id}/messages/stream` — Ollama streaming via `generate_stream()`, `RagService.answer_stream()` yielding `(event, data)` tuples, `StreamingResponse` SSE formatting. Behind `FEATURE_DOCUMENT_CHAT_STREAMING` flag.
+- G2: Frontend streaming UI — `sendChatMessageStream()` SSE reader in `api/chat.ts`, phase indicators ("Searching"/"Reading sources"/"Generating") in `ChatInput`, incremental message rendering in `ChatWindow`.
+- G3: `StarterQuestions` component — scope-aware question suggestions when session is empty.
+- G5: `autoFocus` on `ChatInput` when session loads, `aria-busy` on `MessageList` during streaming, 6 `StarterQuestions` tests.
+- G4: Grafana panel — human task, not yet started.
+- Verified: 429 frontend tests (61 files), 44 backend chat unit tests, `tsc --noEmit` clean.
 
 ## 2026-05-20 — Shared agent skills setup
 
-Status: Active
+Status: Done
 Source: project manager chat summary
 
 Finding:
-- Add a shared `.claude/skills/` skill library for Claude Code and OpenCode.
-- Add project-local OpenCode agent definitions under `.opencode/agents/`.
-- Add repo-owned Markdown memory under `docs/memory/`.
+- Shared `.claude/skills/` skill library added for Claude Code and OpenCode.
+- Project-local OpenCode agent definitions added under `.opencode/agents/`.
+- Repo-owned Markdown memory live under `docs/memory/`.
 
 Impact:
-- Future agent work should load only the relevant skills and memory files before broad repo exploration.
-- Project memory should be easy to review in git.
+- Agents read relevant skills and memory before broad repo exploration.
 
 Next action:
-- Finish wiring skills, memory files, and OpenCode agent definitions.
+- None. Setup complete.

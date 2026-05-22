@@ -38,7 +38,7 @@ import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { Tabs } from "@/components/primitives/Tabs";
 import { useToast } from "@/components/primitives/ToastContext";
 import { useT } from "@/i18n/index";
-import { QAPanel } from "@/features/qa/QAPanel";
+import { DocumentChatPanel } from "@/features/chat/DocumentChatPanel";
 import type { DocumentPreview } from "@/api/documents";
 import type { InsightPaneTab } from "./insightPaneTabs";
 import styles from "./InsightPane.module.css";
@@ -54,7 +54,7 @@ export function InsightPane({ docId, preview }: InsightPaneProps) {
 
   const TABS: { id: InsightPaneTab; label: string }[] = [
     { id: "summary", label: t.insight.tabSummary },
-    { id: "qa", label: t.insight.tabQa },
+    { id: "chat", label: t.insight.tabChat },
     { id: "related", label: t.insight.tabRelated },
     { id: "annotations", label: t.insight.tabAnnotations },
     { id: "comments", label: t.insight.tabComments },
@@ -73,7 +73,7 @@ export function InsightPane({ docId, preview }: InsightPaneProps) {
       />
       <div className={styles.content}>
         {activeTab === "summary" && <SummaryTab docId={docId} />}
-        {activeTab === "qa" && <QAPanel docId={docId} />}
+        {activeTab === "chat" && <DocumentChatPanel docId={docId} docTitle={preview?.title} />}
         {activeTab === "related" && <RelatedTab docId={docId} />}
         {activeTab === "annotations" && <AnnotationsTab docId={docId} />}
         {activeTab === "comments" && <CommentsTab docId={docId} />}

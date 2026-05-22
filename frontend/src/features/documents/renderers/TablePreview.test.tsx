@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
 import { render } from "@/test/render";
 import { TablePreview } from "./TablePreview";
 
@@ -40,5 +40,42 @@ describe("TablePreview", () => {
     // jsdom may not render virtual rows, but we didn't render 1001×2 cells
     const cells = document.querySelectorAll('[role="cell"]');
     expect(cells.length).toBeLessThan(1001 * 2);
+  });
+
+  describe("search", () => {
+    it("highlights matching cells when searchQuery is provided", () => {
+      const { container } = render(<TablePreview text={"Name\tAge\nAlice\t30\nBob\t25"} searchQuery="Alice" />);
+      const cells = container.querySelectorAll("td");
+      expect(cells[0]?.textContent).toBe("Alice");
+      expect(cells[0]?.className).not.toBe(cells[1]?.className);
+    });
+
+    it("reports match count via onMatchCountChange", async () => {
+      const onMatchCountChange = vi.fn();
+      render(
+        <TablePreview
+          text={"Name\tColor\nApple\tRed\nBerry\tBlue\nCarrot\tOrange"}
+          searchQuery="e"
+          onMatchCountChange={onMatchCountChange}
+        />
+      );
+      await waitFor(() => {
+        expect(onMatchCountChange).toHaveBeenCalledWith(6);
+      });
+    });
+
+    it("reports zero matches when query has no results", async () => {
+      const onMatchCountChange = vi.fn();
+      render(
+        <TablePreview
+          text={"Name\tAge\nAlice\t30\nBob\t25"}
+          searchQuery="notfound"
+          onMatchCountChange={onMatchCountChange}
+        />
+      );
+      await waitFor(() => {
+        expect(onMatchCountChange).toHaveBeenCalledWith(0);
+      });
+    });
   });
 });

@@ -2,18 +2,25 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 from pydantic import BaseModel, Field
 
 
 class Citation(BaseModel):
     """A citation backing an answer."""
 
+    citation_id: str = Field(default_factory=lambda: str(uuid4()))
     document_id: str
     doc_title: str | None = None
     chunk_text: str
     score: float
     chunk_index: int | None = None
     source_id: str | None = None
+    page_number: int | None = None
+    section_heading: str | None = None
+    language: str | None = None
+    translated_from: str | None = None
 
 
 class QuestionRequest(BaseModel):

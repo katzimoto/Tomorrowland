@@ -10,7 +10,7 @@ export function QAPage() {
         <h1 className={styles.title}>{t.qa.title}</h1>
       </header>
       <div className={styles.body}>
-        <QAPanel returnPath="/qa" />
+        <QAPanel />
       </div>
     </div>
   );

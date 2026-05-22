@@ -1,10 +1,13 @@
 import { api } from "./client";
 
 export interface QACitation {
+  citation_id: string;
   document_id: string;
   doc_title: string;
   chunk_text: string;
   score: number;
+  chunk_index: number | null;
+  source_id: string | null;
 }
 
 export interface QAResponse {

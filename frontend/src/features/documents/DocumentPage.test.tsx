@@ -9,9 +9,12 @@ import * as annotationsApi from "@/api/annotations";
 vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({ docId: "doc-123" }),
   useNavigate: () => vi.fn(),
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
-    <a href={to}>{children}</a>
-  ),
+  useSearch: () => ({}),
+  Link: ({ children, params, search }: { children: React.ReactNode; to: string; params?: Record<string, string>; search?: Record<string, string | undefined> }) => {
+    const docId = params?.docId ?? "";
+    const href = `/doc/${docId}?page=${search?.page ?? ""}&chunk=${search?.chunk ?? ""}`;
+    return <a href={href}>{children}</a>;
+  },
 }));
 
 vi.mock("@/api/documents");
@@ -217,5 +220,42 @@ describe("DocumentPage", () => {
       ).toBeInTheDocument();
     });
     expect(screen.queryByRole("group", { name: "View mode" })).not.toBeInTheDocument();
+  });
+
+  describe("in-document search (Ctrl+F)", () => {
+    it("opens DocumentSearchBar on Ctrl+F for text/plain documents", async () => {
+      render(<DocumentPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByRole("heading", { name: "Vendor Risk Assessment 2024" })
+        ).toBeInTheDocument();
+      });
+      fireEvent.keyDown(document.querySelector('[tabindex="-1"]') ?? document.body, {
+        key: "f",
+        ctrlKey: true,
+      });
+      await waitFor(() => {
+        expect(screen.getByRole("searchbox")).toBeInTheDocument();
+      });
+    });
+
+    it("does not open DocumentSearchBar on Ctrl+F for unsupported types", async () => {
+      vi.mocked(documentsApi.getPreview).mockResolvedValue({
+        ...mockPreview,
+        mime_type: "image/png",
+      });
+      render(<DocumentPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByRole("heading", { name: "Vendor Risk Assessment 2024" })
+        ).toBeInTheDocument();
+      });
+      fireEvent.keyDown(document.querySelector('[tabindex="-1"]') ?? document.body, {
+        key: "f",
+        ctrlKey: true,
+      });
+      // No searchbox should appear for images
+      expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    });
   });
 });

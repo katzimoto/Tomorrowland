@@ -1,5 +1,5 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "@tanstack/react-router";
+import { useParams, useSearch } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDownloadUrl, getPreview, getTranslationVersions } from "@/api/documents";
 import { Button } from "@/components/primitives/Button";
@@ -33,6 +33,7 @@ export function DocumentPage() {
   const qc = useQueryClient();
   const hadInProgressRef = useRef(false);
   const viewerRef = useRef<HTMLDivElement>(null);
+  const docSearch = useSearch({ from: "/app/doc/$docId" }) as { page?: number; chunk?: number };
 
   const showOriginal = activeMode === "original" || activeMode === "extracted";
 
@@ -133,6 +134,14 @@ export function DocumentPage() {
       ),
     staleTime: 2 * 60_000,
   });
+
+  // Scroll to page from search param (Phase F — citation viewer link)
+  useEffect(() => {
+    if (docSearch.page != null && preview) {
+      const el = document.getElementById(`page-${docSearch.page}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [docSearch.page, preview]);
 
   const availableModes = useMemo<ViewMode[]>(() => {
     const modes: ViewMode[] = ["original"];

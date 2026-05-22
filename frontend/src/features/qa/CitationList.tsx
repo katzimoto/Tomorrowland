@@ -4,21 +4,19 @@ import styles from "./CitationList.module.css";
 
 interface CitationListProps {
   citations: QACitation[];
-  returnPath?: string;
 }
 
-export function CitationList({ citations, returnPath }: CitationListProps) {
+export function CitationList({ citations }: CitationListProps) {
   if (!citations.length) return null;
 
   return (
     <div className={styles.wrapper}>
       <h3 className={styles.heading}>Sources</h3>
       <ul className={styles.list}>
-        {citations.map((c) => (
+        {citations.map((c, idx) => (
           <CitationCard
-            key={c.document_id}
+            key={c.citation_id ?? `${c.document_id}-${c.chunk_index ?? idx}`}
             citation={c}
-            returnPath={returnPath}
           />
         ))}
       </ul>

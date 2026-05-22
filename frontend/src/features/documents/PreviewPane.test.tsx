@@ -6,8 +6,8 @@ import type { DocumentPreview } from "@/api/documents";
 
 // Stub heavy renderers to keep PreviewPane dispatch tests fast
 vi.mock("./renderers/PdfViewer", () => ({
-  PdfViewer: ({ docId }: { docId: string }) => (
-    <div data-testid="pdf-viewer" data-doc-id={docId} />
+  PdfViewer: ({ docId, searchQuery }: { docId: string; searchQuery?: string }) => (
+    <div data-testid="pdf-viewer" data-doc-id={docId} data-search-query={searchQuery} />
   ),
 }));
 
@@ -24,8 +24,32 @@ vi.mock("./renderers/MediaPreview", () => ({
 }));
 
 vi.mock("./renderers/CodeViewer", () => ({
-  CodeViewer: ({ docId, mimeType }: { docId: string; mimeType: string }) => (
-    <div data-testid="code-viewer" data-doc-id={docId} data-mime={mimeType} />
+  CodeViewer: ({ docId, mimeType, searchQuery }: { docId: string; mimeType: string; searchQuery?: string }) => (
+    <div data-testid="code-viewer" data-doc-id={docId} data-mime={mimeType} data-search-query={searchQuery} />
+  ),
+}));
+
+vi.mock("./renderers/TablePreview", () => ({
+  TablePreview: ({ searchQuery }: { searchQuery?: string }) => (
+    <div data-testid="table-preview" data-search-query={searchQuery} />
+  ),
+}));
+
+vi.mock("./renderers/ArchivePreview", () => ({
+  ArchivePreview: ({ searchQuery }: { searchQuery?: string }) => (
+    <div data-testid="archive-preview" data-search-query={searchQuery} />
+  ),
+}));
+
+vi.mock("./renderers/EmailPreview", () => ({
+  EmailPreview: ({ searchQuery }: { searchQuery?: string }) => (
+    <div data-testid="email-preview" data-search-query={searchQuery} />
+  ),
+}));
+
+vi.mock("./renderers/SlidesPreview", () => ({
+  SlidesPreview: ({ searchQuery }: { searchQuery?: string }) => (
+    <div data-testid="slides-preview" data-search-query={searchQuery} />
   ),
 }));
 
@@ -34,16 +58,22 @@ vi.mock("./renderers/TextPreview", () => ({
     docId,
     showOriginal,
     translationVersionId,
+    searchQuery,
+    activeSearchIndex,
   }: {
     docId?: string;
     showOriginal?: boolean;
     translationVersionId?: string;
+    searchQuery?: string;
+    activeSearchIndex?: number;
   }) => (
     <div
       data-testid="text-preview"
       data-doc-id={docId}
       data-show-original={showOriginal ? "true" : undefined}
       data-version-id={translationVersionId}
+      data-search-query={searchQuery}
+      data-active-index={activeSearchIndex}
     />
   ),
 }));
@@ -198,5 +228,106 @@ describe("PreviewPane dispatch", () => {
     render(<PreviewPane preview={makePreview({ mime_type: "video/mp4" })} />);
     expect(screen.getByTestId("media-preview")).toBeInTheDocument();
     expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
+  });
+
+  describe("search prop passing", () => {
+    it("passes searchQuery to TextPreview for text/plain", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "text/plain" })}
+          searchQuery="test"
+          activeSearchIndex={2}
+        />
+      );
+      const tp = screen.getByTestId("text-preview");
+      expect(tp).toHaveAttribute("data-search-query", "test");
+      expect(tp).toHaveAttribute("data-active-index", "2");
+    });
+
+    it("passes searchQuery to TextPreview for DOCX/RTF", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })}
+          searchQuery="word"
+          activeSearchIndex={1}
+        />
+      );
+      const tp = screen.getByTestId("text-preview");
+      expect(tp).toHaveAttribute("data-search-query", "word");
+    });
+
+    it("passes searchQuery to TextPreview for extracted mode", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "application/pdf" })}
+          activeMode="extracted"
+          searchQuery="extracted"
+          activeSearchIndex={0}
+        />
+      );
+      const tp = screen.getByTestId("text-preview");
+      expect(tp).toHaveAttribute("data-search-query", "extracted");
+    });
+
+    it("passes searchQuery to PdfViewer for application/pdf", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "application/pdf" })}
+          searchQuery="pdfterm"
+        />
+      );
+      const pv = screen.getByTestId("pdf-viewer");
+      expect(pv).toHaveAttribute("data-search-query", "pdfterm");
+    });
+
+    it("passes searchQuery to table preview for spreadsheet MIME", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })}
+          searchQuery="cellval"
+        />
+      );
+      expect(screen.getByTestId("table-preview")).toHaveAttribute("data-search-query", "cellval");
+    });
+
+    it("passes searchQuery to archive preview for zip MIME", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "application/zip" })}
+          searchQuery="archive"
+        />
+      );
+      expect(screen.getByTestId("archive-preview")).toHaveAttribute("data-search-query", "archive");
+    });
+
+    it("passes searchQuery to email preview for rfc822 MIME", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "message/rfc822" })}
+          searchQuery="email"
+        />
+      );
+      expect(screen.getByTestId("email-preview")).toHaveAttribute("data-search-query", "email");
+    });
+
+    it("passes searchQuery to slides preview for pptx MIME", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })}
+          searchQuery="slide"
+        />
+      );
+      expect(screen.getByTestId("slides-preview")).toHaveAttribute("data-search-query", "slide");
+    });
+
+    it("passes searchQuery to CodeViewer for application/json", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "application/json" })}
+          searchQuery="code"
+        />
+      );
+      expect(screen.getByTestId("code-viewer")).toHaveAttribute("data-search-query", "code");
+    });
   });
 });

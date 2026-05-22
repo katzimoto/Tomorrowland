@@ -5,6 +5,7 @@ import { LoginPage } from "@/features/auth/LoginPage";
 import { SearchPage } from "@/features/search/SearchPage";
 import { DocumentPage } from "@/features/documents/DocumentPage";
 import { QAPage } from "@/features/qa/QAPage";
+import { ChatPage } from "@/features/chat/ChatPage";
 import { SubscriptionsPage } from "@/features/subscriptions/SubscriptionsPage";
 import { NotificationsPage } from "@/features/notifications/NotificationsPage";
 import { HistoryPage } from "@/features/history/HistoryPage";
@@ -60,16 +61,40 @@ const searchRoute = createRoute({
   }),
 });
 
+function parseNum(v: unknown): number | undefined {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
 const docRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/doc/$docId",
   component: DocumentPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    const page = parseNum(search.page);
+    const chunk = parseNum(search.chunk);
+    return { ...(page !== undefined ? { page } : {}), ...(chunk !== undefined ? { chunk } : {}) };
+  },
 });
 
 const qaRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/qa",
   component: QAPage,
+});
+
+const chatRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/chat",
+  component: ChatPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    scope: typeof search.scope === "string" ? search.scope : undefined,
+    ids: typeof search.ids === "string" ? search.ids : undefined,
+  }),
 });
 
 const subscriptionsRoute = createRoute({
@@ -140,6 +165,7 @@ const routeTree = rootRoute.addChildren([
     searchRoute,
     docRoute,
     qaRoute,
+    chatRoute,
     subscriptionsRoute,
     notificationsRoute,
     historyRoute,

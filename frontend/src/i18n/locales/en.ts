@@ -2,6 +2,7 @@ export interface Translations {
   nav: {
     search: string;
     qa: string;
+    chat: string;
     subscriptions: string;
     notifications: string;
     history: string;
@@ -91,6 +92,7 @@ export interface Translations {
   insight: {
     tabSummary: string;
     tabQa: string;
+    tabChat: string;
     tabRelated: string;
     tabAnnotations: string;
     tabComments: string;
@@ -157,6 +159,35 @@ export interface Translations {
     emptyTitle: string;
     emptyBody: string;
     toastError: string;
+  };
+  chat: {
+    pageTitle: string;
+    newChat: string;
+    startChat: string;
+    emptyTitle: string;
+    emptyBody: string;
+    noChatsYet: string;
+    loadChatsError: string;
+    loadSessionError: string;
+    deleteSession: string;
+    deleteError: string;
+    sendError: string;
+    inputPlaceholder: string;
+    send: string;
+    groundingNote: string;
+    sourcesHeading: string;
+    chattingWith: string;
+    scopeAll: string;
+    scopeSingleDocument: string;
+    scopeSelectedDocuments: string;
+    scopeSelectedDocumentsCount: (n: number) => string;
+    scopeSource: string;
+    scopeFolder: string;
+    scopeSearchResults: string;
+    untitledDocument: string;
+    scopeSwitchLabel: string;
+    askAboutSelected: string;
+    starterHeading: string;
   };
   notifications: {
     title: string;
@@ -299,6 +330,7 @@ export const en: Translations = {
   nav: {
     search: "Search",
     qa: "Q&A",
+    chat: "Chat",
     subscriptions: "Subscriptions",
     notifications: "Notifications",
     history: "History",
@@ -388,6 +420,7 @@ export const en: Translations = {
   insight: {
     tabSummary: "Summary",
     tabQa: "Q&A",
+    tabChat: "Chat",
     tabRelated: "Related",
     tabAnnotations: "Annotations",
     tabComments: "Comments",
@@ -454,6 +487,35 @@ export const en: Translations = {
     emptyTitle: "Ask anything",
     emptyBody: "Type a question and press Ask. Answers are grounded in your accessible documents.",
     toastError: "Q&A request failed. Check that the backend is reachable.",
+  },
+  chat: {
+    pageTitle: "Document Chat",
+    newChat: "New Chat",
+    startChat: "Start a chat",
+    emptyTitle: "Ask questions about your documents.",
+    emptyBody: "Answers are based only on documents you can access, with sources.",
+    noChatsYet: "No chats yet.",
+    loadChatsError: "Failed to load chats.",
+    loadSessionError: "Failed to load chat.",
+    deleteSession: "Delete chat",
+    deleteError: "Failed to delete chat.",
+    sendError: "Failed to send message. Please try again.",
+    inputPlaceholder: "Ask a question…",
+    send: "Send",
+    groundingNote: "Based only on documents you can access.",
+    sourcesHeading: "Sources",
+    chattingWith: "Chatting with",
+    scopeAll: "All accessible documents",
+    scopeSingleDocument: "Single document",
+    scopeSelectedDocuments: "Selected documents",
+    scopeSelectedDocumentsCount: (n) => `${n} selected documents`,
+    scopeSource: "Source",
+    scopeFolder: "Folder",
+    scopeSearchResults: "Search results",
+    untitledDocument: "Untitled document",
+    scopeSwitchLabel: "Change scope",
+    askAboutSelected: "Ask about selected",
+    starterHeading: "Try asking",
   },
   notifications: {
     title: "Notifications",

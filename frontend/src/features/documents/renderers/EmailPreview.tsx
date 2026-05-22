@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { countMatches, highlightMatches } from "../highlightMatches";
+import { highlightMatches } from "../highlightMatches";
 import styles from "./renderers.module.css";
 
 interface EmailPreviewProps {

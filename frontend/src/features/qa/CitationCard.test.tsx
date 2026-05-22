@@ -17,10 +17,13 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 const mockCitation = {
+  citation_id: "cit-1",
   document_id: "doc-1",
   doc_title: "Vendor Risk Assessment",
   chunk_text: "This document covers vendor risk management.",
   score: 0.92,
+  chunk_index: 0,
+  source_id: null,
 };
 
 describe("CitationCard", () => {

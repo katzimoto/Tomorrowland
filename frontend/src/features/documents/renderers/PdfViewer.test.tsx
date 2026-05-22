@@ -196,4 +196,27 @@ describe("PdfViewer", () => {
       expect(onMatchCountChange).toHaveBeenCalledWith(0);
     });
   });
+
+  it("navigates to page containing active match when activeSearchIndex changes", async () => {
+    const page1 = makeMockPage("cat toy");
+    const page2 = makeMockPage("dog bone");
+    const page3 = makeMockPage("cat nip");
+    const pageMap: Record<number, typeof page1> = { 1: page1, 2: page2, 3: page3 };
+    const getPageMock = vi.fn().mockImplementation((n: number) =>
+      Promise.resolve(pageMap[n] ?? page1)
+    );
+    const task = {
+      promise: Promise.resolve({ numPages: 3, getPage: getPageMock }),
+      destroy: vi.fn(),
+    };
+    mockGetDocument.mockReturnValue(task);
+    const { rerender } = render(<PdfViewer docId="doc-1" searchQuery="cat" />);
+    await waitFor(() => expect(screen.getByText("1 / 3")).toBeInTheDocument());
+
+    rerender(<PdfViewer docId="doc-1" searchQuery="cat" activeSearchIndex={0} />);
+    await waitFor(() => expect(screen.getByText("1 / 3")).toBeInTheDocument());
+
+    rerender(<PdfViewer docId="doc-1" searchQuery="cat" activeSearchIndex={1} />);
+    await waitFor(() => expect(screen.getByText("3 / 3")).toBeInTheDocument());
+  });
 });

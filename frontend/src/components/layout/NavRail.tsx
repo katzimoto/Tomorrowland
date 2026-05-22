@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import {
   Search,
   MessageSquare,
+  MessagesSquare,
   Bell,
   History,
   Bookmark,
@@ -16,7 +17,7 @@ import { LanguageSelector } from "@/components/settings/LanguageSelector";
 import { TomorrowlandLogo } from "@/components/brand/TomorrowlandLogo";
 import styles from "./NavRail.module.css";
 
-type NavKey = "search" | "qa" | "subscriptions" | "notifications" | "history" | "expertise" | "admin";
+type NavKey = "search" | "qa" | "chat" | "subscriptions" | "notifications" | "history" | "expertise" | "admin";
 
 interface NavItem {
   to: string;
@@ -27,6 +28,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: "/search", key: "search", icon: <Search size={20} /> },
   { to: "/qa", key: "qa", icon: <MessageSquare size={20} /> },
+  { to: "/chat", key: "chat", icon: <MessagesSquare size={20} /> },
   { to: "/subscriptions", key: "subscriptions", icon: <Bookmark size={20} /> },
   { to: "/notifications", key: "notifications", icon: <Bell size={20} /> },
   { to: "/history", key: "history", icon: <History size={20} /> },
