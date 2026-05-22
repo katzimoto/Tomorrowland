@@ -22,6 +22,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       {isAssistant && (
         <p className={styles.groundingNote}>{t.chat.groundingNote}</p>
       )}
+      {isAssistant && message.rewritten_query && (
+        <details className={styles.debugPanel}>
+          <summary className={styles.debugSummary}>Debug</summary>
+          <pre className={styles.debugQuery}>{message.rewritten_query}</pre>
+        </details>
+      )}
     </div>
   );
 }

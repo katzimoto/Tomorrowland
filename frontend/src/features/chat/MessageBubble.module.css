@@ -36,3 +36,28 @@
   color: var(--color-text-muted);
   font-style: italic;
 }
+
+.debugPanel {
+  margin-top: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-2);
+  background: var(--color-bg, #fafafa);
+  font-size: 0.75rem;
+}
+
+.debugSummary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+.debugQuery {
+  margin: var(--space-1) 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-mono, monospace);
+  font-size: 0.7rem;
+}
