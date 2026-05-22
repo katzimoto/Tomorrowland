@@ -3,7 +3,6 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { render } from "@/test/render";
 import { InsightPane } from "./InsightPane";
 import * as documentsApi from "@/api/documents";
-import * as commentsApi from "@/api/comments";
 import * as annotationsApi from "@/api/annotations";
 import * as chatApi from "@/api/chat";
 
@@ -14,7 +13,6 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/api/documents");
-vi.mock("@/api/comments");
 vi.mock("@/api/annotations");
 vi.mock("@/api/chat");
 
@@ -47,7 +45,6 @@ beforeEach(() => {
   vi.mocked(documentsApi.getTags).mockRejectedValue(new Error("not found"));
   vi.mocked(documentsApi.getRelated).mockRejectedValue(new Error("not found"));
   vi.mocked(documentsApi.listDocumentVersions).mockResolvedValue([]);
-  vi.mocked(commentsApi.listCommentsPage).mockResolvedValue({ comments: [], total: 0 });
   vi.mocked(annotationsApi.listAnnotations).mockResolvedValue([]);
   vi.mocked(chatApi.createChatSession).mockResolvedValue(CHAT_SESSION);
   vi.mocked(chatApi.getChatSession).mockResolvedValue({ ...CHAT_SESSION, messages: [] });

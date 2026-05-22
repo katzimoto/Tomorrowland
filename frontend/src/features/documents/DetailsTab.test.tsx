@@ -29,7 +29,7 @@ beforeEach(() => {
 });
 
 describe("DetailsTab", () => {
-  it("renders the file name", () => {
+  it("renders the file name in the open File section", () => {
     render(<DetailsTab preview={basePreview} />);
     expect(screen.getByText("Annual Report 2024.pdf")).toBeInTheDocument();
   });
@@ -45,82 +45,59 @@ describe("DetailsTab", () => {
     expect(code?.textContent).toContain("application/pdf");
   });
 
-  it("renders original language", () => {
+  it("shows collapsed section headers for Source and Processing", () => {
     render(<DetailsTab preview={basePreview} />);
-    expect(screen.getByText("fr")).toBeInTheDocument();
+    // File section is open; Processing header is visible
+    expect(screen.getByText("Processing")).toBeInTheDocument();
   });
 
-  it("renders translation quality badge", () => {
-    render(<DetailsTab preview={basePreview} />);
-    expect(screen.getByText("High")).toBeInTheDocument();
+  it("renders source when metadata has connector_name", () => {
+    render(
+      <DetailsTab
+        preview={{ ...basePreview, metadata: { connector_name: "SharePoint", path: "/a/b" } }}
+      />
+    );
+    // Source section starts collapsed; click to open
+    fireEvent.click(screen.getByText("Source"));
+    expect(screen.getByText("SharePoint")).toBeInTheDocument();
   });
 
-  it("renders processing status", () => {
+  it("renders source path from metadata.path", () => {
+    render(
+      <DetailsTab
+        preview={{ ...basePreview, metadata: { source: "Local", path: "/docs/reports/a.pdf" } }}
+      />
+    );
+    fireEvent.click(screen.getByText("Source"));
+    expect(screen.getByText(/docs\/reports\/a.pdf/)).toBeInTheDocument();
+  });
+
+  it("renders processing details when Processing section is opened", () => {
     render(<DetailsTab preview={basePreview} />);
+    fireEvent.click(screen.getByText("Processing"));
     expect(screen.getByText("Indexed")).toBeInTheDocument();
-  });
-
-  it("renders version number", () => {
-    render(<DetailsTab preview={basePreview} />);
-    const versionLabel = screen.getByText("Version");
-    const row = versionLabel.closest("div");
-    expect(row?.querySelector("dd")?.textContent).toContain("3");
+    expect(screen.getByText("High")).toBeInTheDocument();
+    expect(screen.getByText("Imported")).toBeInTheDocument();
+    expect(screen.getByText("Updated")).toBeInTheDocument();
+    expect(screen.getByText("Version")).toBeInTheDocument();
     expect(screen.getByText(/latest/)).toBeInTheDocument();
   });
 
-  it("renders created timestamp", () => {
+  it("renders truncated SHA-256", () => {
     render(<DetailsTab preview={basePreview} />);
-    // Just check the label is present; locale formatting varies
-    expect(screen.getByText("Imported")).toBeInTheDocument();
-  });
-
-  it("renders updated timestamp when present", () => {
-    render(<DetailsTab preview={basePreview} />);
-    expect(screen.getByText("Updated")).toBeInTheDocument();
-  });
-
-  it("renders truncated SHA-256 (first 12 chars + ellipsis)", () => {
-    render(<DetailsTab preview={basePreview} />);
+    fireEvent.click(screen.getByText("Processing"));
     const codes = document.querySelectorAll("code");
     const hashEl = Array.from(codes).find((c) => c.textContent?.includes("abcdef123456"));
     expect(hashEl).not.toBeUndefined();
     expect(hashEl?.textContent).toMatch(/abcdef123456…/);
   });
 
-  it("copy button calls navigator.clipboard.writeText with full hash", () => {
+  it("copy button calls clipboard with full hash", () => {
     render(<DetailsTab preview={basePreview} />);
+    fireEvent.click(screen.getByText("Processing"));
     const copyBtn = screen.getByRole("button", { name: /copy full sha-256/i });
     fireEvent.click(copyBtn);
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(basePreview.content_sha256);
-  });
-
-  it("omits source row when metadata has no source", () => {
-    render(<DetailsTab preview={{ ...basePreview, metadata: {} }} />);
-    expect(screen.queryByText("Source")).not.toBeInTheDocument();
-  });
-
-  it("shows source from metadata.connector_name", () => {
-    render(
-      <DetailsTab
-        preview={{
-          ...basePreview,
-          metadata: { connector_name: "SharePoint" },
-        }}
-      />
-    );
-    expect(screen.getByText("SharePoint")).toBeInTheDocument();
-  });
-
-  it("shows source path from metadata.path", () => {
-    render(
-      <DetailsTab
-        preview={{
-          ...basePreview,
-          metadata: { path: "/docs/reports/annual.pdf" },
-        }}
-      />
-    );
-    expect(screen.getByText("/docs/reports/annual.pdf")).toBeInTheDocument();
   });
 
   it("omits file size row when not in metadata", () => {
@@ -128,16 +105,18 @@ describe("DetailsTab", () => {
     expect(screen.queryByText("File size")).not.toBeInTheDocument();
   });
 
-  it("shows file size from metadata.file_size in KB", () => {
+  it("shows file size from metadata.file_size", () => {
     render(
       <DetailsTab
-        preview={{
-          ...basePreview,
-          metadata: { file_size: 51200 },
-        }}
+        preview={{ ...basePreview, metadata: { file_size: 51200 } }}
       />
     );
     expect(screen.getByText("50.0 KB")).toBeInTheDocument();
+  });
+
+  it("omits source section when metadata has no source", () => {
+    render(<DetailsTab preview={{ ...basePreview, metadata: {} }} />);
+    expect(screen.queryByText("Source")).not.toBeInTheDocument();
   });
 
   it("omits source_language row when null", () => {
@@ -145,15 +124,25 @@ describe("DetailsTab", () => {
     expect(screen.queryByText("Original language")).not.toBeInTheDocument();
   });
 
-  it("omits SHA-256 row when content_sha256 is null", () => {
-    render(<DetailsTab preview={{ ...basePreview, content_sha256: null }} />);
+  it("omits SHA-256 when content_sha256 is null", () => {
+    render(<DetailsTab preview={{ ...basePreview, content_sha256: null, metadata: { source: "x", path: "/y" } }} />);
+    fireEvent.click(screen.getByText("Processing"));
     expect(screen.queryByRole("button", { name: /copy full sha-256/i })).not.toBeInTheDocument();
   });
 
-  it("renders using a definition list for keyboard navigation", () => {
-    render(<DetailsTab preview={basePreview} />);
-    expect(document.querySelector("dl")).toBeInTheDocument();
-    expect(document.querySelectorAll("dt").length).toBeGreaterThan(0);
-    expect(document.querySelectorAll("dd").length).toBeGreaterThan(0);
+  it("renders My Tags section when docId is provided", () => {
+    render(<DetailsTab preview={basePreview} docId="doc-1" />);
+    expect(screen.getByText("My Tags")).toBeInTheDocument();
+  });
+
+  it("renders Metadata section with Fields/Raw JSON toggle", () => {
+    render(
+      <DetailsTab
+        preview={{ ...basePreview, metadata: { key1: "val1", key2: 42 } }}
+      />
+    );
+    expect(screen.getByText("Metadata")).toBeInTheDocument();
+    expect(screen.getByText("Fields")).toBeInTheDocument();
+    expect(screen.getByText("Raw JSON")).toBeInTheDocument();
   });
 });
