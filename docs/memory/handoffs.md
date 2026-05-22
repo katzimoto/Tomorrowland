@@ -461,6 +461,51 @@ Next agent prompt:
 - Check parent issue #453 for remaining MVP child issues.
 - If picking up #451 (browser-based test verification), note that virtualization rendering can only be verified in a real browser with layout.
 
+## 2026-05-22 — #486 user-managed private/public document tags complete
+
+Status: Done
+Source: issue #486; PR #494 (targeting feature/document-details-and-search); commit a9dc372 on 486-user-tags
+
+What changed:
+- Migration: `user_document_tags` table with indexes on (document_id, user_id) and (document_id, is_private).
+- `UserDocumentTagRepository`: list_tags (own private + all public), create_tag (max 50/user/doc, dup check), delete_tag (ownership or admin).
+- API: GET/POST/DELETE `/documents/{id}/user-tags` — all behind `assert_doc_access`.
+- `UserTagEditor` component: chip list (private dim, public accent-tinted), inline input + Add, Enter support, Private/Public radio, delete on owned tags, error state.
+- Wired into `DetailsTab` as "My Tags" section; `docId` from `InsightPane`.
+
+Verification:
+- `ruff check` + `ruff format` — clean
+- `mypy --strict` — no issues (3 source files)
+- `pytest tests/unit/test_user_document_tags.py --no-cov` — 16 passed
+- `pytest tests/integration/test_user_tags_api.py --no-cov` — 17 passed
+- `pytest tests/test_migrations.py --no-cov` — 4 passed
+- `tsc --noEmit` — clean
+- Vitest blocked locally by Node 20.9.0 (needs 22+) — CI gate
+
+Open risks:
+- Frontend vitest not run locally — CI is sole gate for UserTagEditor.test.tsx.
+- Branch targets `feature/document-details-and-search`, not `main`.
+
+Next agent prompt:
+- Pick up #487 (unify comments into annotations) or #488 (document relationships).
+
+## 2026-05-22 — #485 Markdown preview complete
+
+Status: Done
+Source: issue #485; PR #493 (targeting feature/document-details-and-search); commit 3b5a592 on 485-markdown-preview
+
+What changed:
+- `MarkdownPreview` renderer: fetches via `getDocumentText` (100K limit), marked + DOMPurify sanitization, Raw/Rendered toggle, Copy button, loading/error/fallback states.
+- Wired into `PreviewPane`: MIME dispatch + extension fallback for `.md`/`.markdown`/`.mdown`.
+- 13 MarkdownPreview tests + updated PreviewPane dispatch tests.
+
+Verification:
+- `tsc --noEmit` — clean
+- Vitest blocked — CI gate.
+
+Open risks:
+- Frontend vitest not run locally (Node 20.9).
+
 ## 2026-05-20 — Agent skills and memory branch
 
 Status: Active
