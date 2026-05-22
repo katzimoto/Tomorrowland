@@ -21,7 +21,9 @@ export function DocumentChatPanel({ docId, docTitle }: DocumentChatPanelProps) {
   // Capture docTitle in a ref so the effect only re-runs when docId changes,
   // not when the title arrives asynchronously after the preview loads.
   const docTitleRef = useRef(docTitle);
-  docTitleRef.current = docTitle;
+  useEffect(() => {
+    docTitleRef.current = docTitle;
+  }, [docTitle]);
 
   useEffect(() => {
     if (seededForDoc.current === docId) return;

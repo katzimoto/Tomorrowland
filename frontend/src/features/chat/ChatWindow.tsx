@@ -35,6 +35,7 @@ export function ChatWindow({
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streamPhase, setStreamPhase] = useState<ChatStreamPhase | null>(null);
+  const [isSending, setIsSending] = useState(false);
   const seededForSession = useRef<string | null>(null);
 
   const { data: sessionData, isLoading, isError } = useQuery({
@@ -43,20 +44,14 @@ export function ChatWindow({
     staleTime: 5 * 60_000,
   });
 
-  // Reset input when session changes; seed messages once per session from query result
+  // Seed messages once per session from query result
   useEffect(() => {
-    setInput("");
-    seededForSession.current = null;
-    setMessages([]);
-  }, [session.id]);
-
-  useEffect(() => {
-    if (
-      sessionData &&
-      seededForSession.current !== session.id
-    ) {
-      seededForSession.current = session.id;
-      setMessages(sessionData.messages ?? []);
+    if (sessionData) {
+      if (seededForSession.current !== session.id) {
+        seededForSession.current = session.id;
+        setInput("");
+        setMessages(sessionData.messages ?? []);
+      }
     }
   }, [sessionData, session.id]);
 
@@ -68,6 +63,7 @@ export function ChatWindow({
     if (!trimmed || sendingRef.current) return;
 
     sendingRef.current = true;
+    setIsSending(true);
     const optimisticId = `optimistic-${Date.now()}`;
     const optimistic: ChatMessage = {
       id: optimisticId,
@@ -135,6 +131,7 @@ export function ChatWindow({
       showToast("error", t.chat.sendError);
     } finally {
       sendingRef.current = false;
+      setIsSending(false);
       setStreamPhase(null);
     }
   }
@@ -182,7 +179,7 @@ export function ChatWindow({
         <StarterQuestions
           scopeType={session.scope_type}
           onSelect={handleStarterSelect}
-          disabled={sendingRef.current}
+          disabled={isSending}
         />
       ) : (
         <MessageList messages={messages} busy={!!streamPhase} />
@@ -191,7 +188,7 @@ export function ChatWindow({
         value={input}
         onChange={setInput}
         onSubmit={handleSubmit}
-        disabled={sendingRef.current}
+        disabled={isSending}
         phase={streamPhase}
         autoFocus={!isLoading && !isError}
       />

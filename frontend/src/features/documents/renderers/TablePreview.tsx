@@ -18,7 +18,7 @@ function cellMatches(cell: string, searchQuery: string): boolean {
   return cell.toLowerCase().includes(searchQuery.toLowerCase());
 }
 
-export function TablePreview({ text, searchQuery = "", activeSearchIndex = 0, onMatchCountChange }: TablePreviewProps) {
+export function TablePreview({ text, searchQuery = "", onMatchCountChange }: TablePreviewProps) {
   const matchCount = useMemo(
     () => countMatches(text, searchQuery),
     [text, searchQuery],

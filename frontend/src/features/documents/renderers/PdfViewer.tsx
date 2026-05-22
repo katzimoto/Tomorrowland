@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, startTransition } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -130,7 +130,7 @@ export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMa
       cumulative += perPageMatchCounts[i];
       if (activeSearchIndex < cumulative) {
         const targetPage = i + 1;
-        if (targetPage !== pageNum) setPageNum(targetPage);
+        if (targetPage !== pageNum) startTransition(() => setPageNum(targetPage));
         return;
       }
     }

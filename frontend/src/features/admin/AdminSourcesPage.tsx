@@ -118,7 +118,7 @@ export function AdminSourcesPage() {
       setSyncResults((r) => ({ ...r, [sourceId]: msg }));
       showToast("error", t.admin.syncFailed);
     }
-  }, [sources, showToast, t]);
+  }, [sources, showToast, t, qc]);
 
 
   async function handleTestConnection(sourceId: string) {
