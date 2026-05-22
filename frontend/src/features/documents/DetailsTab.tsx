@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { DocumentPreview } from "@/api/documents";
+import { UserTagEditor } from "./UserTagEditor";
 import styles from "./DetailsTab.module.css";
 
 const MIME_LABELS: Record<string, string> = {
@@ -55,9 +56,10 @@ function Row({ label, children }: RowProps) {
 
 interface DetailsTabProps {
   preview: DocumentPreview;
+  docId?: string;
 }
 
-export function DetailsTab({ preview }: DetailsTabProps) {
+export function DetailsTab({ preview, docId }: DetailsTabProps) {
   const [copied, setCopied] = useState(false);
   const meta = preview.metadata as Record<string, unknown>;
 
@@ -163,6 +165,15 @@ export function DetailsTab({ preview }: DetailsTabProps) {
             </button>
           </span>
         </Row>
+      )}
+
+      {docId && (
+        <div className={styles.tagsSection}>
+          <dt className={styles.label}>My Tags</dt>
+          <dd>
+            <UserTagEditor docId={docId} />
+          </dd>
+        </div>
       )}
     </dl>
   );
