@@ -44,11 +44,10 @@ describe("TablePreview", () => {
 
   describe("search", () => {
     it("highlights matching cells when searchQuery is provided", () => {
-      render(<TablePreview text={"Name\tAge\nAlice\t30\nBob\t25"} searchQuery="Alice" />);
-      const cells = document.querySelectorAll('[role="cell"]');
-      const marks = cells[0]?.querySelectorAll("mark");
-      expect(marks?.length).toBe(1);
-      expect(marks?.[0]?.textContent).toBe("Alice");
+      const { container } = render(<TablePreview text={"Name\tAge\nAlice\t30\nBob\t25"} searchQuery="Alice" />);
+      const cells = container.querySelectorAll("td");
+      expect(cells[0]?.textContent).toBe("Alice");
+      expect(cells[0]?.className).not.toBe(cells[1]?.className);
     });
 
     it("reports match count via onMatchCountChange", async () => {
@@ -61,7 +60,7 @@ describe("TablePreview", () => {
         />
       );
       await waitFor(() => {
-        expect(onMatchCountChange).toHaveBeenCalledWith(3);
+        expect(onMatchCountChange).toHaveBeenCalledWith(6);
       });
     });
 

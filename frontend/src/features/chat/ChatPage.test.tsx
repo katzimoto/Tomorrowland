@@ -98,6 +98,7 @@ const NEW_SESSION: chatApi.ChatSession = {
 };
 
 beforeEach(() => {
+  vi.clearAllMocks();
   mockSearchParams = {};
   mockNavigate.mockReset();
   vi.mocked(chatApi.listChatSessions).mockResolvedValue({

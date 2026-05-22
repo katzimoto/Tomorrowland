@@ -14,7 +14,7 @@ export function CitationList({ citations, returnPath }: CitationListProps) {
     <div className={styles.wrapper}>
       <h3 className={styles.heading}>Sources</h3>
       <ul className={styles.list}>
-        {citations.map((c) => (
+        {citations.map((c, idx) => (
           <CitationCard
             key={c.citation_id ?? `${c.document_id}-${c.chunk_index ?? idx}`}
             citation={c}

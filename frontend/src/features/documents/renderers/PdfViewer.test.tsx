@@ -198,31 +198,24 @@ describe("PdfViewer", () => {
   });
 
   it("navigates to page containing active match when activeSearchIndex changes", async () => {
-    // Three pages: page 1 has "cat", page 2 has "dog", page 3 has "cat"
     const page1 = makeMockPage("cat toy");
     const page2 = makeMockPage("dog bone");
     const page3 = makeMockPage("cat nip");
-    const getPageMock = vi.fn()
-      .mockResolvedValueOnce(page1)
-      .mockResolvedValueOnce(page2)
-      .mockResolvedValueOnce(page3);
-    // After initial render, getPage will be called again for rendering — handle subsequent calls
-    getPageMock.mockResolvedValue(page1);
-
+    const pageMap: Record<number, typeof page1> = { 1: page1, 2: page2, 3: page3 };
+    const getPageMock = vi.fn().mockImplementation((n: number) =>
+      Promise.resolve(pageMap[n] ?? page1)
+    );
     const task = {
       promise: Promise.resolve({ numPages: 3, getPage: getPageMock }),
       destroy: vi.fn(),
     };
     mockGetDocument.mockReturnValue(task);
     const { rerender } = render(<PdfViewer docId="doc-1" searchQuery="cat" />);
-    // Wait for page 1 to render
     await waitFor(() => expect(screen.getByText("1 / 3")).toBeInTheDocument());
 
-    // activeSearchIndex=0 → first match on page 1 → should stay on page 1
     rerender(<PdfViewer docId="doc-1" searchQuery="cat" activeSearchIndex={0} />);
     await waitFor(() => expect(screen.getByText("1 / 3")).toBeInTheDocument());
 
-    // activeSearchIndex=1 → second match on page 3 → should jump to page 3
     rerender(<PdfViewer docId="doc-1" searchQuery="cat" activeSearchIndex={1} />);
     await waitFor(() => expect(screen.getByText("3 / 3")).toBeInTheDocument());
   });

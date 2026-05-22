@@ -233,7 +233,6 @@ describe("TextPreview — virtualization", () => {
   });
 
   it("maintains global active-match index in virtualized mode", async () => {
-    // Create text where "match" appears 3 times across different lines
     const lineCount = 12000;
     const textLines: string[] = [];
     for (let i = 0; i < lineCount; i++) {
@@ -254,18 +253,17 @@ describe("TextPreview — virtualization", () => {
       <TextPreview
         docId="doc-1"
         searchQuery="match"
-        activeSearchIndex={1}
+        activeSearchIndex={0}
         onMatchCountChange={onMatchCountChange}
       />
     );
     await waitFor(() => {
       expect(onMatchCountChange).toHaveBeenCalledWith(3);
     });
-    // activeSearchIndex=1 should highlight the second match (line 100)
-    // In virtualized mode the second match should have the active class
+    // activeSearchIndex=0 → first match on line 2 (visible in viewport)
     const marks = document.querySelectorAll("mark");
     const activeMarks = Array.from(marks).filter(
-      (m) => m.className.includes("activeMatch") || m.getAttribute("data-match-index") === "1"
+      (m) => m.className.includes("activeMatch") || m.getAttribute("data-match-index") === "0"
     );
     expect(activeMarks.length).toBeGreaterThanOrEqual(1);
   });

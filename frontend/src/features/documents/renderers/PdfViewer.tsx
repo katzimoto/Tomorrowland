@@ -110,7 +110,6 @@ export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMa
       }
       if (!cancelled) {
         setPerPageText(pageTexts);
-        setAllPdfText(pageTexts.join(" "));
       }
     }
     void extractText();
@@ -138,9 +137,10 @@ export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMa
   }, [searchQuery, activeSearchIndex, perPageMatchCounts, pageNum, numPages]);
 
   // Report match count when search query or text changes
+  const allText = useMemo(() => perPageText.join(" "), [perPageText]);
   const matchCount = useMemo(
-    () => countMatches(allPdfText, searchQuery),
-    [allPdfText, searchQuery],
+    () => countMatches(allText, searchQuery),
+    [allText, searchQuery],
   );
   useEffect(() => {
     onMatchCountChange?.(matchCount);

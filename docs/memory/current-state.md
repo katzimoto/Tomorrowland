@@ -87,12 +87,13 @@ Source: issues #471–#474; PRs #472, #473, #474 on `feature/document-chat`
 
 Finding:
 - #472 Phase A (Q&A foundation) — Done. Merged to `main`. Issue closed.
-- #473 Phase B (persistent chat sessions) — Done. On `feature/document-chat`. Pending merge to `main`.
+- #473 Phase B (persistent chat sessions) — CI verified (58 files, 410 tests). Issue closed.
 - #474 Phase C (scope-aware chat) — Done. On `feature/document-chat`. Pending merge to `main`.
 - Remaining phases D–G (#475–#478) not started; listed on GitHub as `status:next`.
+- Pre-existing bugs discovered during #473 verification: CitationList.tsx `idx` variable, PdfViewer.tsx `allPdfText` state (both fixed).
 
 Next action:
-- Verify CI on `feature/document-chat`; open integration PR to `main`.
+- Open integration PR `feature/document-chat` → `main`.
 - Phase D (#475): conversation-aware query rewrite.
 
 ## 2026-05-20 — Shared agent skills setup
