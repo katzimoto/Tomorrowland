@@ -1,6 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { render } from "@/test/render";
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to, search, ...props }: Record<string, unknown>) => {
+    const sp = search as Record<string, string>;
+    const params = new URLSearchParams(sp).toString();
+    const href = `${to as string}?${params}`;
+    return (
+      // eslint-disable-next-line jsx-a11y/anchor-has-content
+      <a href={href} {...props}>{children as React.ReactNode}</a>
+    );
+  },
+  useSearch: () => ({}),
+}));
+
 import { FilterLink } from "./FilterLink";
 
 describe("FilterLink", () => {

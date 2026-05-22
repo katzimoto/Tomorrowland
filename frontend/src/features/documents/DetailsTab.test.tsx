@@ -3,6 +3,20 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { DetailsTab } from "./DetailsTab";
 import type { DocumentPreview } from "@/api/documents";
 
+vi.mock("@/api/documents", () => ({
+  listUserTags: vi.fn().mockResolvedValue({ document_id: "", tags: [] }),
+  addUserTag: vi.fn(),
+  deleteUserTag: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, ...props }: Record<string, unknown>) => (
+    // eslint-disable-next-line jsx-a11y/anchor-has-content
+    <a href={(props.to as string) ?? ""} {...props}>{children as React.ReactNode}</a>
+  ),
+  useSearch: () => ({}),
+}));
+
 const basePreview: DocumentPreview = {
   document_id: "doc-1",
   title: "Annual Report 2024.pdf",
