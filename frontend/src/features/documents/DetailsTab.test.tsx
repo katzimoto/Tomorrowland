@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent, within } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import { render } from "@/test/render";
 import { DetailsTab } from "./DetailsTab";
 import type { DocumentPreview } from "@/api/documents";
