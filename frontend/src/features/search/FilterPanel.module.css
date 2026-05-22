@@ -70,6 +70,64 @@
 }
 .clearAllBtn:hover { text-decoration: underline; }
 
+.select {
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+}
+
+.advancedToggle {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  padding: 0;
+}
+
+.advancedToggle:hover {
+  color: var(--color-text-primary);
+}
+
+.advancedBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.textInput {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+}
+
+.textInput:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
 @media (max-width: 767px) {
   .panel { display: none; }
 }

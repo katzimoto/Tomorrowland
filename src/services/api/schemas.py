@@ -13,6 +13,8 @@ class SearchRequest(BaseModel):
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
     include_older_versions: bool = False
+    sort_by: Literal["relevance", "updated_at", "created_at", "title"] = "relevance"
+    sort_dir: Literal["asc", "desc"] = "desc"
 
 
 class SearchResultItem(BaseModel):

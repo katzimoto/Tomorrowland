@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { SearchFilters } from "@/api/search";
 import { useT } from "@/i18n/index";
 import styles from "./FilterPanel.module.css";
@@ -9,6 +10,7 @@ interface FilterPanelProps {
 
 export function FilterPanel({ filters, onChange }: FilterPanelProps) {
   const t = useT();
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const FILE_TYPES = [
     { value: "application/pdf", label: t.filters.typePdf },
@@ -24,11 +26,20 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
     { value: "high", label: t.filters.transHigh },
   ];
 
+  const SORT_OPTS: { value: SearchFilters["sort_by"]; label: string }[] = [
+    { value: "relevance", label: "Relevance" },
+    { value: "updated_at", label: "Updated" },
+    { value: "created_at", label: "Created" },
+  ];
+
   const hasAny =
     (filters.file_type?.length ?? 0) > 0 ||
     (filters.translation_quality?.length ?? 0) > 0 ||
     !!filters.date_from ||
-    !!filters.include_older_versions;
+    !!filters.include_older_versions ||
+    !!filters.source?.[0] ||
+    !!filters.tags?.[0] ||
+    !!filters.file_extension?.[0];
 
   function toggleFileType(value: string) {
     const cur = filters.file_type ?? [];
@@ -42,13 +53,28 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
     onChange({ ...filters, translation_quality: next.length ? next : undefined });
   }
 
+  function setCsvField(field: "source" | "tags" | "file_extension", raw: string) {
+    const values = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    onChange({ ...filters, [field]: values.length ? values : undefined });
+  }
+
+  function getCsvField(field: "source" | "tags" | "file_extension"): string {
+    return (filters[field] ?? []).join(", ");
+  }
+
   return (
     <aside className={styles.panel} aria-label={t.filters.panel}>
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <span className={styles.sectionLabel}>{t.filters.fileType}</span>
           {(filters.file_type?.length ?? 0) > 0 && (
-            <button className={styles.clearBtn} onClick={() => onChange({ ...filters, file_type: undefined })}>
+            <button
+              className={styles.clearBtn}
+              onClick={() => onChange({ ...filters, file_type: undefined })}
+            >
               {t.filters.clear}
             </button>
           )}
@@ -71,7 +97,10 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
         <div className={styles.sectionHeader}>
           <span className={styles.sectionLabel}>{t.filters.translation}</span>
           {(filters.translation_quality?.length ?? 0) > 0 && (
-            <button className={styles.clearBtn} onClick={() => onChange({ ...filters, translation_quality: undefined })}>
+            <button
+              className={styles.clearBtn}
+              onClick={() => onChange({ ...filters, translation_quality: undefined })}
+            >
               {t.filters.clear}
             </button>
           )}
@@ -90,12 +119,76 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
         </div>
       </div>
 
+      {/* Sort */}
+      <div className={styles.section}>
+        <label className={styles.sectionLabel}>Sort by</label>
+        <select
+          className={styles.select}
+          value={filters.sort_by ?? "relevance"}
+          onChange={(e) =>
+            onChange({ ...filters, sort_by: e.target.value as SearchFilters["sort_by"] })
+          }
+        >
+          {SORT_OPTS.map(({ value, label }) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Advanced */}
+      <div className={styles.section}>
+        <button
+          type="button"
+          className={styles.advancedToggle}
+          aria-expanded={advancedOpen}
+          onClick={() => setAdvancedOpen(!advancedOpen)}
+        >
+          Advanced
+        </button>
+        {advancedOpen && (
+          <div className={styles.advancedBody}>
+            <label className={styles.fieldLabel}>
+              Source
+              <input
+                type="text"
+                className={styles.textInput}
+                value={getCsvField("source")}
+                onChange={(e) => setCsvField("source", e.target.value)}
+                placeholder="folder, nifi"
+              />
+            </label>
+            <label className={styles.fieldLabel}>
+              Tags
+              <input
+                type="text"
+                className={styles.textInput}
+                value={getCsvField("tags")}
+                onChange={(e) => setCsvField("tags", e.target.value)}
+                placeholder="contract, legal"
+              />
+            </label>
+            <label className={styles.fieldLabel}>
+              Extension
+              <input
+                type="text"
+                className={styles.textInput}
+                value={getCsvField("file_extension")}
+                onChange={(e) => setCsvField("file_extension", e.target.value)}
+                placeholder="pdf, docx"
+              />
+            </label>
+          </div>
+        )}
+      </div>
+
       <div className={styles.section}>
         <label className={styles.option}>
           <input
             type="checkbox"
             checked={!!filters.include_older_versions}
-            onChange={(e) => onChange({ ...filters, include_older_versions: e.target.checked || undefined })}
+            onChange={(e) =>
+              onChange({ ...filters, include_older_versions: e.target.checked || undefined })
+            }
           />
           {t.filters.includeOlderVersions}
         </label>
