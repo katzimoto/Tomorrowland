@@ -21,10 +21,10 @@ from services.search.elastic import ElasticsearchSearchClient
 from services.search.factory import build_encoder
 from services.search.hybrid import SearchResult, merge_results
 from services.search.meili_types import DocumentSearchFilters, DocumentSearchQuery
-
-_MeiliSort = Literal["relevance", "updatedAt:desc", "createdAt:desc", "importedAt:desc"]
 from services.search.qdrant import QdrantSearchClient
 from shared.correlation import get_correlation_id
+
+_MeiliSort = Literal["relevance", "updatedAt:desc", "createdAt:desc", "importedAt:desc"]
 
 logger = logging.getLogger(__name__)
 
@@ -315,7 +315,13 @@ def _map_sort(sort_by: str, sort_dir: str) -> _MeiliSort:
         return "relevance"
     suffix = "desc" if sort_dir == "desc" else "asc"
     label = f"{sort_by}:{suffix}"
-    if label in ("updatedAt:desc", "createdAt:desc", "importedAt:desc",
-                 "updatedAt:asc", "createdAt:asc", "importedAt:asc"):
+    if label in (
+        "updatedAt:desc",
+        "createdAt:desc",
+        "importedAt:desc",
+        "updatedAt:asc",
+        "createdAt:asc",
+        "importedAt:asc",
+    ):
         return label  # type: ignore[return-value]
     return "relevance"
