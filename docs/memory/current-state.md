@@ -13,9 +13,14 @@ Finding:
 - Both features start from `main`; PRs target their respective feature branches only.
 
 Next action:
-- Sub-A (#425): DONE — `shared/rabbit.py` + RabbitMQ Docker + topology (7 tests, ruff/mypy clean).
-- Sub-B (#426): DONE — migration (rabbit_message_id), DocumentPublisher, sync-now wire, GET /admin/jobs routes (2 unit + 1 integration test, ruff/mypy clean).
-- Sub-C (#427): DONE — BaseConsumer (ack/nack/DLQ, health, SIGTERM) + parse/translate/embed/index workers + compose services (12 rabbit tests passing).
+- Sub-A (#425): DONE — `shared/rabbit.py` + RabbitMQ Docker + topology (7 tests).
+- Sub-B (#426): DONE — migration, DocumentPublisher, sync-now wire, GET /admin/jobs routes.
+- Sub-C (#427): DONE — BaseConsumer + parse/translate/embed/index workers + compose services (12 tests).
+- Sub-D (#428): DONE — IntelligenceConsumer and AlertConsumer.
+- Sub-E (#429): DONE — GET /admin/rabbit/queues + POST /admin/jobs/{id}/retry.
+- Sub-F (#430): DONE — retry tier exchange (30s TTL) + Prometheus alert rules.
+- Sub-G (#431): DONE — air-gap compose, validate script, CHANGELOG entry.
+- **RabbitMQ job bus (#432) feature branch complete** — integration PR to main pending.
 - Sub #501: Cargo workspace scaffold + CI for Rust worker.
 
 ## 2026-05-23 — Chat defaults + Qdrant bootstrap + SSE fix + Edit Source page
