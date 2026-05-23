@@ -76,9 +76,24 @@ export function FidelityStatusBar({
         {includesDownload && (
           <>
             {" — "}
-            <a href={downloadUrl} download className={styles.link}>
+            <button
+              className={styles.link}
+              onClick={() => {
+                const token = sessionStorage.getItem("tomorrowland_token");
+                const url = downloadUrl;
+                fetch(url, { headers: { Authorization: `Bearer ${token || ""}` } })
+                  .then((r) => r.blob())
+                  .then((blob) => {
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = blob.type === "application/json" ? "download.bin" : (url.split("/").pop() || "download");
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                  });
+              }}
+            >
               download original
-            </a>
+            </button>
             {" to view source"}
           </>
         )}

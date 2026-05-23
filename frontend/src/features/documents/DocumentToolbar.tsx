@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Download, Languages, Search } from "lucide-react";
 import { getDownloadUrl } from "@/api/documents";
@@ -150,25 +150,32 @@ export function DocumentToolbar({
               <Search size={14} />
             </button>
           )}
-          <a
-            href={getDownloadUrl(preview.document_id, {
-              showOriginal: activeMode !== "translation",
-            })}
-            download
-            className={styles.downloadLink}
-            aria-label={
-              activeMode === "translation"
-                ? "Download translated text"
-                : "Download original file"
-            }
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              const token = sessionStorage.getItem("tomorrowland_token");
+              const url = getDownloadUrl(preview.document_id, {
+                showOriginal: activeMode !== "translation",
+              });
+              fetch(url, { headers: { Authorization: `Bearer ${token || ""}` } })
+                .then((r) => r.blob())
+                .then((blob) => {
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = blob.type.includes("text/plain")
+                    ? `${preview.title || preview.document_id}.txt`
+                    : (preview.title || preview.document_id);
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                });
+            }}
           >
-            <Button variant="secondary" size="sm">
-              <Download size={14} />
-              {activeMode === "translation"
-                ? t.document.downloadTranslation
-                : t.document.download}
-            </Button>
-          </a>
+            <Download size={14} />
+            {activeMode === "translation"
+              ? t.document.downloadTranslation
+              : t.document.download}
+          </Button>
         </div>
       </header>
 
