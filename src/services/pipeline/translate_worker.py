@@ -48,7 +48,9 @@ class TranslateConsumer(BaseConsumer):
 
         translated_text = content_text
         if self._translator:
-            lang = (payload.get("source_language", "") if payload else "") or "en"
+            lang = payload.get("source_language") if payload else None
+            if lang == "":
+                lang = None
             translated_text = (
                 self._translator.translate(content_text, source_lang=lang, target_lang="en")
                 or content_text

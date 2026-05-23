@@ -105,7 +105,7 @@ class CreateSourceRequest(BaseModel):
     name: str
     type: Literal["folder", "nifi", "confluence", "jira", "smb"] = "folder"
     path: str | None = None
-    source_language: str | None = "en"
+    source_language: str | None = None
     enabled: bool = True
     config: dict[str, Any] = Field(default_factory=dict)
 
