@@ -136,13 +136,12 @@ def sync_now(
                     )
                     results["enqueued"] += 1
 
-                    if request.app.state.settings.rabbitmq_enabled:
-                        pending_rabbit.append({
-                            "job_id": job_id,
-                            "document_id": doc.id,
-                            "source_id": source_id,
-                            "content_text": item.text_content,
-                        })
+                    pending_rabbit.append({
+                        "job_id": job_id,
+                        "document_id": doc.id,
+                        "source_id": source_id,
+                        "content_text": item.text_content,
+                    })
 
                     request.app.state.metrics.ingestion_documents_total.labels(
                         safe_label_value(connector_type), "success"
