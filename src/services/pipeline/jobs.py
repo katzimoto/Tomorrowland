@@ -62,6 +62,10 @@ class PipelineJobRepository:
     def __init__(self, connection: sa.Connection) -> None:
         self._connection = connection
 
+    def commit(self) -> None:
+        """Commit the underlying connection's open transaction."""
+        self._connection.commit()
+
     def enqueue_document(
         self,
         document_id: UUID,

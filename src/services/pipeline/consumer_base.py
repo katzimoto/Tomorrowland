@@ -105,6 +105,7 @@ class BaseConsumer(ABC):
 
         try:
             self.handle_message(job_id, document_id, source_id, attempt, correlation_id)
+            self._job_repo.commit()
             self._channel.basic_ack(delivery_tag=delivery_tag)  # type: ignore[union-attr]
             self._jobs_processed += 1
             logger.info(

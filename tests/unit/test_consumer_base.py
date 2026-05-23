@@ -53,6 +53,7 @@ def test_failure_nacks_and_retries_when_attempts_remaining():
     consumer = FailingConsumer.__new__(FailingConsumer)
     consumer._channel = MagicMock()
     consumer._job_repo = MagicMock()
+    consumer._connection = None
     consumer._job_repo.get_max_attempts.return_value = 5
     consumer._jobs_processed = 0
 
@@ -68,6 +69,7 @@ def test_failure_dead_letters_when_attempts_exhausted():
     consumer._channel = MagicMock()
     consumer._job_repo = MagicMock()
     consumer._job_repo.get_max_attempts.return_value = 3
+    consumer._connection = None
     consumer._jobs_processed = 0
 
     ch, method, props, body = _make_delivery(attempt=3)
