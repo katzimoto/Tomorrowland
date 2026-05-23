@@ -145,6 +145,8 @@ def sync_now(
                             request.app.state.settings.rabbitmq_url,
                             enabled=True,
                         )
+                        rabbit.connect()
+                        rabbit.declare_topology()
                         publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
                         publisher.publish_parse(
                             job_id=job_id,
