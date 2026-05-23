@@ -231,12 +231,12 @@ class PipelineJobRepository:
         }
 
     def mark_running_stage(self, job_id: UUID, stage: str) -> None:
-        """Update the current processing stage of a running job."""
+        """Update the current processing stage, transitioning to running if pending."""
         self._connection.execute(
             sa.text("""
                 UPDATE pipeline_jobs
-                SET stage = :stage, updated_at = :updated_at
-                WHERE id = :id AND status = 'running'
+                SET status = 'running', stage = :stage, updated_at = :updated_at
+                WHERE id = :id AND status IN ('pending', 'running', 'retry')
             """),
             {
                 "id": db_uuid(job_id),
