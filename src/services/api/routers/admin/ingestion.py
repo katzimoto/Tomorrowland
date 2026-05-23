@@ -63,6 +63,7 @@ def sync_now(
             "failed_discovery": 0,
             "failed_enqueue": 0,
         }
+        pending_rabbit: list[dict[str, Any]] = []
         source_language = source_row.get("source_language")
 
         def _record_sync_dlq(
@@ -135,25 +136,13 @@ def sync_now(
                     )
                     results["enqueued"] += 1
 
-                    # Publish to RabbitMQ when enabled; skip DB-poll path
-                    rabbit_enabled = request.app.state.settings.rabbitmq_enabled
-                    if rabbit_enabled:
-                        from services.pipeline.publisher import DocumentPublisher
-                        from shared.rabbit import RabbitClient
-
-                        rabbit = getattr(request.app.state, "rabbit", None) or RabbitClient(
-                            request.app.state.settings.rabbitmq_url,
-                            enabled=True,
-                        )
-                        rabbit.connect()
-                        rabbit.declare_topology()
-                        publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
-                        publisher.publish_parse(
-                            job_id=job_id,
-                            document_id=doc.id,
-                            source_id=source_id,
-                            content_text=item.text_content,
-                        )
+                    if request.app.state.settings.rabbitmq_enabled:
+                        pending_rabbit.append({
+                            "job_id": job_id,
+                            "document_id": doc.id,
+                            "source_id": source_id,
+                            "content_text": item.text_content,
+                        })
 
                     request.app.state.metrics.ingestion_documents_total.labels(
                         safe_label_value(connector_type), "success"
@@ -194,4 +183,25 @@ def sync_now(
             skipped=results["skipped"],
             failed=results["failed_discovery"] + results["failed_enqueue"],
         )
-        return {"status": sync_outcome, **results}
+        # Publish to RabbitMQ after transaction commits so consumers see the documents
+    if pending_rabbit and request.app.state.settings.rabbitmq_enabled:
+        from services.pipeline.publisher import DocumentPublisher
+        from shared.rabbit import RabbitClient
+
+        rabbit = getattr(request.app.state, "rabbit", None) or RabbitClient(
+            request.app.state.settings.rabbitmq_url, enabled=True,
+        )
+        rabbit.connect()
+        rabbit.declare_topology()
+        with request.app.state.engine.begin() as conn2:
+            pub_repo = PipelineJobRepository(conn2)
+            publisher = DocumentPublisher(job_repo=pub_repo, rabbit=rabbit)
+            for p in pending_rabbit:
+                publisher.publish_parse(
+                    job_id=p["job_id"],
+                    document_id=p["document_id"],
+                    source_id=p["source_id"],
+                    content_text=p["content_text"],
+                )
+
+    return {"status": sync_outcome, **results}
