@@ -44,6 +44,7 @@ tomorrowland-embed-worker = "services.pipeline.embed_worker:main"
 tomorrowland-index-worker = "services.pipeline.index_worker:main"
 tomorrowland-intelligence-worker = "services.pipeline.intelligence_consumer:main"
 tomorrowland-alert-worker = "services.pipeline.alert_consumer:main"
+tomorrowland-enrich-worker = "services.pipeline.enrich_worker:main"
 
 [build-system]
 requires = ["setuptools>=69", "wheel"]

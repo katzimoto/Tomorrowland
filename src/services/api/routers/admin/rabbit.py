@@ -24,6 +24,7 @@ _QUEUE_NAMES = [
     "document.index.requested",
     "document.intelligence.requested",
     "document.alert.requested",
+    "document.enrich.requested",
 ]
 
 

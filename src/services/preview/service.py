@@ -34,9 +34,11 @@ class PreviewService:
         self,
         connection: Any,
         extractor_registry: ExtractorRegistry | None = None,
+        rabbit: Any = None,
     ) -> None:
         self._connection = connection
         self._extractor = extractor_registry or ExtractorRegistry()
+        self._rabbit = rabbit
 
     def get_preview(
         self,
@@ -347,11 +349,21 @@ class PreviewService:
         )
 
         job_repo = PipelineJobRepository(self._connection)
-        job_repo.enqueue_document(
+        job_id = job_repo.enqueue_document(
             document_id=document_id,
             source_id=source_id,
             job_type="enrich_document",
         )
+
+        if getattr(self, "_rabbit", None) is not None and self._rabbit._enabled:
+            from services.pipeline.publisher import DocumentPublisher
+
+            publisher = DocumentPublisher(job_repo=job_repo, rabbit=self._rabbit)
+            publisher.publish_enrich(
+                job_id=job_id,
+                document_id=document_id,
+                source_id=source_id,
+            )
 
     @staticmethod
     def _archive_snippet(path: Path) -> str:

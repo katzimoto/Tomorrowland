@@ -17,6 +17,7 @@ _ROUTING_KEYS: dict[str, str] = {
     "index": "document.index.requested",
     "intelligence": "document.intelligence.requested",
     "alert": "document.alert.requested",
+    "enrich": "document.enrich.requested",
 }
 
 
@@ -126,6 +127,22 @@ class DocumentPublisher:
     ) -> None:
         self._publish(
             "alert",
+            job_id=job_id,
+            document_id=document_id,
+            source_id=source_id,
+            attempt=attempt,
+        )
+
+    def publish_enrich(
+        self,
+        *,
+        job_id: UUID,
+        document_id: UUID,
+        source_id: UUID,
+        attempt: int = 1,
+    ) -> None:
+        self._publish(
+            "enrich",
             job_id=job_id,
             document_id=document_id,
             source_id=source_id,
