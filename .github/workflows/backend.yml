@@ -146,8 +146,16 @@ jobs:
         run: pytest
 
   tests-postgres:
-    name: Pytest (PostgreSQL)
+    name: Pytest (PostgreSQL) ${{ matrix.group }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group:
+          - unit
+          - integration-admin
+          - integration-chat
+          - integration-other
     services:
       postgres:
         image: postgres:16
@@ -182,7 +190,21 @@ jobs:
       - name: Run migrations against PostgreSQL
         run: alembic upgrade head
 
-      - name: Test against PostgreSQL
+      - name: Test against PostgreSQL (${{ matrix.group }})
         env:
           PGTEST: "1"
-        run: pytest
+        run: |
+          case "${{ matrix.group }}" in
+            unit)
+              pytest tests/unit/ -q
+              ;;
+            integration-admin)
+              pytest tests/integration/test_admin.py tests/integration/test_admin_jobs_routes.py -q
+              ;;
+            integration-chat)
+              pytest tests/integration/test_chat_api.py -q
+              ;;
+            integration-other)
+              pytest tests/integration/ -q --ignore=tests/integration/test_admin.py --ignore=tests/integration/test_admin_jobs_routes.py --ignore=tests/integration/test_chat_api.py
+              ;;
+          esac
