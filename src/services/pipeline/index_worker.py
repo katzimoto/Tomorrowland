@@ -1,6 +1,8 @@
 """Index stage consumer — indexes document in Elasticsearch and publishes downstream."""
+
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from services.documents.repository import DocumentRepository
@@ -16,7 +18,7 @@ class IndexConsumer(BaseConsumer):
 
     def __init__(
         self,
-        rabbit,
+        rabbit: Any,
         job_repo: PipelineJobRepository,
         doc_repo: DocumentRepository,
         publisher: DocumentPublisher,
@@ -41,7 +43,7 @@ class IndexConsumer(BaseConsumer):
             raise ValueError(f"Document {document_id} not found")
 
         payload = self._job_repo.get_payload(document_id)
-        body: dict = {
+        body: dict[str, Any] = {
             "document_id": str(document_id),
             "source_id": str(source_id),
             "title": doc.title or "",
@@ -90,7 +92,10 @@ def main() -> None:
     publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
     es_client = ElasticsearchSearchClient(hosts=[settings.elastic_url])
     consumer = IndexConsumer(
-        rabbit=rabbit, job_repo=job_repo, doc_repo=doc_repo, publisher=publisher,
+        rabbit=rabbit,
+        job_repo=job_repo,
+        doc_repo=doc_repo,
+        publisher=publisher,
         es_client=es_client,
     )
     consumer.run()

@@ -1,12 +1,14 @@
 """Translate stage consumer — translates extracted text and publishes embed."""
+
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
-from services.translation.client import TranslationClient
+from services.translation.client import LibreTranslateClient
 
 
 class TranslateConsumer(BaseConsumer):
@@ -15,10 +17,10 @@ class TranslateConsumer(BaseConsumer):
 
     def __init__(
         self,
-        rabbit,
+        rabbit: Any,
         job_repo: PipelineJobRepository,
         publisher: DocumentPublisher,
-        translator: TranslationClient | None = None,
+        translator: LibreTranslateClient | None = None,
         health_port: int = 8080,
     ) -> None:
         super().__init__(rabbit, job_repo, health_port)
@@ -47,8 +49,10 @@ class TranslateConsumer(BaseConsumer):
         translated_text = content_text
         if self._translator:
             lang = (payload.get("source_language", "") if payload else "") or "en"
-            result = self._translator.translate(content_text, source_lang=lang, target_lang="en")
-            translated_text = result.get("text", "") or content_text
+            translated_text = (
+                self._translator.translate(content_text, source_lang=lang, target_lang="en")
+                or content_text
+            )
 
         self._job_repo.update_translated_text(document_id, translated_text)
         self._job_repo.mark_running_stage(job_id, "translated")

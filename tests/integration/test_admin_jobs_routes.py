@@ -1,7 +1,7 @@
 """Integration tests for GET /admin/jobs and GET /admin/jobs/{job_id}."""
+
 from uuid import uuid4
 
-import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
@@ -22,9 +22,7 @@ def _settings(**overrides):
 
 
 def _admin_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "admin@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
     assert login.status_code == 200, f"login failed: {login.text}"
     return login.json()["access_token"]
 

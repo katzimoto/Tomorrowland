@@ -1,4 +1,5 @@
 """Base class for all RabbitMQ stage consumers."""
+
 from __future__ import annotations
 
 import json
@@ -73,9 +74,7 @@ class BaseConsumer(ABC):
         signal.signal(signal.SIGTERM, self._handle_sigterm)
         signal.signal(signal.SIGINT, self._handle_sigterm)
         self._start_health_server()
-        logger.info(
-            "worker started: worker_type=%s queue=%s", self.worker_type, self.queue_name
-        )
+        logger.info("worker started: worker_type=%s queue=%s", self.worker_type, self.queue_name)
         self._channel.start_consuming()
         logger.info("worker stopped: worker_type=%s", self.worker_type)
 
@@ -97,7 +96,9 @@ class BaseConsumer(ABC):
         except (KeyError, ValueError) as exc:
             logger.error(
                 "malformed message: worker_type=%s error=%s body=%.200s",
-                self.worker_type, exc, body,
+                self.worker_type,
+                exc,
+                body,
             )
             self._channel.basic_nack(delivery_tag=delivery_tag, requeue=False)  # type: ignore[union-attr]
             return
@@ -108,7 +109,9 @@ class BaseConsumer(ABC):
             self._jobs_processed += 1
             logger.info(
                 "job succeeded: worker_type=%s job_id=%s attempt=%d",
-                self.worker_type, job_id, attempt,
+                self.worker_type,
+                job_id,
+                attempt,
             )
         except Exception as exc:
             max_attempts = self._job_repo.get_max_attempts(job_id)
@@ -117,18 +120,23 @@ class BaseConsumer(ABC):
                 self._job_repo.mark_retry(job_id, exc, stage=self.worker_type)
                 logger.warning(
                     "job retry: worker_type=%s job_id=%s attempt=%d error=%s",
-                    self.worker_type, job_id, attempt, exc,
+                    self.worker_type,
+                    job_id,
+                    attempt,
+                    exc,
                 )
                 self._channel.basic_nack(delivery_tag=delivery_tag, requeue=False)  # type: ignore[union-attr]
             elif attempt < (max_attempts or 5):
                 self._job_repo.mark_retry(job_id, exc, stage=self.worker_type)
-                retry_body = json.dumps({
-                    "job_id": str(job_id),
-                    "document_id": str(document_id),
-                    "source_id": str(source_id),
-                    "attempt": attempt + 1,
-                    "pipeline_version": "v1",
-                }).encode()
+                retry_body = json.dumps(
+                    {
+                        "job_id": str(job_id),
+                        "document_id": str(document_id),
+                        "source_id": str(source_id),
+                        "attempt": attempt + 1,
+                        "pipeline_version": "v1",
+                    }
+                ).encode()
                 self._channel.basic_publish(  # type: ignore[union-attr]
                     exchange="tomorrowland.documents.retry",
                     routing_key=self.queue_name,
@@ -138,13 +146,18 @@ class BaseConsumer(ABC):
                 self._channel.basic_ack(delivery_tag=delivery_tag)  # type: ignore[union-attr]
                 logger.info(
                     "job routed to retry: worker_type=%s job_id=%s attempt=%d",
-                    self.worker_type, job_id, attempt,
+                    self.worker_type,
+                    job_id,
+                    attempt,
                 )
             else:
                 self._job_repo.mark_dead_letter(job_id, exc)
                 logger.error(
                     "job dead-lettered: worker_type=%s job_id=%s attempt=%d error=%s",
-                    self.worker_type, job_id, attempt, exc,
+                    self.worker_type,
+                    job_id,
+                    attempt,
+                    exc,
                 )
                 self._channel.basic_nack(delivery_tag=delivery_tag, requeue=False)  # type: ignore[union-attr]
 
@@ -168,12 +181,14 @@ class BaseConsumer(ABC):
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                body = json.dumps({
-                    "status": "ok",
-                    "worker_type": worker_type,
-                    "queue": queue_name,
-                    "jobs_processed": consumer_ref._jobs_processed,
-                }).encode()
+                body = json.dumps(
+                    {
+                        "status": "ok",
+                        "worker_type": worker_type,
+                        "queue": queue_name,
+                        "jobs_processed": consumer_ref._jobs_processed,
+                    }
+                ).encode()
                 self.wfile.write(body)
 
             def log_message(self, fmt: str, *args: Any) -> None:

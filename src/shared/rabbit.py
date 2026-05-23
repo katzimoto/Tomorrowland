@@ -85,9 +85,7 @@ class RabbitClient:
                     "x-message-ttl": 30000,
                 },
             )
-            ch.queue_bind(
-                queue=retry, exchange=_RETRY_EXCHANGE, routing_key=queue
-            )
+            ch.queue_bind(queue=retry, exchange=_RETRY_EXCHANGE, routing_key=queue)
 
     def publish(self, routing_key: str, body: dict[str, Any]) -> str:
         """Publish a persistent JSON message. Returns the message_id UUID string."""

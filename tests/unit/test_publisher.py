@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 from uuid import uuid4
+
 from services.pipeline.publisher import DocumentPublisher
 
 

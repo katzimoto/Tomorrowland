@@ -1,6 +1,8 @@
 """Embed stage consumer — chunks + vectorizes text and publishes index."""
+
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from services.chunking.splitter import chunk_text
@@ -18,7 +20,7 @@ class EmbedConsumer(BaseConsumer):
 
     def __init__(
         self,
-        rabbit,
+        rabbit: Any,
         job_repo: PipelineJobRepository,
         doc_repo: DocumentRepository,
         publisher: DocumentPublisher,
@@ -53,7 +55,7 @@ class EmbedConsumer(BaseConsumer):
         allowed_group_ids = [str(gid) for gid in self._doc_repo.source_group_ids(source_id)]
 
         chunk_texts: list[str] = []
-        chunk_meta: list[dict] = []
+        chunk_meta: list[dict[str, Any]] = []
 
         for idx, chunk in enumerate(
             chunk_text(
@@ -77,9 +79,9 @@ class EmbedConsumer(BaseConsumer):
 
         vectors = self._encoder.encode_batch(chunk_texts)
 
-        qdrant_chunks: list[dict] = []
+        qdrant_chunks: list[dict[str, Any]] = []
         for i, meta in enumerate(chunk_meta):
-            entry: dict = {
+            entry: dict[str, Any] = {
                 "chunk_id": f"{document_id}-{meta['suffix']}-{meta['idx']}",
                 "document_id": str(document_id),
                 "group_id": allowed_group_ids,
@@ -127,7 +129,12 @@ def main() -> None:
     encoder = build_encoder(settings)
     qdrant = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
     consumer = EmbedConsumer(
-        rabbit=rabbit, job_repo=job_repo, doc_repo=doc_repo, publisher=publisher,
-        encoder=encoder, qdrant=qdrant, embedding_max_tokens=settings.embedding_max_tokens,
+        rabbit=rabbit,
+        job_repo=job_repo,
+        doc_repo=doc_repo,
+        publisher=publisher,
+        encoder=encoder,
+        qdrant=qdrant,
+        embedding_max_tokens=settings.embedding_max_tokens,
     )
     consumer.run()

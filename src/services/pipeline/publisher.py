@@ -1,4 +1,5 @@
 """DocumentPublisher — writes DB state and publishes RabbitMQ messages per pipeline stage."""
+
 from __future__ import annotations
 
 import logging

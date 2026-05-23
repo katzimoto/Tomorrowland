@@ -10,7 +10,7 @@ import logging
 import os
 import time
 from contextlib import suppress
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID, uuid4
 
@@ -238,7 +238,7 @@ def _run_scheduled_syncs(connection: sa.Connection) -> int:
 
     Returns the number of sources synced.
     """
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     rows = (
         connection.execute(

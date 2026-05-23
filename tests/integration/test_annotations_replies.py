@@ -267,5 +267,7 @@ def test_comments_router_returns_410(migrated_engine: Engine) -> None:
         if method in ("post", "patch"):
             kwargs["json"] = {"body": "test"}
         resp = getattr(client, method)(path_suffix, **kwargs)
-        assert resp.status_code == 410, f"{method} {path_suffix}: expected 410, got {resp.status_code}"
+        assert resp.status_code == 410, (
+            f"{method} {path_suffix}: expected 410, got {resp.status_code}"
+        )
         assert "migrated" in resp.json()["detail"].lower()

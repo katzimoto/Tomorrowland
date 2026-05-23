@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
+
 import pytest
+
 from shared.rabbit import RabbitClient, RabbitConnectionError
 
 QUEUES = [
@@ -32,9 +34,7 @@ def test_declare_topology_creates_all_queues(mock_conn_cls):
         exchange_type="fanout",
         durable=True,
     )
-    declared_queues = [
-        c.kwargs["queue"] for c in mock_channel.queue_declare.call_args_list
-    ]
+    declared_queues = [c.kwargs["queue"] for c in mock_channel.queue_declare.call_args_list]
     for q in QUEUES:
         assert q in declared_queues
     for q in DLQ_QUEUES:

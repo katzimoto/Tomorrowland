@@ -1,7 +1,9 @@
 """Parse stage consumer — extracts text from a document and publishes translate."""
+
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 from services.documents.repository import DocumentRepository
@@ -17,7 +19,7 @@ class ParseConsumer(BaseConsumer):
 
     def __init__(
         self,
-        rabbit,
+        rabbit: Any,
         job_repo: PipelineJobRepository,
         doc_repo: DocumentRepository,
         publisher: DocumentPublisher,

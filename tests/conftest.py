@@ -20,7 +20,9 @@ _USE_POSTGRES = os.environ.get("PGTEST", "").lower() in ("1", "true", "yes")
 @pytest.fixture()
 def migrated_engine(tmp_path) -> Iterator[Engine]:  # type: ignore[no-untyped-def]
     if _USE_POSTGRES:
-        url = os.environ.get("POSTGRES_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/app")
+        url = os.environ.get(
+            "POSTGRES_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/app"
+        )
     else:
         db_path = tmp_path / "tomorrowland.db"
         url = f"sqlite:///{db_path}"
