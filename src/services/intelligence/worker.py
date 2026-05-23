@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 from uuid import UUID
 
@@ -97,14 +98,20 @@ class IntelligenceWorker:
     def process_document(self, document_id: UUID, content: str) -> None:
         """Run enabled intelligence tasks for *document_id*.
 
-        Tasks run in order: summarize → extract_entities → auto_tag → key_points.
-        On any failure, log and stop processing further tasks for this doc.
+        Tasks (summarize, extract_entities, auto_tag, key_points) run
+        concurrently via a thread pool. Each task is independent — they
+        share the same *content* but not each other's outputs.
+
+        On any failure, the exception propagates so the caller can retry
+        or dead-letter the pipeline job.
         """
         tasks = self._enabled_tasks()
         if not tasks:
             return
 
-        for task in tasks:
+        errors: list[Exception] = []
+
+        def _run(task: str) -> None:
             metrics = current_metrics()
             start = time.perf_counter()
             try:
@@ -121,7 +128,7 @@ class IntelligenceWorker:
                     metrics.intelligence_task_duration_seconds.labels(task).observe(
                         time.perf_counter() - start
                     )
-            except Exception:
+            except Exception as exc:
                 if metrics is not None:
                     metrics.intelligence_tasks_total.labels(task, "failure").inc()
                     metrics.intelligence_task_duration_seconds.labels(task).observe(
@@ -133,7 +140,15 @@ class IntelligenceWorker:
                     document_id,
                     get_correlation_id(),
                 )
-                break
+                errors.append(exc)
+
+        with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
+            futures = [pool.submit(_run, task) for task in tasks]
+            for future in as_completed(futures):
+                future.result()
+
+        if errors:
+            raise errors[0]
 
     def _enabled_tasks(self) -> list[str]:
         """Return list of enabled task names from system_config."""
@@ -191,14 +206,20 @@ class IntelligenceWorker:
                 normalized = normalize_summary_output(raw)
             else:
                 chunks = chunk_content(stripped, SUMMARY_CHUNK_CHARS)
-                chunk_summaries: list[str] = []
-                for chunk in chunks:
+
+                def _summarize_chunk(chunk: str) -> str:
                     chunk_prompt = self._build_prompt(
                         "llm.summarization_prompt", chunk, SUMMARY_CHUNK_CHARS
                     )
                     chunk_raw = self._ollama.generate(chunk_prompt)
                     parsed = normalize_summary_output(chunk_raw)
-                    chunk_summaries.append(parsed["summary"] or chunk)
+                    return parsed["summary"] or chunk
+
+                chunk_summaries: list[str] = []
+                with ThreadPoolExecutor(max_workers=min(len(chunks), 4)) as pool:
+                    futures = [pool.submit(_summarize_chunk, chunk) for chunk in chunks]
+                    for future in as_completed(futures):
+                        chunk_summaries.append(future.result())
 
                 reduce_prompt = build_reduce_prompt(chunk_summaries)
                 reduce_raw = self._ollama.generate(reduce_prompt)
@@ -211,6 +232,11 @@ class IntelligenceWorker:
             norm_source = (
                 normalized["source_text"] if normalized["source_text"] != "unknown" else None
             )
+            summary_text = normalized["summary"].strip()
+            if not summary_text:
+                summary_text = stripped[:500].split(". ")[0] or stripped[:200]
+                normalized["summary"] = summary_text
+                normalized["status"] = "degraded"
             self._repo.upsert_summary(
                 document_id,
                 summary=normalized["summary"],
@@ -342,12 +368,26 @@ class IntelligenceWorker:
         if not base_prompt:
             # Fallback prompts when no config source
             fallbacks: dict[str, str] = {
-                "llm.summarization_prompt": ("Summarize the following document in 3-5 sentences."),
+                "llm.summarization_prompt": (
+                    "Summarize the following document. "
+                    "Output valid JSON with these keys:\n"
+                    '{"summary": "<3-5 sentence summary>", '
+                    '"bullets": ["<key point 1>", ...], '
+                    '"language": "<en|he|ar|...>", '
+                    '"document_type": "<report|email|contract|..."}'
+                ),
                 "llm.entity_extraction_prompt": (
-                    "Extract named entities (people, organizations, locations) as a JSON array."
+                    "Extract named entities from the document as a JSON array. "
+                    "Each entity must have name and type "
+                    '(person, organization, location, date). '
+                    'Format: [{"name": "...", "type": "..."}]'
                 ),
                 "llm.auto_tag_prompt": (
-                    "Assign 3-7 short topic tags to the following document as a JSON array."
+                    "Analyze the document content below and assign 3-7 specific, "
+                    "relevant topic tags. Tags should reflect the document's main "
+                    "themes, domain, and key concepts — not generic labels.\n"
+                    "Output as a JSON array of strings. "
+                    'Example: ["contract law", "data privacy", "vendor risk"]'
                 ),
             }
             base_prompt = fallbacks.get(config_key, "")

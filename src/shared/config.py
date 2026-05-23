@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     embedding_url: str = ""
     embedding_dimension: int = 768
     embedding_max_tokens: int = 1024
+    embedding_timeout: float = 180.0
     embedding_provider_unsafe_allow_test_in_prod: bool = False
 
     meilisearch_url: str = "http://meilisearch:7700"

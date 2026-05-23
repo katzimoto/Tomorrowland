@@ -14,7 +14,7 @@ from shared.metrics import current_metrics
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TIMEOUT = 120.0
+DEFAULT_TIMEOUT = 300.0
 
 
 class OllamaClient:

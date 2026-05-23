@@ -1,6 +1,6 @@
 .page {
   padding: var(--page-padding-desktop);
-  max-width: 960px;
+  width: 100%;
 }
 
 .header {

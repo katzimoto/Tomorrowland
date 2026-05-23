@@ -2,22 +2,29 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
-## 2026-05-23 — Issue #482 related reasons + boolean SQL guard + PostgreSQL CI
+## 2026-05-23 — Pipeline optimizations, UI full-width, prompt improvements
 
 Status: Done
-Source: issue #482; OpenCode session
+Source: OpenCode session
 
 What changed:
-- `src/services/related/service.py` — `_build_reasons()` computes structured reasons per candidate
-- `src/services/documents/repository.py` — fixed 4 boolean-int SQL bugs (PostgreSQL rejects `boolean = 0`)
-- `scripts/check-boolean-int-sql.py` — **new** AST lint; runs in CI quality job
-- `.github/workflows/backend.yml` — `tests-postgres` job (PG 16); SQL lint step
-- `tests/conftest.py` — `PGTEST=1` switches to PostgreSQL
-- `frontend/src/features/documents/InsightPane.tsx` — RelatedTab: reason pills + expandable panel
+- `src/services/pipeline/vector_worker.py` — batch encoding via `encode_batch()`
+- `src/services/pipeline/worker.py` — batch encoding via `encode_batch()`; `_FakeEncoder` mock updated
+- `src/services/intelligence/worker.py` — ThreadPoolExecutor for tasks + map-reduce; better fallback prompts; empty summary fallback to first sentence
+- `src/services/pipeline/jobs.py` — `_sanitize_error` includes first line of `str(exc)`
+- `src/services/intelligence/ollama_client.py` — timeout 120→300s
+- `src/services/search/encoder.py` — embed timeout 60→180s, configurable via `embedding_timeout`
+- `src/shared/config.py` — `embedding_timeout` field added
+- `src/services/search/factory.py` — passes `embedding_timeout` to encoder
+- `.env` — `OLLAMA_KEEP_ALIVE=4h`, `OLLAMA_MAX_LOADED_MODELS=2`
 
-Verification: 4/4 related tests, 15/15 tags, 5/5 InsightPane, ruff clean, build passes
+- Frontend CSS: admin pages/expertise/history/notifications — `max-width` removed, `width: 100%`
+- Search results: `max-width` 980→1200px
+- Document table columns: 42%/8%/6%/18%/auto for full-width
+- Duration column: live ticking via 1s interval
+- `src/features/admin/AdminSourceDetailPage.tsx` — `useRef` ticker for live duration
 
-Open risks: PostgreSQL CI not yet run; RelatedTab expanded-view tests missing
+Verification: ruff clean, 12/12 intelligence tests, 12/13 pipeline worker (1 pre-existing), typecheck clean, build passes
 
 ## Handoff template
 

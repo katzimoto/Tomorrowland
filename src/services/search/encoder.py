@@ -100,7 +100,7 @@ class OllamaEmbeddingEncoder:
         base_url: str,
         model: str = "nomic-embed-text",
         dimension: int = 768,
-        timeout: float = 60.0,
+        timeout: float = 180.0,
         max_tokens: int | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")

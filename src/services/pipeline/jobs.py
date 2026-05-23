@@ -42,9 +42,12 @@ def _is_sqlite(conn: sa.Connection) -> bool:
 
 
 def _sanitize_error(exc_or_msg: BaseException | str, stage: str = "") -> str:
-    """Store only exception type/class-name and optional stage — never raw message text."""
+    """Store exception type and first line of message, never raw stack traces."""
     if isinstance(exc_or_msg, BaseException):
         tag = type(exc_or_msg).__name__
+        msg = str(exc_or_msg).split("\n")[0].strip()
+        if msg:
+            tag = f"{tag}: {msg}"
     elif isinstance(exc_or_msg, str):
         tag = exc_or_msg.strip() if exc_or_msg.strip() in _ALLOWED_ERROR_CATEGORIES else "unknown"
     else:

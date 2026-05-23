@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Plus, X, Pencil, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
@@ -69,6 +69,13 @@ function SourceDocumentsSection({ sourceId }: { sourceId: string }) {
   const qc = useQueryClient();
   const { show: showToast } = useToast();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [, setTick] = useState(0);
+  const tickRef = useRef<ReturnType<typeof setInterval>>(null);
+
+  useEffect(() => {
+    tickRef.current = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => { if (tickRef.current) clearInterval(tickRef.current); };
+  }, []);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["source-documents", sourceId],
@@ -125,12 +132,12 @@ function SourceDocumentsSection({ sourceId }: { sourceId: string }) {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th style={{ width: "38%" }}>Title</th>
-              <th style={{ width: "10%" }}>Type</th>
-              <th style={{ width: "7%" }}>Lang</th>
-              <th style={{ width: "22%" }}>Progress</th>
+              <th style={{ width: "42%" }}>Title</th>
+              <th style={{ width: "8%" }}>Type</th>
+              <th style={{ width: "6%" }}>Lang</th>
+              <th style={{ width: "18%" }}>Progress</th>
               <th>State</th>
-              <th style={{ width: 40 }}></th>
+              <th style={{ width: 32 }}></th>
             </tr>
           </thead>
           <tbody>

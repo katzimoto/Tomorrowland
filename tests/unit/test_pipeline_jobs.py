@@ -338,7 +338,7 @@ def test_mark_retry_schedules_backoff(engine: Engine) -> None:
             {"id": job_id.hex},
         ).one()
         assert row.status == "retry"
-        assert row.last_error == "ValueError:process"
+        assert row.last_error == "ValueError: boom:process"
         run_after = (
             row.run_after
             if isinstance(row.run_after, datetime)
@@ -383,7 +383,7 @@ def test_mark_dead_letter(engine: Engine) -> None:
             {"id": job_id.hex},
         ).one()
         assert row.status == "dead_letter"
-        assert row.last_error == "RuntimeError:process"
+        assert row.last_error == "RuntimeError: fatal:process"
 
 
 def test_payload_store_and_load(engine: Engine) -> None:

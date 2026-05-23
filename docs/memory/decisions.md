@@ -2,6 +2,47 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-05-23 — Pipeline efficiency optimizations
+
+Status: Active
+Source: OpenCode session (chat summary)
+
+Decision:
+- Embedding encoding: collect all chunk texts → single `encode_batch()` call (was per-chunk HTTP call). Reduces N Ollama round-trips to 1 per document.
+- Intelligence tasks: `ThreadPoolExecutor` runs summarize, entities, tags, key_points concurrently (was sequential for-loop). Each task is independent on same content.
+- Map-reduce summarization: chunk summaries parallelized via ThreadPoolExecutor (max 4 workers).
+- Ollama cache: `KEEP_ALIVE=4h`, `MAX_LOADED_MODELS=2` — both mistral and nomic-embed-text stay in memory, eliminating model swap latency (30-90s per cycle).
+- Timeouts: generate 300s, embed 180s (was 120s/60s) — models need time to load on first request.
+- Error visibility: `_sanitize_error` now includes first line of `str(exc)` alongside class name.
+- Summary empty fallback: uses first sentence of document when LLM returns empty/whitespace.
+
+Impact:
+- Document processing wall-clock reduced: embedding batch (~N× faster), intelligence tasks (~3× faster), map-reduce (~4× faster).
+- No model swapping between chat and embedding requests — both loaded simultaneously.
+- Admin UI now shows actionable errors like `ReadTimeout: timed out` instead of just `ReadTimeout`.
+
+## 2026-05-23 — UI full-width layout
+
+Status: Active
+Source: OpenCode session (chat summary)
+
+Decision:
+- Admin pages (Sources, Detail, Edit, Hub): `max-width` removed, `width: 100%` — fills screen.
+- Expertise, History, Notifications: `max-width` removed.
+- Search results: `max-width` bumped to 1200px.
+- Document table columns: Title 42%, Type 8%, Lang 6%, Progress 18%, State auto.
+- Duration column ticks live every 1s for running jobs.
+
+## 2026-05-23 — LLM prompt quality improvements
+
+Status: Active
+Source: OpenCode session (chat summary)
+
+Decision:
+- Summarization prompt: structured JSON format with `summary`, `bullets`, `language`, `document_type` fields.
+- Entity extraction prompt: explicit `{name, type}` format with valid types listed.
+- Auto-tag prompt: example tags added (`["contract law", "data privacy", "vendor risk"]`), instruction to avoid generic labels.
+
 ## 2026-05-23 — Boolean-integer SQL guard + PostgreSQL CI test job
 
 Status: Active

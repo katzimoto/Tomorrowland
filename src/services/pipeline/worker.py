@@ -279,12 +279,12 @@ class PipelineWorker:
 
             def _build_chunk(
                 chunk_text_content: str,
+                vector: list[float],
                 idx: int,
                 *,
                 lang: str | None,
                 suffix: str,
             ) -> dict[str, Any]:
-                vector = self._encoder.encode(chunk_text_content)
                 entry: dict[str, Any] = {
                     "chunk_id": f"{document_id}-{suffix}-{idx}",
                     "document_id": str(document_id),
@@ -300,16 +300,30 @@ class PipelineWorker:
                     entry["language"] = lang
                 return entry
 
-            # Original language chunks
-            for idx, chunk_text_content in enumerate(original_chunks):
-                qdrant_chunks.append(
-                    _build_chunk(chunk_text_content, idx, lang=doc.source_language, suffix="orig")
-                )
+            # Collect all chunk texts
+            chunk_texts: list[str] = []
+            chunk_meta: list[dict[str, Any]] = []
 
-            # Translated chunks (when translation differs from original)
+            for idx, chunk_text_content in enumerate(original_chunks):
+                chunk_texts.append(chunk_text_content)
+                chunk_meta.append({"lang": doc.source_language, "suffix": "orig", "idx": idx})
+
             for idx, chunk_text_content in enumerate(translated_chunks):
+                chunk_texts.append(chunk_text_content)
+                chunk_meta.append({"lang": doc.target_language, "suffix": "trans", "idx": idx})
+
+            # Batch-encode all chunks in a single Ollama call
+            vectors = self._encoder.encode_batch(chunk_texts)
+
+            for i, meta in enumerate(chunk_meta):
                 qdrant_chunks.append(
-                    _build_chunk(chunk_text_content, idx, lang=doc.target_language, suffix="trans")
+                    _build_chunk(
+                        chunk_texts[i],
+                        vectors[i],
+                        meta["idx"],
+                        lang=meta["lang"],
+                        suffix=meta["suffix"],
+                    )
                 )
 
             if qdrant_chunks:

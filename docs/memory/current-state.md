@@ -20,9 +20,12 @@ Impact:
 - Chat works out-of-box. Qdrant auto-creates collections. SSE streaming persists messages.
 - Sources have edit page + cron schedule + document pipeline view + delete.
 - All Python tooling uses `uv` (fast resolution, reproducible lockfile).
-- Mistral fits in Ollama container. Documents can be requeued/deleted from admin UI.
-- Related documents show structured reasons (semantic, entities, tags, source).
-- Boolean-integer SQL bugs fixed (4 instances); lint script + PostgreSQL CI job prevent recurrence.
+- Mistral + nomic-embed-text coexist in 6g Ollama container (keep_alive=4h, max_models=2).
+- Related documents show structured reasons (#482). Boolean-int SQL bugs fixed + lint guard + PG CI.
+- Pipeline embedding batched (N HTTP calls → 1), intelligence tasks parallelized, map-reduce parallel.
+- Error messages visible in admin UI (sanitize now includes first line of error text).
+- Ollama timeouts: generate 300s, embed 180s. Summary empty fallback uses first sentence.
+- UI uses full screen width on admin/expertise/history/notifications pages (max-width removed).
 
 Next action:
 - None. All tasks from this session complete.

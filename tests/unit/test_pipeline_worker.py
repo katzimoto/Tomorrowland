@@ -65,6 +65,13 @@ class _FakeEncoder:
             raise RuntimeError("raw_chunk_marker")
         return [0.1, 0.2, 0.3]
 
+    def encode_batch(self, texts: list[str]) -> list[list[float]]:
+        for t in texts:
+            self.calls.append(t)
+        if self.fail:
+            raise RuntimeError("raw_chunk_marker")
+        return [[0.1, 0.2, 0.3] for _ in texts]
+
 
 class _FakeElasticsearch:
     def __init__(self, *, fail: bool = False) -> None:

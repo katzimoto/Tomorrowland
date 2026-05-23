@@ -92,12 +92,12 @@ def run_vector_once(
         # Helper to build a single Qdrant chunk entry
         def _build_chunk(
             chunk_text_content: str,
+            vector: list[float],
             idx: int,
             *,
             lang: str | None,
             suffix: str,
         ) -> dict[str, Any]:
-            vector = encoder.encode(chunk_text_content)
             entry: dict[str, Any] = {
                 "chunk_id": f"{document_id}-{suffix}-{idx}",
                 "document_id": str(document_id),
@@ -115,6 +115,10 @@ def run_vector_once(
 
         qdrant_chunks: list[dict[str, Any]] = []
 
+        # Collect all chunk texts first
+        chunk_texts: list[str] = []
+        chunk_meta: list[dict[str, Any]] = []
+
         # Original language chunks
         for idx, chunk_text_content in enumerate(
             chunk_text(
@@ -123,13 +127,13 @@ def run_vector_once(
                 max_tokens=embedding_max_tokens,
             )
         ):
-            qdrant_chunks.append(
-                _build_chunk(
-                    chunk_text_content,
-                    idx,
-                    lang=doc.source_language,
-                    suffix="orig",
-                )
+            chunk_texts.append(chunk_text_content)
+            chunk_meta.append(
+                {
+                    "lang": doc.source_language,
+                    "suffix": "orig",
+                    "idx": idx,
+                }
             )
 
         # Translated chunks (when translation exists and differs from original)
@@ -141,14 +145,29 @@ def run_vector_once(
                     max_tokens=embedding_max_tokens,
                 )
             ):
-                qdrant_chunks.append(
-                    _build_chunk(
-                        chunk_text_content,
-                        idx,
-                        lang=doc.target_language,
-                        suffix="trans",
-                    )
+                chunk_texts.append(chunk_text_content)
+                chunk_meta.append(
+                    {
+                        "lang": doc.target_language,
+                        "suffix": "tr",
+                        "idx": idx,
+                    }
                 )
+
+        # Batch-encode all chunks in a single Ollama call
+        vectors = encoder.encode_batch(chunk_texts)
+
+        # Build Qdrant entries with pre-computed vectors
+        for i, meta in enumerate(chunk_meta):
+            qdrant_chunks.append(
+                _build_chunk(
+                    chunk_texts[i],
+                    vectors[i],
+                    meta["idx"],
+                    lang=meta["lang"],
+                    suffix=meta["suffix"],
+                )
+            )
 
         if qdrant_chunks:
             # Delete stale chunks from previous indexing runs before upserting
