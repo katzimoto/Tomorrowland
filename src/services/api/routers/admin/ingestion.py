@@ -185,13 +185,17 @@ def sync_now(
         # Publish to RabbitMQ after transaction commits so consumers see the documents
     if pending_rabbit and request.app.state.settings.rabbitmq_enabled:
         from services.pipeline.publisher import DocumentPublisher
-        from shared.rabbit import RabbitClient
+        from shared.rabbit import RabbitClient, RabbitConnectionError
 
         rabbit = getattr(request.app.state, "rabbit", None) or RabbitClient(
             request.app.state.settings.rabbitmq_url, enabled=True,
         )
-        rabbit.connect()
-        rabbit.declare_topology()
+        try:
+            rabbit.connect()
+            rabbit.declare_topology()
+        except RabbitConnectionError:
+            pass  # RabbitMQ unreachable — messages stay in DB pool for old runner
+
         with request.app.state.engine.begin() as conn2:
             pub_repo = PipelineJobRepository(conn2)
             publisher = DocumentPublisher(job_repo=pub_repo, rabbit=rabbit)
