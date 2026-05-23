@@ -61,12 +61,6 @@ class IndexConsumer(BaseConsumer):
         self._es.index_document(str(document_id), body)
 
         self._job_repo.mark_running_stage(job_id, "indexed")
-        self._publisher.publish_intelligence(
-            job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
-        )
-        self._publisher.publish_alert(
-            job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
-        )
         self._job_repo.mark_running_stage(job_id, "completed")
 
 

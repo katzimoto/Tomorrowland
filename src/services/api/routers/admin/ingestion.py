@@ -151,6 +151,18 @@ def sync_now(
                             document_id=doc.id,
                             source_id=source_id,
                         )
+                        # Intelligence and alert run in parallel — document is
+                        # viewable after index stage without waiting for these.
+                        publisher.publish_intelligence(
+                            job_id=job_id,
+                            document_id=doc.id,
+                            source_id=source_id,
+                        )
+                        publisher.publish_alert(
+                            job_id=job_id,
+                            document_id=doc.id,
+                            source_id=source_id,
+                        )
                         # Mark the DB job as succeeded so the old runner skips it;
                         # the RabbitMQ pipeline handles processing from here.
                         job_repo.mark_succeeded(job_id)
