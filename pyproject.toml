@@ -64,5 +64,5 @@ mypy_path = "src"
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["bcrypt", "openpyxl", "openpyxl.*"]
+module = ["bcrypt", "openpyxl", "openpyxl.*", "pika", "pika.*"]
 ignore_missing_imports = true
