@@ -154,18 +154,6 @@ def sync_now(
                             source_id=source_id,
                             content_text=item.text_content,
                         )
-                        # Intelligence and alert run in parallel — document is
-                        # viewable after index stage without waiting for these.
-                        publisher.publish_intelligence(
-                            job_id=job_id,
-                            document_id=doc.id,
-                            source_id=source_id,
-                        )
-                        publisher.publish_alert(
-                            job_id=job_id,
-                            document_id=doc.id,
-                            source_id=source_id,
-                        )
 
                     request.app.state.metrics.ingestion_documents_total.labels(
                         safe_label_value(connector_type), "success"
