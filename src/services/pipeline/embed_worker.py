@@ -1,0 +1,140 @@
+"""Embed stage consumer — chunks + vectorizes text and publishes index."""
+
+from __future__ import annotations
+
+from typing import Any
+from uuid import UUID
+
+from services.chunking.splitter import chunk_text
+from services.documents.repository import DocumentRepository
+from services.pipeline.consumer_base import BaseConsumer
+from services.pipeline.jobs import PipelineJobRepository
+from services.pipeline.publisher import DocumentPublisher
+from services.search.encoder import TextEncoder
+from services.search.qdrant import QdrantSearchClient
+
+
+class EmbedConsumer(BaseConsumer):
+    queue_name = "document.embed.requested"
+    worker_type = "embed-worker"
+
+    def __init__(
+        self,
+        rabbit: Any,
+        job_repo: PipelineJobRepository,
+        doc_repo: DocumentRepository,
+        publisher: DocumentPublisher,
+        encoder: TextEncoder,
+        qdrant: QdrantSearchClient,
+        embedding_max_tokens: int | None = None,
+        health_port: int = 8080,
+    ) -> None:
+        super().__init__(rabbit, job_repo, health_port)
+        self._doc_repo = doc_repo
+        self._publisher = publisher
+        self._encoder = encoder
+        self._qdrant = qdrant
+        self._embedding_max_tokens = embedding_max_tokens
+
+    def handle_message(
+        self,
+        job_id: UUID,
+        document_id: UUID,
+        source_id: UUID,
+        attempt: int,
+        correlation_id: str,
+    ) -> None:
+        doc = self._doc_repo.get_by_id(document_id)
+        if doc is None:
+            raise ValueError(f"Document {document_id} not found")
+
+        payload = self._job_repo.get_payload(document_id)
+        content_text = (payload.get("content_text", "") if payload else None) or ""
+        translated_text = (payload.get("translated_text", "") if payload else None) or ""
+
+        allowed_group_ids = [str(gid) for gid in self._doc_repo.source_group_ids(source_id)]
+
+        chunk_texts: list[str] = []
+        chunk_meta: list[dict[str, Any]] = []
+
+        for idx, chunk in enumerate(
+            chunk_text(
+                content_text,
+                language=doc.source_language,
+                max_tokens=self._embedding_max_tokens,
+            )
+        ):
+            chunk_texts.append(chunk)
+            chunk_meta.append({"lang": doc.source_language, "suffix": "orig", "idx": idx})
+
+        for idx, chunk in enumerate(
+            chunk_text(
+                translated_text,
+                language=doc.target_language,
+                max_tokens=self._embedding_max_tokens,
+            )
+        ):
+            chunk_texts.append(chunk)
+            chunk_meta.append({"lang": doc.target_language, "suffix": "tr", "idx": idx})
+
+        vectors = self._encoder.encode_batch(chunk_texts)
+
+        qdrant_chunks: list[dict[str, Any]] = []
+        for i, meta in enumerate(chunk_meta):
+            entry: dict[str, Any] = {
+                "chunk_id": f"{document_id}-{meta['suffix']}-{meta['idx']}",
+                "document_id": str(document_id),
+                "group_id": allowed_group_ids,
+                "chunk_index": meta["idx"],
+                "text": chunk_texts[i],
+                "vector": vectors[i],
+                "source_id": str(source_id),
+            }
+            if doc.title:
+                entry["title"] = doc.title
+            if meta["lang"]:
+                entry["language"] = meta["lang"]
+            qdrant_chunks.append(entry)
+
+        if qdrant_chunks:
+            self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
+
+        self._job_repo.mark_running_stage(job_id, "embedded")
+        self._publisher.publish_index(
+            job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
+        )
+
+
+def main() -> None:
+    import logging
+
+    import sqlalchemy as sa
+
+    from services.documents.repository import DocumentRepository
+    from services.pipeline.jobs import PipelineJobRepository
+    from services.pipeline.publisher import DocumentPublisher
+    from services.search.factory import build_encoder
+    from services.search.qdrant import QdrantSearchClient
+    from shared.config import Settings
+    from shared.rabbit import RabbitClient
+
+    logging.basicConfig(level=logging.INFO)
+    settings = Settings()
+    engine = sa.create_engine(settings.postgres_url)
+    connection = engine.connect()
+    rabbit = RabbitClient(settings.rabbitmq_url, enabled=settings.rabbitmq_enabled)
+    job_repo = PipelineJobRepository(connection)
+    doc_repo = DocumentRepository(connection)
+    publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
+    encoder = build_encoder(settings)
+    qdrant = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
+    consumer = EmbedConsumer(
+        rabbit=rabbit,
+        job_repo=job_repo,
+        doc_repo=doc_repo,
+        publisher=publisher,
+        encoder=encoder,
+        qdrant=qdrant,
+        embedding_max_tokens=settings.embedding_max_tokens,
+    )
+    consumer.run()

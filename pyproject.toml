@@ -11,6 +11,7 @@ dependencies = [
   "extract-msg>=0.55",
   "fastapi>=0.111",
   "openpyxl>=3.1",
+  "pika>=1.3,<2",
   "psycopg[binary]>=3.2",
   "prometheus-client>=0.20",
   "pydantic>=2.7",
@@ -35,6 +36,14 @@ dev = [
   "ruff>=0.5",
   "types-openpyxl>=3.1",
 ]
+
+[project.scripts]
+tomorrowland-parse-worker = "services.pipeline.parse_worker:main"
+tomorrowland-translate-worker = "services.pipeline.translate_worker:main"
+tomorrowland-embed-worker = "services.pipeline.embed_worker:main"
+tomorrowland-index-worker = "services.pipeline.index_worker:main"
+tomorrowland-intelligence-worker = "services.pipeline.intelligence_consumer:main"
+tomorrowland-alert-worker = "services.pipeline.alert_consumer:main"
 
 [build-system]
 requires = ["setuptools>=69", "wheel"]
@@ -63,5 +72,5 @@ mypy_path = "src"
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["bcrypt", "openpyxl", "openpyxl.*"]
+module = ["bcrypt", "openpyxl", "openpyxl.*", "pika", "pika.*"]
 ignore_missing_imports = true

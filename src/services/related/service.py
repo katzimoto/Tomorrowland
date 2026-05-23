@@ -99,21 +99,22 @@ class RelatedService:
             if result.document_id in metadata
         ][:limit]
 
-        candidate_ids = [c["document_id"] for c in candidates]
+        candidate_ids = [str(c["document_id"]) for c in candidates]
         source_tags_entities = self._repository.get_document_tags_and_entities([str(doc.id)])
         source_te = source_tags_entities.get(str(doc.id), {"tags": set(), "entities": set()})
         candidate_te = self._repository.get_document_tags_and_entities(candidate_ids)
 
         for candidate in candidates:
-            cid = candidate["document_id"]
+            cid: str = str(candidate["document_id"])
             te = candidate_te.get(cid, {"tags": set(), "entities": set()})
             entity_overlap = source_te["entities"] & te["entities"]
             tag_overlap = source_te["tags"] & te["tags"]
             same_source = (
                 candidate.get("source") == doc.source if candidate.get("source") else False
             )
+            raw_score: float = float(candidate.get("score") or 0.0)
             reasons, relation_score = _build_reasons(
-                score=candidate["score"],
+                score=raw_score,
                 entity_matches=entity_overlap,
                 tag_matches=tag_overlap,
                 same_source=same_source,

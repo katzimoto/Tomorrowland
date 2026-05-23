@@ -245,6 +245,29 @@ class PipelineJobRepository:
             },
         )
 
+    def set_rabbit_message_id(self, job_id: UUID, message_id: str) -> None:
+        """Persist the RabbitMQ message ID for observability."""
+        self._connection.execute(
+            sa.text("""
+                UPDATE pipeline_jobs
+                SET rabbit_message_id = :message_id, updated_at = :updated_at
+                WHERE id = :id
+            """),
+            {
+                "id": db_uuid(job_id),
+                "message_id": message_id,
+                "updated_at": datetime.now(UTC),
+            },
+        )
+
+    def get_max_attempts(self, job_id: UUID) -> int:
+        """Return the max_attempts value for a job (default 5 if not found)."""
+        result = self._connection.execute(
+            sa.text("SELECT max_attempts FROM pipeline_jobs WHERE id = :id"),
+            {"id": db_uuid(job_id)},
+        ).scalar()
+        return int(result) if result is not None else 5
+
     def mark_succeeded(self, job_id: UUID) -> None:
         """Mark a running job as succeeded."""
         self._connection.execute(

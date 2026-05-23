@@ -148,6 +148,7 @@ jobs:
   tests-postgres:
     name: Pytest (PostgreSQL)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -185,4 +186,4 @@ jobs:
       - name: Test against PostgreSQL
         env:
           PGTEST: "1"
-        run: pytest
+        run: pytest -q

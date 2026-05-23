@@ -61,6 +61,7 @@ third_party_images=(
   "qdrant/qdrant:v1.10.1"
   "ollama/ollama:latest"
   "getmeili/meilisearch:v1.9"
+  "rabbitmq:3.13-management-alpine"
 )
 all_images=(
   "$backend_airgap_image"
@@ -239,7 +240,7 @@ $(for image in "${all_images[@]:1}"; do printf ',\n    "%s"' "$image"; done)
   "minimum_compose_version": "2.20",
   "migrations": {"expected": true, "service": "migrate", "command": "alembic upgrade head"},
   "persistent_data": {
-    "volumes": ["files_data", "postgres_data", "kafka_data", "elasticsearch_data", "qdrant_data", "libretranslate_data", "ollama_data"],
+    "volumes": ["files_data", "postgres_data", "kafka_data", "elasticsearch_data", "qdrant_data", "libretranslate_data", "ollama_data", "rabbitmq_data"],
     "volume_env_names": {
       "files_data": "TOMORROWLAND_FILES_VOLUME",
       "postgres_data": "TOMORROWLAND_POSTGRES_VOLUME",

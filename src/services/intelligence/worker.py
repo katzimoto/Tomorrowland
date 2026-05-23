@@ -379,7 +379,7 @@ class IntelligenceWorker:
                 "llm.entity_extraction_prompt": (
                     "Extract named entities from the document as a JSON array. "
                     "Each entity must have name and type "
-                    '(person, organization, location, date). '
+                    "(person, organization, location, date). "
                     'Format: [{"name": "...", "type": "..."}]'
                 ),
                 "llm.auto_tag_prompt": (
