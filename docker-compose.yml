@@ -336,6 +336,23 @@ services:
     volumes:
       - ollama_data:/root/.ollama
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-tomorrowland}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-changeme}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
   prometheus:
     image: prom/prometheus:v2.54.1
     restart: unless-stopped
@@ -434,6 +451,8 @@ volumes:
     name: ${TOMORROWLAND_LIBRETRANSLATE_VOLUME:-tomorrowland_libretranslate_data}
   ollama_data:
     name: ${TOMORROWLAND_OLLAMA_VOLUME:-tomorrowland_ollama_data}
+  rabbitmq_data:
+    name: ${TOMORROWLAND_RABBITMQ_VOLUME:-tomorrowland_rabbitmq_data}
   prometheus_data:
     name: ${TOMORROWLAND_PROMETHEUS_VOLUME:-tomorrowland_prometheus_data}
   grafana_data:
