@@ -1,4 +1,4 @@
-"""Add stage and rabbit_message_id to pipeline_jobs.
+"""Add rabbit_message_id to pipeline_jobs.
 
 Revision ID: a1b2c3d4e5f6
 Revises: u5v6w7x8y9z0
@@ -16,7 +16,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("pipeline_jobs", sa.Column("stage", sa.Text(), nullable=True))
     op.add_column(
         "pipeline_jobs",
         sa.Column("rabbit_message_id", sa.Text(), nullable=True),
@@ -25,4 +24,3 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_column("pipeline_jobs", "rabbit_message_id")
-    op.drop_column("pipeline_jobs", "stage")

@@ -245,6 +245,21 @@ class PipelineJobRepository:
             },
         )
 
+    def set_rabbit_message_id(self, job_id: UUID, message_id: str) -> None:
+        """Persist the RabbitMQ message ID for observability."""
+        self._connection.execute(
+            sa.text("""
+                UPDATE pipeline_jobs
+                SET rabbit_message_id = :message_id, updated_at = :updated_at
+                WHERE id = :id
+            """),
+            {
+                "id": db_uuid(job_id),
+                "message_id": message_id,
+                "updated_at": datetime.now(UTC),
+            },
+        )
+
     def mark_succeeded(self, job_id: UUID) -> None:
         """Mark a running job as succeeded."""
         self._connection.execute(
