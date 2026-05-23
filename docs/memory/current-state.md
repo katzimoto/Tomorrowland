@@ -13,7 +13,8 @@ Finding:
 - Both features start from `main`; PRs target their respective feature branches only.
 
 Next action:
-- Sub-A (#425): `shared/rabbit.py` + RabbitMQ Docker + topology.
+- Sub-A (#425): DONE — `shared/rabbit.py` + RabbitMQ Docker + topology (7 tests, ruff/mypy clean).
+- Sub-B (#426): `pipeline_jobs` schema additions (message_id, routing_key columns).
 - Sub #501: Cargo workspace scaffold + CI for Rust worker.
 
 ## 2026-05-23 — Chat defaults + Qdrant bootstrap + SSE fix + Edit Source page
