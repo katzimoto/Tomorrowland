@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Download, Languages, Search } from "lucide-react";
 import { getDownloadUrl } from "@/api/documents";
