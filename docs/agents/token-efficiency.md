@@ -10,15 +10,21 @@ For any task, load context in this order:
 
 1. `AGENTS.md`
 2. `CLAUDE.md` when running Claude Code
-3. The GitHub Issue body, especially `Context Budget`, `Allowed Changes`,
-   `Forbidden Changes`, relationships, and acceptance criteria
-4. The single referenced implementation or design plan, only when the issue
-   references one or the issue lacks enough context
-5. One relevant `docs/context/<area>.md` file when implementation or review needs
+3. **Relevant entries in `docs/memory/`** — read `current-state.md` for active
+   feature state; read `decisions.md` for architecture decisions; read `handoffs.md`
+   for recent cross-agent handoffs. Do this before opening source files.
+4. The GitHub Issue body, especially `Context Budget`, `Allowed Changes`,
+   `Forbidden Changes`, relationships, and acceptance criteria. For multi-issue
+   feature work, load the **child issue body** at implementation time (not just the
+   parent tracker) — the child carries the concrete scope.
+5. The single referenced implementation or design plan, **only the relevant task
+   section** (not the full plan). If the plan has numbered tasks, load only the task
+   range needed for the current sub-issue.
+6. One relevant `docs/context/<area>.md` file when implementation or review needs
    area context
-6. Source files discovered with `rg`
-7. Tests matching the touched code
-8. `CHANGELOG.md` before assuming a feature is missing
+7. Source files discovered with `rg` or `graphify query`
+8. Tests matching the touched code
+9. `CHANGELOG.md` before assuming a feature is missing
 
 Current release work is issue-based. Prefer the live GitHub Issue body over old
 phase-table status when an issue exists.
@@ -54,10 +60,17 @@ Start every implementation or review task with targeted discovery:
 
 ```bash
 git status --short
-rg "<symbol-or-route-or-component>"
+graphify query "<question about the codebase>"   # preferred — returns scoped subgraph
+rg "<symbol-or-route-or-component>"              # fallback when graphify has no answer
 rg --files <target-directory>
 git diff --name-only main...HEAD
 ```
+
+Use `graphify query` before `rg` when the question spans multiple files or
+involves cross-cutting relationships. Use `graphify path "<A>" "<B>"` to trace
+how two components relate. Use `graphify explain "<concept>"` for focused concept
+lookup. `graphify-out/graph.json` must exist for these to work; if absent, fall
+back to `rg`.
 
 Prefer `rg` and `rg --files` over recursive dumps.
 
@@ -174,12 +187,19 @@ Every agent handoff must include context accounting:
 - ...
 
 ## Token Efficiency Notes
-- Used `rg` before opening files: yes/no
+- Read `docs/memory/` before source files: yes/no
+- Used `graphify query` or `rg` before opening files: yes/no
 - Read more than one plan: yes/no, reason
 - Read broad source areas: yes/no, reason
+
+## Memory Written
+- `docs/memory/current-state.md` — <what was added, or "no new state">
+- `docs/memory/decisions.md` — <what was added, or "no new decisions">
 ```
 
 The handoff should make unnecessary context expansion visible during review.
+`Memory Written` ensures discoveries from the session land in shared memory
+and are not re-derived by the next agent.
 
 Templates: claim/transfer/handoff and compact issue/PR templates live in `docs/agents/templates.md`.
 
@@ -193,4 +213,8 @@ Stop and ask for human direction, or create a follow-up issue, when:
 - two active missions need the same shared files;
 - `spec.md` or `spec-v4.pdf` appears necessary but was not explicitly authorized;
 - a safety-sensitive task lacks a reviewed plan, especially destructive upgrade
-  work or permission/ACL enforcement.
+  work or permission/ACL enforcement;
+- **more than 3 source files have been read without a corresponding entry in
+  `docs/memory/`** — stop, write the discovery to `current-state.md` or
+  `decisions.md`, then continue. This prevents re-deriving context that the next
+  agent will need.

@@ -2,6 +2,20 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-23 — RabbitMQ stage-based job bus (#432) + Rust VectorWorker (#511) planned
+
+Status: Planning complete — no code written yet
+Source: Claude Code session (brainstorm + issue creation)
+
+Finding:
+- **RabbitMQ job bus** — issue #432 (`feature/rabbitmq-job-bus`) replaces synchronous DB-poll pipeline with durable stage-based message bus. 7 sub-issues #425–#431. Full 18-task plan at `docs/superpowers/plans/2026-05-23-rabbitmq-job-bus.md`. Feature flag `RABBITMQ_ENABLED=false` (default) = zero impact until enabled.
+- **Rust VectorWorker** — issue #511 (`feature/rust-vector-worker`) ports `vector_worker.py` to standalone Rust binary using Tokio + SQLx + Qdrant REST + Ollama `/api/embed`. 10 sub-issues #501–#510. ~10 MB Rust process vs ~80 MB Python. Chunker must use manual scanner (not `fancy-regex`) to match Python output byte-for-byte.
+- Both features start from `main`; PRs target their respective feature branches only.
+
+Next action:
+- Sub-A (#425): `shared/rabbit.py` + RabbitMQ Docker + topology.
+- Sub #501: Cargo workspace scaffold + CI for Rust worker.
+
 ## 2026-05-23 — Chat defaults + Qdrant bootstrap + SSE fix + Edit Source page
 
 Status: Done
