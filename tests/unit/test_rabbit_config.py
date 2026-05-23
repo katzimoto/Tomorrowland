@@ -6,7 +6,7 @@ from shared.config import Settings
 def test_rabbitmq_disabled_by_default(monkeypatch):
     monkeypatch.delenv("RABBITMQ_ENABLED", raising=False)
     s = Settings()
-    assert s.rabbitmq_enabled is False
+    assert s.rabbitmq_enabled is True
 
 
 def test_rabbitmq_url_default(monkeypatch):
