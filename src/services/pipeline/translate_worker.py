@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+from services.documents.repository import TranslationVersionRepository
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
@@ -21,11 +22,13 @@ class TranslateConsumer(BaseConsumer):
         job_repo: PipelineJobRepository,
         publisher: DocumentPublisher,
         translator: LibreTranslateClient | None = None,
+        version_repo: TranslationVersionRepository | None = None,
         health_port: int = 8080,
     ) -> None:
         super().__init__(rabbit, job_repo, health_port)
         self._publisher = publisher
         self._translator = translator
+        self._version_repo = version_repo
 
     def handle_message(
         self,
@@ -58,6 +61,31 @@ class TranslateConsumer(BaseConsumer):
 
         self._job_repo.update_translated_text(document_id, translated_text)
         self._job_repo.mark_running_stage(job_id, "translated")
+
+        if self._version_repo and translated_text and translated_text != content_text:
+            existing = self._version_repo.find_pending_or_running(document_id, "en")
+            if existing is not None:
+                self._version_repo.update_version_status(
+                    UUID(str(existing["id"])),
+                    "available",
+                    translated_text=translated_text,
+                )
+            else:
+                self._version_repo.create_version(
+                    document_id=document_id,
+                    label="Ingestion",
+                    quality="fast",
+                    request_type="ingestion",
+                    target_language="en",
+                )
+                created = self._version_repo.find_pending_or_running(document_id, "en")
+                if created is not None:
+                    self._version_repo.update_version_status(
+                        UUID(str(created["id"])),
+                        "available",
+                        translated_text=translated_text,
+                    )
+
         self._publisher.publish_embed(
             job_id=job_id,
             document_id=document_id,
@@ -71,6 +99,7 @@ def main() -> None:
 
     import sqlalchemy as sa
 
+    from services.documents.repository import TranslationVersionRepository
     from services.pipeline.jobs import PipelineJobRepository
     from services.pipeline.publisher import DocumentPublisher
     from services.translation.client import LibreTranslateClient
@@ -85,7 +114,12 @@ def main() -> None:
     job_repo = PipelineJobRepository(connection)
     publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
     translator = LibreTranslateClient(base_url=settings.libretranslate_url)
+    version_repo = TranslationVersionRepository(connection)
     consumer = TranslateConsumer(
-        rabbit=rabbit, job_repo=job_repo, publisher=publisher, translator=translator
+        rabbit=rabbit,
+        job_repo=job_repo,
+        publisher=publisher,
+        translator=translator,
+        version_repo=version_repo,
     )
     consumer.run()
