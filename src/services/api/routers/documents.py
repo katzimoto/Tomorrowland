@@ -559,7 +559,7 @@ def download(
 
         doc_repo = DocumentRepository(connection)
         doc = doc_repo.get_by_id(document_id)
-        if doc is None or doc.path is None:
+        if doc is None:
             request.app.state.metrics.download_requests_total.labels("failure").inc()
             raise HTTPException(status_code=404, detail="Document not found")
 
@@ -571,7 +571,8 @@ def download(
                     status_code=404, detail="No translation available for this document"
                 )
             lang = doc.target_language or "en"
-            filename = f"{Path(doc.path).stem}.{lang}.txt"
+            safe_name = Path(doc.path).stem if doc.path else str(document_id)[:8]
+            filename = f"{safe_name}.{lang}.txt"
             content_bytes = translated_text.encode("utf-8")
             request.app.state.metrics.download_requests_total.labels("success").inc()
             return StreamingResponse(
@@ -583,6 +584,10 @@ def download(
                     "X-Content-Type-Options": "nosniff",
                 },
             )
+
+        if doc.path is None:
+            request.app.state.metrics.download_requests_total.labels("failure").inc()
+            raise HTTPException(status_code=404, detail="Document has no file to download")
 
     files_root = request.app.state.settings.files_root.resolve()
     target = Path(doc.path).resolve()
