@@ -174,6 +174,12 @@ class DocumentPublisher:
         message_id = self._rabbit.publish(routing_key, body)
         if message_id:
             self._job_repo.set_rabbit_message_id(job_id, message_id)
+        else:
+            logger.warning(
+                "publish skipped (disabled or no channel): stage=%s job_id=%s",
+                stage,
+                job_id,
+            )
         logger.info(
             "published stage=%s job_id=%s message_id=%s",
             stage,
