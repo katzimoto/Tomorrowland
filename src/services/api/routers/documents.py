@@ -568,7 +568,11 @@ def download(
             translated_text = preview_service.get_translated_text(document_id)
             if not translated_text:
                 raise HTTPException(
-                    status_code=404, detail="No translation available for this document"
+                    status_code=404,
+                    detail=(
+                        "No translated text available for this document yet. "
+                        "Wait for the translation pipeline to complete."
+                    ),
                 )
             lang = doc.target_language or "en"
             safe_name = Path(doc.path).stem if doc.path else str(document_id)[:8]
@@ -587,13 +591,28 @@ def download(
 
         if doc.path is None:
             request.app.state.metrics.download_requests_total.labels("failure").inc()
-            raise HTTPException(status_code=404, detail="Document has no file to download")
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "This document has no stored file (e.g. inline text or API content). "
+                    "Switch to translation view to download the translated text."
+                ),
+            )
 
     files_root = request.app.state.settings.files_root.resolve()
     target = Path(doc.path).resolve()
     if not target.is_relative_to(files_root):
         request.app.state.metrics.download_requests_total.labels("failure").inc()
         raise HTTPException(status_code=400, detail="Invalid file path")
+    if not target.exists():
+        request.app.state.metrics.download_requests_total.labels("failure").inc()
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Source file was cleaned up after ingestion (e.g. SMB temp file). "
+                "Switch to translation view to download the translated text."
+            ),
+        )
     request.app.state.metrics.download_requests_total.labels("success").inc()
 
     file_size = target.stat().st_size
