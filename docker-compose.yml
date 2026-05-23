@@ -86,12 +86,61 @@ services:
       - files_data:/data
       - ./data:/data/mounted:ro
 
-  # pipeline-worker and vector-worker replaced by RabbitMQ stage workers.
-  # Use docker/pipeline/runner.py and vector_worker.py directly if
-  # RABBITMQ_ENABLED=false is needed for DB-poll fallback.
-  #
-  # pipeline-worker:
-  #   build: ...
+  pipeline-worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    profiles: ["db-poll"]
+    restart: unless-stopped
+    cpus: ${PIPELINE_WORKER_CPUS:-1.00}
+    mem_limit: ${PIPELINE_WORKER_MEM_LIMIT:-1536m}
+    mem_reservation: ${PIPELINE_WORKER_MEM_RESERVATION:-256m}
+    pids_limit: ${PIPELINE_WORKER_PIDS_LIMIT:-512}
+    environment: *app-environment
+    command: python -m services.pipeline.runner
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    logging:
+      driver: json-file
+    volumes:
+      - files_data:/data
+      - ./data:/data/mounted:ro
+
+  vector-worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    profiles: ["db-poll"]
+    restart: unless-stopped
+    cpus: ${VECTOR_WORKER_CPUS:-1.00}
+    mem_limit: ${VECTOR_WORKER_MEM_LIMIT:-1536m}
+    mem_reservation: ${VECTOR_WORKER_MEM_RESERVATION:-256m}
+    pids_limit: ${VECTOR_WORKER_PIDS_LIMIT:-512}
+    environment: *app-environment
+    command: python -m services.pipeline.vector_worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    logging:
+      driver: json-file
+    volumes:
+      - files_data:/data
+      - ./data:/data/mounted:ro
 
   frontend:
     build:
