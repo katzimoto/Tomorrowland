@@ -151,14 +151,22 @@ export function DocumentToolbar({
             </button>
           )}
           <a
-            href={getDownloadUrl(preview.document_id)}
+            href={getDownloadUrl(preview.document_id, {
+              showOriginal: activeMode !== "translation",
+            })}
             download
             className={styles.downloadLink}
-            aria-label="Download original file"
+            aria-label={
+              activeMode === "translation"
+                ? "Download translated text"
+                : "Download original file"
+            }
           >
             <Button variant="secondary" size="sm">
               <Download size={14} />
-              {t.document.download}
+              {activeMode === "translation"
+                ? t.document.downloadTranslation
+                : t.document.download}
             </Button>
           </a>
         </div>

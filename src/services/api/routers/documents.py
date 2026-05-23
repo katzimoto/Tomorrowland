@@ -551,6 +551,7 @@ def download(
     document_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
+    show_original: bool = True,
 ) -> StreamingResponse:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
@@ -561,6 +562,27 @@ def download(
         if doc is None or doc.path is None:
             request.app.state.metrics.download_requests_total.labels("failure").inc()
             raise HTTPException(status_code=404, detail="Document not found")
+
+        if not show_original:
+            preview_service = PreviewService(connection)
+            translated_text = preview_service.get_translated_text(document_id)
+            if not translated_text:
+                raise HTTPException(
+                    status_code=404, detail="No translation available for this document"
+                )
+            lang = doc.target_language or "en"
+            filename = f"{Path(doc.path).stem}.{lang}.txt"
+            content_bytes = translated_text.encode("utf-8")
+            request.app.state.metrics.download_requests_total.labels("success").inc()
+            return StreamingResponse(
+                iter([content_bytes]),
+                media_type="text/plain; charset=utf-8",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Content-Length": str(len(content_bytes)),
+                    "X-Content-Type-Options": "nosniff",
+                },
+            )
 
     files_root = request.app.state.settings.files_root.resolve()
     target = Path(doc.path).resolve()

@@ -143,8 +143,14 @@ export function requestTranslation(docId: string): Promise<{ document_id: string
   return api.post(`/documents/${docId}/translate`, {});
 }
 
-export function getDownloadUrl(docId: string): string {
-  return `/api/download/${docId}`;
+export function getDownloadUrl(
+  docId: string,
+  opts?: { showOriginal?: boolean },
+): string {
+  const params = new URLSearchParams();
+  if (opts?.showOriginal === false) params.set("show_original", "false");
+  const qs = params.toString();
+  return `/api/download/${docId}${qs ? `?${qs}` : ""}`;
 }
 
 export interface DocumentText {

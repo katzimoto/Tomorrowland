@@ -89,6 +89,7 @@ export interface Translations {
     untitled: string;
     requestTranslation: string;
     download: string;
+    downloadTranslation: string;
   };
   insight: {
     tabSummary: string;
@@ -418,6 +419,7 @@ export const en: Translations = {
     untitled: "Untitled document",
     requestTranslation: "Request translation",
     download: "Download",
+    downloadTranslation: "Download translated",
   },
   insight: {
     tabSummary: "Summary",

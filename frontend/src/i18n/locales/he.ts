@@ -91,6 +91,7 @@ export const he: Translations = {
     untitled: "מסמך ללא שם",
     requestTranslation: "בקש תרגום",
     download: "הורדה",
+    downloadTranslation: "הורד תרגום",
   },
   insight: {
     tabSummary: "סיכום",
