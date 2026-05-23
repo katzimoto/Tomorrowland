@@ -20,10 +20,10 @@ function formatDateTime(value: string) {
 }
 
 const _JOB_LABELS: Record<string, string> = {
-  process_document: "Ingest",
+  process_document: "Parse",
   vector_index_document: "Vector",
   intelligence_document: "Intel",
-  alert_document: "Alerts",
+  alert_document: "Alert",
   enrich_document: "Enrich",
   translate_document: "Translate",
   index_document: "Index",
@@ -35,12 +35,12 @@ function jobLabel(jobType: string) {
 
 const _PIPELINE_ORDER: Record<string, number> = {
   process_document: 1,
-  enrich_document: 2,
-  translate_document: 3,
-  index_document: 4,
-  vector_index_document: 5,
-  intelligence_document: 6,
-  alert_document: 7,
+  translate_document: 2,
+  index_document: 3,
+  vector_index_document: 4,
+  intelligence_document: 5,
+  alert_document: 6,
+  enrich_document: 7,
 };
 
 function jobStep(jobType: string) {

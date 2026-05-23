@@ -11,6 +11,7 @@ QUEUES = [
     "document.index.requested",
     "document.intelligence.requested",
     "document.alert.requested",
+    "document.enrich.requested",
 ]
 DLQ_QUEUES = [q.replace("requested", "dead") for q in QUEUES]
 

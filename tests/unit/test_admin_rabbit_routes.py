@@ -56,7 +56,7 @@ def test_admin_rabbit_queues_returns_shape(migrated_engine):
         assert resp.status_code == 200
         data = resp.json()
         assert "queues" in data
-        assert len(data["queues"]) == 6
+        assert len(data["queues"]) == 7
         parse_queue = next(q for q in data["queues"] if q["queue"] == "document.parse.requested")
         assert parse_queue["depth"] == 4
         assert parse_queue["consumers"] == 1
