@@ -58,7 +58,7 @@ def main() -> None:
     settings = Settings()
     engine = sa.create_engine(settings.postgres_url)
     with engine.connect() as conn:
-        rabbit = RabbitClient(settings.rabbitmq_url, enabled=settings.rabbitmq_enabled)
+        rabbit = RabbitClient(settings.rabbitmq_url, enabled=True)
         job_repo = PipelineJobRepository(conn)
         translator = LibreTranslateClient(base_url=settings.libretranslate_url)
         consumer = EnrichConsumer(rabbit, job_repo, translator)

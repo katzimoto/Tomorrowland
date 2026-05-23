@@ -58,7 +58,7 @@ def main() -> None:
     settings = Settings()
     engine = sa.create_engine(settings.postgres_url)
     with engine.connect() as conn:
-        rabbit = RabbitClient(settings.rabbitmq_url, enabled=settings.rabbitmq_enabled)
+        rabbit = RabbitClient(settings.rabbitmq_url, enabled=True)
         job_repo = PipelineJobRepository(conn)
         doc_repo = DocumentRepository(conn)
         alert_repo = AlertRepository(conn)
