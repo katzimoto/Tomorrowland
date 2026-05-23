@@ -135,24 +135,25 @@ def sync_now(
                     )
                     results["enqueued"] += 1
 
-                    # Publish to RabbitMQ when enabled (no-op when disabled)
-                    from shared.rabbit import RabbitClient
-
-                    rabbit: RabbitClient = getattr(
-                        request.app.state, "rabbit", None
-                    ) or RabbitClient(
-                        request.app.state.settings.rabbitmq_url,
-                        enabled=request.app.state.settings.rabbitmq_enabled,
-                    )
-                    if request.app.state.settings.rabbitmq_enabled:
+                    # Publish to RabbitMQ when enabled; skip DB-poll path
+                    rabbit_enabled = request.app.state.settings.rabbitmq_enabled
+                    if rabbit_enabled:
                         from services.pipeline.publisher import DocumentPublisher
+                        from shared.rabbit import RabbitClient
 
+                        rabbit = getattr(request.app.state, "rabbit", None) or RabbitClient(
+                            request.app.state.settings.rabbitmq_url,
+                            enabled=True,
+                        )
                         publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
                         publisher.publish_parse(
                             job_id=job_id,
                             document_id=doc.id,
                             source_id=source_id,
                         )
+                        # Mark the DB job as succeeded so the old runner skips it;
+                        # the RabbitMQ pipeline handles processing from here.
+                        job_repo.mark_succeeded(job_id)
 
                     request.app.state.metrics.ingestion_documents_total.labels(
                         safe_label_value(connector_type), "success"
