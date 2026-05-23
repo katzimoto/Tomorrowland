@@ -11,18 +11,20 @@ What changed:
 - RabbitMQ job bus (#432) merged to main via PR #512: 7-stage pipeline, 6 workers, admin monitoring, retry tiers, air-gap support
 - Related documents (#482): structured reasons with expandable "Why related?" panel
 - Translation auto-detect: TranslateConsumer passes None to LibreTranslate; admin source default no longer forces "en"
-- Download: supports original file + translated text (.txt) with clear error guidance
+- Download: fetch() with JWT auth replaces raw <a> link (was downloading 401 JSON). Supports original + translated text with clear error guidance
+- TranslateConsumer: creates document_translation_versions records so frontend shows translation view mode
 - EnrichConsumer: RabbitMQ stage for auto_enrich high-quality re-translation
-- Pipeline efficiency: batch encoding (encode_batch), ThreadPoolExecutor for intelligence + map-reduce, model caching
+- Pipeline efficiency: batch encoding (encode_batch), ThreadPoolExecutor for intelligence + map-reduce, model caching (OLLAMA_KEEP_ALIVE=4h, MAX_LOADED_MODELS=2)
+- DB-poll split: when RABBITMQ_ENABLED=true, process_document job marked succeeded immediately — only RabbitMQ pipeline processes documents (no duplicate work)
+- Ollama: better prompts (JSON format, examples), temp 0.2, embedding timeout 180s, model caching
 - Boolean SQL fixes: 5 instances fixed + lint script + PostgreSQL CI job
 - UI: full-width, live duration, 7-stage pipeline order, reason pills
-- Ollama: better prompts, temperature 0.2, embedding timeout 180s, OLLAMA_KEEP_ALIVE=4h, MAX_LOADED_MODELS=2
-- CI: ruff/mypy clean on 141 files, 13 rabbit unit tests, CI split for PostgreSQL
+- CI: ruff/mypy clean, 13 rabbit unit tests, CI split for PostgreSQL
 
 Open risks:
 - PostgreSQL CI job 20min timeout — may need further splitting if test suite grows
-- NiFi/SMB original file download broken when temp files deleted after sync (translated .txt works)
-- Old pipeline_worker test removed (test_index_worker.py) — new workers have no unit tests yet
+- Old pipeline_worker test removed (test_index_worker.py) — new workers have no unit tests
+- SMB original file download broken when temp files deleted after sync (translated .txt works)
 
 Next agent prompt:
 - Sub #501: Cargo workspace scaffold + CI for Rust vector worker

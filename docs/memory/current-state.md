@@ -33,6 +33,10 @@ Finding:
 - Boolean-int SQL fixes: 5 instances fixed (is_private, is_latest); lint script prevents recurrence; PostgreSQL CI test.
 - UI: full-width admin pages, live duration ticking, 7-stage pipeline order, reason pills on related docs.
 - Ollama: better prompts (JSON format, examples), temperature 0.2, embedding timeout 180s.
+- Download: fetch() with JWT auth replaces raw <a> link (was downloading 401 JSON). Supports original + translated.
+- TranslateConsumer: creates document_translation_versions records so frontend shows translation view mode.
+- DB-poll split: when RABBITMQ_ENABLED=true, process_document job marked succeeded immediately — only RabbitMQ pipeline processes documents (no duplicate work).
+- CI: ruff/mypy clean on 141 files; PostgreSQL 20min timeout; pytest + Alembic migrations passing.
 
 Next action:
 - Sub #501: Cargo workspace scaffold + CI for Rust vector worker.
