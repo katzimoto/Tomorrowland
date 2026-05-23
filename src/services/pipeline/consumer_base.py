@@ -112,11 +112,33 @@ class BaseConsumer(ABC):
             )
         except Exception as exc:
             max_attempts = self._job_repo.get_max_attempts(job_id)
-            if attempt < (max_attempts or 5):
+            retry_limit = min(3, max_attempts or 5)
+            if attempt < retry_limit:
                 self._job_repo.mark_retry(job_id, exc, stage=self.worker_type)
                 logger.warning(
                     "job retry: worker_type=%s job_id=%s attempt=%d error=%s",
                     self.worker_type, job_id, attempt, exc,
+                )
+                self._channel.basic_nack(delivery_tag=delivery_tag, requeue=False)  # type: ignore[union-attr]
+            elif attempt < (max_attempts or 5):
+                self._job_repo.mark_retry(job_id, exc, stage=self.worker_type)
+                retry_body = json.dumps({
+                    "job_id": str(job_id),
+                    "document_id": str(document_id),
+                    "source_id": str(source_id),
+                    "attempt": attempt + 1,
+                    "pipeline_version": "v1",
+                }).encode()
+                self._channel.basic_publish(  # type: ignore[union-attr]
+                    exchange="tomorrowland.documents.retry",
+                    routing_key=self.queue_name,
+                    body=retry_body,
+                    properties=pika.BasicProperties(delivery_mode=2),
+                )
+                self._channel.basic_ack(delivery_tag=delivery_tag)  # type: ignore[union-attr]
+                logger.info(
+                    "job routed to retry: worker_type=%s job_id=%s attempt=%d",
+                    self.worker_type, job_id, attempt,
                 )
             else:
                 self._job_repo.mark_dead_letter(job_id, exc)
@@ -124,7 +146,7 @@ class BaseConsumer(ABC):
                     "job dead-lettered: worker_type=%s job_id=%s attempt=%d error=%s",
                     self.worker_type, job_id, attempt, exc,
                 )
-            self._channel.basic_nack(delivery_tag=delivery_tag, requeue=False)  # type: ignore[union-attr]
+                self._channel.basic_nack(delivery_tag=delivery_tag, requeue=False)  # type: ignore[union-attr]
 
     def _handle_sigterm(self, signum: int, frame: Any) -> None:
         logger.info("shutting down: worker_type=%s", self.worker_type)

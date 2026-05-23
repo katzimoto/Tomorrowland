@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 _MAIN_EXCHANGE = "tomorrowland.documents"
 _DLQ_EXCHANGE = "tomorrowland.documents.dlq"
+_RETRY_EXCHANGE = "tomorrowland.documents.retry"
 
 _STAGE_QUEUES = [
     "document.parse.requested",
@@ -63,6 +64,7 @@ class RabbitClient:
         ch = self._channel
         ch.exchange_declare(exchange=_MAIN_EXCHANGE, exchange_type="topic", durable=True)
         ch.exchange_declare(exchange=_DLQ_EXCHANGE, exchange_type="fanout", durable=True)
+        ch.exchange_declare(exchange=_RETRY_EXCHANGE, exchange_type="topic", durable=True)
         for queue in _STAGE_QUEUES:
             ch.queue_declare(
                 queue=queue,
@@ -73,6 +75,19 @@ class RabbitClient:
             dlq = queue.replace("requested", "dead")
             ch.queue_declare(queue=dlq, durable=True)
             ch.queue_bind(queue=dlq, exchange=_DLQ_EXCHANGE, routing_key="#")
+            retry = queue.replace("requested", "retry")
+            ch.queue_declare(
+                queue=retry,
+                durable=True,
+                arguments={
+                    "x-dead-letter-exchange": _MAIN_EXCHANGE,
+                    "x-dead-letter-routing-key": queue,
+                    "x-message-ttl": 30000,
+                },
+            )
+            ch.queue_bind(
+                queue=retry, exchange=_RETRY_EXCHANGE, routing_key=queue
+            )
 
     def publish(self, routing_key: str, body: dict[str, Any]) -> str:
         """Publish a persistent JSON message. Returns the message_id UUID string."""

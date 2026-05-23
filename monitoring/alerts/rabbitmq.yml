@@ -1,0 +1,29 @@
+groups:
+  - name: tomorrowland_rabbitmq
+    rules:
+      - alert: TomorrowlandRabbitQueueBacking
+        expr: tomorrowland_rabbit_queue_depth{queue!~".*dead.*"} > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RabbitMQ queue depth is growing"
+          description: "Queue {{ $labels.queue }} has {{ $value }} messages for > 10 minutes."
+
+      - alert: TomorrowlandRabbitDlqPending
+        expr: tomorrowland_rabbit_queue_depth{queue=~".*dead.*"} > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Dead-lettered messages in RabbitMQ DLQ"
+          description: "DLQ {{ $labels.queue }} has {{ $value }} dead-lettered message(s)."
+
+      - alert: TomorrowlandWorkerHeartbeatStale
+        expr: time() - tomorrowland_worker_heartbeat_timestamp_seconds > 120
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Worker heartbeat is stale"
+          description: "Worker {{ $labels.worker_type }} heartbeat not updated in > 2 minutes."
