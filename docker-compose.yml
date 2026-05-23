@@ -37,6 +37,8 @@ x-app-environment: &app-environment
   MEILISEARCH_MASTER_KEY: ${MEILISEARCH_MASTER_KEY:-dev-meilisearch-master-key}
   FEATURE_MEILISEARCH_SEARCH: ${FEATURE_MEILISEARCH_SEARCH:-false}
   FEATURE_MEILISEARCH_SHADOW_INDEX: ${FEATURE_MEILISEARCH_SHADOW_INDEX:-false}
+  RABBITMQ_URL: ${RABBITMQ_URL:-amqp://tomorrowland:changeme@rabbitmq:5672/}
+  RABBITMQ_ENABLED: ${RABBITMQ_ENABLED:-true}
 
 services:
   migrate:
