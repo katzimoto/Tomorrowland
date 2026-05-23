@@ -2,26 +2,40 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
-## 2026-05-23 — RabbitMQ stage-based job bus (#432) + Rust VectorWorker (#511) planned
+## 2026-05-23 — RabbitMQ stage-based job bus (#432) merged to main
 
-Status: Planning complete — no code written yet
-Source: Claude Code session (brainstorm + issue creation)
+Status: Done — all 7 sub-issues complete, PR #512 merged, branch deleted
+Source: OpenCode session (chat summary)
 
 Finding:
-- **RabbitMQ job bus** — issue #432 (`feature/rabbitmq-job-bus`) replaces synchronous DB-poll pipeline with durable stage-based message bus. 7 sub-issues #425–#431. Full 18-task plan at `docs/superpowers/plans/2026-05-23-rabbitmq-job-bus.md`. Feature flag `RABBITMQ_ENABLED=false` (default) = zero impact until enabled.
-- **Rust VectorWorker** — issue #511 (`feature/rust-vector-worker`) ports `vector_worker.py` to standalone Rust binary using Tokio + SQLx + Qdrant REST + Ollama `/api/embed`. 10 sub-issues #501–#510. ~10 MB Rust process vs ~80 MB Python. Chunker must use manual scanner (not `fancy-regex`) to match Python output byte-for-byte.
-- Both features start from `main`; PRs target their respective feature branches only.
+- RabbitMQ stage-based job bus (#432) fully implemented and merged to main.
+- 7-stage pipeline: parse → translate → embed → index → intelligence/alert (parallel) + enrich.
+- 20+21+21 = 62 RabbitMQ queues (7 stage + 7 DLQ + 7 retry per stage × 3 exchanges).
+- 6 Docker compose services: parse, translate, embed, index, intelligence, alert, enrich workers.
+- `RABBITMQ_ENABLED=true` (default) with DB-poll fallback. Zero impact when false.
+- Admin monitoring: GET /admin/rabbit/queues (live depth), GET /admin/jobs, POST retry.
+- Air-gap support: validate script, compose service, image manifest, CHANGELOG entry.
+- CI: PostgreSQL test job (20min timeout), SQL boolean-int lint script.
+- 13 unit tests passing (rabbit config, client, publisher, consumer base, admin routes).
+
+## 2026-05-23 — Document quality-of-life improvements
+
+Status: Done
+Source: OpenCode session (chat summary)
+
+Finding:
+- Related documents (#482): structured reasons (semantic, entities, tags, source) with expandable "Why related?" panel.
+- Translation auto-detect: TranslateConsumer now passes `None` to LibreTranslate (auto-detect). Admin source default no longer forces "en".
+- Download: supports both original file and translated text (.txt). Works for all connectors (NiFi, Atlassian, SMB). Clear error messages for missing files.
+- EnrichConsumer: high-quality re-translation via RabbitMQ for frequently viewed documents (auto_enrich threshold).
+- Pipeline efficiency: embedding batching (encode_batch), intelligence task parallelism (ThreadPoolExecutor), map-reduce parallelism, model caching (OLLAMA_KEEP_ALIVE=4h, MAX_LOADED_MODELS=2).
+- Error visibility: _sanitize_error includes error message, not just class name.
+- Boolean-int SQL fixes: 5 instances fixed (is_private, is_latest); lint script prevents recurrence; PostgreSQL CI test.
+- UI: full-width admin pages, live duration ticking, 7-stage pipeline order, reason pills on related docs.
+- Ollama: better prompts (JSON format, examples), temperature 0.2, embedding timeout 180s.
 
 Next action:
-- Sub-A (#425): DONE — `shared/rabbit.py` + RabbitMQ Docker + topology (7 tests).
-- Sub-B (#426): DONE — migration, DocumentPublisher, sync-now wire, GET /admin/jobs routes.
-- Sub-C (#427): DONE — BaseConsumer + parse/translate/embed/index workers + compose services (12 tests).
-- Sub-D (#428): DONE — IntelligenceConsumer and AlertConsumer.
-- Sub-E (#429): DONE — GET /admin/rabbit/queues + POST /admin/jobs/{id}/retry.
-- Sub-F (#430): DONE — retry tier exchange (30s TTL) + Prometheus alert rules.
-- Sub-G (#431): DONE — air-gap compose, validate script, CHANGELOG entry.
-- **RabbitMQ job bus (#432) feature branch complete** — integration PR to main pending.
-- Sub #501: Cargo workspace scaffold + CI for Rust worker.
+- Sub #501: Cargo workspace scaffold + CI for Rust vector worker.
 
 ## 2026-05-23 — Chat defaults + Qdrant bootstrap + SSE fix + Edit Source page
 
