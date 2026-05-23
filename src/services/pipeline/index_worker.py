@@ -1,4 +1,5 @@
 """Index stage consumer — indexes document in Elasticsearch and Meilisearch."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -50,8 +51,12 @@ class IndexConsumer(BaseConsumer):
 
         payload = self._job_repo.get_payload(document_id)
         content_text = (payload.get("content_text", "") if payload else None) or ""
-        translated_text = (payload.get("translated_text", "") if payload else None) or ""
-        allowed_group_ids = [str(gid) for gid in self._doc_repo.source_group_ids(source_id)]
+        translated_text = (
+            payload.get("translated_text", "") if payload else None
+        ) or ""
+        allowed_group_ids = [
+            str(gid) for gid in self._doc_repo.source_group_ids(source_id)
+        ]
 
         body: dict[str, Any] = {
             "document_id": str(document_id),
@@ -79,6 +84,9 @@ class IndexConsumer(BaseConsumer):
             job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
         )
         self._publisher.publish_alert(
+            job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
+        )
+        self._publisher.publish_enrich(
             job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
         )
         self._job_repo.mark_succeeded(job_id)
@@ -110,7 +118,11 @@ class IndexConsumer(BaseConsumer):
             else []
         )
 
-        pair_count = min(len(original_chunks), len(translated_chunks)) if translated_chunks else 0
+        pair_count = (
+            min(len(original_chunks), len(translated_chunks))
+            if translated_chunks
+            else 0
+        )
         records: list[SearchChunkRecord] = []
 
         for idx in range(pair_count):
