@@ -22,6 +22,7 @@ export interface Source {
   path: string | null;
   source_language: string | null;
   enabled: boolean;
+  schedule: string | null;
   created_at: string | null;
   last_sync_status: "success" | "failed" | null;
   last_sync_indexed: number | null;
@@ -66,6 +67,39 @@ export interface SourceGroup {
   name: string;
 }
 
+export interface PipelineJob {
+  id: string;
+  job_type: string;
+  status: string;
+  attempts: number;
+  max_attempts: number;
+  stage: string | null;
+  last_error: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface SourceDocument {
+  id: string;
+  title: string | null;
+  external_id: string;
+  status: string;
+  mime_type: string;
+  source_language: string | null;
+  translation_quality: string | null;
+  created_at: string | null;
+  total_jobs: number;
+  succeeded_jobs: number;
+  pending_jobs: number;
+  failed_jobs: number;
+  jobs: PipelineJob[];
+}
+
+export interface SourceDocumentsResponse {
+  documents: SourceDocument[];
+  total: number;
+}
+
 export interface SourceDetail extends Source {
   config: Record<string, unknown>;
   groups: SourceGroup[];
@@ -94,6 +128,16 @@ export const adminApi = {
     api.post<SourceTestResult>(`/admin/sources/${sourceId}/test-connection`, {}),
   getSource: (sourceId: string) =>
     api.get<SourceDetail>(`/admin/sources/${sourceId}`),
+  getSourceDocuments: (sourceId: string, limit = 50, offset = 0) =>
+    api.get<SourceDocumentsResponse>(
+      `/admin/sources/${sourceId}/documents?limit=${limit}&offset=${offset}`
+    ),
+  requeueDocument: (documentId: string) =>
+    api.post<{ requeued: number }>(`/admin/documents/${documentId}/requeue`, {}),
+  deleteDocument: (documentId: string) =>
+    api.delete(`/admin/documents/${documentId}`),
+  deleteSource: (sourceId: string) =>
+    api.delete(`/admin/sources/${sourceId}`),
   listGroups: () => api.get<{ id: string; name: string }[]>("/admin/groups"),
   grantPermission: (sourceId: string, groupId: string) =>
     api.post(`/admin/sources/${sourceId}/permissions`, { group_id: groupId }),

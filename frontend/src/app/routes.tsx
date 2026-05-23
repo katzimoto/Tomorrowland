@@ -4,7 +4,6 @@ import { SignUpPage } from "@/features/auth/SignUpPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { SearchPage } from "@/features/search/SearchPage";
 import { DocumentPage } from "@/features/documents/DocumentPage";
-import { QAPage } from "@/features/qa/QAPage";
 import { ChatPage } from "@/features/chat/ChatPage";
 import { SubscriptionsPage } from "@/features/subscriptions/SubscriptionsPage";
 import { NotificationsPage } from "@/features/notifications/NotificationsPage";
@@ -14,6 +13,7 @@ import { AdminHubPage } from "@/features/admin/AdminHubPage";
 import { AdminSourcesPage } from "@/features/admin/AdminSourcesPage";
 import { AdminSourceDetailPage } from "@/features/admin/AdminSourceDetailPage";
 import { AdminAddSourceWizard } from "@/features/admin/AdminAddSourceWizard";
+import { AdminEditSourcePage } from "@/features/admin/AdminEditSourcePage";
 import { AdminGroupsPage } from "@/features/admin/AdminGroupsPage";
 import { AdminGroupDetailPage } from "@/features/admin/AdminGroupDetailPage";
 import { AdminUsersPage } from "@/features/admin/AdminUsersPage";
@@ -83,12 +83,6 @@ const docRoute = createRoute({
   },
 });
 
-const qaRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: "/qa",
-  component: QAPage,
-});
-
 const chatRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/chat",
@@ -147,6 +141,12 @@ const adminSourceDetailRoute = createRoute({
   component: AdminSourceDetailPage,
 });
 
+const adminEditSourceRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/sources/$sourceId/edit",
+  component: AdminEditSourcePage,
+});
+
 const adminGroupsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/admin/groups",
@@ -178,7 +178,6 @@ const routeTree = rootRoute.addChildren([
     indexRoute,
     searchRoute,
     docRoute,
-    qaRoute,
     chatRoute,
     subscriptionsRoute,
     notificationsRoute,
@@ -188,6 +187,7 @@ const routeTree = rootRoute.addChildren([
     adminSourcesRoute,
     adminAddSourceRoute,
     adminSourceDetailRoute,
+    adminEditSourceRoute,
     adminGroupsRoute,
     adminGroupDetailRoute,
     adminUsersRoute,

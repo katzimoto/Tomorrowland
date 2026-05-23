@@ -66,7 +66,7 @@ class RelatedService:
         limit: int,
         allow_all: bool = False,
     ) -> list[dict[str, Any]]:
-        """Return related documents for a source document."""
+        """Return related documents for a source document with reasons."""
         if doc.path is None:
             return []
         query_text = self._extractor.extract(Path(doc.path), doc.mime_type)
@@ -88,15 +88,40 @@ class RelatedService:
         metadata = self._repository.document_metadata(
             [result.document_id for result in related], group_ids, allow_all=allow_all
         )
-        return [
+        candidates = [
             {
                 "document_id": result.document_id,
                 "title": metadata.get(result.document_id, {}).get("title"),
                 "score": result.score,
+                "source": metadata.get(result.document_id, {}).get("source"),
             }
             for result in related
             if result.document_id in metadata
         ][:limit]
+
+        candidate_ids = [c["document_id"] for c in candidates]
+        source_tags_entities = self._repository.get_document_tags_and_entities([str(doc.id)])
+        source_te = source_tags_entities.get(str(doc.id), {"tags": set(), "entities": set()})
+        candidate_te = self._repository.get_document_tags_and_entities(candidate_ids)
+
+        for candidate in candidates:
+            cid = candidate["document_id"]
+            te = candidate_te.get(cid, {"tags": set(), "entities": set()})
+            entity_overlap = source_te["entities"] & te["entities"]
+            tag_overlap = source_te["tags"] & te["tags"]
+            same_source = (
+                candidate.get("source") == doc.source if candidate.get("source") else False
+            )
+            reasons, relation_score = _build_reasons(
+                score=candidate["score"],
+                entity_matches=entity_overlap,
+                tag_matches=tag_overlap,
+                same_source=same_source,
+            )
+            candidate["reasons"] = reasons
+            candidate["relation_score"] = round(relation_score, 4)
+
+        return candidates
 
     def expertise(
         self, topic: str, group_ids: list[str], allow_all: bool = False
@@ -263,3 +288,87 @@ def _topics_match(topic: str, query: str, similarity: float) -> bool:
         or normalized_query in normalized_topic
         or similarity >= SUBSCRIPTION_MATCH_THRESHOLD
     )
+
+
+def _build_reasons(
+    score: float,
+    entity_matches: set[str],
+    tag_matches: set[str],
+    same_source: bool,
+) -> tuple[list[dict[str, Any]], float]:
+    reasons: list[dict[str, Any]] = []
+    sem_weight = 0.60
+    entity_weight = 0.15
+    tag_weight = 0.10
+    metadata_weight = 0.10
+
+    relation = 0.0
+
+    if score > 0:
+        relation += score * sem_weight
+        reasons.append(
+            {
+                "type": "semantic_similarity",
+                "label": "Similar content",
+                "weight": round(score, 4),
+            }
+        )
+
+    if entity_matches:
+        entity_list = sorted(entity_matches)
+        entity_bonus = min(
+            RELATED_OVERLAP_BONUS_PER_MATCH * len(entity_matches),
+            RELATED_OVERLAP_BONUS_CAP,
+        )
+        relation += entity_bonus * entity_weight
+        reasons.append(
+            {
+                "type": "shared_entities",
+                "label": (
+                    f"{len(entity_matches)} shared "
+                    f"{'entity' if len(entity_matches) == 1 else 'entities'}"
+                ),
+                "weight": round(entity_bonus, 4),
+                "items": entity_list,
+            }
+        )
+
+    if tag_matches:
+        tag_list = sorted(tag_matches)
+        tag_bonus = min(
+            RELATED_OVERLAP_BONUS_PER_MATCH * len(tag_matches),
+            RELATED_OVERLAP_BONUS_CAP,
+        )
+        relation += tag_bonus * tag_weight
+        reasons.append(
+            {
+                "type": "shared_tags",
+                "label": (
+                    f"{len(tag_matches)} shared {'tag' if len(tag_matches) == 1 else 'tags'}"
+                ),
+                "weight": round(tag_bonus, 4),
+                "items": tag_list,
+            }
+        )
+
+    if same_source:
+        relation += 0.3 * metadata_weight
+        reasons.append(
+            {
+                "type": "same_source",
+                "label": "Same source",
+                "weight": 0.3,
+            }
+        )
+
+    if not reasons:
+        reasons.append(
+            {
+                "type": "semantic_similarity",
+                "label": "Similar content",
+                "weight": round(score, 4),
+            }
+        )
+        relation = score * sem_weight
+
+    return reasons, round(relation, 4)

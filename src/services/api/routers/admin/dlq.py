@@ -72,6 +72,35 @@ def admin_requeue_dead_letter(
         return {"requeued": count}
 
 
+@router.post("/admin/documents/{document_id}/requeue")
+def admin_requeue_document_dead_letters(
+    document_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, object]:
+    """Requeue all dead-letter pipeline jobs for a document back to pending."""
+    require_admin(user)
+    with request.app.state.engine.begin() as connection:
+        count = connection.execute(
+            sa.text("""
+                UPDATE pipeline_jobs
+                SET status = 'pending', locked_by = NULL, locked_at = NULL,
+                    last_error = NULL, run_after = NOW()
+                WHERE document_id = :document_id AND status = 'dead_letter'
+                """),
+            {"document_id": document_id.hex},
+        ).rowcount
+        _audit_log(
+            connection,
+            user.sub,
+            "requeue_document",
+            "pipeline_jobs",
+            str(document_id),
+            {"count": count},
+        )
+        return {"requeued": count}
+
+
 @router.post("/admin/dlq/{dlq_id}/retry")
 def admin_retry_dlq(
     dlq_id: UUID,

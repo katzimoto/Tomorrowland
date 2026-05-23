@@ -47,12 +47,12 @@ class Settings(BaseSettings):
     feature_expertise_map: bool = True
     feature_related_docs: bool = True
     feature_auto_tagging: bool = True
-    feature_document_chat: bool = False
-    feature_document_chat_query_rewrite: bool = False
-    feature_document_chat_reranker: bool = False
-    feature_document_chat_metadata_search: bool = False
-    feature_document_chat_translated_text: bool = False
-    feature_document_chat_streaming: bool = False
+    feature_document_chat: bool = True
+    feature_document_chat_query_rewrite: bool = True
+    feature_document_chat_reranker: bool = True
+    feature_document_chat_metadata_search: bool = True
+    feature_document_chat_translated_text: bool = True
+    feature_document_chat_streaming: bool = True
     auto_enrich_threshold: int = Field(default=5, ge=0)
     ingest_mode: Literal["hybrid", "watch", "poll"] = "hybrid"
 

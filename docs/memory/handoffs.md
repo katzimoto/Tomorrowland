@@ -2,6 +2,23 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-23 — Issue #482 related reasons + boolean SQL guard + PostgreSQL CI
+
+Status: Done
+Source: issue #482; OpenCode session
+
+What changed:
+- `src/services/related/service.py` — `_build_reasons()` computes structured reasons per candidate
+- `src/services/documents/repository.py` — fixed 4 boolean-int SQL bugs (PostgreSQL rejects `boolean = 0`)
+- `scripts/check-boolean-int-sql.py` — **new** AST lint; runs in CI quality job
+- `.github/workflows/backend.yml` — `tests-postgres` job (PG 16); SQL lint step
+- `tests/conftest.py` — `PGTEST=1` switches to PostgreSQL
+- `frontend/src/features/documents/InsightPane.tsx` — RelatedTab: reason pills + expandable panel
+
+Verification: 4/4 related tests, 15/15 tags, 5/5 InsightPane, ruff clean, build passes
+
+Open risks: PostgreSQL CI not yet run; RelatedTab expanded-view tests missing
+
 ## Handoff template
 
 ```md
@@ -22,6 +39,45 @@ Open risks:
 Next agent prompt:
 - ...
 ```
+
+Status: Done
+Source: OpenCode session (no issue)
+
+What changed:
+- `src/shared/config.py` — all 6 `feature_document_chat_*` flags → True
+- `src/services/search/qdrant.py` — `create_collection_if_not_exists()` in `search()` + `search_filtered()`
+- `src/services/api/routers/chat.py` — SSE: manual connection mgmt; `data.get("answer")` fallback; generator exception handler
+- `src/services/api/routers/qa.py` — **deleted**
+- `src/services/api/main.py` — removed qa_router
+- `src/services/pipeline/scheduler.py` — **new** cron scheduler worker
+- `src/services/api/routers/admin/sources.py` — schedule in CRUD; `GET /admin/sources/{id}/documents` with job aggregation; `DELETE /admin/sources/{id}`; `DELETE /admin/documents/{id}`
+- `src/services/api/routers/admin/dlq.py` — `POST /admin/documents/{id}/requeue`
+- `src/services/api/schemas.py` — `UpdateSourceRequest.schedule`
+- `migrations/versions/u5v6w7x8y9z0_add_source_schedule.py` — `schedule TEXT` on ingestion_sources
+- `docker/backend.Dockerfile` — `uv pip install --system` from ghcr.io/astral-sh/uv
+- `.github/workflows/backend.yml`, `security.yml`, `release.yml` — `astral-sh/setup-uv@v5` replacing pip cache + pip install
+- `pyproject.toml` → `uv.lock` — generated lockfile (98 packages)
+- `AGENTS.md` — all dev commands prefixed with `uv run`
+- `.env` — `OLLAMA_MEM_LIMIT=5g`, `OLLAMA_CONTEXT_LENGTH=1024`, chat flags enabled
+- `.bashrc` — `nvm use 22` + Node 22 bin in PATH; `.nvmrc` created
+- `frontend/src/api/admin.ts` — `SourceDocument`, `PipelineJob`, `SourceDocumentsResponse` types; `getSourceDocuments`, `requeueDocument`, `deleteDocument`, `deleteSource` methods
+- `frontend/src/features/admin/AdminSourcesPage.tsx` — delete source button
+- `frontend/src/features/admin/AdminSourceDetailPage.tsx` — Edit Source → edit page; `SourceDocumentsSection` with progress bar, expandable job rows, auto-refresh, rerun, delete per document; delete source button
+- `frontend/src/features/admin/AdminEditSourcePage.tsx` — **new** dedicated edit page
+- `frontend/src/app/routes.tsx` — removed qaRoute; added `adminEditSourceRoute`
+- `frontend/src/components/layout/NavRail.tsx` — removed /qa; removed `MessageSquare`
+- `frontend/src/components/feedback/CommandMenu.tsx` — /qa → /chat
+
+Verification:
+- Backend: 51/51 admin tests, 30/30 chat tests, ruff + mypy clean
+- Frontend: 34/34 admin tests, 1/1 CommandMenu test, `tsc --noEmit` clean, `npm run build` passes
+- `uv run` verified: ruff, pytest, mypy all functional
+
+Open risks:
+- None remaining in scope.
+
+Next agent prompt:
+- (All tasks from this session complete.)
 
 ## 2026-05-22 — In-document search fix tests verified and closed (#469)
 
@@ -45,112 +101,7 @@ Verification:
 - `ruff check`, `mypy` — backend unaffected (frontend-only change)
 
 Open risks:
-- Frontend vitest still blocked locally by Node 20.9.0 (needs 22+) — CI must verify test suite
-
-Next agent prompt:
-- Verify CI passes for commit 48153a9 on feature/document-chat
-- Close issue #469 on GitHub (already closed)
-
-## 2026-05-22 — Document Chat Phase C frontend complete (#474)
-
-Status: Done
-Source: issue #474, commits d352ed2 + 8fa4f95 on feature/document-chat
-
-What changed:
-- `src/shared/feature_flags.py` — removed `feature.document_chat: False` from `SYSTEM_CONFIG_DEFAULTS` (bulk-insert would permanently disable the flag in DB; env-var default is the correct gate).
-- `frontend/src/api/chat.ts` — Added `ChatScopeType` literal union; tightened `ChatSession.scope_type` and `createChatSession` input.
-- `frontend/src/features/chat/ScopeBadge.tsx` + `.module.css` — Display-only badge "Chatting with: <label>" for all 6 scope types.
-- `frontend/src/features/chat/ScopeSelector.tsx` + `.module.css` — Dropdown; only `all_accessible_documents` switchable in Phase C; `source`/`folder` shown disabled with "(coming soon)"; a11y: `aria-expanded`, `aria-haspopup="listbox"`, Escape to close.
-- `frontend/src/features/chat/DocumentChatPanel.tsx` + `.module.css` — Lazily creates `single_document` scoped session; StrictMode-safe via `seededForDoc` ref guard + `cancelled` flag; cleanup resets ref so tab-switch remounts work.
-- `frontend/src/features/chat/ChatWindow.tsx` — Replaced inline `scopeLabel()` with `ScopeBadge`/`ScopeSelector`; conditional on `onRequestNewScope` prop.
-- `frontend/src/features/chat/ChatPage.tsx` — URL-based `?scope=&ids=` session creation via `parseScopeFromSearch()`; clears params after creation; `handleScopeChange` wired to ChatWindow.
-- `frontend/src/app/routes.tsx` — Added `validateSearch` to `/chat` route for typed `scope` + `ids` params.
-- `frontend/src/features/documents/insightPaneTabs.ts` — Renamed `"qa"` → `"chat"` in `InsightPaneTab` union.
-- `frontend/src/features/documents/InsightPane.tsx` — Replaced `QAPanel` with `DocumentChatPanel`; tab id/label updated; passes `preview?.title` as `docTitle`.
-- `frontend/src/i18n/locales/en.ts` + `he.ts` — Added `tabChat`, `scopeSelectedDocumentsCount`, `scopeSwitchLabel`, `askAboutSelected`.
-- `frontend/src/features/chat/ChatPage.test.tsx` — Added `useSearch`/`useNavigate` mocks; 4 new URL-scope tests.
-- `frontend/src/features/documents/InsightPane.test.tsx` *(new)* — 5 tests: Chat tab label, DocumentChatPanel mount, `single_document` scope, docTitle passing, error state.
-
-Key decisions:
-- "Ask about selected" toolbar deferred — SearchPage has no checkbox multi-select (only keyboard-nav `selectedIndex`). URL entry `/chat?scope=selected_documents&ids=...` implemented at route level but has no UI trigger yet.
-- `tabQa` i18n key preserved — QAPanel still used by standalone `/qa` route.
-- `seededForDoc.current = null` in effect cleanup — allows remount after error/tab-switch without permanent session lock.
-
-Verification:
-- `tsc --noEmit` — exit 0 (clean)
-- `npx vitest run` — blocked locally by Node 20.9.0 (requires ≥21.7 for `styleText`); CI is sole gate.
-
-Open risks / next steps:
-- **CI must pass before closing #474.** Frontend vitest has not run locally — CI is the first gate.
-- `QAPanel` is now orphaned from InsightPane; still used by `/qa` route. Deletion is out of Phase C scope.
-- `selected_documents` URL scope has no SearchPage UI trigger yet (deferred multi-select work).
-
-Next agent prompt:
-- Check CI on `feature/document-chat`; resolve any frontend vitest failures (branch is at 8fa4f95).
-- If CI is green, close #474 and open a PR targeting `main` (or the designated integration branch).
-- Phase D option: add `selected_documents` checkbox multi-select to SearchPage so the `/chat?scope=selected_documents&ids=...` URL entry point has a real UI trigger.
-
-## 2026-05-21 — Document Chat Phase C backend scope-aware chat complete
-
-Status: Done
-Source: issue #474, commit d7ab8e8 on feature/document-chat
-
-What changed:
-- `src/services/chat/models.py` — `ChatScope` model: `Literal` scope_type, `list[str]` scope_ids, pydantic model_validator for cardinality rules.
-- `src/services/rag/service.py` — `build_qdrant_filter(scope, group_ids, allow_all) -> Filter | None`: builds combined permission+scope Qdrant filter. Returns None for admin+all_accessible. Imported into RagService._retrieve_chunks as the scope path.
-- `src/services/search/qdrant.py` — `search_filtered(vector, query_filter, limit)`: new method for pre-built filter; existing `search()` unchanged (preserves /qa compat).
-- `src/services/api/routers/chat.py` — scope validation on every message: builds ChatScope from session, checks revoked access (409) for single_document/selected_documents/current_search_results, returns 400 for folder scope (deferred), passes scope to RagService.
-- `tests/unit/test_chat_service.py` — 17 new tests for ChatScope validation and build_qdrant_filter conditions.
-- `tests/integration/test_chat_api.py` — 8 new scope integration tests.
-
-Key decisions:
-- `build_qdrant_filter` returns `None` (not empty Filter) for admin+all_accessible; Qdrant treats None as "no filter".
-- `folder` scope rejected at router level (400) — Qdrant payload has no folder field.
-- `source` scope: filter by `source_id` works; revocation validation deferred (group filter applied for safety).
-- Revocation check uses `AuthRepository.document_source_id()` + `user_can_access_source()`.
-- Admin (is_admin=True) bypasses revocation check entirely.
-
-Verification:
-- `pytest tests/unit/test_chat_service.py tests/unit/test_chat_repository.py tests/integration/test_chat_api.py --no-cov` — **68 passed**
-- `pytest tests/unit/test_rag_retrieval_eval.py tests/unit/test_rag_reranker.py --no-cov` — **17 passed** (RAG eval unbroken)
-- `ruff check` + `ruff format` — clean
-- `mypy src/services/chat/models.py src/services/search/qdrant.py src/services/rag/service.py src/services/api/routers/chat.py --strict` — no issues
-
-Open risks:
-- `source` scope revocation validation not implemented (TODO in code) — group filter still prevents data leakage.
-- Meilisearch BM25 results (when Meili enabled) are not scope-filtered at the document level — pre-existing gap, not in Phase C scope.
-- Frontend vitest blocked by Node 20.9.0 locally; CI is sole gate.
-
-Frontend Phase C can start — backend scope API is complete and tested.
-
-Next agent prompt:
-- Phase C frontend: ScopeBadge, ScopeSelector, InsightPane Chat tab migration (use existing ChatWindow + ChatScope data from session).
-
-## 2026-05-21 — Document Chat Phase B7 lifecycle tests complete
-
-Status: Done
-Source: issue #473, commit 553c263 on feature/document-chat
-
-What changed:
-- `src/services/api/routers/chat.py` — typed `session_id` path params as `UUID` (all 4 route handlers); FastAPI now validates on entry (422 on bad input, not 500).
-- `tests/integration/test_chat_api.py` — fixed `_settings()` to disable Meilisearch flags; fixed `_setup_users()` to seed `feature.document_chat = true` in system_config; fixed invalid-UUID test fixture; added 8 new lifecycle tests (cross-user 403, empty content 422, invalid UUID 422, citations field shape, messages gone after delete, no cross-user session leakage, degraded RAG fallback).
-- `tests/unit/test_chat_repository.py` — added 3 tests: citations JSON round-trip, retrieval_trace round-trip, archive/unarchive semantics.
-- `frontend/src/features/chat/ChatPage.test.tsx` — added 5 tests: citation legacy/new field fallback, session load spinner, input disabled while pending, input cleared after send, session load error.
-
-Key discoveries:
-- **Dual-gate feature flag**: `/chat` routes check `Settings.feature_document_chat` AND `system_config.feature.document_chat`. Foundation migration seeds the DB key as `False` (production default). Tests must override both.
-- **Meilisearch env leakage**: `.env` sets `FEATURE_MEILISEARCH_SEARCH=true`; `_settings()` must explicitly override to `False` or tests fail trying to connect to `meilisearch:7700`.
-- **Citation field duality**: ChatCitationCard supports both `doc_title`/`chunk_text` (legacy) and `document_title`/`text_excerpt` (new). Both paths are now test-covered.
-
-Verification:
-- `pytest tests/integration/test_chat_api.py tests/unit/test_chat_repository.py` — 43 passed
-- `ruff check` + `ruff format` — clean
-- `mypy src/services/chat/ src/services/api/routers/chat.py --strict` — no issues
-- `tsc --noEmit` — exit 0
-- Frontend vitest blocked by Node 20.9.0 (requires 22+) — CI will verify
-
-Open risks:
-- Frontend test suite not run locally — CI is sole gate for ChatPage.test.tsx changes
+- Frontend test suite not run locally (Node 20.9.0) — resolved: Node 22 default as of 2026-05-23
 - SQLite does not enforce FK cascade (messages persist after session delete in test DB); documented in test comment; Postgres enforces correctly in production
 
 #473 recommendation: **Ready to close** — Phase B backend + frontend + tests are complete. B7 added router hardening, lifecycle coverage, cross-user isolation tests, and degraded RAG fallback. No Phase C/D/E/F scope was touched.
@@ -181,11 +132,11 @@ Key design decisions:
 
 Verification:
 - `tsc --noEmit` — exit 0
-- Vitest blocked by pre-existing Node 20.9 / Node 22 gap — CI will run
+- (Node 20.9.0 resolved globally 2026-05-23: nvm default → v22)
 - `npm run lint` — same Node gap blocks formatter output
 
 Open risks:
-- Vitest/ESLint need Node 22 to run locally — CI is the only test gate for now
+- Vitest/ESLint now work on Node 22; CI must use compatible version
 - `MessagesSquare` icon from lucide-react — confirm it exists in the pinned version at CI time
 - Phase C InsightPane migration not yet done; InsightPane still shows legacy QAPanel
 
@@ -231,10 +182,10 @@ Verification:
 - `mypy` — 3 source files, no issues
 - `pytest tests/unit/test_rag_retrieval_eval.py tests/unit/test_rag_reranker.py` — 18 passed
 - `tsc --noEmit` — exit 0
-- Frontend vitest unavailable locally (Node 20.9.0, needs 22+) — pre-existing env issue
+- (Node 20.9.0 resolved globally 2026-05-23)
 
 Open risks:
-- Frontend test suite not run locally due to Node version gap — CI will verify
+- Frontend test suite now runs locally on Node 22; CI should confirm
 
 Next agent prompt:
 - Phase B (persistent chat sessions) after PR #472 merges.
@@ -385,7 +336,7 @@ Next agent prompt:
 
 ## 2026-05-21 — #442 PDF.js viewer complete; #443 view mode switcher next
 
-Status: Active
+Status: Done
 Source: issue #442, PR #456
 
 What changed:
@@ -410,7 +361,7 @@ Next agent prompt:
 
 ## 2026-05-21 — #441 full text API complete; #442 PDF.js viewer next
 
-Status: Active
+Status: Done
 Source: issue #441, PR #455, issue #442
 
 What changed:
@@ -479,7 +430,7 @@ Verification:
 
 Open risks:
 - Relationship population only happens for newly ingested docs (no retroactive backfill).
-- Vitest blocked by Node 20.9.0.
+- (Node 20.9.0 resolved globally 2026-05-23)
 
 Next agent prompt:
 - Pick up #483 (expand details panel) or #484 (advanced search).
@@ -500,8 +451,9 @@ Verification:
 - ruff/mypy clean; 9 unit + 11 integration + 9 existing + 5 migration = 34 backend tests pass; tsc clean.
 
 Open risks:
-- Vitest blocked by Node 20.9.0; comment i18n keys are now dead (no harm).
+- Comment i18n keys are now dead (no harm).
 - Branch targets feature/document-details-and-search.
+- (Node 20.9.0 resolved globally 2026-05-23)
 
 Next agent prompt:
 - Pick up #488 (document relationships) or #483 (expand details panel).
@@ -525,7 +477,7 @@ Verification:
 - `pytest tests/integration/test_user_tags_api.py --no-cov` — 17 passed
 - `pytest tests/test_migrations.py --no-cov` — 4 passed
 - `tsc --noEmit` — clean
-- Vitest blocked locally by Node 20.9.0 (needs 22+) — CI gate
+- (Node 20.9.0 resolved globally 2026-05-23)
 
 Open risks:
 - Frontend vitest not run locally — CI is sole gate for UserTagEditor.test.tsx.
@@ -546,14 +498,14 @@ What changed:
 
 Verification:
 - `tsc --noEmit` — clean
-- Vitest blocked — CI gate.
+- (Node 20.9.0 resolved globally 2026-05-23)
 
 Open risks:
-- Frontend vitest not run locally (Node 20.9).
+- Frontend vitest now runnable locally on Node 22.
 
 ## 2026-05-20 — Agent skills and memory branch
 
-Status: Active
+Status: Done
 Source: project manager chat summary
 
 What changed:

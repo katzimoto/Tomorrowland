@@ -115,6 +115,7 @@ class UpdateSourceRequest(BaseModel):
     source_language: str | None = None
     enabled: bool | None = None
     config: dict[str, Any] | None = None
+    schedule: str | None = None
 
 
 class GrantPermissionRequest(BaseModel):

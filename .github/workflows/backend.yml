@@ -10,6 +10,7 @@ on:
       - "docker-compose.yml"
       - "docker-compose.airgap.yml"
       - "pyproject.toml"
+      - "uv.lock"
       - "alembic.ini"
       - ".github/workflows/backend.yml"
   push:
@@ -26,6 +27,7 @@ on:
       - "docker-compose.yml"
       - "docker-compose.airgap.yml"
       - "pyproject.toml"
+      - "uv.lock"
       - "alembic.ini"
       - ".github/workflows/backend.yml"
 
@@ -39,6 +41,7 @@ concurrency:
 env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PYTHON_VERSION: "3.13"
+  UV_SYSTEM_PYTHON: "1"
 
 jobs:
   dependency-contracts:
@@ -63,14 +66,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: Install backend dev dependencies
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+        run: uv pip install --system -e ".[dev]"
 
       - name: Ruff lint
         run: ruff check src/ tests/ migrations/
@@ -80,6 +83,9 @@ jobs:
 
       - name: Mypy strict type check
         run: mypy src --strict
+
+      - name: Check boolean-integer SQL comparisons
+        run: python scripts/check-boolean-int-sql.py
 
   migrations:
     name: Alembic migrations
@@ -106,14 +112,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: Install backend dependencies
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+        run: uv pip install --system -e ".[dev]"
 
       - name: Upgrade database schema
         run: alembic upgrade head
@@ -127,14 +133,56 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: Install backend dev dependencies
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+        run: uv pip install --system -e ".[dev]"
 
       - name: Test with coverage
+        run: pytest
+
+  tests-postgres:
+    name: Pytest (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: app
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d app"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      POSTGRES_URL: postgresql+psycopg://postgres:postgres@localhost:5432/app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install backend dev dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run migrations against PostgreSQL
+        run: alembic upgrade head
+
+      - name: Test against PostgreSQL
+        env:
+          PGTEST: "1"
         run: pytest

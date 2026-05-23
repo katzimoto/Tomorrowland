@@ -11,7 +11,7 @@ export function CommandMenu() {
 
   const COMMANDS = useMemo(() => [
     { label: t.nav.search, to: "/search" },
-    { label: t.nav.qa, to: "/qa" },
+    { label: t.nav.chat, to: "/chat" },
     { label: t.nav.subscriptions, to: "/subscriptions" },
     { label: t.nav.notifications, to: "/notifications" },
     { label: t.nav.history, to: "/history" },

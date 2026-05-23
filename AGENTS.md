@@ -6,15 +6,21 @@ your change. For non-trivial tasks, read `docs/agents/token-efficiency.md` and
 
 ## Dev commands (exact)
 
-Backend (run from repo root):
+Backend (run from repo root). All Python commands use `uv run`:
 
 ```bash
-ruff check --fix src/ tests/ migrations/
-ruff format src/ tests/ migrations/
-mypy src --strict
-pytest tests/unit/test_<area>.py -q
-pytest tests/integration/test_<area>.py -q
-pytest
+uv run ruff check --fix src/ tests/ migrations/
+uv run ruff format src/ tests/ migrations/
+uv run mypy src --strict
+uv run pytest tests/unit/test_<area>.py -q
+uv run pytest tests/integration/test_<area>.py -q
+uv run pytest
+```
+
+Quick targeted runs:
+
+```bash
+uv run pytest tests/unit/test_search_hybrid.py -q
 ```
 
 Frontend (run from repo root): see `frontend/AGENTS.md` for commands and
@@ -23,7 +29,7 @@ conventions (do not duplicate frontend policies here).
 Quick targeted runs:
 
 ```bash
-pytest tests/unit/test_search_hybrid.py -q
+uv run pytest tests/unit/test_search_hybrid.py -q
 npx vitest run src/path/to/file.test.tsx
 ```
 

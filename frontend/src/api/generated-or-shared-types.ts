@@ -3,12 +3,26 @@
 
 export type TranslationQuality = "fast" | "high" | null;
 
+export interface RelatedReason {
+  type: string;
+  label: string;
+  weight: number;
+  items?: string[];
+  evidence?: {
+    source_text: string;
+    target_text: string;
+    source_chunk_id: string;
+    target_chunk_id: string;
+  }[];
+}
+
 export interface RelatedDocument {
   document_id: string;
-  title: string;
-  source_label: string;
-  reason: "same_source" | "shared_entities" | "semantic_similarity" | "linked_issue";
-  score?: number;
+  title: string | null;
+  score: number;
+  relation_score?: number;
+  source?: string;
+  reasons: RelatedReason[];
 }
 
 export type PreviewAnchorPosition =

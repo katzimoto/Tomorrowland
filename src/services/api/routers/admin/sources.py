@@ -133,6 +133,7 @@ def admin_list_sources(
         rows = connection.execute(
             sa.text("""
                 SELECT id, name, type, path, source_language, enabled, created_at,
+                       schedule,
                        last_sync_status, last_sync_indexed, last_sync_skipped,
                        last_sync_failed, last_sync_error, last_sync_at,
                        last_validation_status, last_validation_error, last_validated_at
@@ -157,6 +158,7 @@ def admin_list_sources(
                 "last_validation_status": row.get("last_validation_status"),
                 "last_validation_error": row.get("last_validation_error"),
                 "last_validated_at": _fmt_dt(row.get("last_validated_at")),
+                "schedule": row.get("schedule"),
             }
             for row in rows
         ]
@@ -174,7 +176,7 @@ def admin_get_source(
             connection.execute(
                 sa.text("""
                 SELECT id, name, type, path, source_language, enabled, created_at,
-                       config,
+                       config, schedule,
                        last_sync_status, last_sync_indexed, last_sync_skipped,
                        last_sync_failed, last_sync_error, last_sync_at,
                        last_validation_status, last_validation_error, last_validated_at
@@ -229,6 +231,7 @@ def admin_get_source(
             "last_validation_status": row.get("last_validation_status"),
             "last_validation_error": row.get("last_validation_error"),
             "last_validated_at": _fmt_dt(row.get("last_validated_at")),
+            "schedule": row.get("schedule"),
             "groups": [{"id": str(to_uuid(p["id"])), "name": p["name"]} for p in permissions],
         }
 
@@ -263,6 +266,9 @@ def admin_update_source(
         if body.config is not None:
             updates.append("config = :config")
             params["config"] = json.dumps(body.config)
+        if body.schedule is not None:
+            updates.append("schedule = :schedule")
+            params["schedule"] = body.schedule
         if updates:
             connection.execute(
                 sa.text(f"UPDATE ingestion_sources SET {', '.join(updates)} WHERE id = :id"),
@@ -376,3 +382,152 @@ def admin_revoke_permission(
             str(source_id),
             {"group_id": str(group_id)},
         )
+
+
+@router.get("/admin/sources/{source_id}/documents")
+def admin_get_source_documents(
+    source_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+    limit: int = 50,
+    offset: int = 0,
+) -> dict[str, Any]:
+    require_admin(user)
+    with request.app.state.engine.begin() as connection:
+        existing = connection.execute(
+            sa.text("SELECT 1 FROM ingestion_sources WHERE id = :id"),
+            {"id": source_id.hex},
+        ).scalar()
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Source not found")
+
+        count_row = connection.execute(
+            sa.text("SELECT COUNT(*) FROM documents WHERE source_id = :source_id"),
+            {"source_id": source_id.hex},
+        ).scalar()
+        total = int(count_row or 0)
+
+        rows = connection.execute(
+            sa.text("""
+                SELECT d.id, d.title, d.external_id, d.status, d.mime_type,
+                       d.source_language, d.translation_quality, d.created_at,
+                       COALESCE(j.total_jobs, 0) AS total_jobs,
+                       COALESCE(j.succeeded_jobs, 0) AS succeeded_jobs,
+                       COALESCE(j.pending_jobs, 0) AS pending_jobs,
+                       COALESCE(j.failed_jobs, 0) AS failed_jobs
+                FROM documents d
+                LEFT JOIN (
+                    SELECT document_id,
+                           COUNT(*) AS total_jobs,
+                           COUNT(*) FILTER (WHERE status = 'succeeded') AS succeeded_jobs,
+                           COUNT(*) FILTER (WHERE status IN ('pending', 'running', 'retry'))
+                               AS pending_jobs,
+                           COUNT(*) FILTER (WHERE status = 'dead_letter') AS failed_jobs
+                    FROM pipeline_jobs
+                    GROUP BY document_id
+                ) j ON j.document_id = d.id
+                WHERE d.source_id = :source_id
+                ORDER BY d.created_at DESC
+                LIMIT :limit OFFSET :offset
+                """),
+            {"source_id": source_id.hex, "limit": limit, "offset": offset},
+        ).mappings()
+
+        doc_rows = list(rows)
+        doc_ids = [row["id"] for row in doc_rows]
+
+        jobs_by_doc: dict[str, list[dict[str, Any]]] = {}
+        if doc_ids:
+            job_rows = connection.execute(
+                sa.text("""
+                    SELECT id, document_id, job_type, status, attempts,
+                           max_attempts, stage, last_error, created_at, updated_at
+                    FROM pipeline_jobs
+                    WHERE document_id = ANY(:doc_ids)
+                    ORDER BY created_at ASC
+                    """),
+                {"doc_ids": [d.hex for d in doc_ids]},
+            ).mappings()
+            for jr in job_rows:
+                did = str(to_uuid(jr["document_id"]))
+                if did not in jobs_by_doc:
+                    jobs_by_doc[did] = []
+                jobs_by_doc[did].append(
+                    {
+                        "id": str(to_uuid(jr["id"])),
+                        "job_type": jr["job_type"],
+                        "status": jr["status"],
+                        "attempts": jr["attempts"],
+                        "max_attempts": jr["max_attempts"],
+                        "stage": jr["stage"],
+                        "last_error": jr["last_error"],
+                        "created_at": _fmt_dt(jr["created_at"]),
+                        "updated_at": _fmt_dt(jr["updated_at"]),
+                    }
+                )
+
+        documents = []
+        for row in doc_rows:
+            did = str(to_uuid(row["id"]))
+            docs = {
+                "id": did,
+                "title": row["title"],
+                "external_id": row["external_id"],
+                "status": row["status"],
+                "mime_type": row["mime_type"],
+                "source_language": row["source_language"],
+                "translation_quality": row["translation_quality"],
+                "created_at": _fmt_dt(row["created_at"]),
+                "total_jobs": row["total_jobs"],
+                "succeeded_jobs": row["succeeded_jobs"],
+                "pending_jobs": row["pending_jobs"],
+                "failed_jobs": row["failed_jobs"],
+                "jobs": jobs_by_doc.get(did, []),
+            }
+            documents.append(docs)
+
+        return {"documents": documents, "total": total}
+
+
+@router.delete("/admin/sources/{source_id}", status_code=204)
+def admin_delete_source(
+    source_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> None:
+    require_admin(user)
+    with request.app.state.engine.begin() as connection:
+        existing = connection.execute(
+            sa.text("SELECT id, name FROM ingestion_sources WHERE id = :id"),
+            {"id": source_id.hex},
+        ).first()
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Source not found")
+
+        connection.execute(
+            sa.text("DELETE FROM ingestion_sources WHERE id = :id"),
+            {"id": source_id.hex},
+        )
+        _audit_log(connection, user.sub, "delete", "source", str(source_id))
+
+
+@router.delete("/admin/documents/{document_id}", status_code=204)
+def admin_delete_document(
+    document_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> None:
+    require_admin(user)
+    with request.app.state.engine.begin() as connection:
+        existing = connection.execute(
+            sa.text("SELECT id, title FROM documents WHERE id = :id"),
+            {"id": document_id.hex},
+        ).first()
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        connection.execute(
+            sa.text("DELETE FROM documents WHERE id = :id"),
+            {"id": document_id.hex},
+        )
+        _audit_log(connection, user.sub, "delete", "document", str(document_id))

@@ -29,6 +29,7 @@ const sourceDefaults = {
   last_validation_status: null,
   last_validation_error: null,
   last_validated_at: null,
+  schedule: null,
 } as const;
 
 const mockConnectorTypes = [

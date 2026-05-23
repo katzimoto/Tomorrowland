@@ -3,7 +3,6 @@ import { Link, useRouter } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Search,
-  MessageSquare,
   MessagesSquare,
   Bell,
   History,
@@ -20,7 +19,7 @@ import { TomorrowlandLogo } from "@/components/brand/TomorrowlandLogo";
 import { logout } from "@/api/auth";
 import styles from "./NavRail.module.css";
 
-type NavKey = "search" | "qa" | "chat" | "subscriptions" | "notifications" | "history" | "expertise" | "admin";
+type NavKey = "search" | "chat" | "subscriptions" | "notifications" | "history" | "expertise" | "admin";
 
 interface NavItem {
   to: string;
@@ -30,7 +29,6 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/search", key: "search", icon: <Search size={20} /> },
-  { to: "/qa", key: "qa", icon: <MessageSquare size={20} /> },
   { to: "/chat", key: "chat", icon: <MessagesSquare size={20} /> },
   { to: "/subscriptions", key: "subscriptions", icon: <Bookmark size={20} /> },
   { to: "/notifications", key: "notifications", icon: <Bell size={20} /> },

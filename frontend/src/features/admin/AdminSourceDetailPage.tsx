@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Plus, X, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, X, Pencil, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { adminApi } from "@/api/admin";
 import { Button } from "@/components/primitives/Button";
 import { Badge } from "@/components/primitives/Badge";
@@ -9,6 +9,7 @@ import { Dialog } from "@/components/primitives/Dialog";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { useToast } from "@/components/primitives/ToastContext";
+import type { SourceDocument } from "@/api/admin";
 import styles from "./AdminSourcesPage.module.css";
 
 function formatDateTime(value: string) {
@@ -16,6 +17,277 @@ function formatDateTime(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+const _JOB_LABELS: Record<string, string> = {
+  process_document: "Ingest",
+  vector_index_document: "Vector",
+  intelligence_document: "Intel",
+  alert_document: "Alerts",
+  enrich_document: "Enrich",
+  translate_document: "Translate",
+  index_document: "Index",
+};
+
+function jobLabel(jobType: string) {
+  return _JOB_LABELS[jobType] || jobType;
+}
+
+const _PIPELINE_ORDER: Record<string, number> = {
+  process_document: 1,
+  enrich_document: 2,
+  translate_document: 3,
+  index_document: 4,
+  vector_index_document: 5,
+  intelligence_document: 6,
+  alert_document: 7,
+};
+
+function jobStep(jobType: string) {
+  return _PIPELINE_ORDER[jobType] ?? 99;
+}
+
+function jobBadge(status: string) {
+  if (status === "succeeded") return "success";
+  if (status === "running") return "warning";
+  if (status === "pending" || status === "retry") return "neutral";
+  if (status === "dead_letter") return "danger";
+  return "neutral";
+}
+
+function durationMs(start: string | null, end: string | null): string | null {
+  if (!start) return null;
+  const s = new Date(start).getTime();
+  const e = end ? new Date(end).getTime() : Date.now();
+  const ms = e - s;
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.round(ms / 60_000)}m`;
+}
+
+function SourceDocumentsSection({ sourceId }: { sourceId: string }) {
+  const qc = useQueryClient();
+  const { show: showToast } = useToast();
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["source-documents", sourceId],
+    queryFn: () => adminApi.getSourceDocuments(sourceId),
+    refetchInterval: 10_000,
+  });
+
+  const toggle = (docId: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(docId)) next.delete(docId);
+      else next.add(docId);
+      return next;
+    });
+  };
+
+  const handleRequeue = async (documentId: string) => {
+    try {
+      const res = await adminApi.requeueDocument(documentId);
+      showToast("success", `${res.requeued} job(s) requeued.`);
+      qc.invalidateQueries({ queryKey: ["source-documents", sourceId] });
+    } catch {
+      showToast("error", "Failed to requeue jobs.");
+    }
+  };
+
+  const handleDelete = async (documentId: string) => {
+    try {
+      await adminApi.deleteDocument(documentId);
+      showToast("success", "Document deleted.");
+      qc.invalidateQueries({ queryKey: ["source-documents", sourceId] });
+    } catch {
+      showToast("error", "Failed to delete document.");
+    }
+  };
+
+  if (isLoading) return <div className={styles.section}><SkeletonRow count={4} /></div>;
+  if (isError) return null;
+
+  const docs = data?.documents ?? [];
+  if (docs.length === 0) {
+    return (
+      <div className={styles.section}>
+        <h2>Documents</h2>
+        <p className={styles.mutedMeta}>No documents yet. Sync the source to ingest documents.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.section}>
+      <h2>Documents ({data?.total ?? docs.length})</h2>
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th style={{ width: "38%" }}>Title</th>
+              <th style={{ width: "10%" }}>Type</th>
+              <th style={{ width: "7%" }}>Lang</th>
+              <th style={{ width: "22%" }}>Progress</th>
+              <th>State</th>
+              <th style={{ width: 40 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {docs.map((doc) => (
+              <DocumentRow
+                key={doc.id}
+                doc={doc}
+                expanded={expanded.has(doc.id)}
+                onToggle={() => toggle(doc.id)}
+                onRequeue={() => handleRequeue(doc.id)}
+                onDelete={() => handleDelete(doc.id)}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function DocumentRow({
+  doc,
+  expanded,
+  onToggle,
+  onRequeue,
+  onDelete,
+}: {
+  doc: SourceDocument;
+  expanded: boolean;
+  onToggle: () => void;
+  onRequeue: () => void;
+  onDelete: () => void;
+}) {
+  const total = doc.total_jobs;
+  const succeeded = doc.succeeded_jobs;
+  const pct = total > 0 ? Math.round((succeeded / total) * 100) : 0;
+  const hasFailed = doc.failed_jobs > 0;
+  const hasPending = doc.pending_jobs > 0;
+  const isDone = total > 0 && succeeded === total;
+
+  const barColor = hasFailed && succeeded === 0
+    ? "var(--color-danger)"
+    : isDone
+      ? "var(--color-success)"
+      : "var(--color-warning)";
+
+  return (
+    <>
+      <tr
+        className={styles.nameCell}
+        style={{ cursor: "pointer" }}
+        onClick={onToggle}
+      >
+        <td>
+          <a
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(`/doc/${doc.id}`, "_blank");
+            }}
+          >
+            {doc.title || doc.external_id || doc.id.slice(0, 8)}
+          </a>
+        </td>
+        <td>
+          <Badge variant="neutral">{doc.mime_type?.split("/")[1] || doc.mime_type}</Badge>
+        </td>
+        <td>{doc.source_language?.toUpperCase() || "—"}</td>
+        <td>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{
+              flex: 1, height: 8, background: "var(--color-border)",
+              borderRadius: 4, overflow: "hidden",
+            }}>
+              <div style={{
+                width: `${pct}%`, height: "100%",
+                background: barColor, borderRadius: 4,
+                transition: "width 0.3s",
+              }} />
+            </div>
+            <span style={{ fontSize: 12, color: "var(--color-text-secondary)", minWidth: 32 }}>
+              {total > 0 ? `${pct}%` : "—"}
+            </span>
+          </div>
+        </td>
+        <td>
+          <Badge variant={hasFailed && succeeded === 0 ? "danger" : isDone ? "success" : hasPending ? "warning" : "neutral"}>
+            {isDone ? "Complete" : hasPending ? `${succeeded}/${total}` : hasFailed ? "Failed" : doc.status}
+          </Badge>
+          <Button size="sm" variant="secondary" title="Requeue failed jobs" onClick={(e) => { e.stopPropagation(); onRequeue(); }}>
+            Rerun
+          </Button>
+          <Button size="sm" variant="secondary" title="Delete document" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
+            <Trash2 size={12} />
+          </Button>
+        </td>
+        <td>
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={6} style={{ padding: "0 16px 12px" }}>
+            <div className={styles.tableWrap} style={{ margin: 0 }}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 30 }}>#</th>
+                    <th style={{ width: "12%" }}>Stage</th>
+                    <th style={{ width: "12%" }}>Status</th>
+                    <th style={{ width: 48 }}>Try</th>
+                    <th style={{ width: "14%" }}>Phase</th>
+                    <th style={{ width: 64 }}>Duration</th>
+                    <th>Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {doc.jobs.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className={styles.mutedMeta}>
+                        No pipeline jobs yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    [...doc.jobs]
+                      .sort((a, b) => jobStep(a.job_type) - jobStep(b.job_type))
+                      .map((job) => (
+                        <tr key={job.id}>
+                          <td style={{ color: "var(--color-text-secondary)", fontSize: 12 }}>
+                            {jobStep(job.job_type)}
+                          </td>
+                          <td>{jobLabel(job.job_type)}</td>
+                          <td>
+                            <Badge variant={jobBadge(job.status)}>{job.status}</Badge>
+                          </td>
+                          <td style={{ textAlign: "center" }}>
+                            {job.attempts}/{job.max_attempts}
+                          </td>
+                          <td style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
+                            {job.stage || "—"}
+                          </td>
+                          <td style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
+                            {durationMs(job.created_at, job.status === "succeeded" || job.status === "dead_letter" ? job.updated_at : null) || "—"}
+                          </td>
+                          <td className={styles.error} style={{ fontSize: 12, maxWidth: 320 }}>
+                            {job.last_error || "—"}
+                          </td>
+                        </tr>
+                      ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
 }
 
 export function AdminSourceDetailPage() {
@@ -74,6 +346,18 @@ export function AdminSourceDetailPage() {
     },
   });
 
+  const deleteSourceMutation = useMutation({
+    mutationFn: () => adminApi.deleteSource(sourceId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sources"] });
+      showToast("success", "Source deleted.");
+      navigate({ to: "/admin/sources" });
+    },
+    onError: () => {
+      showToast("error", "Failed to delete source.");
+    },
+  });
+
   if (isLoading) {
     return (
       <div className={styles.page}>
@@ -105,13 +389,13 @@ export function AdminSourceDetailPage() {
         <Badge variant={source.enabled ? "success" : "neutral"}>
           {source.enabled ? "Enabled" : "Disabled"}
         </Badge>
-        <Button variant="secondary" size="sm" onClick={() => {
-          setEditName(source.name);
-          setEditLang(source.source_language || "");
-          setIsEditing(true);
-        }}>
+        <Button variant="secondary" size="sm" onClick={() => navigate({ to: "/admin/sources/$sourceId/edit", params: { sourceId: sourceId! } })}>
           <Pencil size={14} />
-          Edit
+          Edit Source
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => { if (confirm("Delete this source and all its documents?")) deleteSourceMutation.mutate(); }}>
+          <Trash2 size={14} />
+          Delete
         </Button>
       </div>
 
@@ -124,6 +408,8 @@ export function AdminSourceDetailPage() {
           <dd>{source.path || "—"}</dd>
           <dt>Language</dt>
           <dd>{source.source_language || "—"}</dd>
+          <dt>Schedule</dt>
+          <dd>{source.schedule || "Manual only"}</dd>
           {Object.entries(source.config).map(([key, value]) => (
             <div key={key}>
               <dt>{key}</dt>
@@ -257,6 +543,8 @@ export function AdminSourceDetailPage() {
           </Button>
         )}
       </div>
+
+      <SourceDocumentsSection sourceId={sourceId!} />
 
       <Dialog
         open={isEditing}

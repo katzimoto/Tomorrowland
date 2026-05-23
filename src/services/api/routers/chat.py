@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import time
@@ -430,7 +431,9 @@ def create_message_stream(
     if not settings.feature_document_chat_streaming:
         raise HTTPException(status_code=404, detail="Not found")
 
-    with request.app.state.engine.begin() as connection:
+    connection = request.app.state.engine.connect()
+    txn = connection.begin()
+    try:
         _check_system_config_flag(connection)
         repo = ChatRepository(connection)
         session = repo.get_session(user.sub, session_id)
@@ -558,26 +561,56 @@ def create_message_stream(
             return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
         def event_stream() -> Generator[str, None, None]:
-            for event, data in rag.answer_stream(
-                question=question,
-                group_ids=group_ids,
-                top_k=body.top_k,
-                allow_all=user.is_admin,
-                scope=chat_scope,
-            ):
-                if event == "done":
-                    msg = repo.create_message(
+            not_found_answer = (
+                "I could not find any relevant information in the documents you have access to."
+            )
+            try:
+                for event, data in rag.answer_stream(
+                    question=question,
+                    group_ids=group_ids,
+                    top_k=body.top_k,
+                    allow_all=user.is_admin,
+                    scope=chat_scope,
+                ):
+                    if event == "done":
+                        answer_text = data.get("answer") or not_found_answer
+                        msg = repo.create_message(
+                            ChatMessageCreate(
+                                session_id=session_id,
+                                role="assistant",
+                                content=answer_text,
+                                rewritten_query=rewritten_query,
+                                citations=data.get("citations") or [],
+                                model=data.get("model"),
+                                latency_ms=data.get("latency_ms"),
+                            )
+                        )
+                        data["message_id"] = str(msg.id)
+                    yield _sse_format(event, data)
+            except Exception:
+                logger.exception(
+                    "SSE stream failed session_id=%s correlation_id=%s",
+                    session_id,
+                    get_correlation_id(),
+                )
+                with contextlib.suppress(Exception):
+                    repo.create_message(
                         ChatMessageCreate(
                             session_id=session_id,
                             role="assistant",
-                            content=data["answer"],
+                            content=(
+                                "I encountered an issue generating an answer. Please try again."
+                            ),
                             rewritten_query=rewritten_query,
-                            citations=data["citations"],
-                            model=data["model"],
-                            latency_ms=data["latency_ms"],
+                            citations=[],
                         )
                     )
-                    data["message_id"] = str(msg.id)
-                yield _sse_format(event, data)
+            finally:
+                txn.commit()
+                connection.close()
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
+    except Exception:
+        txn.rollback()
+        connection.close()
+        raise

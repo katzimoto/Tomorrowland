@@ -236,7 +236,7 @@ class DocumentRepository:
                 WHERE version_family_id = (
                     SELECT version_family_id FROM documents WHERE id = :document_id
                 )
-                AND is_latest = 1
+                AND is_latest = true
                 """),
                 {"document_id": db_uuid(document_id)},
             )
@@ -308,8 +308,8 @@ class DocumentRepository:
 
         self._connection.execute(
             sa.text("""
-                UPDATE documents SET is_latest = 0
-                WHERE version_family_id = :family_id AND is_latest = 1
+                UPDATE documents SET is_latest = false
+                WHERE version_family_id = :family_id AND is_latest = true
                 """),
             {"family_id": family_id_hex},
         )
@@ -536,10 +536,14 @@ class UserDocumentTagRepository:
                 SELECT id, document_id, user_id, tag, is_private, created_at
                 FROM user_document_tags
                 WHERE document_id = :doc_id
-                  AND (is_private = 0 OR user_id = :user_id)
+                  AND (is_private = :is_private OR user_id = :user_id)
                 ORDER BY created_at ASC
                 """),
-                {"doc_id": db_uuid(document_id), "user_id": db_uuid(viewer_user_id)},
+                {
+                    "doc_id": db_uuid(document_id),
+                    "user_id": db_uuid(viewer_user_id),
+                    "is_private": False,
+                },
             )
             .mappings()
             .all()
@@ -591,7 +595,7 @@ class UserDocumentTagRepository:
                 "doc_id": db_uuid(document_id),
                 "user_id": db_uuid(user_id),
                 "tag": tag,
-                "is_private": 1 if is_private else 0,
+                "is_private": is_private,
             },
         )
         row = (

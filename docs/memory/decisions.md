@@ -2,6 +2,123 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-05-23 — Boolean-integer SQL guard + PostgreSQL CI test job
+
+Status: Active
+Source: OpenCode session (chat summary)
+
+Decision:
+- Boolean columns (`is_private`, `is_latest`, `is_admin`, etc.) must use `true`/`false` literals or bound boolean params in raw SQL — never `0`/`1`.
+- `scripts/check-boolean-int-sql.py` AST-checks all `sa.text()` calls for the pattern; runs in CI quality job.
+- New `tests-postgres` CI job runs full test suite against PostgreSQL 16 (PGTEST=1).
+- `conftest.py` reads `PGTEST` env var to switch from SQLite to PostgreSQL.
+
+Impact:
+- SQLite integration tests previously masked PostgreSQL type errors.
+- Lint check catches the pattern at dev time; PostgreSQL job catches at CI time.
+
+## 2026-05-23 — Related documents show structured reasons (#482)
+
+Status: Done
+Source: issue #482
+
+Decision:
+- `RelatedService.related_documents()` computes `reasons` array per candidate: semantic_similarity, shared_entities, shared_tags, same_source.
+- Relation score = 0.60×semantic + 0.15×entities + 0.10×tags + 0.10×metadata (reused `RELATED_OVERLAP_BONUS_PER_MATCH`/`CAP` constants).
+- Frontend shows compact reason pills + expandable "Why related?" panel with entity/tag lists.
+
+Impact:
+- Users can see why documents are related instead of trusting an opaque score.
+- Pre-existing `RelatedRepository.get_document_tags_and_entities()` wired in (was dead code).
+
+## 2026-05-23 — Python tooling migrated to uv
+
+Status: Active
+Source: OpenCode session (chat summary)
+
+Decision:
+- All Python commands use `uv run` prefix. `uv.lock` generated from `pyproject.toml`.
+- Dockerfile copies uv binary from `ghcr.io/astral-sh/uv:latest` and uses `uv pip install --system`.
+- CI workflows use `astral-sh/setup-uv@v5` action; `cache: pip` removed; all `pip install` → `uv pip install --system`.
+
+Impact:
+- Resolution time: 15ms vs ~30s for pip. Lockfile ensures reproducible installs.
+- Docker build no longer upgrades pip first. CI cache handled by setup-uv.
+
+## 2026-05-23 — Admin source documents view with pipeline state
+
+Status: Active
+Source: OpenCode session (chat summary)
+
+Decision:
+- `GET /admin/sources/{source_id}/documents` joins documents + pipeline_jobs aggregation, returns per-document counts + individual job list.
+- Frontend shows progress bar (green/yellow/red), expandable rows with per-job details (type, status, attempts, stage, error).
+- Auto-refresh every 10s via TanStack Query `refetchInterval`.
+- `POST /admin/documents/{document_id}/requeue` resets dead-letter jobs to pending.
+- `DELETE /admin/documents/{document_id}` and `DELETE /admin/sources/{source_id}` cascade-delete.
+
+Impact:
+- Admin can monitor pipeline progress per source without checking worker logs.
+- Failed documents can be requeued from the UI instead of using CLI/DLQ admin.
+
+## 2026-05-23 — Chat feature flags default to True
+
+Status: Active
+Source: OpenCode session (chat summary)
+
+Decision:
+- All 6 `feature_document_chat_*` settings default to `True` in `shared/config.py`. Chat is now on by default; env vars can opt-out.
+- `/qa` route removed from frontend (nav + routes). Chat replaces Q&A.
+
+Impact:
+- No env vars needed for basic chat, streaming, query rewrite, reranker, metadata search, or translated text.
+- Backend `/qa` route still exists but is unreachable from UI.
+
+Next action:
+- Remove backend `/qa` route when chat is proven stable.
+
+## 2026-05-23 — Qdrant collection auto-creates on search
+
+Status: Active
+Source: OpenCode session (chat summary)
+
+Decision:
+- `create_collection_if_not_exists()` called at the start of `search()` and `search_filtered()` in `QdrantSearchClient`. Previously only called during `upsert_chunks()`, causing queries to fail before first document was indexed.
+
+Impact:
+- RAG/chat/search no longer return "Collection doesn't exist" on fresh deployments.
+- Collection is created lazily on first query (same dimension as the encoder).
+
+## 2026-05-23 — SSE streaming uses manual connection management
+
+Status: Active
+Source: OpenCode session (chat summary)
+
+Decision:
+- `create_message_stream()` in `chat.py` uses `engine.connect()` + `connection.begin()` instead of `with engine.begin()`. The `try/finally` in the generator closes the connection after streaming completes.
+- Pattern: synchronous setup uses the connection; generator captures closures; cleanup in `finally` block.
+
+Impact:
+- `ResourceClosedError` no longer occurs when SSE generator tries to persist the assistant message on the `done` event.
+- Non-streaming endpoint unchanged (sync flow works fine with `with` block).
+
+## 2026-05-23 — Admin source schedule field (cron, stored only)
+
+Status: Active
+Source: OpenCode session (chat summary)
+
+Decision:
+- `schedule` column (TEXT, nullable) added to `ingestion_sources`. Accepts cron expressions.
+- Backend: `UpdateSourceRequest` includes `schedule`; list/get/update all handle it.
+- Frontend: edit page shows cron input; detail page displays schedule value.
+- No scheduler runner yet — field is stored for future execution.
+
+Impact:
+- Sources can be assigned cron schedules. Execution follow-up required.
+
+Next action:
+- Build scheduler runner (pipeline or separate worker) that reads `schedule` and triggers `sync-now`.
+
 ## 2026-05-21 — Virtualization uses react-window v2 with List + ARIA tables
 
 Status: Active

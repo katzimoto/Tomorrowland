@@ -198,6 +198,7 @@ describe("AdminAddSourceWizard", () => {
       last_validation_status: null,
       last_validation_error: null,
       last_validated_at: null,
+      schedule: null,
     });
     vi.mocked(adminApi.adminApi.grantPermission).mockResolvedValue(undefined as never);
     render(<AdminAddSourceWizard />);

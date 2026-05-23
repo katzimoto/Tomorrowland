@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, CheckCircle2, PlugZap, Plus, RefreshCw, ServerIcon } from "lucide-react";
+import { ArrowLeft, CheckCircle2, PlugZap, Plus, RefreshCw, ServerIcon, Trash2 } from "lucide-react";
 import { adminApi, type ConnectorType, type Source, type SyncResult } from "@/api/admin";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
@@ -119,6 +119,19 @@ export function AdminSourcesPage() {
       showToast("error", t.admin.syncFailed);
     }
   }, [sources, showToast, t, qc]);
+
+  const handleDeleteSource = useCallback(async (sourceId: string) => {
+    const src = sources.find((s) => s.id === sourceId);
+    const name = src?.name ?? sourceId;
+    if (!confirm(`Delete source "${name}" and all its documents?`)) return;
+    try {
+      await adminApi.deleteSource(sourceId);
+      showToast("success", "Source deleted.");
+      qc.invalidateQueries({ queryKey: ["sources"] });
+    } catch {
+      showToast("error", "Failed to delete source.");
+    }
+  }, [sources, showToast, qc]);
 
 
   async function handleTestConnection(sourceId: string) {
@@ -253,6 +266,14 @@ export function AdminSourcesPage() {
                         >
                           <RefreshCw size={13} />
                           {t.admin.syncBtn}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleDeleteSource(src.id)}
+                        >
+                          <Trash2 size={13} />
+                          Delete
                         </Button>
                       </div>
                       {testResult && testResult !== "testing" && (

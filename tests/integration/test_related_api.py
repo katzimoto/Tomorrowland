@@ -147,7 +147,19 @@ def test_related_documents_filters_dedupes_excludes_source_and_respects_limit(
             limit=limit,
         )
 
-    assert related == [{"document_id": str(related_id), "title": "Related Doc", "score": 0.92}]
+    assert related == [
+        {
+            "document_id": str(related_id),
+            "title": "Related Doc",
+            "score": 0.92,
+            "source": "folder",
+            "reasons": [
+                {"type": "semantic_similarity", "label": "Similar content", "weight": 0.92},
+                {"type": "same_source", "label": "Same source", "weight": 0.3},
+            ],
+            "relation_score": 0.582,
+        }
+    ]
 
 
 def test_expertise_ranks_weighted_signals_and_hides_private_evidence(

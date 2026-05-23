@@ -145,6 +145,8 @@ class QdrantSearchClient:
         """
         self._ensure_vector_dimension(vector)
 
+        self.create_collection_if_not_exists()
+
         must_conditions = []
         if group_ids:
             must_conditions.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
@@ -203,6 +205,8 @@ class QdrantSearchClient:
         When *query_filter* is None, all points are candidates.
         """
         self._ensure_vector_dimension(vector)
+
+        self.create_collection_if_not_exists()
 
         response = self._client.query_points(
             collection_name=self._collection_name,

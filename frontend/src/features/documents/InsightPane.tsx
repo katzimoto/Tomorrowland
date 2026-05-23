@@ -5,7 +5,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import {
   getSummary,
   getEntities,
@@ -172,6 +172,7 @@ function TagsSection({ docId }: { docId: string }) {
 
 function RelatedTab({ docId }: { docId: string }) {
   const t = useT();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const { data, isLoading, isError } = useQuery({
     queryKey: ["doc-related", docId],
     staleTime: 2 * 60_000,
@@ -202,18 +203,67 @@ function RelatedTab({ docId }: { docId: string }) {
 
   return (
     <ul className={styles.relatedList}>
-      {data.related.map((doc) => (
-        <li key={doc.document_id}>
-          <Link
-            to="/doc/$docId"
-            params={{ docId: doc.document_id }}
-            className={styles.relatedLink}
-          >
-            <span className={styles.relatedTitle}>{doc.title}</span>
-            <Badge variant="source">{doc.source_label}</Badge>
-          </Link>
-        </li>
-      ))}
+      {data.related.map((doc) => {
+        const isExpanded = expandedId === doc.document_id;
+        return (
+          <li key={doc.document_id}>
+            <Link
+              to="/doc/$docId"
+              params={{ docId: doc.document_id }}
+              className={styles.relatedLink}
+            >
+              <span className={styles.relatedTitle}>{doc.title || doc.document_id.slice(0, 8)}</span>
+              <div style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
+                {doc.reasons?.slice(0, 2).map((r) => (
+                  <Badge key={r.type} variant="neutral">{r.label}</Badge>
+                ))}
+                {doc.reasons && doc.reasons.length > 0 && (
+                  <button
+                    type="button"
+                    className={styles.relatedLink}
+                    style={{ padding: "2px 4px", border: "none", background: "none", cursor: "pointer" }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setExpandedId(isExpanded ? null : doc.document_id);
+                    }}
+                    aria-label="Why related?"
+                  >
+                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </button>
+                )}
+              </div>
+            </Link>
+            {isExpanded && doc.reasons && (
+              <div style={{ padding: "8px 12px", fontSize: 12, color: "var(--color-text-secondary)", background: "var(--color-bg)", borderRadius: 4 }}>
+                <p style={{ fontWeight: 600, marginBottom: 4 }}>Why related?</p>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                  {doc.reasons.map((r) => (
+                    <li key={r.type} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <Badge variant="neutral">{r.label}</Badge>
+                      {r.weight && (
+                        <span style={{ color: "var(--color-text-secondary)" }}>
+                          (score: {r.weight})
+                        </span>
+                      )}
+                      {r.items && r.items.length > 0 && (
+                        <span style={{ color: "var(--color-text-primary)", fontSize: 11 }}>
+                          {r.items.join(", ")}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {doc.relation_score != null && (
+                  <p style={{ marginTop: 4 }}>
+                    Relation score: <strong>{doc.relation_score}</strong>
+                  </p>
+                )}
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

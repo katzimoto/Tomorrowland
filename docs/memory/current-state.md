@@ -2,6 +2,31 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-23 — Chat defaults + Qdrant bootstrap + SSE fix + Edit Source page
+
+Status: Done
+Source: OpenCode session (chat summary)
+
+Finding:
+- Chat feature flags (`feature_document_chat*`) now default to True in `src/shared/config.py`.
+- Qdrant collection now auto-created on first search (not just on upsert), fixing "Collection doesn't exist" error.
+- SSE streaming endpoint fixed: manual connection management replaces `with engine.begin()` so connection stays alive during streaming generator.
+- `/qa` removed from nav rail and routes; chat replaces it.
+- Admin Edit Source page created at `/admin/sources/$sourceId/edit` with full form (name, language, connector fields, path, enabled, schedule).
+- Cron schedule field added: migration (`schedule TEXT`), backend schema + routes, frontend types + edit form + detail display.
+- Node.js default bumped to v22 (was v20.9.0) to fix vitest/ESLint `styleText` compat.
+
+Impact:
+- Chat works out-of-box. Qdrant auto-creates collections. SSE streaming persists messages.
+- Sources have edit page + cron schedule + document pipeline view + delete.
+- All Python tooling uses `uv` (fast resolution, reproducible lockfile).
+- Mistral fits in Ollama container. Documents can be requeued/deleted from admin UI.
+- Related documents show structured reasons (semantic, entities, tags, source).
+- Boolean-integer SQL bugs fixed (4 instances); lint script + PostgreSQL CI job prevent recurrence.
+
+Next action:
+- None. All tasks from this session complete.
+
 ## 2026-05-22 — Document details & advanced search track complete (#483–#489)
 
 Status: Done — all 7 issues implemented
@@ -16,9 +41,7 @@ Finding:
   - #483 Expanded details panel with grouped collapsible sections
   - #484 Advanced search filter pipeline + URL-driven filter state
   - #489 Clickable detail values linking to pre-populated search
-- Next: integration PR from `feature/document-details-and-search` → `main`
-- Remaining: #487, #488, #483, #484, #489.
-- Feature branch: `feature/document-details-and-search`. Sub-PRs target the feature branch.
+- Integration PR merged; feature branch `feature/document-details-and-search` → `main` complete.
 
 ## 2026-05-22 — Document viewer MVP complete (#453 closed)
 
