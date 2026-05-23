@@ -44,6 +44,7 @@ class DocumentPublisher:
         document_id: UUID,
         source_id: UUID,
         attempt: int = 1,
+        content_text: str | None = None,
     ) -> None:
         self._publish(
             "parse",
@@ -51,6 +52,7 @@ class DocumentPublisher:
             document_id=document_id,
             source_id=source_id,
             attempt=attempt,
+            extra={"content_text": content_text} if content_text else {},
         )
 
     def publish_translate(
@@ -157,18 +159,19 @@ class DocumentPublisher:
         document_id: UUID,
         source_id: UUID,
         attempt: int,
+        extra: dict[str, str] | None = None,
     ) -> None:
         routing_key = _ROUTING_KEYS[stage]
-        message_id = self._rabbit.publish(
-            routing_key,
-            {
-                "job_id": str(job_id),
-                "document_id": str(document_id),
-                "source_id": str(source_id),
-                "attempt": attempt,
-                "pipeline_version": "v1",
-            },
-        )
+        body: dict[str, str | int] = {
+            "job_id": str(job_id),
+            "document_id": str(document_id),
+            "source_id": str(source_id),
+            "attempt": attempt,
+            "pipeline_version": "v1",
+        }
+        if extra:
+            body.update(extra)
+        message_id = self._rabbit.publish(routing_key, body)
         if message_id:
             self._job_repo.set_rabbit_message_id(job_id, message_id)
         logger.info(

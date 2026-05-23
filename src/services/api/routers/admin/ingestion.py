@@ -150,6 +150,7 @@ def sync_now(
                             job_id=job_id,
                             document_id=doc.id,
                             source_id=source_id,
+                            content_text=item.text_content,
                         )
                         # Intelligence and alert run in parallel — document is
                         # viewable after index stage without waiting for these.
