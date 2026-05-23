@@ -1,6 +1,8 @@
 """Admin routes for pipeline job inspection and retry."""
+
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -90,15 +92,55 @@ def admin_get_job(
 ) -> dict[str, Any]:
     require_admin(user)
     with request.app.state.engine.begin() as conn:
-        row = conn.execute(
-            sa.text("""
+        row = (
+            conn.execute(
+                sa.text("""
                 SELECT id, document_id, source_id, job_type, status, stage,
                        attempts, max_attempts, last_error, rabbit_message_id,
                        created_at, updated_at
                 FROM pipeline_jobs WHERE id = :id
             """),
-            {"id": job_id.hex},
-        ).mappings().first()
+                {"id": job_id.hex},
+            )
+            .mappings()
+            .first()
+        )
     if row is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return _row_to_job(row)
+
+
+@router.post("/admin/jobs/{job_id}/retry")
+def admin_retry_job(
+    job_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    require_admin(user)
+    with request.app.state.engine.begin() as conn:
+        row = (
+            conn.execute(
+                sa.text("SELECT status FROM pipeline_jobs WHERE id = :id"),
+                {"id": job_id.hex},
+            )
+            .mappings()
+            .first()
+        )
+        if row is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if row["status"] != "dead_letter":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Job is not dead-lettered (status={row['status']})",
+            )
+        conn.execute(
+            sa.text("""
+                UPDATE pipeline_jobs
+                SET status = 'pending', attempts = 0, last_error = NULL,
+                    locked_by = NULL, locked_at = NULL,
+                    run_after = :now, updated_at = :now
+                WHERE id = :id AND status = 'dead_letter'
+            """),
+            {"id": job_id.hex, "now": datetime.now(UTC)},
+        )
+    return {"retried": str(job_id)}
