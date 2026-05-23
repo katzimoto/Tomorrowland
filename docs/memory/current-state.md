@@ -14,7 +14,8 @@ Finding:
 
 Next action:
 - Sub-A (#425): DONE — `shared/rabbit.py` + RabbitMQ Docker + topology (7 tests, ruff/mypy clean).
-- Sub-B (#426): `pipeline_jobs` schema additions (message_id, routing_key columns).
+- Sub-B (#426): DONE — migration (rabbit_message_id), DocumentPublisher, sync-now wire, GET /admin/jobs routes (2 unit + 1 integration test, ruff/mypy clean).
+- Sub-C (#427): each stage worker consumes its own queue via `RabbitConsumer`.
 - Sub #501: Cargo workspace scaffold + CI for Rust worker.
 
 ## 2026-05-23 — Chat defaults + Qdrant bootstrap + SSE fix + Edit Source page
