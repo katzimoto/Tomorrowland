@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
     rabbitmq_user: str = "tomorrowland"
     rabbitmq_pass: str = "changeme"
-    rabbitmq_enabled: bool = False
+    rabbitmq_enabled: bool = True
 
     supported_translation_source_languages: str = "en,he,zh,ko,th,ar,fr,ru,es"
 
