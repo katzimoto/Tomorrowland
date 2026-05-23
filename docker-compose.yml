@@ -353,6 +353,102 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
+  parse-worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: ["tomorrowland-parse-worker"]
+    restart: unless-stopped
+    cpus: ${WORKER_CPUS:-1.00}
+    mem_limit: ${WORKER_MEM_LIMIT:-1g}
+    mem_reservation: ${WORKER_MEM_RESERVATION:-256m}
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8081/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - files_data:/data
+
+  translate-worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: ["tomorrowland-translate-worker"]
+    restart: unless-stopped
+    cpus: ${WORKER_CPUS:-1.00}
+    mem_limit: ${WORKER_MEM_LIMIT:-1g}
+    mem_reservation: ${WORKER_MEM_RESERVATION:-256m}
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8082/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - files_data:/data
+
+  embed-worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: ["tomorrowland-embed-worker"]
+    restart: unless-stopped
+    cpus: ${WORKER_CPUS:-1.00}
+    mem_limit: ${WORKER_MEM_LIMIT:-1g}
+    mem_reservation: ${WORKER_MEM_RESERVATION:-256m}
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - files_data:/data
+
+  index-worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: ["tomorrowland-index-worker"]
+    restart: unless-stopped
+    cpus: ${WORKER_CPUS:-1.00}
+    mem_limit: ${WORKER_MEM_LIMIT:-1g}
+    mem_reservation: ${WORKER_MEM_RESERVATION:-256m}
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8084/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - files_data:/data
+
   prometheus:
     image: prom/prometheus:v2.54.1
     restart: unless-stopped

@@ -37,6 +37,12 @@ dev = [
   "types-openpyxl>=3.1",
 ]
 
+[project.scripts]
+tomorrowland-parse-worker = "services.pipeline.parse_worker:main"
+tomorrowland-translate-worker = "services.pipeline.translate_worker:main"
+tomorrowland-embed-worker = "services.pipeline.embed_worker:main"
+tomorrowland-index-worker = "services.pipeline.index_worker:main"
+
 [build-system]
 requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"

@@ -260,6 +260,14 @@ class PipelineJobRepository:
             },
         )
 
+    def get_max_attempts(self, job_id: UUID) -> int:
+        """Return the max_attempts value for a job (default 5 if not found)."""
+        result = self._connection.execute(
+            sa.text("SELECT max_attempts FROM pipeline_jobs WHERE id = :id"),
+            {"id": db_uuid(job_id)},
+        ).scalar()
+        return int(result) if result is not None else 5
+
     def mark_succeeded(self, job_id: UUID) -> None:
         """Mark a running job as succeeded."""
         self._connection.execute(
