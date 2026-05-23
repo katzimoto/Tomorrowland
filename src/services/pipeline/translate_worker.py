@@ -1,11 +1,10 @@
 """Translate stage consumer — translates extracted text and publishes embed."""
-
 from __future__ import annotations
 
 from typing import Any
 from uuid import UUID
 
-from services.documents.repository import TranslationVersionRepository
+from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
@@ -23,12 +22,14 @@ class TranslateConsumer(BaseConsumer):
         publisher: DocumentPublisher,
         translator: LibreTranslateClient | None = None,
         version_repo: TranslationVersionRepository | None = None,
+        doc_repo: DocumentRepository | None = None,
         health_port: int = 8080,
     ) -> None:
         super().__init__(rabbit, job_repo, health_port)
         self._publisher = publisher
         self._translator = translator
         self._version_repo = version_repo
+        self._doc_repo = doc_repo
 
     def handle_message(
         self,
@@ -61,6 +62,9 @@ class TranslateConsumer(BaseConsumer):
 
         self._job_repo.update_translated_text(document_id, translated_text)
         self._job_repo.mark_running_stage(job_id, "translated")
+
+        if self._doc_repo and translated_text and translated_text != content_text:
+            self._doc_repo.update_indexed(document_id, "indexed", "fast")
 
         if self._version_repo and translated_text and translated_text != content_text:
             existing = self._version_repo.find_pending_or_running(document_id, "en")
@@ -99,7 +103,7 @@ def main() -> None:
 
     import sqlalchemy as sa
 
-    from services.documents.repository import TranslationVersionRepository
+    from services.documents.repository import DocumentRepository, TranslationVersionRepository
     from services.pipeline.jobs import PipelineJobRepository
     from services.pipeline.publisher import DocumentPublisher
     from services.translation.client import LibreTranslateClient
@@ -112,6 +116,7 @@ def main() -> None:
     connection = engine.connect()
     rabbit = RabbitClient(settings.rabbitmq_url, enabled=settings.rabbitmq_enabled)
     job_repo = PipelineJobRepository(connection)
+    doc_repo = DocumentRepository(connection)
     publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
     translator = LibreTranslateClient(base_url=settings.libretranslate_url)
     version_repo = TranslationVersionRepository(connection)
@@ -121,5 +126,6 @@ def main() -> None:
         publisher=publisher,
         translator=translator,
         version_repo=version_repo,
+        doc_repo=doc_repo,
     )
     consumer.run()
