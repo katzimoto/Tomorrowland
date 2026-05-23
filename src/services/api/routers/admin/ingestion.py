@@ -163,9 +163,6 @@ def sync_now(
                             document_id=doc.id,
                             source_id=source_id,
                         )
-                        # Mark the DB job as succeeded so the old runner skips it;
-                        # the RabbitMQ pipeline handles processing from here.
-                        job_repo.mark_succeeded(job_id)
 
                     request.app.state.metrics.ingestion_documents_total.labels(
                         safe_label_value(connector_type), "success"

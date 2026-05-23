@@ -61,7 +61,7 @@ class IndexConsumer(BaseConsumer):
         self._es.index_document(str(document_id), body)
 
         self._job_repo.mark_running_stage(job_id, "indexed")
-        self._job_repo.mark_running_stage(job_id, "completed")
+        self._job_repo.mark_succeeded(job_id)
 
 
 def main() -> None:
