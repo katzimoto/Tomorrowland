@@ -2,6 +2,33 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-05-24 — BM25 search failures degrade gracefully (no 500)
+
+Status: Active
+Source: commit 4ec9bc5 on main; src/services/api/routers/search.py
+
+Decision:
+- Both the Meilisearch and Elasticsearch BM25 exception handlers log a warning and continue with `bm25_results=[]` — they do NOT re-raise.
+- Result: any transient BM25 backend failure produces vector-only results, not HTTP 500.
+- The 400 "input length exceeds" path in the encoder still raises ValueError (job-level error, not request-level).
+
+Impact:
+- Search view always loads for users even when Meilisearch or ES is temporarily unavailable.
+
+## 2026-05-24 — Embedding token estimation ratio lowered to 2.0
+
+Status: Active
+Source: commit 0347f1c on main; src/services/chunking/splitter.py, src/services/search/encoder.py
+
+Decision:
+- `_TOKEN_ESTIMATE_RATIO` in `splitter.py` changed from 4.0 to 2.0. Conservative for all scripts: Hebrew/Arabic/CJK can be 1–2 chars/token; the old 4.0 ratio let oversized chunks pass the `_ensure_max_tokens` gate and exceed Ollama's `num_ctx`.
+- `OllamaEmbeddingEncoder._embed_batch()` uses `chunk_text(text, max_tokens=self._max_tokens)` (not naive char split) as a last-resort safety net when a text still exceeds the limit at encode time. Sub-chunk vectors are mean-pooled back to one vector per input text.
+- `EMBEDDING_MAX_TOKENS` raised 1024→2048 in `.env` to match `nomic-embed-text`'s training context and give 2× headroom before truncation fires.
+
+Impact:
+- Ollama "input length exceeds the context length" errors eliminated for all supported scripts.
+- English chunks slightly smaller (up to 50%) but well within model context.
+
 ## 2026-05-24 — SearchResults wrapper for meili_provider.search()
 
 Status: Active
