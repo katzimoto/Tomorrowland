@@ -18,6 +18,7 @@ import json
 import logging
 import sys
 from datetime import datetime
+from typing import Any
 
 import pytest
 
@@ -50,10 +51,11 @@ def _make_record(
     return record
 
 
-def _format(record: logging.LogRecord) -> dict:  # type: ignore[type-arg]
+def _format(record: logging.LogRecord) -> dict[str, Any]:
     """Format a record with JsonFormatter and parse the result."""
     raw = JsonFormatter().format(record)
-    return json.loads(raw)
+    result: dict[str, Any] = json.loads(raw)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -242,10 +244,10 @@ def test_unlisted_extra_not_surfaced() -> None:
 def test_credential_extras_not_surfaced() -> None:
     payload = _format(
         _make_record(
-            password="hunter2",  # type: ignore[call-arg]
-            jwt="eyJhbGc...",  # type: ignore[call-arg]
-            token="secret-token",  # type: ignore[call-arg]
-            api_key="sk-1234",  # type: ignore[call-arg]
+            password="hunter2",
+            jwt="eyJhbGc...",
+            token="secret-token",
+            api_key="sk-1234",
         )
     )
     assert "password" not in payload
