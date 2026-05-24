@@ -1,24 +1,52 @@
+import { lazy, Suspense } from "react";
 import { createRouter, createRoute, createRootRoute, redirect } from "@tanstack/react-router";
 import { authStorage } from "@/api/auth";
-import { SignUpPage } from "@/features/auth/SignUpPage";
-import { LoginPage } from "@/features/auth/LoginPage";
-import { SearchPage } from "@/features/search/SearchPage";
-import { DocumentPage } from "@/features/documents/DocumentPage";
-import { ChatPage } from "@/features/chat/ChatPage";
-import { SubscriptionsPage } from "@/features/subscriptions/SubscriptionsPage";
-import { NotificationsPage } from "@/features/notifications/NotificationsPage";
-import { HistoryPage } from "@/features/history/HistoryPage";
-import { ExpertisePage } from "@/features/expertise/ExpertisePage";
-import { AdminHubPage } from "@/features/admin/AdminHubPage";
-import { AdminSourcesPage } from "@/features/admin/AdminSourcesPage";
-import { AdminSourceDetailPage } from "@/features/admin/AdminSourceDetailPage";
-import { AdminAddSourceWizard } from "@/features/admin/AdminAddSourceWizard";
-import { AdminEditSourcePage } from "@/features/admin/AdminEditSourcePage";
-import { AdminGroupsPage } from "@/features/admin/AdminGroupsPage";
-import { AdminGroupDetailPage } from "@/features/admin/AdminGroupDetailPage";
-import { AdminUsersPage } from "@/features/admin/AdminUsersPage";
-import { AdminUserDetailPage } from "@/features/admin/AdminUserDetailPage";
 import { AppLayout } from "./AppLayout";
+
+// --- Route-level code splitting ---
+// Auth pages sit outside AppLayout so they carry their own Suspense wrapper.
+// App pages render inside AppLayout whose <Outlet> is already wrapped in Suspense.
+
+const LazyLoginPage    = lazy(() => import("@/features/auth/LoginPage").then(m => ({ default: m.LoginPage })));
+const LazySignUpPage   = lazy(() => import("@/features/auth/SignUpPage").then(m => ({ default: m.SignUpPage })));
+const LazySearchPage   = lazy(() => import("@/features/search/SearchPage").then(m => ({ default: m.SearchPage })));
+const LazyDocumentPage = lazy(() => import("@/features/documents/DocumentPage").then(m => ({ default: m.DocumentPage })));
+const LazyChatPage     = lazy(() => import("@/features/chat/ChatPage").then(m => ({ default: m.ChatPage })));
+const LazySubscriptionsPage   = lazy(() => import("@/features/subscriptions/SubscriptionsPage").then(m => ({ default: m.SubscriptionsPage })));
+const LazyNotificationsPage   = lazy(() => import("@/features/notifications/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
+const LazyHistoryPage  = lazy(() => import("@/features/history/HistoryPage").then(m => ({ default: m.HistoryPage })));
+const LazyExpertisePage = lazy(() => import("@/features/expertise/ExpertisePage").then(m => ({ default: m.ExpertisePage })));
+const LazyAdminHubPage         = lazy(() => import("@/features/admin/AdminHubPage").then(m => ({ default: m.AdminHubPage })));
+const LazyAdminSourcesPage     = lazy(() => import("@/features/admin/AdminSourcesPage").then(m => ({ default: m.AdminSourcesPage })));
+const LazyAdminSourceDetailPage = lazy(() => import("@/features/admin/AdminSourceDetailPage").then(m => ({ default: m.AdminSourceDetailPage })));
+const LazyAdminAddSourceWizard  = lazy(() => import("@/features/admin/AdminAddSourceWizard").then(m => ({ default: m.AdminAddSourceWizard })));
+const LazyAdminEditSourcePage   = lazy(() => import("@/features/admin/AdminEditSourcePage").then(m => ({ default: m.AdminEditSourcePage })));
+const LazyAdminGroupsPage       = lazy(() => import("@/features/admin/AdminGroupsPage").then(m => ({ default: m.AdminGroupsPage })));
+const LazyAdminGroupDetailPage  = lazy(() => import("@/features/admin/AdminGroupDetailPage").then(m => ({ default: m.AdminGroupDetailPage })));
+const LazyAdminUsersPage        = lazy(() => import("@/features/admin/AdminUsersPage").then(m => ({ default: m.AdminUsersPage })));
+const LazyAdminUserDetailPage   = lazy(() => import("@/features/admin/AdminUserDetailPage").then(m => ({ default: m.AdminUserDetailPage })));
+
+// Auth pages need their own Suspense boundary (no AppLayout shell above them).
+function LoginPage()  { return <Suspense fallback={null}><LazyLoginPage /></Suspense>; }
+function SignUpPage() { return <Suspense fallback={null}><LazySignUpPage /></Suspense>; }
+
+// App pages delegate to AppLayout's Suspense-wrapped Outlet.
+const SearchPage            = LazySearchPage;
+const DocumentPage          = LazyDocumentPage;
+const ChatPage              = LazyChatPage;
+const SubscriptionsPage     = LazySubscriptionsPage;
+const NotificationsPage     = LazyNotificationsPage;
+const HistoryPage           = LazyHistoryPage;
+const ExpertisePage         = LazyExpertisePage;
+const AdminHubPage          = LazyAdminHubPage;
+const AdminSourcesPage      = LazyAdminSourcesPage;
+const AdminSourceDetailPage = LazyAdminSourceDetailPage;
+const AdminAddSourceWizard  = LazyAdminAddSourceWizard;
+const AdminEditSourcePage   = LazyAdminEditSourcePage;
+const AdminGroupsPage       = LazyAdminGroupsPage;
+const AdminGroupDetailPage  = LazyAdminGroupDetailPage;
+const AdminUsersPage        = LazyAdminUsersPage;
+const AdminUserDetailPage   = LazyAdminUserDetailPage;
 
 function requireAuth() {
   if (!authStorage.hasToken()) {

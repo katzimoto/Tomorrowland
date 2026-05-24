@@ -77,6 +77,35 @@ class TestOllamaEmbeddingEncoder:
             encoder.encode("hello")
 
     @patch("services.search.encoder.httpx.post")
+    def test_embed_sends_num_ctx_when_max_tokens_set(self, mock_post: MagicMock) -> None:
+        """num_ctx must be pinned in options to override Modelfile defaults.
+
+        nomic-embed-text ships with PARAMETER num_ctx 8192 in its Ollama
+        Modelfile, but n_ctx_train=2048. Without an explicit options.num_ctx
+        at request level, Ollama logs a warning and wastes KV-cache memory.
+        """
+        mock_post.return_value = self._response({"embeddings": [[0.1, 0.2]]})
+
+        encoder = OllamaEmbeddingEncoder(
+            "http://ollama:11434", model="nomic-embed-text", max_tokens=1024
+        )
+        encoder.encode("hello")
+
+        _, kwargs = mock_post.call_args
+        assert kwargs["json"].get("options", {}).get("num_ctx") == 1024
+
+    @patch("services.search.encoder.httpx.post")
+    def test_embed_omits_options_when_max_tokens_not_set(self, mock_post: MagicMock) -> None:
+        """When no max_tokens is configured, options should not be injected."""
+        mock_post.return_value = self._response({"embeddings": [[0.1, 0.2]]})
+
+        encoder = OllamaEmbeddingEncoder("http://ollama:11434")
+        encoder.encode("hello")
+
+        _, kwargs = mock_post.call_args
+        assert "options" not in kwargs["json"]
+
+    @patch("services.search.encoder.httpx.post")
     def test_encode_raises_on_http_error(self, mock_post: MagicMock) -> None:
         mock_post.return_value = self._response({}, status_code=500)
         mock_post.return_value.raise_for_status.side_effect = httpx.HTTPStatusError(

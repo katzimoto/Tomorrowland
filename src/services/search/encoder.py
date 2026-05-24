@@ -142,6 +142,12 @@ class OllamaEmbeddingEncoder:
             "model": self._model,
             "input": texts,
         }
+        # Pin num_ctx at request level so it overrides the Modelfile default.
+        # nomic-embed-text ships with PARAMETER num_ctx 8192 in its Modelfile,
+        # but n_ctx_train=2048 — loading with 8192 wastes memory and logs a
+        # warning.  Request-level options take the highest precedence in Ollama.
+        if self._max_tokens is not None:
+            payload["options"] = {"num_ctx": self._max_tokens}
         logger.debug(
             "Ollama embed model=%s batch_size=%d",
             self._model,

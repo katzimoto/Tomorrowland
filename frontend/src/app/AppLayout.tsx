@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { Outlet } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser } from "@/api/auth";
@@ -66,7 +66,9 @@ export function AppLayout() {
       userEmail={user?.email ?? null}
     >
       <CommandMenu />
-      <Outlet />
+      <Suspense fallback={null}>
+        <Outlet />
+      </Suspense>
     </AppShell>
   );
 }
