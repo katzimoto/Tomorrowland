@@ -2,6 +2,36 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-25 — Ollama split + model routing
+
+Status: Active
+Source: Claude Code session; branch `infra/split-ollama-containers`; commits d5b5893 + 1920be2
+
+What changed:
+- `docker/ollama-llm.Dockerfile` — new; pulls OLLAMA_MODEL + optional OLLAMA_UTILITY_MODEL/OLLAMA_RERANKER_MODEL
+- `docker/ollama-embed.Dockerfile` — new; pulls EMBEDDING_MODEL only
+- `docker-compose.yml` — removed `ollama`; added `ollama-llm` + `ollama-embed` with correct worker `depends_on` and dedicated volumes
+- `src/shared/config.py` — `ollama_utility_model`, `ollama_reranker_model`, `effective_utility_model`, `effective_reranker_model`
+- `src/services/intelligence/worker.py` — `utility_model` param; map/tag/key-points → utility; reduce/entities → main
+- `src/services/chat/message_service.py` — `rewrite_query()` accepts `model=` override
+- `src/services/rag/reranker.py` — `CrossEncoderReranker` accepts `model=` override
+- `src/services/api/routers/chat.py` — both endpoints wire utility → rewrite, reranker model → CrossEncoderReranker
+- `intelligence_consumer`, `runner`, `slow_worker`, `admin/intelligence` — pass `utility_model`
+- `.env.example` + `.env.airgap.example` — updated hostnames, EMBEDDING_URL, new vars, volume names
+- `tests/unit/test_model_routing.py` — 17 new tests
+
+Verification:
+- 17/17 new routing tests pass; 49/49 existing (reranker, ollama client, intelligence repo, chat service) pass
+- Branch pushed; PR open at github.com/katzimoto/Tomorrowland/pull/new/infra/split-ollama-containers
+
+Open risks:
+- `_map_sort()` camelCase bug (`updated_at:desc` vs `updatedAt:desc`) still unresolved — separate fix needed
+- Operator must `docker compose build ollama-llm ollama-embed` before `up -d`; existing `ollama_data` volume not migrated automatically
+
+Next agent prompt:
+- Merge PR on `infra/split-ollama-containers` once CI passes.
+- Fix `_map_sort()` camelCase mismatch in `src/services/api/routers/search.py` (date sort silently broken).
+
 ## 2026-05-25 — Search results not rendering — active bug investigation
 
 Status: Watch
