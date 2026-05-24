@@ -20,6 +20,29 @@ beforeEach(() => {
   mocks.updateAnnotation.mockResolvedValue({ id: "a1" });
 });
 
+test("Enter submits a new annotation", async () => {
+  const user = userEvent.setup();
+  render(<AnnotationEditor docId="d1" />);
+  await user.type(screen.getByLabelText("New annotation"), "quick note");
+  await user.keyboard("{Enter}");
+  await waitFor(() =>
+    expect(mocks.createAnnotation).toHaveBeenCalledWith("d1", {
+      body: "quick note",
+      shared: false,
+      position: null,
+    })
+  );
+});
+
+test("Shift+Enter inserts a newline instead of submitting in annotation editor", async () => {
+  const user = userEvent.setup();
+  render(<AnnotationEditor docId="d1" />);
+  await user.type(screen.getByLabelText("New annotation"), "line one");
+  await user.keyboard("{Shift>}{Enter}{/Shift}");
+  expect(screen.getByLabelText("New annotation")).toHaveValue("line one\n");
+  expect(mocks.createAnnotation).not.toHaveBeenCalled();
+});
+
 test("supports shared annotation toggle", async () => {
   const user = userEvent.setup();
   render(<AnnotationEditor docId="d1" />);

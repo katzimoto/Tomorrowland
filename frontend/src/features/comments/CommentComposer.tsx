@@ -57,7 +57,14 @@ export function CommentComposer({ docId }: CommentComposerProps) {
         value={body}
         onChange={(event) => setBody(event.target.value)}
         placeholder="Share context with readers…"
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            if (body.trim()) mutation.mutate(body.trim());
+          }
+        }}
       />
+      <p className={styles.hint}>Enter to submit · Shift+Enter for new line</p>
       <div className={styles.actions}>
         <Button
           type="submit"

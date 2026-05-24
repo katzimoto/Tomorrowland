@@ -101,10 +101,12 @@ export function AnnotationEditor({
       void queryClient.invalidateQueries({ queryKey: ["annotations", docId] }),
   });
 
+  const onSubmit = handleSubmit((values) => mutation.mutate(values));
+
   return (
     <form
       className={styles.form}
-      onSubmit={handleSubmit((values) => mutation.mutate(values))}
+      onSubmit={onSubmit}
     >
       <label htmlFor={`annotation-body-${annotation?.id ?? "new"}`}>
         {annotation ? "Edit annotation" : "New annotation"}
@@ -113,7 +115,14 @@ export function AnnotationEditor({
         id={`annotation-body-${annotation?.id ?? "new"}`}
         className={styles.textarea}
         {...register("body")}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            void onSubmit();
+          }
+        }}
       />
+      <p className={styles.hint}>Enter to submit · Shift+Enter for new line</p>
       {errors.body && (
         <span role="alert" className={styles.muted}>
           {errors.body.message}
