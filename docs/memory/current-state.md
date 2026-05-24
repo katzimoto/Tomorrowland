@@ -16,6 +16,7 @@ Finding:
 Impact:
 - Download works for documents with non-ASCII filenames (e.g. accented characters, CJK).
 - Title translation is a missing feature, not a bug.
+- `npm run build` passes cleanly (vite v8, 1986 modules, 861ms). No errors — only chunk-size advisory warning.
 
 Next action:
 - Consider adding title translation to the pipeline: pass `title` in translate message, store `translated_title` on documents table, display in translation view mode.
