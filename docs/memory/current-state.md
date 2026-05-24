@@ -2,6 +2,24 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-24 — Download 500 on non-ASCII filenames + three user-facing issues
+
+Status: Done
+Source: OpenCode session (chat summary)
+
+Finding:
+- **Download 500**: `UnicodeEncodeError: 'latin-1' codec can't encode characters` when `doc.path` contains non-ASCII characters. Content-Disposition headers used raw `filename="{name}"` which fails because HTTP headers must be latin-1 encodable. Fixed all 3 occurrences in `documents.py` with `_content_disposition()` helper that uses RFC 5987 `filename*=UTF-8''<url-encoded>` + ASCII `filename=` fallback.
+- **"original shows translated version"**: Not a code bug — both `content_text` and `translated_text` contain the same value when translation silently returns the original text (LibreTranslate unavailable or returns same text). The frontend Original/Translation tabs both show the same text.
+- **"translated version doesnt translate the name"**: The pipeline only translates `content_text`, never `doc.title`. Title translation is not implemented — would require adding title to the translation message and storing a translated title field.
+- Same vault.py pattern (`filename="vault-{group_id}.zip"`) is safe because `group_id` is always ASCII (UUID).
+
+Impact:
+- Download works for documents with non-ASCII filenames (e.g. accented characters, CJK).
+- Title translation is a missing feature, not a bug.
+
+Next action:
+- Consider adding title translation to the pipeline: pass `title` in translate message, store `translated_title` on documents table, display in translation view mode.
+
 ## 2026-05-24 — TranslateConsumer fixes + frontend stage view separation
 
 Status: Done
