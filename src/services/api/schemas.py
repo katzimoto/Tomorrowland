@@ -42,6 +42,7 @@ class SearchResponse(BaseModel):
     results: list[SearchResultItem]
     total: int
     query: str = ""
+    facets: dict[str, dict[str, int]] = Field(default_factory=dict)
 
 
 class PreviewResponse(BaseModel):

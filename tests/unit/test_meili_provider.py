@@ -174,7 +174,7 @@ def test_search_short_circuits_for_groupless_user() -> None:
     response = provider.search(_query(), _no_group_user())
 
     client.index().search.assert_not_called()
-    assert len(response) == 0
+    assert len(response.results) == 0
 
 
 def test_search_queries_meilisearch_for_admin() -> None:
@@ -249,10 +249,10 @@ def test_search_maps_hits_to_results() -> None:
         "processingTimeMs": 5,
     }
     response = provider.search(_query(), _admin())
-    assert len(response) == 1
-    assert response[0].document_id == "doc1"
-    assert response[0].title == "My Doc"
-    assert response[0].score == pytest.approx(0.9)
+    assert len(response.results) == 1
+    assert response.results[0].document_id == "doc1"
+    assert response.results[0].title == "My Doc"
+    assert response.results[0].score == pytest.approx(0.9)
 
 
 # ---------------------------------------------------------------------------
