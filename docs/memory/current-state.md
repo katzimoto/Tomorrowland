@@ -2,6 +2,25 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-25 — Search 504 + embed-worker RabbitMQ disconnect (partially resolved)
+
+Status: Watch
+Source: Claude Code debugging session; PR #517
+
+Finding:
+- **Search 504 (root cause confirmed):** `.env` sets `EMBEDDING_URL=http://ollama-embed:11434` and `OLLAMA_URL=http://ollama-llm:11434` (from Ollama split work), but `ollama-embed` container was not healthy. Every search request calls `OllamaEmbeddingEncoder.encode()` → hangs on unreachable `ollama-embed` → proxy times out → **504**. Frontend gets `isError=true`, shows "Search unavailable" empty state. Backend logs show results assembled correctly before the timeout.
+- **embed-worker disconnect:** `ConnectionResetError(104, 'Connection reset by peer')` in `embed-worker-1` pika connection — caused by broker resetting connections during compose restart. `BaseConsumer.run()` had no reconnection loop; worker exited and Docker restarted it. **Fixed in PR #517** (reconnect loop with exponential backoff, no worker process exit on connection drop).
+- **Secondary bug (unresolved):** `_map_sort()` in `src/services/api/routers/search.py` builds `"updated_at:desc"` but the valid-labels set has `"updatedAt:desc"` — all non-relevance sort requests silently fall back to relevance.
+
+Impact:
+- Search is broken while `ollama-embed` is not healthy.
+- Sort by date silently broken.
+
+Next action:
+- Bring up `ollama-embed`: `docker compose up -d ollama-embed` and wait for healthy status.
+- Fix `_map_sort` camelCase mismatch (small isolated fix, no tests needed beyond type check).
+- Merge PR #517 once CI passes.
+
 ## 2026-05-24 — D2 MEDIUM ACL hardening (#400 Groups 1-3 final work)
 
 Status: Done — commit ad7ff71 on `claude/funny-faraday-bLPiI`, pushed; PR pending
