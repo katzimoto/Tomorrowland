@@ -57,7 +57,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 addopts = "-m 'not e2e' --strict-markers --cov=src --cov-branch --cov-report=term-missing --cov-fail-under=90"
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 markers = [
     "e2e: tests that require live Docker services (RabbitMQ, etc.)",
 ]
