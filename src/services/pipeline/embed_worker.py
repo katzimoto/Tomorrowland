@@ -43,14 +43,12 @@ class EmbedConsumer(BaseConsumer):
         source_id: UUID,
         attempt: int,
         correlation_id: str,
+        content_text: str = "",
+        translated_text: str = "",
     ) -> None:
         doc = self._doc_repo.get_by_id(document_id)
         if doc is None:
             raise ValueError(f"Document {document_id} not found")
-
-        payload = self._job_repo.get_payload(document_id)
-        content_text = (payload.get("content_text", "") if payload else None) or ""
-        translated_text = (payload.get("translated_text", "") if payload else None) or ""
 
         allowed_group_ids = [str(gid) for gid in self._doc_repo.source_group_ids(source_id)]
 
@@ -100,8 +98,14 @@ class EmbedConsumer(BaseConsumer):
             self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
 
         self._job_repo.mark_running_stage(job_id, "embedded")
+        self._job_repo.commit()
         self._publisher.publish_index(
-            job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
+            job_id=job_id,
+            document_id=document_id,
+            source_id=source_id,
+            attempt=attempt,
+            content_text=content_text,
+            translated_text=translated_text,
         )
 
 

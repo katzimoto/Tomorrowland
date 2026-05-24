@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -13,6 +14,8 @@ from services.pipeline.publisher import DocumentPublisher
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.meili_types import ChunkMetadata, SearchChunkRecord
+
+logger = logging.getLogger(__name__)
 
 
 class IndexConsumer(BaseConsumer):
@@ -44,19 +47,21 @@ class IndexConsumer(BaseConsumer):
         source_id: UUID,
         attempt: int,
         correlation_id: str,
+        content_text: str = "",
+        translated_text: str = "",
     ) -> None:
         doc = self._doc_repo.get_by_id(document_id)
         if doc is None:
             raise ValueError(f"Document {document_id} not found")
 
-        payload = self._job_repo.get_payload(document_id)
-        content_text = (payload.get("content_text", "") if payload else None) or ""
-        translated_text = (
-            payload.get("translated_text", "") if payload else None
-        ) or ""
-        allowed_group_ids = [
-            str(gid) for gid in self._doc_repo.source_group_ids(source_id)
-        ]
+        logger.debug(
+            "indexing document_id=%s content_text_len=%d translated_text_len=%d meili_enabled=%s",
+            document_id,
+            len(content_text),
+            len(translated_text),
+            self._meili is not None,
+        )
+        allowed_group_ids = [str(gid) for gid in self._doc_repo.source_group_ids(source_id)]
 
         body: dict[str, Any] = {
             "document_id": str(document_id),
@@ -75,11 +80,20 @@ class IndexConsumer(BaseConsumer):
         self._es.index_document(str(document_id), body)
 
         if self._meili is not None and content_text:
-            self._index_meili(
-                document_id, doc, content_text, translated_text, allowed_group_ids
+            self._index_meili(document_id, doc, content_text, translated_text, allowed_group_ids)
+            logger.debug(
+                "meilisearch indexed document_id=%s chunks=%d",
+                document_id,
+                len(content_text),
             )
+        elif self._meili is None:
+            logger.debug("meilisearch disabled for document_id=%s", document_id)
+        elif not content_text:
+            logger.debug("meilisearch skipped: empty content_text for document_id=%s", document_id)
 
         self._job_repo.mark_running_stage(job_id, "indexed")
+        self._doc_repo.update_indexed(document_id, "indexed", doc.translation_quality)
+        self._job_repo.commit()
         self._publisher.publish_intelligence(
             job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
         )
@@ -118,11 +132,7 @@ class IndexConsumer(BaseConsumer):
             else []
         )
 
-        pair_count = (
-            min(len(original_chunks), len(translated_chunks))
-            if translated_chunks
-            else 0
-        )
+        pair_count = min(len(original_chunks), len(translated_chunks)) if translated_chunks else 0
         records: list[SearchChunkRecord] = []
 
         for idx in range(pair_count):

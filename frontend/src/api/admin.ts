@@ -75,6 +75,7 @@ export interface PipelineJob {
   max_attempts: number;
   stage: string | null;
   last_error: string | null;
+  rabbit_message_id: string | null;
   created_at: string | null;
   updated_at: string | null;
 }

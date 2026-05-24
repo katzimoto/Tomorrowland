@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from services.extraction.base import Extractor
@@ -19,6 +20,8 @@ from services.extraction.tar_extractor import TarExtractor
 from services.extraction.xlsx import XlsxExtractor
 from services.extraction.xml_extractor import XmlExtractor
 from services.extraction.zip_extractor import ZipExtractor
+
+logger = logging.getLogger(__name__)
 
 _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 _PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -56,6 +59,8 @@ class ExtractorRegistry:
             "application/x-zip-compressed": ZipExtractor(),
             "application/x-tar": TarExtractor(),
             "application/gzip": TarExtractor(),
+            # Fallback for unrecognised binary / extensionless files
+            "application/octet-stream": PlainExtractor(),
         }
 
     def register(self, mime_type: str, extractor: Extractor) -> None:
@@ -74,5 +79,14 @@ class ExtractorRegistry:
         """
         extractor = self.get(mime_type)
         if extractor is None:
+            logger.debug("no extractor for mime_type=%s path=%s", mime_type, path)
             return ""
-        return extractor.extract(path)
+        result = extractor.extract(path)
+        if not result:
+            logger.debug(
+                "extraction returned empty mime_type=%s path=%s exists=%s",
+                mime_type,
+                path,
+                path.exists(),
+            )
+        return result

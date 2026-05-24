@@ -32,6 +32,8 @@ class AlertConsumer(BaseConsumer):
         source_id: UUID,
         attempt: int,
         correlation_id: str,
+        content_text: str = "",
+        translated_text: str = "",
     ) -> None:
         doc = self._doc_repo.get_by_id(document_id)
         if doc is None:

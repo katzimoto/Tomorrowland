@@ -45,6 +45,7 @@ class DocumentPublisher:
         source_id: UUID,
         attempt: int = 1,
         content_text: str | None = None,
+        message_id: str | None = None,
     ) -> None:
         self._publish(
             "parse",
@@ -53,6 +54,7 @@ class DocumentPublisher:
             source_id=source_id,
             attempt=attempt,
             extra={"content_text": content_text} if content_text else {},
+            message_id=message_id,
         )
 
     def publish_translate(
@@ -62,6 +64,7 @@ class DocumentPublisher:
         document_id: UUID,
         source_id: UUID,
         attempt: int = 1,
+        content_text: str | None = None,
     ) -> None:
         self._publish(
             "translate",
@@ -69,6 +72,7 @@ class DocumentPublisher:
             document_id=document_id,
             source_id=source_id,
             attempt=attempt,
+            extra={"content_text": content_text} if content_text else {},
         )
 
     def publish_embed(
@@ -78,13 +82,21 @@ class DocumentPublisher:
         document_id: UUID,
         source_id: UUID,
         attempt: int = 1,
+        content_text: str | None = None,
+        translated_text: str | None = None,
     ) -> None:
+        extra: dict[str, str] = {}
+        if content_text:
+            extra["content_text"] = content_text
+        if translated_text:
+            extra["translated_text"] = translated_text
         self._publish(
             "embed",
             job_id=job_id,
             document_id=document_id,
             source_id=source_id,
             attempt=attempt,
+            extra=extra or None,
         )
 
     def publish_index(
@@ -94,13 +106,21 @@ class DocumentPublisher:
         document_id: UUID,
         source_id: UUID,
         attempt: int = 1,
+        content_text: str | None = None,
+        translated_text: str | None = None,
     ) -> None:
+        extra: dict[str, str] = {}
+        if content_text:
+            extra["content_text"] = content_text
+        if translated_text:
+            extra["translated_text"] = translated_text
         self._publish(
             "index",
             job_id=job_id,
             document_id=document_id,
             source_id=source_id,
             attempt=attempt,
+            extra=extra or None,
         )
 
     def publish_intelligence(
@@ -160,6 +180,7 @@ class DocumentPublisher:
         source_id: UUID,
         attempt: int,
         extra: dict[str, str] | None = None,
+        message_id: str | None = None,
     ) -> None:
         routing_key = _ROUTING_KEYS[stage]
         body: dict[str, str | int] = {
@@ -171,9 +192,12 @@ class DocumentPublisher:
         }
         if extra:
             body.update(extra)
-        message_id = self._rabbit.publish(routing_key, body)
-        if message_id:
-            self._job_repo.set_rabbit_message_id(job_id, message_id)
+        if message_id is not None:
+            mid = self._rabbit.publish_with_id(routing_key, body, message_id)
+        else:
+            mid = self._rabbit.publish(routing_key, body)
+        if mid:
+            self._job_repo.set_rabbit_message_id(job_id, mid)
         else:
             logger.warning(
                 "publish skipped (disabled or no channel): stage=%s job_id=%s",
@@ -184,5 +208,5 @@ class DocumentPublisher:
             "published stage=%s job_id=%s message_id=%s",
             stage,
             job_id,
-            message_id or "disabled",
+            mid or "disabled",
         )

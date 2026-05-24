@@ -1,4 +1,5 @@
 """Enrich stage consumer — high-quality translation for frequently viewed documents."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -29,19 +30,22 @@ class EnrichConsumer(BaseConsumer):
         source_id: UUID,
         attempt: int,
         correlation_id: str,
+        content_text: str = "",
+        translated_text: str = "",
     ) -> None:
-        payload = self._job_repo.get_payload(document_id)
-        content_text = (payload.get("content_text", "") if payload else None) or ""
-        if not content_text:
+        text = content_text
+        if not text:
+            payload = self._job_repo.get_payload(document_id)
+            text = (payload.get("content_text", "") if payload else None) or ""
+        else:
+            payload = self._job_repo.get_payload(document_id)
+        if not text:
             return
 
         lang = payload.get("source_language") if payload else None
         if lang == "":
             lang = None
-        translated = (
-            self._translator.translate(content_text, source_lang=lang, target_lang="en")
-            or content_text
-        )
+        translated = self._translator.translate(text, source_lang=lang, target_lang="en") or text
         self._job_repo.update_translated_text(document_id, translated)
         self._job_repo.mark_running_stage(job_id, "enriched")
 

@@ -158,6 +158,121 @@ function SourceDocumentsSection({ sourceId }: { sourceId: string }) {
   );
 }
 
+const _STAGE_ORDER: Record<string, number> = {
+  pending: 0,
+  parsed: 1,
+  translated: 2,
+  embedded: 3,
+  indexed: 4,
+};
+
+function pipelineProgress(doc: SourceDocument): {
+  pct: number;
+  stage: string;
+  isDone: boolean;
+  hasFailed: boolean;
+} {
+  const processJob = doc.jobs.find((j) => j.job_type === "process_document");
+  if (!processJob) {
+    const total = doc.total_jobs;
+    const succeeded = doc.succeeded_jobs;
+    return {
+      pct: total > 0 ? Math.round((succeeded / total) * 100) : 0,
+      stage: doc.status,
+      isDone: total > 0 && succeeded === total,
+      hasFailed: doc.failed_jobs > 0,
+    };
+  }
+  if (processJob.status === "succeeded" || processJob.status === "dead_letter") {
+    const isDone = processJob.status === "succeeded";
+    return {
+      pct: isDone ? 100 : 0,
+      stage: processJob.stage || processJob.status,
+      isDone,
+      hasFailed: !isDone,
+    };
+  }
+  const stageIdx = _STAGE_ORDER[processJob.stage ?? ""] ?? 0;
+  const totalStages = Object.keys(_STAGE_ORDER).length;
+  return {
+    pct: Math.round((stageIdx / totalStages) * 100),
+    stage: processJob.stage || "pending",
+    isDone: false,
+    hasFailed: false,
+  };
+}
+
+interface _PipelineStageRow {
+  step: number;
+  label: string;
+  status: string;
+  badge: "success" | "warning" | "neutral" | "danger";
+  detail: string | null;
+  rabbitMessageId: string | null;
+  error: string | null;
+}
+
+function _pipelineStages(doc: SourceDocument): _PipelineStageRow[] {
+  const processJob = doc.jobs.find((j) => j.job_type === "process_document");
+  if (!processJob) return [];
+
+  const currentStage = processJob.stage ?? "";
+  const currentIdx = _STAGE_ORDER[currentStage] ?? 0;
+  const stages: _PipelineStageRow[] = [];
+
+  const stageDefs: { label: string; key: string }[] = [
+    { key: "parsed", label: "Parse" },
+    { key: "translated", label: "Translate" },
+    { key: "embedded", label: "Embed" },
+    { key: "indexed", label: "Index" },
+  ];
+
+  stageDefs.forEach((sd, idx) => {
+    const stageIdx = _STAGE_ORDER[sd.key] ?? 0;
+    const isPast = stageIdx < currentIdx;
+    const isCurrent = stageIdx === currentIdx;
+    const isFailed =
+      processJob.status === "dead_letter" && isCurrent;
+
+    stages.push({
+      step: idx + 1,
+      label: sd.label,
+      status: isFailed
+        ? "failed"
+        : isPast
+          ? "done"
+          : isCurrent
+            ? "processing"
+            : "waiting",
+      badge: isFailed
+        ? "danger"
+        : isPast || processJob.status === "succeeded"
+          ? "success"
+          : isCurrent
+            ? "warning"
+            : "neutral",
+      detail: isCurrent ? processJob.stage : null,
+      rabbitMessageId: isPast || (isCurrent && processJob.rabbit_message_id)
+        ? processJob.rabbit_message_id || "\u2713"
+        : null,
+      error: isFailed ? processJob.last_error : null,
+    });
+  });
+
+  return stages;
+}
+
+function stageLabel(stage: string): string {
+  const labels: Record<string, string> = {
+    pending: "Pending",
+    parsed: "Parsed",
+    translated: "Translated",
+    embedded: "Embedded",
+    indexed: "Indexed",
+  };
+  return labels[stage] || stage;
+}
+
 function DocumentRow({
   doc,
   expanded,
@@ -171,14 +286,13 @@ function DocumentRow({
   onRequeue: () => void;
   onDelete: () => void;
 }) {
-  const total = doc.total_jobs;
-  const succeeded = doc.succeeded_jobs;
-  const pct = total > 0 ? Math.round((succeeded / total) * 100) : 0;
-  const hasFailed = doc.failed_jobs > 0;
-  const hasPending = doc.pending_jobs > 0;
-  const isDone = total > 0 && succeeded === total;
+  const progress = pipelineProgress(doc);
+  const pct = progress.pct;
+  const isDone = progress.isDone;
+  const hasFailed = progress.hasFailed;
+  const hasPending = !isDone && !hasFailed;
 
-  const barColor = hasFailed && succeeded === 0
+  const barColor = hasFailed
     ? "var(--color-danger)"
     : isDone
       ? "var(--color-success)"
@@ -218,13 +332,13 @@ function DocumentRow({
               }} />
             </div>
             <span style={{ fontSize: 12, color: "var(--color-text-secondary)", minWidth: 32 }}>
-              {total > 0 ? `${pct}%` : "—"}
+              {doc.total_jobs > 0 ? `${pct}%` : "—"}
             </span>
           </div>
         </td>
         <td>
-          <Badge variant={hasFailed && succeeded === 0 ? "danger" : isDone ? "success" : hasPending ? "warning" : "neutral"}>
-            {isDone ? "Complete" : hasPending ? `${succeeded}/${total}` : hasFailed ? "Failed" : doc.status}
+          <Badge variant={hasFailed ? "danger" : isDone ? "success" : hasPending ? "warning" : "neutral"}>
+            {isDone ? "Complete" : hasFailed ? "Failed" : stageLabel(progress.stage)}
           </Badge>
           <Button size="sm" variant="secondary" title="Requeue failed jobs" onClick={(e) => { e.stopPropagation(); onRequeue(); }}>
             Rerun
@@ -245,21 +359,43 @@ function DocumentRow({
                 <thead>
                   <tr>
                     <th style={{ width: 30 }}>#</th>
-                    <th style={{ width: "12%" }}>Stage</th>
-                    <th style={{ width: "12%" }}>Status</th>
+                    <th style={{ width: "10%" }}>Stage</th>
+                    <th style={{ width: "10%" }}>Status</th>
                     <th style={{ width: 48 }}>Try</th>
-                    <th style={{ width: "14%" }}>Phase</th>
+                    <th style={{ width: "10%" }}>Phase</th>
                     <th style={{ width: 64 }}>Duration</th>
+                    <th style={{ width: 80 }}>RabbitMQ</th>
                     <th>Error</th>
                   </tr>
                 </thead>
                 <tbody>
                   {doc.jobs.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className={styles.mutedMeta}>
+                      <td colSpan={8} className={styles.mutedMeta}>
                         No pipeline jobs yet.
                       </td>
                     </tr>
+                  ) : doc.jobs.some((j) => j.job_type === "process_document") ? (
+                    _pipelineStages(doc).map((s) => (
+                      <tr key={s.label}>
+                        <td style={{ color: "var(--color-text-secondary)", fontSize: 12 }}>
+                          {s.step}
+                        </td>
+                        <td>{s.label}</td>
+                        <td>
+                          <Badge variant={s.badge}>{s.status}</Badge>
+                        </td>
+                        <td style={{ textAlign: "center" }} colSpan={3}>
+                          {s.detail || "—"}
+                        </td>
+                        <td style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
+                          {s.rabbitMessageId ? "\u2713" : "—"}
+                        </td>
+                        <td className={styles.error} style={{ fontSize: 12, maxWidth: 280 }}>
+                          {s.error || "—"}
+                        </td>
+                      </tr>
+                    ))
                   ) : (
                     [...doc.jobs]
                       .sort((a, b) => jobStep(a.job_type) - jobStep(b.job_type))
@@ -281,7 +417,10 @@ function DocumentRow({
                           <td style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
                             {durationMs(job.created_at, job.status === "succeeded" || job.status === "dead_letter" ? job.updated_at : null) || "—"}
                           </td>
-                          <td className={styles.error} style={{ fontSize: 12, maxWidth: 320 }}>
+                          <td style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
+                            {job.rabbit_message_id ? "\u2713" : "—"}
+                          </td>
+                          <td className={styles.error} style={{ fontSize: 12, maxWidth: 280 }}>
                             {job.last_error || "—"}
                           </td>
                         </tr>

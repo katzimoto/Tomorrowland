@@ -441,7 +441,8 @@ def admin_get_source_documents(
             job_rows = connection.execute(
                 sa.text("""
                     SELECT id, document_id, job_type, status, attempts,
-                           max_attempts, stage, last_error, created_at, updated_at
+                           max_attempts, stage, last_error,
+                           rabbit_message_id, created_at, updated_at
                     FROM pipeline_jobs
                     WHERE document_id = ANY(:doc_ids)
                     ORDER BY created_at ASC
@@ -461,6 +462,7 @@ def admin_get_source_documents(
                         "max_attempts": jr["max_attempts"],
                         "stage": jr["stage"],
                         "last_error": jr["last_error"],
+                        "rabbit_message_id": jr["rabbit_message_id"],
                         "created_at": _fmt_dt(jr["created_at"]),
                         "updated_at": _fmt_dt(jr["updated_at"]),
                     }

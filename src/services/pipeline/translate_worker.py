@@ -1,6 +1,8 @@
 """Translate stage consumer — translates extracted text and publishes embed."""
+
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -9,6 +11,8 @@ from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
 from services.translation.client import LibreTranslateClient
+
+logger = logging.getLogger(__name__)
 
 
 class TranslateConsumer(BaseConsumer):
@@ -38,41 +42,46 @@ class TranslateConsumer(BaseConsumer):
         source_id: UUID,
         attempt: int,
         correlation_id: str,
+        content_text: str = "",
+        translated_text: str = "",
     ) -> None:
-        payload = self._job_repo.get_payload(document_id)
-        content_text = (payload.get("content_text", "") if payload else None) or ""
         if not content_text:
+            logger.debug("translate skipped: empty content_text for document_id=%s", document_id)
             self._publisher.publish_embed(
                 job_id=job_id,
                 document_id=document_id,
                 source_id=source_id,
                 attempt=attempt,
+                content_text=content_text,
             )
             return
 
-        translated_text = content_text
+        payload = self._job_repo.get_payload(document_id)
+        translated = content_text
         if self._translator:
             lang = payload.get("source_language") if payload else None
             if lang == "":
                 lang = None
-            translated_text = (
+            translated = (
                 self._translator.translate(content_text, source_lang=lang, target_lang="en")
                 or content_text
             )
 
-        self._job_repo.update_translated_text(document_id, translated_text)
+        self._job_repo.update_translated_text(document_id, translated)
         self._job_repo.mark_running_stage(job_id, "translated")
 
-        if self._doc_repo and translated_text and translated_text != content_text:
-            self._doc_repo.update_indexed(document_id, "indexed", "fast")
+        did_translate = translated != content_text
+        quality = "fast" if did_translate else None
+        if self._doc_repo and translated:
+            self._doc_repo.update_indexed(document_id, "indexed", quality)
 
-        if self._version_repo and translated_text and translated_text != content_text:
+        if self._version_repo and did_translate:
             existing = self._version_repo.find_pending_or_running(document_id, "en")
             if existing is not None:
                 self._version_repo.update_version_status(
                     UUID(str(existing["id"])),
                     "available",
-                    translated_text=translated_text,
+                    translated_text=translated,
                 )
             else:
                 self._version_repo.create_version(
@@ -87,14 +96,25 @@ class TranslateConsumer(BaseConsumer):
                     self._version_repo.update_version_status(
                         UUID(str(created["id"])),
                         "available",
-                        translated_text=translated_text,
+                        translated_text=translated,
                     )
 
+        self._job_repo.commit()
+        self._publisher.publish_index(
+            job_id=job_id,
+            document_id=document_id,
+            source_id=source_id,
+            attempt=attempt,
+            content_text=content_text,
+            translated_text=translated,
+        )
         self._publisher.publish_embed(
             job_id=job_id,
             document_id=document_id,
             source_id=source_id,
             attempt=attempt,
+            content_text=content_text,
+            translated_text=translated,
         )
 
 

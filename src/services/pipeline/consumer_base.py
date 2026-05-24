@@ -56,6 +56,8 @@ class BaseConsumer(ABC):
         source_id: UUID,
         attempt: int,
         correlation_id: str,
+        content_text: str = "",
+        translated_text: str = "",
     ) -> None:
         """Process one message. Raise on failure."""
 
@@ -93,6 +95,8 @@ class BaseConsumer(ABC):
             source_id = UUID(payload["source_id"])
             attempt: int = int(payload.get("attempt", 1))
             correlation_id: str = payload.get("correlation_id", "")
+            content_text: str = str(payload.get("content_text", ""))
+            translated_text: str = str(payload.get("translated_text", ""))
         except (KeyError, ValueError) as exc:
             logger.error(
                 "malformed message: worker_type=%s error=%s body=%.200s",
@@ -104,7 +108,15 @@ class BaseConsumer(ABC):
             return
 
         try:
-            self.handle_message(job_id, document_id, source_id, attempt, correlation_id)
+            self.handle_message(
+                job_id,
+                document_id,
+                source_id,
+                attempt,
+                correlation_id,
+                content_text=content_text,
+                translated_text=translated_text,
+            )
             self._job_repo.commit()
             self._channel.basic_ack(delivery_tag=delivery_tag)  # type: ignore[union-attr]
             self._jobs_processed += 1

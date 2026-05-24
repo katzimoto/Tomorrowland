@@ -90,9 +90,13 @@ class RabbitClient:
 
     def publish(self, routing_key: str, body: dict[str, Any]) -> str:
         """Publish a persistent JSON message. Returns the message_id UUID string."""
+        return self.publish_with_id(routing_key, body, str(uuid4()))
+
+    def publish_with_id(self, routing_key: str, body: dict[str, Any], message_id: str) -> str:
+        """Publish with a caller-supplied message_id so the DB write and publish
+        can share the same ID."""
         if not self._enabled or self._channel is None:
             return ""
-        message_id = str(uuid4())
         props = BasicProperties(
             delivery_mode=2,
             content_type="application/json",

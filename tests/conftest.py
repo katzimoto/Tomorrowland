@@ -8,11 +8,13 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine
+from testcontainers.rabbitmq import RabbitMqContainer
 
 # Override .env values for test isolation — prevents tests from trying to
 # connect to Docker-hosted services (meilisearch, elasticsearch, qdrant, etc.)
 os.environ.setdefault("FEATURE_MEILISEARCH_SEARCH", "false")
 os.environ.setdefault("APP_ENV", "test")
+os.environ.setdefault("RABBITMQ_ENABLED", "false")
 
 _USE_POSTGRES = os.environ.get("PGTEST", "").lower() in ("1", "true", "yes")
 
@@ -36,3 +38,14 @@ def migrated_engine(tmp_path) -> Iterator[Engine]:  # type: ignore[no-untyped-de
         yield engine
     finally:
         engine.dispose()
+
+
+@pytest.fixture(scope="module")
+def rabbitmq_container() -> Iterator[str]:
+    """Start a RabbitMQ test container and return its connection URL.
+
+    Module-scoped: started once per test module, stopped after all tests.
+    Only used by tests marked ``@pytest.mark.e2e``.
+    """
+    with RabbitMqContainer("rabbitmq:3.13-management-alpine") as rabbit:
+        yield rabbit.get_connection_url()

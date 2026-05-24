@@ -29,10 +29,16 @@ class IntelligenceConsumer(BaseConsumer):
         source_id: UUID,
         attempt: int,
         correlation_id: str,
+        content_text: str = "",
+        translated_text: str = "",
     ) -> None:
-        payload = self._job_repo.get_payload(document_id)
-        content = (payload.get("content_text", "") if payload else None) or ""
-        self._intelligence.process_document(document_id, content)
+        if content_text:
+            self._intelligence.process_document(document_id, content_text)
+        else:
+            payload = self._job_repo.get_payload(document_id)
+            content = (payload.get("content_text", "") if payload else None) or ""
+            if content:
+                self._intelligence.process_document(document_id, content)
         self._job_repo.mark_running_stage(job_id, "intelligence_done")
 
 

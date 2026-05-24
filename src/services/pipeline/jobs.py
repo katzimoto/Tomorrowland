@@ -362,33 +362,37 @@ class PipelineJobRepository:
     def update_content_text(self, document_id: UUID, content_text: str) -> None:
         """Persist the extracted document text so downstream workers (e.g. translation-worker)
         can read raw content from the DB without re-running file extraction."""
+        now = datetime.now(UTC)
         self._connection.execute(
             sa.text("""
-                UPDATE document_payloads
-                SET content_text = :content_text,
-                    updated_at = :updated_at
-                WHERE document_id = :document_id
+                INSERT INTO document_payloads (document_id, content_text, created_at, updated_at)
+                VALUES (:document_id, :content_text, :now, :now)
+                ON CONFLICT (document_id) DO UPDATE SET
+                    content_text = EXCLUDED.content_text,
+                    updated_at = :now
             """),
             {
                 "document_id": db_uuid(document_id),
                 "content_text": content_text,
-                "updated_at": datetime.now(UTC),
+                "now": now,
             },
         )
 
     def update_translated_text(self, document_id: UUID, translated_text: str) -> None:
         """Persist the pipeline-translated text for later use by the index-worker."""
+        now = datetime.now(UTC)
         self._connection.execute(
             sa.text("""
-                UPDATE document_payloads
-                SET translated_text = :translated_text,
-                    updated_at = :updated_at
-                WHERE document_id = :document_id
+                INSERT INTO document_payloads (document_id, translated_text, created_at, updated_at)
+                VALUES (:document_id, :translated_text, :now, :now)
+                ON CONFLICT (document_id) DO UPDATE SET
+                    translated_text = EXCLUDED.translated_text,
+                    updated_at = :now
             """),
             {
                 "document_id": db_uuid(document_id),
                 "translated_text": translated_text,
-                "updated_at": datetime.now(UTC),
+                "now": now,
             },
         )
 

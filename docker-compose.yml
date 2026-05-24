@@ -35,8 +35,8 @@ x-app-environment: &app-environment
   INGEST_MODE: ${INGEST_MODE:-hybrid}
   MEILISEARCH_URL: ${MEILISEARCH_URL:-http://meilisearch:7700}
   MEILISEARCH_MASTER_KEY: ${MEILISEARCH_MASTER_KEY:-dev-meilisearch-master-key}
-  FEATURE_MEILISEARCH_SEARCH: ${FEATURE_MEILISEARCH_SEARCH:-false}
-  FEATURE_MEILISEARCH_SHADOW_INDEX: ${FEATURE_MEILISEARCH_SHADOW_INDEX:-false}
+  FEATURE_MEILISEARCH_SEARCH: ${FEATURE_MEILISEARCH_SEARCH:-true}
+  FEATURE_MEILISEARCH_SHADOW_INDEX: ${FEATURE_MEILISEARCH_SHADOW_INDEX:-true}
   RABBITMQ_URL: ${RABBITMQ_URL:-amqp://tomorrowland:changeme@rabbitmq:5672/}
   RABBITMQ_ENABLED: ${RABBITMQ_ENABLED:-true}
 
@@ -332,9 +332,10 @@ services:
       - "${OLLAMA_PORT:-11434}:11434"
     healthcheck:
       test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
-      interval: 30s
+      interval: 10s
       timeout: 10s
-      retries: 10
+      retries: 5
+      start_period: 120s
     logging:
       driver: json-file
     volumes:
@@ -380,6 +381,7 @@ services:
       start_period: 20s
     volumes:
       - files_data:/data
+      - ./data:/data/mounted:ro
 
   translate-worker:
     build:
@@ -396,6 +398,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      libretranslate:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8082/health"]
       interval: 30s
@@ -404,6 +408,7 @@ services:
       start_period: 20s
     volumes:
       - files_data:/data
+      - ./data:/data/mounted:ro
 
   embed-worker:
     build:
@@ -420,6 +425,10 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      ollama:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8083/health"]
       interval: 30s
@@ -428,6 +437,7 @@ services:
       start_period: 20s
     volumes:
       - files_data:/data
+      - ./data:/data/mounted:ro
 
   index-worker:
     build:
@@ -443,6 +453,8 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8084/health"]
@@ -468,6 +480,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      ollama:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8085/health"]
       interval: 30s
@@ -476,6 +490,7 @@ services:
       start_period: 20s
     volumes:
       - files_data:/data
+      - ./data:/data/mounted:ro
 
   alert-worker:
     build:
@@ -500,6 +515,7 @@ services:
       start_period: 20s
     volumes:
       - files_data:/data
+      - ./data:/data/mounted:ro
 
   enrich-worker:
     build:
@@ -524,6 +540,7 @@ services:
       start_period: 20s
     volumes:
       - files_data:/data
+      - ./data:/data/mounted:ro
 
   prometheus:
     image: prom/prometheus:v2.54.1

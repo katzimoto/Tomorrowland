@@ -34,6 +34,7 @@ dev = [
   "pytest>=8.2",
   "pytest-cov>=5.0",
   "ruff>=0.5",
+  "testcontainers>=4.0",
   "types-openpyxl>=3.1",
 ]
 
@@ -54,9 +55,12 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=src --cov-branch --cov-report=term-missing --cov-fail-under=90"
+addopts = "-m 'not e2e' --strict-markers --cov=src --cov-branch --cov-report=term-missing --cov-fail-under=90"
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "e2e: tests that require live Docker services (RabbitMQ, etc.)",
+]
 
 [tool.ruff]
 line-length = 100
@@ -73,5 +77,10 @@ mypy_path = "src"
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["bcrypt", "openpyxl", "openpyxl.*", "pika", "pika.*"]
+module = ["bcrypt", "openpyxl", "openpyxl.*", "pika", "pika.*", "testcontainers", "testcontainers.*"]
 ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "testcontainers>=4.14.2",
+]

@@ -22,6 +22,53 @@ from shared.metrics import safe_label_value
 router = APIRouter(tags=["admin"])
 
 
+def _publish_pending_rabbit_messages(
+    request: Request,
+    pending: list[dict[str, Any]],
+) -> None:
+    if not pending or not request.app.state.settings.rabbitmq_enabled:
+        return
+
+    from uuid import uuid4 as _uuid4
+
+    from shared.rabbit import RabbitClient, RabbitConnectionError
+
+    rabbit = getattr(request.app.state, "rabbit", None) or RabbitClient(
+        request.app.state.settings.rabbitmq_url,
+        enabled=True,
+    )
+    try:
+        rabbit.connect()
+        rabbit.declare_topology()
+    except RabbitConnectionError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="RabbitMQ is unreachable — pipeline messages could not be published. "
+            "Check the RabbitMQ service and retry the sync.",
+        ) from exc
+
+    message_ids: dict[str, str] = {}
+    with request.app.state.engine.begin() as connection:
+        pub_repo = PipelineJobRepository(connection)
+        for p in pending:
+            mid = str(_uuid4())
+            message_ids[p["job_id"]] = mid
+            pub_repo.set_rabbit_message_id(p["job_id"], mid)
+    # DB committed — pipeline_jobs rows visible to workers
+
+    for p in pending:
+        body: dict[str, Any] = {
+            "job_id": str(p["job_id"]),
+            "document_id": str(p["document_id"]),
+            "source_id": str(p["source_id"]),
+            "attempt": 1,
+            "pipeline_version": "v1",
+        }
+        if p.get("content_text"):
+            body["content_text"] = p["content_text"]
+        rabbit.publish_with_id("document.parse.requested", body, message_ids[p["job_id"]])
+
+
 @router.post("/admin/ingestion/{source_id}/sync-now")
 def sync_now(
     source_id: UUID,
@@ -65,23 +112,6 @@ def sync_now(
         }
         pending_rabbit: list[dict[str, Any]] = []
         source_language = source_row.get("source_language")
-
-        def _record_sync_dlq(
-            document_id: UUID | None,
-            message: str,
-        ) -> None:
-            connection.execute(
-                sa.text("""
-                    INSERT INTO dlq (id, document_id, error_message, status)
-                    VALUES (:id, :document_id, :error_message, 'pending')
-                    """),
-                {
-                    "id": db_uuid(uuid4()),
-                    "document_id": (db_uuid(document_id) if document_id is not None else None),
-                    "error_message": message,
-                },
-            )
-
         connector_type = str(source_row["type"])
         try:
             documents = connector.fetch_documents()
@@ -136,12 +166,14 @@ def sync_now(
                     )
                     results["enqueued"] += 1
 
-                    pending_rabbit.append({
-                        "job_id": job_id,
-                        "document_id": doc.id,
-                        "source_id": source_id,
-                        "content_text": item.text_content,
-                    })
+                    pending_rabbit.append(
+                        {
+                            "job_id": job_id,
+                            "document_id": doc.id,
+                            "source_id": source_id,
+                            "content_text": item.text_content,
+                        }
+                    )
 
                     request.app.state.metrics.ingestion_documents_total.labels(
                         safe_label_value(connector_type), "success"
@@ -151,7 +183,17 @@ def sync_now(
                     request.app.state.metrics.ingestion_documents_total.labels(
                         safe_label_value(connector_type), "failure"
                     ).inc()
-                    _record_sync_dlq(doc.id, "Failed to enqueue document for processing")
+                    connection.execute(
+                        sa.text(
+                            "INSERT INTO dlq (id, document_id, error_message, status) "
+                            "VALUES (:id, :document_id, :error_message, 'pending')"
+                        ),
+                        {
+                            "id": db_uuid(uuid4()),
+                            "document_id": db_uuid(doc.id),
+                            "error_message": "Failed to enqueue document for processing",
+                        },
+                    )
             except Exception:
                 results["failed_discovery"] += 1
                 request.app.state.metrics.ingestion_documents_total.labels(
@@ -162,15 +204,12 @@ def sync_now(
                     with suppress(OSError):
                         os.unlink(item.path)
 
-        sync_outcome = (
-            "failed"
-            if results["failed_discovery"] > 0 and results["discovered"] == 0
-            else (
-                "partial_failure"
-                if results["failed_enqueue"] > 0 or results["failed_discovery"] > 0
-                else "success"
-            )
-        )
+        if results["failed_discovery"] > 0 and results["discovered"] == 0:
+            sync_outcome = "failed"
+        elif results["failed_enqueue"] > 0 or results["failed_discovery"] > 0:
+            sync_outcome = "partial_failure"
+        else:
+            sync_outcome = "success"
         request.app.state.metrics.ingestion_syncs_total.labels(
             safe_label_value(connector_type), sync_outcome
         ).inc()
@@ -182,29 +221,7 @@ def sync_now(
             skipped=results["skipped"],
             failed=results["failed_discovery"] + results["failed_enqueue"],
         )
-        # Publish to RabbitMQ after transaction commits so consumers see the documents
-    if pending_rabbit and request.app.state.settings.rabbitmq_enabled:
-        from services.pipeline.publisher import DocumentPublisher
-        from shared.rabbit import RabbitClient, RabbitConnectionError
-
-        rabbit = getattr(request.app.state, "rabbit", None) or RabbitClient(
-            request.app.state.settings.rabbitmq_url, enabled=True,
-        )
-        try:
-            rabbit.connect()
-            rabbit.declare_topology()
-        except RabbitConnectionError:
-            pass  # RabbitMQ unreachable — messages stay in DB pool for old runner
-
-        with request.app.state.engine.begin() as conn2:
-            pub_repo = PipelineJobRepository(conn2)
-            publisher = DocumentPublisher(job_repo=pub_repo, rabbit=rabbit)
-            for p in pending_rabbit:
-                publisher.publish_parse(
-                    job_id=p["job_id"],
-                    document_id=p["document_id"],
-                    source_id=p["source_id"],
-                    content_text=p["content_text"],
-                )
+    # Publish to RabbitMQ after transaction commits so consumers see the documents
+    _publish_pending_rabbit_messages(request, pending_rabbit)
 
     return {"status": sync_outcome, **results}
