@@ -419,24 +419,60 @@ class PreviewService:
         user_id: UUID,
         limit: int = 50,
         offset: int = 0,
+        group_ids: list[UUID] | None = None,
+        allow_all: bool = False,
     ) -> list[dict[str, Any]]:
-        """Return document view history for *user_id*."""
-        rows = self._connection.execute(
-            sa.text("""
-                SELECT d.id, d.title, d.mime_type, v.viewed_at
-                FROM document_views v
-                JOIN documents d ON d.id = v.document_id
-                WHERE v.user_id = :user_id
-                ORDER BY v.viewed_at DESC
-                LIMIT :limit
-                OFFSET :offset
-                """),
-            {
-                "user_id": db_uuid(user_id),
-                "limit": limit,
-                "offset": offset,
-            },
-        ).mappings()
+        """Return document view history for *user_id*.
+
+        When *allow_all* is False (non-admin callers), only documents still
+        accessible via the caller's current group memberships are returned.
+        This prevents stale activity rows from leaking documents to users
+        whose group access has since been revoked.
+
+        Args:
+            user_id: The user whose activity to return.
+            limit: Maximum rows to return.
+            offset: Pagination offset.
+            group_ids: Caller's effective group IDs (used when allow_all=False).
+            allow_all: When True (admin), skip the group filter.
+        """
+        if allow_all or not group_ids:
+            rows = self._connection.execute(
+                sa.text("""
+                    SELECT d.id, d.title, d.mime_type, v.viewed_at
+                    FROM document_views v
+                    JOIN documents d ON d.id = v.document_id
+                    WHERE v.user_id = :user_id
+                    ORDER BY v.viewed_at DESC
+                    LIMIT :limit
+                    OFFSET :offset
+                    """),
+                {
+                    "user_id": db_uuid(user_id),
+                    "limit": limit,
+                    "offset": offset,
+                },
+            ).mappings()
+        else:
+            rows = self._connection.execute(
+                sa.text("""
+                    SELECT DISTINCT d.id, d.title, d.mime_type, v.viewed_at
+                    FROM document_views v
+                    JOIN documents d ON d.id = v.document_id
+                    JOIN source_permissions sp ON sp.source_id = d.source_id
+                    WHERE v.user_id = :user_id
+                      AND sp.group_id IN :group_ids
+                    ORDER BY v.viewed_at DESC
+                    LIMIT :limit
+                    OFFSET :offset
+                    """).bindparams(sa.bindparam("group_ids", expanding=True)),
+                {
+                    "user_id": db_uuid(user_id),
+                    "group_ids": [db_uuid(g) for g in group_ids],
+                    "limit": limit,
+                    "offset": offset,
+                },
+            ).mappings()
 
         return [
             {

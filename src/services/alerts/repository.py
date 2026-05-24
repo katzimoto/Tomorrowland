@@ -204,31 +204,73 @@ class AlertRepository:
             metrics.notifications_total.labels("create", "success" if created else "skipped").inc()
         return created
 
-    def list_notifications(self, user_id: UUID, unread_only: bool = True) -> list[dict[str, Any]]:
-        """List notifications for a user."""
+    def list_notifications(
+        self,
+        user_id: UUID,
+        unread_only: bool = True,
+        group_ids: list[UUID] | None = None,
+        allow_all: bool = False,
+    ) -> list[dict[str, Any]]:
+        """List notifications for a user.
+
+        When *allow_all* is False and *group_ids* is provided, only
+        notifications whose target document is still accessible via the
+        caller's current group memberships are returned.  This prevents
+        stale notification rows from leaking documents to users whose group
+        access has since been revoked.
+        """
         read_filter = "AND n.read = false" if unread_only else ""
-        rows = self._connection.execute(
-            sa.text(f"""
-                SELECT
-                    n.id,
-                    n.subscription_id,
-                    n.user_id,
-                    n.document_id,
-                    n.similarity,
-                    n.read,
-                    n.created_at,
-                    s.name AS subscription_name,
-                    s.query AS subscription_query,
-                    d.title AS doc_title
-                FROM alert_notifications n
-                JOIN alert_subscriptions s ON s.id = n.subscription_id
-                JOIN documents d ON d.id = n.document_id
-                WHERE n.user_id = :user_id
-                  {read_filter}
-                ORDER BY n.created_at DESC
-                """),
-            {"user_id": db_uuid(user_id)},
-        ).mappings()
+        if allow_all or not group_ids:
+            rows = self._connection.execute(
+                sa.text(f"""
+                    SELECT
+                        n.id,
+                        n.subscription_id,
+                        n.user_id,
+                        n.document_id,
+                        n.similarity,
+                        n.read,
+                        n.created_at,
+                        s.name AS subscription_name,
+                        s.query AS subscription_query,
+                        d.title AS doc_title
+                    FROM alert_notifications n
+                    JOIN alert_subscriptions s ON s.id = n.subscription_id
+                    JOIN documents d ON d.id = n.document_id
+                    WHERE n.user_id = :user_id
+                      {read_filter}
+                    ORDER BY n.created_at DESC
+                    """),
+                {"user_id": db_uuid(user_id)},
+            ).mappings()
+        else:
+            rows = self._connection.execute(
+                sa.text(f"""
+                    SELECT DISTINCT
+                        n.id,
+                        n.subscription_id,
+                        n.user_id,
+                        n.document_id,
+                        n.similarity,
+                        n.read,
+                        n.created_at,
+                        s.name AS subscription_name,
+                        s.query AS subscription_query,
+                        d.title AS doc_title
+                    FROM alert_notifications n
+                    JOIN alert_subscriptions s ON s.id = n.subscription_id
+                    JOIN documents d ON d.id = n.document_id
+                    JOIN source_permissions sp ON sp.source_id = d.source_id
+                    WHERE n.user_id = :user_id
+                      AND sp.group_id IN :group_ids
+                      {read_filter}
+                    ORDER BY n.created_at DESC
+                    """).bindparams(sa.bindparam("group_ids", expanding=True)),
+                {
+                    "user_id": db_uuid(user_id),
+                    "group_ids": [db_uuid(g) for g in group_ids],
+                },
+            ).mappings()
         return [dict(row) for row in rows]
 
     def get_notification(self, notification_id: UUID) -> dict[str, Any] | None:

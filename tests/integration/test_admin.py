@@ -1277,3 +1277,55 @@ def test_admin_rename_group_non_admin_denied(migrated_engine: Engine) -> None:
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 403
+
+
+# M2: admin/config sensitive-key masking (D2 MEDIUM)
+
+
+def test_admin_config_masks_sensitive_keys(migrated_engine: Engine) -> None:
+    """GET /admin/config must mask values whose key name contains a sensitive token."""
+    _setup_users(migrated_engine)
+
+    # Insert a config key whose name contains a sensitive substring (api_token).
+    with migrated_engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO system_config (key, value) VALUES (:key, :value)"
+                " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"
+            ),
+            {"key": "integration.api_token", "value": '"supersecret"'},
+        )
+
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.get("/admin/config", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+
+    config_by_key = {item["key"]: item["value"] for item in response.json()}
+    assert "integration.api_token" in config_by_key
+    # Sensitive value must be replaced with the mask placeholder
+    assert config_by_key["integration.api_token"] == "••••••••"
+    # Non-sensitive key must still return its real value
+    assert config_by_key.get("llm.model") is not None
+    assert config_by_key.get("llm.model") != "••••••••"
+
+
+def test_admin_config_non_sensitive_keys_not_masked(migrated_engine: Engine) -> None:
+    """Values for non-sensitive config keys must be returned as-is."""
+    _setup_users(migrated_engine)
+
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.get("/admin/config", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+
+    config_by_key = {item["key"]: item["value"] for item in response.json()}
+    # search.vector_weight should be returned as a real numeric value
+    assert "search.vector_weight" in config_by_key
+    assert config_by_key["search.vector_weight"] != "••••••••"

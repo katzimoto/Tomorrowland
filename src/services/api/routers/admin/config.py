@@ -5,13 +5,22 @@ from typing import Annotated, Any
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from services.api._helpers import _audit_log, _fmt_dt
+from services.api._helpers import _SENSITIVE_CONFIG_KEYS, _audit_log, _fmt_dt
 from services.api.main import current_user
 from services.api.schemas import UpdateConfigRequest
 from services.auth.models import TokenPayload
 from services.permissions.enforcer import require_admin
 
 router = APIRouter(tags=["admin"])
+
+_MASK = "••••••••"
+
+
+def _mask_config_value(key: str, value: Any) -> Any:
+    """Return a masked placeholder when *key* matches a sensitive pattern."""
+    if any(sensitive in key.lower() for sensitive in _SENSITIVE_CONFIG_KEYS):
+        return _MASK
+    return value
 
 
 @router.get("/admin/config")
@@ -27,7 +36,7 @@ def admin_list_config(
         return [
             {
                 "key": row["key"],
-                "value": row["value"],
+                "value": _mask_config_value(row["key"], row["value"]),
                 "updated_at": _fmt_dt(row["updated_at"]),
             }
             for row in rows
@@ -75,7 +84,7 @@ def admin_update_config(
         )
         return {
             "key": row["key"],
-            "value": row["value"],
+            "value": _mask_config_value(row["key"], row["value"]),
             "updated_at": _fmt_dt(row["updated_at"]),
         }
 
