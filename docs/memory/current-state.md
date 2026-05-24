@@ -2,6 +2,38 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-24 — D2 MEDIUM ACL hardening (#400 Groups 1-3 final work)
+
+Status: Done — commit ad7ff71 on `claude/funny-faraday-bLPiI`, pushed; PR pending
+Source: Claude Code session
+
+Finding:
+- **Audit of remaining work**: All Group 1-3 workstreams (A2-A6, B2, E1, E2) were already
+  implemented in main. The only genuinely missing work was the 4 MEDIUM ACL items from the D1
+  audit (docs/context/acl-audit.md items M1-M4).
+- **M1 — /me/activity stale access**: `PreviewService.get_user_activity()` now accepts
+  `group_ids` + `allow_all`; adds source_permissions JOIN for non-admins. Router passes
+  effective groups via `get_effective_group_ids`. Revoked docs no longer appear in history.
+- **M2 — /admin/config secret masking**: `admin/config.py` imports `_SENSITIVE_CONFIG_KEYS`;
+  applies `_mask_config_value()` to GET list + PUT update responses. Keys whose names contain
+  token/secret/password/api_key/private_key/client_secret are returned as `••••••••`.
+- **M3 — /documents/{id}/versions per-version ACL**: After `list_versions_in_family()`,
+  non-admin callers have each version filtered via `auth_repo.user_can_access_source()`.
+  Cross-source version reassignment no longer leaks inaccessible versions.
+- **M4 — /notifications stale access**: `AlertRepository.list_notifications()` accepts
+  `group_ids` + `allow_all`; adds source_permissions JOIN for non-admins. Router passes
+  effective groups. Stale notifications for revoked docs are hidden.
+- **Tests**: 5 new integration tests in `test_acl_hardening.py`; 2 new tests in `test_admin.py`.
+  All 58 targeted tests pass. 6 pre-existing unit failures unrelated to this work.
+- **mypy**: 323 errors (unchanged baseline).
+
+Impact:
+- All 4 MEDIUM ACL gaps from the D1 audit are closed.
+- Issue #400 Groups 1-3 are now fully implemented; tracker can be closed once PR merges.
+
+Next action:
+- Open PR from `claude/funny-faraday-bLPiI` targeting main with full handoff.
+
 ## 2026-05-24 — Search improvements: facets, highlight rendering, instant search
 
 Status: Done
