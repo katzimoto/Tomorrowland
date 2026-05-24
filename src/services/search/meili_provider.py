@@ -22,7 +22,7 @@ from services.search.meili_types import (
     DocumentSearchResultMetadata,
     SearchChunkRecord,
 )
-from services.search.models import SearchResult
+from services.search.models import SearchResult, SearchResults
 from shared.metrics import MetricsRegistry
 
 # Requires: pip install meilisearch
@@ -104,7 +104,7 @@ def _map_result(hit: dict[str, Any]) -> DocumentSearchResult:
     return DocumentSearchResult(
         document_id=hit["document_id"],
         chunk_id=hit["id"],
-        title=hit.get("title") or "",
+        title=hit.get("_formatted", {}).get("title") or hit.get("title") or "",
         heading=hit.get("heading"),
         section_path=hit.get("section_path") or [],
         snippet=snippet,
@@ -265,7 +265,7 @@ class MeilisearchSearchProvider:
         self,
         query: DocumentSearchQuery,
         user: TokenPayload | UserIdentity,
-    ) -> list[SearchResult]:
+    ) -> SearchResults:
         """Execute a search with the ACL filter applied server-side.
 
         The permission filter is constructed from the authenticated user's
@@ -277,7 +277,7 @@ class MeilisearchSearchProvider:
         """
         if needs_acl_short_circuit(user):
             self._metric("bypassed_admin")
-            return []
+            return SearchResults(results=[], facets={})
 
         acl_filter = build_permission_filter(user)
         user_filter: str = _build_user_filter(query.filters)
@@ -293,7 +293,7 @@ class MeilisearchSearchProvider:
         params: dict[str, Any] = {
             "limit": query.limit,
             "offset": query.offset,
-            "attributesToHighlight": ["content", "content_en", "content_he"],
+            "attributesToHighlight": ["title", "content", "content_en", "content_he"],
             "highlightPreTag": "<mark>",
             "highlightPostTag": "</mark>",
             "showRankingScore": True,
@@ -302,6 +302,7 @@ class MeilisearchSearchProvider:
                 "metadata.source",
                 "metadata.language",
                 "metadata.tags",
+                "metadata.mime_type",
                 "metadata.project",
                 "metadata.workspace",
                 "metadata.collection",
@@ -314,6 +315,7 @@ class MeilisearchSearchProvider:
 
         raw = self._client.index(INDEX_NAME).search(query.q, params)
 
+        facets: dict[str, dict[str, int]] = raw.get("facetDistribution") or {}
         items = [_map_result(h) for h in raw.get("hits", [])]
 
         results = [
@@ -326,7 +328,7 @@ class MeilisearchSearchProvider:
             )
             for i in items
         ]
-        return results
+        return SearchResults(results=results, facets=facets)
 
     def search_rag(
         self,

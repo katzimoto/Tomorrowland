@@ -42,6 +42,7 @@ export interface SearchResponse {
   results: SearchResult[];
   total: number;
   query: string;
+  facets?: Record<string, Record<string, number>>;
 }
 
 export function search(

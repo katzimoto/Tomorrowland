@@ -5,10 +5,11 @@ import styles from "./FilterPanel.module.css";
 
 interface FilterPanelProps {
   filters: SearchFilters;
+  facets?: Record<string, Record<string, number>>;
   onChange: (f: SearchFilters) => void;
 }
 
-export function FilterPanel({ filters, onChange }: FilterPanelProps) {
+export function FilterPanel({ filters, facets, onChange }: FilterPanelProps) {
   const t = useT();
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -53,7 +54,19 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
     onChange({ ...filters, translation_quality: next.length ? next : undefined });
   }
 
-  function setCsvField(field: "source" | "tags" | "file_extension", raw: string) {
+  function toggleTag(tag: string) {
+    const cur = filters.tags ?? [];
+    const next = cur.includes(tag) ? cur.filter((v) => v !== tag) : [...cur, tag];
+    onChange({ ...filters, tags: next.length ? next : undefined });
+  }
+
+  function toggleSource(source: string) {
+    const cur = filters.source ?? [];
+    const next = cur.includes(source) ? cur.filter((v) => v !== source) : [...cur, source];
+    onChange({ ...filters, source: next.length ? next : undefined });
+  }
+
+  function setCsvField(field: "file_extension", raw: string) {
     const values = raw
       .split(",")
       .map((s) => s.trim())
@@ -61,9 +74,21 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
     onChange({ ...filters, [field]: values.length ? values : undefined });
   }
 
-  function getCsvField(field: "source" | "tags" | "file_extension"): string {
+  function getCsvField(field: "file_extension"): string {
     return (filters[field] ?? []).join(", ");
   }
+
+  const mimeTypeFacets = facets?.["metadata.mime_type"] ?? {};
+  const tagFacets = facets?.["metadata.tags"] ?? {};
+  const sourceFacets = facets?.["metadata.source"] ?? {};
+
+  const topTags = Object.entries(tagFacets)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  const topSources = Object.entries(sourceFacets)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
 
   return (
     <aside className={styles.panel} aria-label={t.filters.panel}>
@@ -80,16 +105,19 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
           )}
         </div>
         <div className={styles.options}>
-          {FILE_TYPES.map(({ value, label }) => (
-            <label key={value} className={styles.option}>
-              <input
-                type="checkbox"
-                checked={(filters.file_type ?? []).includes(value)}
-                onChange={() => toggleFileType(value)}
-              />
-              {label}
-            </label>
-          ))}
+          {FILE_TYPES.map(({ value, label }) => {
+            const count = mimeTypeFacets[value];
+            return (
+              <label key={value} className={styles.option}>
+                <input
+                  type="checkbox"
+                  checked={(filters.file_type ?? []).includes(value)}
+                  onChange={() => toggleFileType(value)}
+                />
+                {label}{count != null ? ` (${count})` : ""}
+              </label>
+            );
+          })}
         </div>
       </div>
 
@@ -119,6 +147,64 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
         </div>
       </div>
 
+      {/* Tags — facet-driven, only shown when data is available */}
+      {topTags.length > 0 && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <span className={styles.sectionLabel}>Tags</span>
+            {(filters.tags?.length ?? 0) > 0 && (
+              <button
+                className={styles.clearBtn}
+                onClick={() => onChange({ ...filters, tags: undefined })}
+              >
+                {t.filters.clear}
+              </button>
+            )}
+          </div>
+          <div className={styles.options}>
+            {topTags.map(([tag, count]) => (
+              <label key={tag} className={styles.option}>
+                <input
+                  type="checkbox"
+                  checked={(filters.tags ?? []).includes(tag)}
+                  onChange={() => toggleTag(tag)}
+                />
+                {tag} ({count})
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Source — facet-driven, only shown when data is available */}
+      {topSources.length > 0 && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <span className={styles.sectionLabel}>Source</span>
+            {(filters.source?.length ?? 0) > 0 && (
+              <button
+                className={styles.clearBtn}
+                onClick={() => onChange({ ...filters, source: undefined })}
+              >
+                {t.filters.clear}
+              </button>
+            )}
+          </div>
+          <div className={styles.options}>
+            {topSources.map(([source, count]) => (
+              <label key={source} className={styles.option}>
+                <input
+                  type="checkbox"
+                  checked={(filters.source ?? []).includes(source)}
+                  onChange={() => toggleSource(source)}
+                />
+                {source} ({count})
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Sort */}
       <div className={styles.section}>
         <label className={styles.sectionLabel}>Sort by</label>
@@ -147,26 +233,6 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
         </button>
         {advancedOpen && (
           <div className={styles.advancedBody}>
-            <label className={styles.fieldLabel}>
-              Source
-              <input
-                type="text"
-                className={styles.textInput}
-                value={getCsvField("source")}
-                onChange={(e) => setCsvField("source", e.target.value)}
-                placeholder="folder, nifi"
-              />
-            </label>
-            <label className={styles.fieldLabel}>
-              Tags
-              <input
-                type="text"
-                className={styles.textInput}
-                value={getCsvField("tags")}
-                onChange={(e) => setCsvField("tags", e.target.value)}
-                placeholder="contract, legal"
-              />
-            </label>
             <label className={styles.fieldLabel}>
               Extension
               <input

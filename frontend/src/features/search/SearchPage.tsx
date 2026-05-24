@@ -118,6 +118,17 @@ export function SearchPage() {
     void navigate({ to: "/search", search: () => params as { q: string; mode: string } });
   }
 
+  // Debounce instant search — fires 350ms after the user stops typing.
+  // Does NOT navigate or reset preview; explicit submit (Enter/button) handles those.
+  useEffect(() => {
+    const q = inputValue.trim();
+    if (q.length < 2) return;
+    const id = setTimeout(() => {
+      setSubmittedQuery(q);
+    }, 350);
+    return () => clearTimeout(id);
+  }, [inputValue]);
+
   const { data, isLoading, isFetching, isError } = useQuery({
     queryKey: ["search", submittedQuery, mode, filters],
     queryFn: () =>
@@ -332,6 +343,7 @@ export function SearchPage() {
       <div className={styles.body}>
         <FilterPanel
           filters={filters}
+          facets={data?.facets ?? {}}
           onChange={(nextFilters) => {
             resetSearchWorkflow();
             setFilters(nextFilters);

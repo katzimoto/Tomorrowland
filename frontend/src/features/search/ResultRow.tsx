@@ -4,6 +4,14 @@ import { VersionBadge } from "@/features/documents/VersionBadge";
 import type { SearchResult } from "@/api/search";
 import styles from "./ResultRow.module.css";
 
+/**
+ * Strip all HTML tags except <mark> and </mark> to safely render
+ * Meilisearch highlight snippets with dangerouslySetInnerHTML.
+ */
+function highlightHtml(raw: string): string {
+  return raw.replace(/<(?!\/?mark\b)[^>]*>/gi, "");
+}
+
 function MimeIcon({ mimeType }: { mimeType: string }) {
   if (mimeType.includes("pdf")) return <FileText size={18} />;
   if (mimeType.startsWith("image/")) return <Image size={18} />;
@@ -56,8 +64,8 @@ export function ResultRow({ result, id, selected = false, onClick, onSelect, onP
       </div>
 
       <div className={styles.main}>
-        <span className={styles.title}>{result.title}</span>
-        <span className={styles.snippet}>{result.snippet}</span>
+        <span className={styles.title} dangerouslySetInnerHTML={{ __html: highlightHtml(result.title ?? "") }} />
+        <span className={styles.snippet} dangerouslySetInnerHTML={{ __html: highlightHtml(result.snippet ?? "") }} />
         <div className={styles.meta}>
           {visibleTags.map((tag) => (
             <Badge key={tag} variant="tag">{tag}</Badge>
