@@ -55,6 +55,7 @@ def trigger_intelligence(
                 repository=intelligence_repo,
                 ollama_client=ollama_client,
                 es_client=es_client,
+                utility_model=request.app.state.settings.effective_utility_model,
             )
             worker.process_document(document_id, text)
         except Exception as exc:
@@ -99,6 +100,7 @@ def regenerate_summary(
                 repository=intelligence_repo,
                 ollama_client=ollama_client,
                 es_client=es_client,
+                utility_model=request.app.state.settings.effective_utility_model,
             )
             worker._summarize(document_id, text)
             logger.info(

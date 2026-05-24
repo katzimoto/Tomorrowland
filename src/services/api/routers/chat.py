@@ -289,15 +289,21 @@ def create_message(
                         ),
                     )
 
-        # 4. Optionally rewrite query for follow-up turns
+        # 4. Optionally rewrite query for follow-up turns (utility model)
         question = body.content
         rewritten_query: str | None = None
+        settings = request.app.state.settings
         rewrite_client = request.app.state.ollama_client or OllamaClient(
-            base_url=request.app.state.settings.ollama_url,
-            model=request.app.state.settings.ollama_model,
+            base_url=settings.ollama_url,
+            model=settings.ollama_model,
         )
-        if request.app.state.settings.feature_document_chat_query_rewrite and prior_messages:
-            rewritten_query = rewrite_query(question, prior_messages, rewrite_client)
+        if settings.feature_document_chat_query_rewrite and prior_messages:
+            rewritten_query = rewrite_query(
+                question,
+                prior_messages,
+                rewrite_client,
+                model=settings.effective_utility_model,
+            )
             question = rewritten_query
 
         # 5. Build RAG service and answer
@@ -313,14 +319,14 @@ def create_message(
                     detail="You do not belong to any groups with document access.",
                 )
 
-        encoder = build_encoder(request.app.state.settings)
+        encoder = build_encoder(settings)
         qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
-            url=request.app.state.settings.qdrant_url,
+            url=settings.qdrant_url,
             dimension=encoder.dimension,
         )
         ollama_client = request.app.state.ollama_client or OllamaClient(
-            base_url=request.app.state.settings.ollama_url,
-            model=request.app.state.settings.ollama_model,
+            base_url=settings.ollama_url,
+            model=settings.ollama_model,
         )
 
         prompt_row = (
@@ -333,13 +339,13 @@ def create_message(
         )
         system_prompt = str(prompt_row["value"]) if prompt_row else None
 
-        settings = request.app.state.settings
         reranker: Any = NoOpReranker()
         if settings.feature_document_chat_reranker:
             reranker = CrossEncoderReranker(
                 ollama_client=ollama_client,
                 min_score=3.0,
                 top_n=8,
+                model=settings.effective_reranker_model,
             )
         rag = RagService(
             qdrant_client=qdrant_client,
@@ -495,12 +501,18 @@ def create_message_stream(
 
         question = body.content
         rewritten_query: str | None = None
+        stream_settings = request.app.state.settings
         rewrite_client = request.app.state.ollama_client or OllamaClient(
-            base_url=request.app.state.settings.ollama_url,
-            model=request.app.state.settings.ollama_model,
+            base_url=stream_settings.ollama_url,
+            model=stream_settings.ollama_model,
         )
-        if request.app.state.settings.feature_document_chat_query_rewrite and prior_messages:
-            rewritten_query = rewrite_query(question, prior_messages, rewrite_client)
+        if stream_settings.feature_document_chat_query_rewrite and prior_messages:
+            rewritten_query = rewrite_query(
+                question,
+                prior_messages,
+                rewrite_client,
+                model=stream_settings.effective_utility_model,
+            )
             question = rewritten_query
 
         if user.is_admin:
@@ -514,14 +526,14 @@ def create_message_stream(
                     status_code=403, detail="You do not belong to any groups with document access."
                 )
 
-        encoder = build_encoder(request.app.state.settings)
+        encoder = build_encoder(stream_settings)
         qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
-            url=request.app.state.settings.qdrant_url,
+            url=stream_settings.qdrant_url,
             dimension=encoder.dimension,
         )
         ollama_client = request.app.state.ollama_client or OllamaClient(
-            base_url=request.app.state.settings.ollama_url,
-            model=request.app.state.settings.ollama_model,
+            base_url=stream_settings.ollama_url,
+            model=stream_settings.ollama_model,
         )
 
         prompt_row = (
@@ -535,11 +547,12 @@ def create_message_stream(
         system_prompt = str(prompt_row["value"]) if prompt_row else None
 
         reranker: Any = NoOpReranker()
-        if settings.feature_document_chat_reranker:
+        if stream_settings.feature_document_chat_reranker:
             reranker = CrossEncoderReranker(
                 ollama_client=ollama_client,
                 min_score=3.0,
                 top_n=8,
+                model=stream_settings.effective_reranker_model,
             )
 
         rag = RagService(

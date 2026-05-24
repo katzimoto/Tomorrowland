@@ -38,11 +38,16 @@ def rewrite_query(
     question: str,
     existing_messages: list[ChatMessage],
     ollama_client: OllamaClient,
+    model: str | None = None,
 ) -> str:
     """Rewrite *question* as a standalone search query using conversation history.
 
     Returns the rewritten query, or the original *question* if the session
     has fewer than one prior user+assistant turn or if the LLM call fails.
+
+    Args:
+        model: Override the client's default model. Pass the utility model
+               here so query rewrite uses the smaller/faster model.
     """
     prior_turns = len(existing_messages) // 2
     if prior_turns < 1:
@@ -54,7 +59,7 @@ def rewrite_query(
         user_message=question,
     )
     try:
-        rewritten = ollama_client.generate(prompt).strip()
+        rewritten = ollama_client.generate(prompt, model=model).strip()
         if rewritten:
             return rewritten
     except Exception:

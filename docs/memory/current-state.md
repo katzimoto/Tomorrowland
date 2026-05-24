@@ -2,24 +2,26 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
-## 2026-05-25 — Search 504 + embed-worker RabbitMQ disconnect (partially resolved)
+## 2026-05-25 — Ollama split + model routing (PR open, pending merge)
 
-Status: Watch
-Source: Claude Code debugging session; PR #517
+Status: Active
+Source: Claude Code session; branch `infra/split-ollama-containers`; closes #513
 
 Finding:
-- **Search 504 (root cause confirmed):** `.env` sets `EMBEDDING_URL=http://ollama-embed:11434` and `OLLAMA_URL=http://ollama-llm:11434` (from Ollama split work), but `ollama-embed` container was not healthy. Every search request calls `OllamaEmbeddingEncoder.encode()` → hangs on unreachable `ollama-embed` → proxy times out → **504**. Frontend gets `isError=true`, shows "Search unavailable" empty state. Backend logs show results assembled correctly before the timeout.
-- **embed-worker disconnect:** `ConnectionResetError(104, 'Connection reset by peer')` in `embed-worker-1` pika connection — caused by broker resetting connections during compose restart. `BaseConsumer.run()` had no reconnection loop; worker exited and Docker restarted it. **Fixed in PR #517** (reconnect loop with exponential backoff, no worker process exit on connection drop).
-- **Secondary bug (unresolved):** `_map_sort()` in `src/services/api/routers/search.py` builds `"updated_at:desc"` but the valid-labels set has `"updatedAt:desc"` — all non-relevance sort requests silently fall back to relevance.
+- **Root cause of Search 504 + intelligence-worker DNS failure:** `docker-compose.yml` had a single `ollama` service but `.env` pointed at `ollama-llm` and `ollama-embed` — hostnames that never existed. Fixed by splitting into two real services.
+- **Ollama split done:** `ollama-llm` (LLM; port OLLAMA_PORT) and `ollama-embed` (embeddings; port OLLAMA_EMBED_PORT=11437) with dedicated volumes (`ollama_llm_data`, `ollama_embed_data`). Worker `depends_on` routed correctly per service.
+- **Model routing done (#513):** `OLLAMA_UTILITY_MODEL` + `OLLAMA_RERANKER_MODEL` added to config with fallback chain. Map-phase chunks, auto-tag, key-points, query rewrite → utility; reduce, entity extraction, RAG answer → main; reranking → reranker→utility→main. 17 new tests pass.
+- **Sort bug (still unresolved):** `_map_sort()` builds `"updated_at:desc"` but valid-labels set contains `"updatedAt:desc"` — all date sorts silently fall back to relevance.
+- **embed-worker disconnect:** Fixed in PR #517 (merged).
 
 Impact:
-- Search is broken while `ollama-embed` is not healthy.
-- Sort by date silently broken.
+- After `docker compose build && docker compose up -d`: search 504 gone, intelligence-worker DNS error gone.
+- Date sort still broken (independent fix needed).
 
 Next action:
-- Bring up `ollama-embed`: `docker compose up -d ollama-embed` and wait for healthy status.
-- Fix `_map_sort` camelCase mismatch (small isolated fix, no tests needed beyond type check).
-- Merge PR #517 once CI passes.
+- Merge PR on `infra/split-ollama-containers` once CI passes.
+- Fix `_map_sort` camelCase mismatch (small standalone fix).
+- Operator must run `docker compose build ollama-llm ollama-embed` before `up -d` on existing installs.
 
 ## 2026-05-24 — D2 MEDIUM ACL hardening (#400 Groups 1-3 final work)
 
