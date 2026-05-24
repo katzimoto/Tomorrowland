@@ -216,13 +216,49 @@ describe("PreviewPane dispatch", () => {
     expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
   });
 
-  it("extracted mode does not override HTML to TextPreview", () => {
+  it("extracted mode overrides HTML to TextPreview with showOriginal", () => {
     render(
       <PreviewPane
         preview={makePreview({ mime_type: "text/html" })}
         activeMode="extracted"
       />
     );
+    expect(screen.getByTestId("text-preview")).toBeInTheDocument();
+    expect(screen.getByTestId("text-preview")).toHaveAttribute("data-show-original", "true");
+  });
+
+  it("translation mode overrides HTML to TextPreview with translationVersionId", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({ mime_type: "text/html" })}
+        activeMode="translation"
+        selectedVersionId="v-html-1"
+      />
+    );
+    expect(screen.getByTestId("text-preview")).toBeInTheDocument();
+    expect(screen.getByTestId("text-preview")).toHaveAttribute("data-version-id", "v-html-1");
+    expect(screen.getByTestId("text-preview")).not.toHaveAttribute("data-show-original", "true");
+  });
+
+  it("original mode overrides HTML to TextPreview with showOriginal", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({ mime_type: "text/html" })}
+        activeMode="original"
+      />
+    );
+    expect(screen.getByTestId("text-preview")).toBeInTheDocument();
+    expect(screen.getByTestId("text-preview")).toHaveAttribute("data-show-original", "true");
+  });
+
+  it("image/png in original mode is not affected by the HTML text override", () => {
+    render(
+      <PreviewPane
+        preview={makePreview({ mime_type: "image/png" })}
+        activeMode="original"
+      />
+    );
+    expect(screen.getByTestId("image-viewer")).toBeInTheDocument();
     expect(screen.queryByTestId("text-preview")).not.toBeInTheDocument();
   });
 
