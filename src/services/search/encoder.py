@@ -177,9 +177,7 @@ class OllamaEmbeddingEncoder:
                     result.append(vecs[0])
                 else:
                     dim = len(vecs[0])
-                    mean_vec = [
-                        sum(v[d] for v in vecs) / len(vecs) for d in range(dim)
-                    ]
+                    mean_vec = [sum(v[d] for v in vecs) / len(vecs) for d in range(dim)]
                     result.append(mean_vec)
             return result
 

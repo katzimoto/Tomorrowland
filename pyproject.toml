@@ -82,5 +82,7 @@ ignore_missing_imports = true
 
 [dependency-groups]
 dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
     "testcontainers>=4.14.2",
 ]

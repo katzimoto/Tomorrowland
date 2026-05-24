@@ -6,10 +6,10 @@ from uuid import uuid4
 import pytest
 import sqlalchemy as sa
 
+from services.documents.repository import DocumentRepository
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
-from services.documents.repository import DocumentRepository
-from shared.db import db_uuid, to_uuid
+from shared.db import db_uuid
 
 
 class _SimpleWriterConsumer(BaseConsumer):
@@ -67,12 +67,14 @@ class TestConsumerCommit:
 
         import json
 
-        body = json.dumps({
-            "job_id": str(uuid4()),
-            "document_id": str(doc_id),
-            "source_id": str(uuid4()),
-            "attempt": 1,
-        }).encode()
+        body = json.dumps(
+            {
+                "job_id": str(uuid4()),
+                "document_id": str(doc_id),
+                "source_id": str(uuid4()),
+                "attempt": 1,
+            }
+        ).encode()
         method = MagicMock()
         method.delivery_tag = 1
 

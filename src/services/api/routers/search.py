@@ -188,8 +188,7 @@ def search(
     # Orphaned vectors (no doc row) are also dropped here.
     if not request.include_older_versions:
         merged = [
-            r for r in merged
-            if r.document_id in all_docs and all_docs[r.document_id].is_latest
+            r for r in merged if r.document_id in all_docs and all_docs[r.document_id].is_latest
         ]
 
     start = (request.page - 1) * request.page_size
@@ -199,12 +198,12 @@ def search(
 
     # Resolve family current doc IDs for non-latest docs in this page (small set, conditional).
     family_current: dict[UUID, UUID] = {}
-    non_latest_family_ids = [
-        all_docs[r.document_id].version_family_id
+    non_latest_family_ids: list[UUID] = [
+        fid
         for r in page
         if r.document_id in all_docs
-        and all_docs[r.document_id].version_family_id
         and not all_docs[r.document_id].is_latest
+        and (fid := all_docs[r.document_id].version_family_id) is not None
     ]
     if non_latest_family_ids:
         with http_request.app.state.engine.begin() as connection:

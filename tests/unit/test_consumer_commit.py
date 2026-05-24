@@ -1,4 +1,5 @@
 """Unit tests for PipelineJobRepository.commit() behavior."""
+
 from unittest.mock import MagicMock
 
 from services.pipeline.jobs import PipelineJobRepository
