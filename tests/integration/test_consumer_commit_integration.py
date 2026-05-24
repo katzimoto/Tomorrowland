@@ -6,10 +6,10 @@ from uuid import uuid4
 import pytest
 import sqlalchemy as sa
 
+from services.documents.repository import DocumentRepository
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
-from services.documents.repository import DocumentRepository
-from shared.db import db_uuid, to_uuid
+from shared.db import db_uuid
 
 
 class _SimpleWriterConsumer(BaseConsumer):
