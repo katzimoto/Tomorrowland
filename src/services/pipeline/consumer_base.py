@@ -6,6 +6,7 @@ import json
 import logging
 import signal
 import threading
+import time
 from abc import ABC, abstractmethod
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
@@ -61,23 +62,57 @@ class BaseConsumer(ABC):
     ) -> None:
         """Process one message. Raise on failure."""
 
+    # Backoff delays (seconds) for successive reconnect attempts: 2, 5, 10, 30, 60, 60, …
+    _RECONNECT_DELAYS: tuple[int, ...] = (2, 5, 10, 30, 60)
+
     def run(self) -> None:
-        """Connect, declare topology, consume. Blocks until SIGTERM."""
-        self._rabbit.connect()
-        self._rabbit.declare_topology()
-        self._channel = self._rabbit._channel
-        assert self._channel is not None
-        self._channel.basic_qos(prefetch_count=1)
-        self._channel.basic_consume(
-            queue=self.queue_name,
-            on_message_callback=self._on_message,
-            auto_ack=False,
-        )
+        """Connect, declare topology, consume. Blocks until SIGTERM.
+
+        Reconnects automatically with exponential backoff if the broker drops
+        the connection. SIGTERM triggers a clean stop via stop_consuming().
+        """
         signal.signal(signal.SIGTERM, self._handle_sigterm)
         signal.signal(signal.SIGINT, self._handle_sigterm)
         self._start_health_server()
-        logger.info("worker started: worker_type=%s queue=%s", self.worker_type, self.queue_name)
-        self._channel.start_consuming()
+
+        reconnect_attempt = 0
+        while not self._stopping:
+            try:
+                self._rabbit.connect()
+                self._rabbit.declare_topology()
+                self._channel = self._rabbit._channel
+                assert self._channel is not None
+                self._channel.basic_qos(prefetch_count=1)
+                self._channel.basic_consume(
+                    queue=self.queue_name,
+                    on_message_callback=self._on_message,
+                    auto_ack=False,
+                )
+                logger.info(
+                    "worker started: worker_type=%s queue=%s", self.worker_type, self.queue_name
+                )
+                reconnect_attempt = 0  # reset counter on successful connect
+                self._channel.start_consuming()
+                # start_consuming() returns normally only after stop_consuming() (SIGTERM path)
+            except Exception as exc:
+                if self._stopping:
+                    break
+                delay = self._RECONNECT_DELAYS[
+                    min(reconnect_attempt, len(self._RECONNECT_DELAYS) - 1)
+                ]
+                logger.warning(
+                    "worker connection lost, reconnecting in %ds:"
+                    " worker_type=%s attempt=%d error=%s",
+                    delay,
+                    self.worker_type,
+                    reconnect_attempt + 1,
+                    exc,
+                )
+                reconnect_attempt += 1
+                time.sleep(delay)
+            finally:
+                self._rabbit.close()
+
         logger.info("worker stopped: worker_type=%s", self.worker_type)
 
     def _on_message(

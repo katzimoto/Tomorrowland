@@ -2,6 +2,38 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-25 — Search results not rendering — active bug investigation
+
+Status: Watch
+Source: Claude Code debugging session; triggered by user report after commit f225007
+
+What changed:
+- Nothing changed yet — investigation only, no code edits.
+
+Findings so far:
+- All 24 `SearchPage.test.tsx` frontend tests pass.
+- Backend: `SearchResponse.total = len(merged)` (pre-filter count); `results` is post-filter. These can diverge.
+- `_map_sort()` in `src/services/api/routers/search.py` silently falls back to relevance for any non-default sort because it builds `"updated_at:desc"` but the valid-labels set contains `"updatedAt:desc"` (camelCase mismatch).
+- `highlightHtml()` in `ResultRow.tsx` expects a string; `result.title ?? ""` guards nulls but not arrays.
+
+Diagnostic needed (from user):
+1. Browser DevTools Console — any `TypeError` or red error?
+2. Network tab → `POST /api/search` → Preview — is `results` array empty with `total > 0`?
+
+Fix path once confirmed:
+- **Candidate A (total/results mismatch):** `search.py` line ~270: `total=len(merged)` → `total=len(results)`.
+- **Candidate B (type crash):** `ResultRow.tsx` `highlightHtml`: add `if (typeof raw !== "string") return "";` at top.
+- **Sort bug (definite, fix regardless):** `_map_sort()` needs a lookup table mapping `"updated_at"` → `"updatedAt:desc"` etc. instead of building the string from snake_case.
+
+Open risks:
+- Neither candidate is confirmed — do not patch blindly before seeing console/network output.
+- Sort bug is separate and confirmed; safe to fix independently.
+
+Next agent prompt:
+- Ask user for browser console + network tab output for `/api/search` when results don't appear.
+- Once confirmed, apply the minimal targeted fix (Candidate A or B) plus the sort bug fix.
+- Re-run `vitest run src/features/search/` and `pytest tests/unit/test_meili_provider.py` after fix.
+
 ## 2026-05-24 — Search improvements: facets, highlight rendering, instant search
 
 Status: Done
