@@ -30,13 +30,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-try:
-    from opentelemetry import trace as _otel_trace  # type: ignore[import-not-found]
-
-    _OTEL_AVAILABLE = True
-except ImportError:
-    _OTEL_AVAILABLE = False
-
 
 @contextmanager
 def start_span(name: str, **attributes: Any) -> Iterator[None]:
@@ -52,12 +45,16 @@ def start_span(name: str, **attributes: Any) -> Iterator[None]:
         low-cardinality (document IDs are fine, raw queries or file content
         are not).
     """
-    if not _OTEL_AVAILABLE:
+    try:
+        from opentelemetry import trace as otel_trace  # type: ignore[import-not-found]
+    except ImportError:
+        # OpenTelemetry not installed — complete no-op.
         yield
         return
 
-    tracer = _otel_trace.get_tracer(__name__)
-    with tracer.start_as_current_span(name) as span:
-        for key, value in attributes.items():
-            span.set_attribute(key, str(value))
-        yield
+    # OpenTelemetry is available — create a real span.
+    tracer = otel_trace.get_tracer(__name__)  # pragma: no cover
+    with tracer.start_as_current_span(name) as span:  # pragma: no cover
+        for key, value in attributes.items():  # pragma: no cover
+            span.set_attribute(key, str(value))  # pragma: no cover
+        yield  # pragma: no cover
