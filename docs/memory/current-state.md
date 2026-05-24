@@ -2,6 +2,25 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-24 — TranslateConsumer fixes + frontend stage view separation
+
+Status: Done
+Source: OpenCode session (chat summary)
+
+Finding:
+- **TranslateConsumer early return skipped stage update**: When `content_text` was empty (no extractable text), TranslateConsumer returned before `mark_running_stage("translated")`, leaving stage at "parsed" while downstream workers (embed, index) advanced it to "embedded"/"indexed". Frontend showed translate as "waiting" but later stages "done". Fixed by adding `mark_running_stage(job_id, "translated")` before the early return.
+- **source_language read from wrong table**: TranslateConsumer read `source_language` from `document_payloads` (via `get_payload`) which has no such column — only `content_text`, `content_path`, `content_sha256`, `translated_text`. `source_language` is on the `documents` table. Fixed by reading `doc.source_language` via `doc_repo.get_by_id()` instead. This ensures LibreTranslate uses the known source language instead of always defaulting to "auto".
+- **Frontend**: In the expanded pipeline stage view, "waiting" status now renders as a muted `—` instead of a neutral badge, making it visually distinct from "done" (green success badge).
+- Same `source_language` issue exists in `EnrichConsumer` but requires adding `doc_repo` parameter — deferred.
+
+Impact:
+- Pipeline stage progression is now monotonic even when content_text is empty.
+- Translation uses the actual source language from the documents table.
+- Frontend expanded view clearly separates pending stages (muted dash) from completed stages (green badge).
+
+Next action:
+- Fix `EnrichConsumer` source_language lookup if enrich worker is active.
+
 ## 2026-05-23 — RabbitMQ stage-based job bus (#432) merged to main
 
 Status: Done — all 7 sub-issues complete, PR #512 merged, branch deleted

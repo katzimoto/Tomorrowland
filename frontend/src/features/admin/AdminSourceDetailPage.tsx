@@ -383,7 +383,11 @@ function DocumentRow({
                         </td>
                         <td>{s.label}</td>
                         <td>
-                          <Badge variant={s.badge}>{s.status}</Badge>
+                          {s.status === "waiting" ? (
+                            <span style={{ color: "var(--color-text-secondary)", fontSize: 12 }}>—</span>
+                          ) : (
+                            <Badge variant={s.badge}>{s.status}</Badge>
+                          )}
                         </td>
                         <td style={{ textAlign: "center" }} colSpan={3}>
                           {s.detail || "—"}

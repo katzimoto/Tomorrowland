@@ -45,8 +45,14 @@ class TranslateConsumer(BaseConsumer):
         content_text: str = "",
         translated_text: str = "",
     ) -> None:
+        doc = self._doc_repo.get_by_id(document_id) if self._doc_repo else None
+        lang = doc.source_language if doc else None
+        if lang == "":
+            lang = None
+
         if not content_text:
             logger.debug("translate skipped: empty content_text for document_id=%s", document_id)
+            self._job_repo.mark_running_stage(job_id, "translated")
             self._publisher.publish_embed(
                 job_id=job_id,
                 document_id=document_id,
@@ -56,12 +62,8 @@ class TranslateConsumer(BaseConsumer):
             )
             return
 
-        payload = self._job_repo.get_payload(document_id)
         translated = content_text
         if self._translator:
-            lang = payload.get("source_language") if payload else None
-            if lang == "":
-                lang = None
             translated = (
                 self._translator.translate(content_text, source_lang=lang, target_lang="en")
                 or content_text
