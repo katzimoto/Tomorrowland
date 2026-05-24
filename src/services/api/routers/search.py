@@ -83,8 +83,8 @@ def search(
                 "Meilisearch search degraded route=/search stage=bm25_search correlation_id=%s",
                 get_correlation_id(),
             )
-
-            raise
+            # Degrade gracefully: continue with empty BM25 results so vector search
+            # can still return results instead of surfacing a 500 to the user.
     else:
         try:
             es_client = http_request.app.state.es_client or ElasticsearchSearchClient(
@@ -111,7 +111,7 @@ def search(
                 exc.__class__.__name__,
                 get_correlation_id(),
             )
-            raise
+            # Degrade gracefully: continue with empty BM25 results.
 
     vector_results: list[SearchResult] = []
     try:
@@ -138,20 +138,21 @@ def search(
     http_request.app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
 
     with http_request.app.state.engine.begin() as connection:
-        vector_row = connection.execute(
-            sa.text("SELECT value FROM system_config WHERE key = 'search.vector_weight'"),
-        ).scalar()
-        bm25_row = connection.execute(
-            sa.text("SELECT value FROM system_config WHERE key = 'search.bm25_weight'"),
-        ).scalar()
-        try:
-            vector_weight = float(vector_row) if vector_row is not None else 0.7
-        except (TypeError, ValueError):
-            vector_weight = 0.7
-        try:
-            bm25_weight = float(bm25_row) if bm25_row is not None else 0.3
-        except (TypeError, ValueError):
-            bm25_weight = 0.3
+        _weight_rows = connection.execute(
+            sa.text(
+                "SELECT key, value FROM system_config"
+                " WHERE key IN ('search.vector_weight', 'search.bm25_weight')"
+            ),
+        ).fetchall()
+    _weight_map = {row[0]: row[1] for row in _weight_rows}
+    try:
+        vector_weight = float(_weight_map["search.vector_weight"])
+    except (KeyError, TypeError, ValueError):
+        vector_weight = 0.7
+    try:
+        bm25_weight = float(_weight_map["search.bm25_weight"])
+    except (KeyError, TypeError, ValueError):
+        bm25_weight = 0.3
 
     if vector_results:
         merged = merge_results(
@@ -168,51 +169,50 @@ def search(
             bm25_weight=1.0,
         )
 
-    # Filter out older versions unless explicitly requested
+    # Load all merged doc rows in one query — used for both is_latest filtering and enrichment.
+    all_merged_ids: list[UUID] = []
+    for r in merged:
+        with suppress(ValueError):
+            all_merged_ids.append(UUID(r.document_id))
+
+    all_docs: dict[str, DocumentRow] = {}
+    if all_merged_ids:
+        with http_request.app.state.engine.begin() as connection:
+            _doc_repo = DocumentRepository(connection)
+            for doc in _doc_repo.list_by_ids(all_merged_ids):
+                all_docs[str(doc.id)] = doc
+
+    # Filter out older versions unless explicitly requested.
+    # Orphaned vectors (no doc row) are also dropped here.
     if not request.include_older_versions:
-        all_merged_ids: list[UUID] = []
-        for r in merged:
-            with suppress(ValueError):
-                all_merged_ids.append(UUID(r.document_id))
-        if all_merged_ids:
-            with http_request.app.state.engine.begin() as connection:
-                _doc_repo = DocumentRepository(connection)
-                non_latest: set[str] = {
-                    str(doc.id)
-                    for doc in _doc_repo.list_by_ids(all_merged_ids)
-                    if not doc.is_latest
-                }
-            merged = [r for r in merged if r.document_id not in non_latest]
+        merged = [
+            r for r in merged
+            if r.document_id in all_docs and all_docs[r.document_id].is_latest
+        ]
 
     start = (request.page - 1) * request.page_size
     end = start + request.page_size
     page = merged[start:end]
     logger.info(f"The search result are {page}")
-    # Enrich page with document metadata from the database
-    doc_ids: list[UUID] = []
-    for r in page:
-        with suppress(ValueError):
-            doc_ids.append(UUID(r.document_id))
 
-    docs: dict[str, DocumentRow] = {}
+    # Resolve family current doc IDs for non-latest docs in this page (small set, conditional).
     family_current: dict[UUID, UUID] = {}
-    if doc_ids:
+    non_latest_family_ids = [
+        all_docs[r.document_id].version_family_id
+        for r in page
+        if r.document_id in all_docs
+        and all_docs[r.document_id].version_family_id
+        and not all_docs[r.document_id].is_latest
+    ]
+    if non_latest_family_ids:
         with http_request.app.state.engine.begin() as connection:
             doc_repo = DocumentRepository(connection)
-            for doc in doc_repo.list_by_ids(doc_ids):
-                docs[str(doc.id)] = doc
-            non_latest_family_ids = [
-                d.version_family_id
-                for d in docs.values()
-                if d.version_family_id and not d.is_latest
-            ]
-            if non_latest_family_ids:
-                family_current = doc_repo.get_family_current_doc_ids(non_latest_family_ids)
+            family_current = doc_repo.get_family_current_doc_ids(non_latest_family_ids)
 
     now = datetime.now(UTC).isoformat()
     results: list[SearchResultItem] = []
     for r in page:
-        doc_row = docs.get(r.document_id)
+        doc_row = all_docs.get(r.document_id)
         if doc_row is None:
             # Orphaned Qdrant vector — document row was deleted but vector not yet purged.
             # Drop silently to avoid leaking chunk_text after deletion.
