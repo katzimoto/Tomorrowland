@@ -57,6 +57,7 @@ def search(
         search_group_ids = [str(g) for g in _effective]
 
     bm25_results: list[SearchResult] = []
+    meili_facets: dict[str, dict[str, int]] = {}
     if http_request.app.state.meili_provider is not None:
         try:
             backend_start = time.perf_counter()
@@ -72,12 +73,13 @@ def search(
                 user=user,
             )
             logger.info(f"""Using Meilisearch provider results for search, \
-                    query is {request.query} results are {meili_results}""")
+                    query is {request.query} results are {meili_results.results}""")
             http_request.app.state.metrics.search_backend_duration_seconds.labels(
                 "meilisearch", "search"
             ).observe(time.perf_counter() - backend_start)
-            logger.debug(f"The Meilisearch provider returned {meili_results}")
-            bm25_results = meili_results
+            logger.debug(f"The Meilisearch provider returned {meili_results.results}")
+            bm25_results = meili_results.results
+            meili_facets = meili_results.facets
         except Exception:
             logger.warning(
                 "Meilisearch search degraded route=/search stage=bm25_search correlation_id=%s",
@@ -269,6 +271,7 @@ def search(
         results=results,
         total=len(merged),
         query=request.query,
+        facets=meili_facets,
     )
 
 
