@@ -27,8 +27,25 @@ class Settings(BaseSettings):
 
     libretranslate_url: str = "http://libretranslate:5000"
 
-    ollama_url: str = "http://ollama:11434"
+    ollama_url: str = "http://ollama-llm:11434"
     ollama_model: str = "mistral"
+    # Optional smaller model for cheap repeated tasks (query rewrite, auto-tag,
+    # key-points augmentation, chunk-level summary map). Falls back to
+    # ollama_model when empty.
+    ollama_utility_model: str = ""
+    # Optional dedicated model for cross-encoder reranking. Falls back to
+    # effective_utility_model (and then ollama_model) when empty.
+    ollama_reranker_model: str = ""
+
+    @property
+    def effective_utility_model(self) -> str:
+        """Model to use for cheap/repeated tasks. Falls back to main model."""
+        return self.ollama_utility_model or self.ollama_model
+
+    @property
+    def effective_reranker_model(self) -> str:
+        """Model to use for reranking. Falls back through utility to main."""
+        return self.ollama_reranker_model or self.effective_utility_model
 
     auth_provider: Literal["local", "ldap", "both"] = "both"
     ldap_url: str = "ldap://domain-controller:389"

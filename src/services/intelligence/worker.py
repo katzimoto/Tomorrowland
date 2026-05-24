@@ -89,11 +89,15 @@ class IntelligenceWorker:
         ollama_client: OllamaClient,
         es_client: ElasticsearchSearchClient,
         config_source: Any | None = None,
+        utility_model: str | None = None,
     ) -> None:
         self._repo = repository
         self._ollama = ollama_client
         self._es = es_client
         self._config = config_source
+        # When set, cheap/repeated tasks use this model instead of the main
+        # model. None means use the client default (single-model behavior).
+        self._utility_model = utility_model or None
 
     def process_document(self, document_id: UUID, content: str) -> None:
         """Run enabled intelligence tasks for *document_id*.
@@ -202,6 +206,7 @@ class IntelligenceWorker:
                 prompt = self._build_prompt(
                     "llm.summarization_prompt", stripped, MAX_SUMMARIZE_CHARS
                 )
+                # Short doc: single call uses main model for quality output
                 raw = self._ollama.generate(prompt)
                 normalized = normalize_summary_output(raw)
             else:
@@ -211,7 +216,10 @@ class IntelligenceWorker:
                     chunk_prompt = self._build_prompt(
                         "llm.summarization_prompt", chunk, SUMMARY_CHUNK_CHARS
                     )
-                    chunk_raw = self._ollama.generate(chunk_prompt)
+                    # Map phase: use utility model (cheap, repeated)
+                    chunk_raw = self._ollama.generate(
+                        chunk_prompt, model=self._utility_model
+                    )
                     parsed = normalize_summary_output(chunk_raw)
                     return parsed["summary"] or chunk
 
@@ -222,6 +230,7 @@ class IntelligenceWorker:
                         chunk_summaries.append(future.result())
 
                 reduce_prompt = build_reduce_prompt(chunk_summaries)
+                # Reduce phase: use main model for quality final output
                 reduce_raw = self._ollama.generate(reduce_prompt)
                 normalized = normalize_summary_output(reduce_raw)
 
@@ -309,7 +318,8 @@ class IntelligenceWorker:
     def _auto_tag(self, document_id: UUID, content: str) -> None:
         """Generate tags and replace existing tags for the document."""
         prompt = self._build_prompt("llm.auto_tag_prompt", content, MAX_TAG_CHARS)
-        result = self._ollama.generate(prompt)
+        # Utility model: cheap, repeated tagging task
+        result = self._ollama.generate(prompt, model=self._utility_model)
         parsed = self._ollama.parse_json_array(result)
 
         tags = [str(t).strip() for t in parsed if isinstance(t, str) and str(t).strip()]
@@ -334,7 +344,10 @@ class IntelligenceWorker:
             llm_prompt = str(self._config.get("llm.key_points_prompt", "") or "")
         if llm_prompt:
             try:
-                response = self._ollama.generate(f"{llm_prompt}\n\n{truncated}")
+                # Utility model: cheap LLM augmentation of rule-based output
+                response = self._ollama.generate(
+                    f"{llm_prompt}\n\n{truncated}", model=self._utility_model
+                )
                 llm_points = self._ollama.parse_json_array(response)
                 normalized = [
                     str(p).strip()[:MAX_KEY_POINT_LENGTH]

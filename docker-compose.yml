@@ -10,11 +10,13 @@ x-app-environment: &app-environment
   LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-http://libretranslate:5000}
   SUPPORTED_TRANSLATION_SOURCE_LANGUAGES: ${SUPPORTED_TRANSLATION_SOURCE_LANGUAGES:-en,he,zh,ko,th,ar,fr,ru,es}
   SUPPORTED_TRANSLATION_TARGET_LANGUAGES: ${SUPPORTED_TRANSLATION_TARGET_LANGUAGES:-en,he,zh,ko,th,ar,fr,ru,es}
-  OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+  OLLAMA_URL: ${OLLAMA_URL:-http://ollama-llm:11434}
   OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
+  OLLAMA_UTILITY_MODEL: ${OLLAMA_UTILITY_MODEL:-}
+  OLLAMA_RERANKER_MODEL: ${OLLAMA_RERANKER_MODEL:-}
   EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-}
   EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
-  EMBEDDING_URL: ${EMBEDDING_URL:-}
+  EMBEDDING_URL: ${EMBEDDING_URL:-http://ollama-embed:11434}
   EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
   EMBEDDING_PROVIDER_UNSAFE_ALLOW_TEST_IN_PROD: ${EMBEDDING_PROVIDER_UNSAFE_ALLOW_TEST_IN_PROD:-false}
   AUTH_PROVIDER: ${AUTH_PROVIDER:-local}
@@ -107,7 +109,9 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-      ollama:
+      ollama-llm:
+        condition: service_healthy
+      ollama-embed:
         condition: service_healthy
     logging:
       driver: json-file
@@ -134,7 +138,7 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-      ollama:
+      ollama-embed:
         condition: service_healthy
     logging:
       driver: json-file
@@ -309,13 +313,14 @@ services:
     volumes:
       - libretranslate_data:/home/libretranslate/.local
 
-  ollama:
+  ollama-llm:
     build:
       context: .
-      dockerfile: docker/ollama.Dockerfile
+      dockerfile: docker/ollama-llm.Dockerfile
       args:
         OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral}
-        EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+        OLLAMA_UTILITY_MODEL: ${OLLAMA_UTILITY_MODEL:-}
+        OLLAMA_RERANKER_MODEL: ${OLLAMA_RERANKER_MODEL:-}
     restart: unless-stopped
     cpus: ${OLLAMA_CPUS:-2.00}
     mem_limit: ${OLLAMA_MEM_LIMIT:-4g}
@@ -339,7 +344,38 @@ services:
     logging:
       driver: json-file
     volumes:
-      - ollama_data:/root/.ollama
+      - ollama_llm_data:/root/.ollama
+
+  ollama-embed:
+    build:
+      context: .
+      dockerfile: docker/ollama-embed.Dockerfile
+      args:
+        EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+    restart: unless-stopped
+    cpus: ${OLLAMA_EMBED_CPUS:-1.00}
+    mem_limit: ${OLLAMA_EMBED_MEM_LIMIT:-2g}
+    mem_reservation: ${OLLAMA_EMBED_MEM_RESERVATION:-512m}
+    pids_limit: ${OLLAMA_EMBED_PIDS_LIMIT:-512}
+    environment:
+      OLLAMA_MODELS: /root/.ollama/models
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_EMBED_CONTEXT_LENGTH:-8192}
+      OLLAMA_MAX_LOADED_MODELS: 1
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_EMBED_NUM_PARALLEL:-2}
+      OLLAMA_MAX_QUEUE: ${OLLAMA_EMBED_MAX_QUEUE:-16}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_EMBED_KEEP_ALIVE:-4h}
+    ports:
+      - "${OLLAMA_EMBED_PORT:-11435}:11434"
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    logging:
+      driver: json-file
+    volumes:
+      - ollama_embed_data:/root/.ollama
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
@@ -425,7 +461,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      ollama:
+      ollama-embed:
         condition: service_healthy
       qdrant:
         condition: service_healthy
@@ -480,7 +516,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      ollama:
+      ollama-llm:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8085/health"]
@@ -638,8 +674,10 @@ volumes:
     name: ${TOMORROWLAND_MEILISEARCH_VOLUME:-tomorrowland_meilisearch_data}
   libretranslate_data:
     name: ${TOMORROWLAND_LIBRETRANSLATE_VOLUME:-tomorrowland_libretranslate_data}
-  ollama_data:
-    name: ${TOMORROWLAND_OLLAMA_VOLUME:-tomorrowland_ollama_data}
+  ollama_llm_data:
+    name: ${TOMORROWLAND_OLLAMA_LLM_VOLUME:-tomorrowland_ollama_llm_data}
+  ollama_embed_data:
+    name: ${TOMORROWLAND_OLLAMA_EMBED_VOLUME:-tomorrowland_ollama_embed_data}
   rabbitmq_data:
     name: ${TOMORROWLAND_RABBITMQ_VOLUME:-tomorrowland_rabbitmq_data}
   prometheus_data:

@@ -69,6 +69,7 @@ def main() -> None:
             repository=IntelligenceRepository(conn),
             ollama_client=ollama,
             es_client=es_client,
+            utility_model=settings.effective_utility_model,
         )
         consumer = IntelligenceConsumer(rabbit, job_repo, intelligence)
         consumer.run()

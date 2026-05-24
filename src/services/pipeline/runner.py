@@ -604,6 +604,7 @@ if __name__ == "__main__":
             repository=IntelligenceRepository(conn),
             ollama_client=ollama_client,
             es_client=es_client,
+            utility_model=settings.effective_utility_model,
         )
 
         job_repo = PipelineJobRepository(conn)

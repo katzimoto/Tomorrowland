@@ -62,10 +62,14 @@ class CrossEncoderReranker:
         ollama_client: OllamaClient,
         min_score: float = 3.0,
         top_n: int = 8,
+        model: str | None = None,
     ) -> None:
         self._ollama = ollama_client
         self._min_score = min_score
         self._top_n = top_n
+        # When set, reranking uses this model instead of the client default.
+        # Pass OLLAMA_RERANKER_MODEL (or its effective fallback) here.
+        self._model = model
 
     @staticmethod
     def _parse_score(text: str) -> float:
@@ -88,7 +92,7 @@ class CrossEncoderReranker:
                 chunk_text=chunk.get("chunk_text", "")[:2000],
             )
             try:
-                response = self._ollama.generate(prompt)
+                response = self._ollama.generate(prompt, model=self._model)
                 score = self._parse_score(response)
             except Exception:
                 logger.warning("Reranker scoring failed for a chunk, using 0", exc_info=True)
