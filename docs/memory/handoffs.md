@@ -2,6 +2,36 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-24 — Frontend code splitting, Ollama fix, issue board cleanup, #480
+
+Status: Done
+Source: Claude Code session; commits 64a70ad, 4929569 on main
+
+What changed:
+- `frontend/src/app/routes.tsx` — all 18 static page imports → React.lazy()
+- `frontend/src/app/AppLayout.tsx` — Outlet wrapped in `<Suspense fallback={null}>`
+- `frontend/vite.config.ts` — manualChunks: vendor-react, vendor-router, vendor-query, vendor-pdf, vendor-highlight, vendor-markdown
+- `src/services/search/encoder.py` — `_embed_batch()` passes `options.num_ctx = self._max_tokens` to Ollama /api/embed; 2 new unit tests in `test_search_ollama_encoder.py`
+- `frontend/src/features/comments/CommentComposer.tsx` — Enter submits, Shift+Enter newline, hint text
+- `frontend/src/features/annotations/AnnotationEditor.tsx` — same; handleSubmit extracted as onSubmit
+- CSS modules (Comments.module.css, Annotations.module.css) — `.hint` class appended
+- 4 new frontend tests covering Enter/Shift+Enter in both composers
+- Issues: #365 closed, #482 closed, labels added to #480/481/482/438/511
+
+Verification:
+- `npm run build` — clean, 64 chunks, no errors
+- `npm run typecheck` — clean
+- `vitest run` (comments + annotations) — 8/8 passed
+- Backend encoder unit tests — 10/10 passed
+
+Open risks:
+- `fallback={null}` on Suspense: brief blank flash on first visit to a route chunk (imperceptible on fast connection; can swap to skeleton if needed)
+- #481 (threaded replies in comments) needs backend first: parent_id migration, repository, routes, then frontend. Do not start frontend-first.
+
+Next agent prompt:
+- Resume #400 AI workstreams: start A2 (hybrid RAG retrieval) — A1 already merged.
+- Or pick up #501 (Rust workspace scaffold) — all sub-issues #501–#510 are `status:next`.
+
 ## 2026-05-23 — RabbitMQ job bus merged + QoL improvements
 
 Status: Done

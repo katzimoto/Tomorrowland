@@ -2,6 +2,27 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-24 — Frontend code splitting, Ollama num_ctx fix, issue board cleanup, #480
+
+Status: Done
+Source: Claude Code session; commits 64a70ad, 4929569 on main
+
+Finding:
+- **Frontend initial bundle**: was 1,146 kB (340 kB gz). All 18 page imports in `routes.tsx` were static. Fixed with React.lazy() + Suspense in AppLayout's Outlet + Vite manualChunks. Initial bundle now 30.5 kB (10.2 kB gz). pdfjs-dist (122 kB gz) and highlight.js (17 kB gz) only load on /doc/* routes.
+- **Ollama num_ctx warning**: `nomic-embed-text` Modelfile bakes in `PARAMETER num_ctx 8192` but `n_ctx_train=2048`. Modelfile beats `OLLAMA_CONTEXT_LENGTH` env var. Fixed: `OllamaEmbeddingEncoder._embed_batch()` now passes `"options": {"num_ctx": self._max_tokens}` at request level (highest priority in Ollama). Ollama v0.23.2. 2 new unit tests.
+- **#480 Enter to submit**: Both `CommentComposer` and `AnnotationEditor` now submit on Enter, insert newline on Shift+Enter. Hint text shown. 4 new unit tests.
+- **Issue board**: #365 (RabbitMQ mission) closed — all 8 sub-issues shipped. #482 closed — "Why related?" already implemented (badges + expandable panel in InsightPane RelatedTab). Labels added to #480, #481, #482, #438, #511.
+- **#481 threaded comment replies**: Backend comments router has NO reply support (no parent_id, no routes). Correctly deferred. Needs migration + backend + frontend before picking up.
+
+Impact:
+- UI loads ~3× faster on first visit (on fast connection, 10 kB shell vs 340 kB monolith).
+- Ollama warning gone; no wasted KV-cache memory on embedding calls.
+- Enter-to-submit UX parity across all annotation and comment inputs.
+
+Next action:
+- Pick up #481 only after adding comment reply DB migration + backend routes.
+- Remaining AI workstreams for #400 (groups 1–3): A2–A6, B2, D2 remainder, E1–E2.
+
 ## 2026-05-24 — Download 500 on non-ASCII filenames + three user-facing issues
 
 Status: Done
