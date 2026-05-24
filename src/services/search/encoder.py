@@ -130,13 +130,29 @@ class OllamaEmbeddingEncoder:
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Use the modern ``/api/embed`` endpoint."""
         if self._max_tokens is not None:
+            # Use 3 chars/token as the safety ratio instead of the 4 chars/token
+            # heuristic used by _estimate_tokens.  Dense scripts (Hebrew, Arabic,
+            # CJK) can tokenise at 1–2 chars/token, so len/4 underestimates badly.
+            # Truncating is far better than a job failure: the chunk still embeds,
+            # just slightly shorter than its original length.
+            char_limit = self._max_tokens * 3
+            sanitized: list[str] = []
             for i, text in enumerate(texts):
-                token_count = _estimate_tokens(text)
-                if token_count > self._max_tokens:
-                    raise ValueError(
-                        f"Embedding text at index {i} exceeds max_tokens={self._max_tokens} "
-                        f"(estimated {token_count} tokens)"
+                if len(text) > char_limit:
+                    logger.warning(
+                        "Embedding text at index %d truncated from %d to %d chars "
+                        "(max_tokens=%d char_limit=%d model=%s)",
+                        i,
+                        len(text),
+                        char_limit,
+                        self._max_tokens,
+                        char_limit,
+                        self._model,
                     )
+                    sanitized.append(text[:char_limit])
+                else:
+                    sanitized.append(text)
+            texts = sanitized
         url = f"{self._base_url}/api/embed"
         payload: dict[str, Any] = {
             "model": self._model,
