@@ -2,6 +2,25 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-24 — Search improvements: facets, highlight rendering, instant search
+
+Status: Done
+Source: Claude Code session; commit 8dfa896 on `claude/refine-local-plan-ohFc5`
+
+Finding:
+- **Facets**: `meili_provider.search()` was discarding `facetDistribution` — now returned via new `SearchResults(results, facets)` wrapper. `metadata.mime_type` added to the requested facet fields (was missing). `SearchResponse` now includes `facets: dict[str, dict[str, int]]`. `FilterPanel` shows live file-type counts and data-driven Tags + Source checkbox sections (top 10 by count). Source and Tags removed from Advanced; Extension remains.
+- **Highlight rendering**: `_map_result()` now prefers `_formatted.title` for highlighted title. `"title"` added to `attributesToHighlight`. `ResultRow` renders title + snippet with `dangerouslySetInnerHTML` + `highlightHtml()` sanitizer (strips all HTML except `<mark>`). Mark styled pale yellow via `oklch(97% 0.15 90)`.
+- **Instant search**: `useEffect` debounces `inputValue → setSubmittedQuery` at 350ms (min 2 chars). Does not navigate or reset preview state. Explicit Enter/button submit unchanged.
+- **Test updates**: 2 meili_provider tests updated for `SearchResults` wrapper (`.results` attribute).
+
+Impact:
+- Filter panel is now data-driven instead of static; users see counts and real tag/source options.
+- Search highlights appear visually in results without XSS risk.
+- Results appear ~350ms after typing without pressing Enter.
+
+Next action:
+- Branch `claude/refine-local-plan-ohFc5` ready for PR when approved.
+
 ## 2026-05-24 — Frontend code splitting, Ollama num_ctx fix, issue board cleanup, #480
 
 Status: Done

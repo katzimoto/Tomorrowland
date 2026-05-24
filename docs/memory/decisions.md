@@ -2,6 +2,36 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-05-24 — SearchResults wrapper for meili_provider.search()
+
+Status: Active
+Source: commit 8dfa896 on `claude/refine-local-plan-ohFc5`
+
+Decision:
+- `meili_provider.search()` returns `SearchResults(results: list[SearchResult], facets: dict[str, dict[str, int]])` instead of a bare list.
+- Callers unpack: `bm25_results = meili_results.results`, `meili_facets = meili_results.facets`.
+- Short-circuit path (no-group user, `needs_acl_short_circuit`) returns `SearchResults(results=[], facets={})`.
+- `SearchResponse` (API schema) carries `facets` with `default_factory=dict` so the field is always present.
+
+Impact:
+- Any future caller of `meili_provider.search()` must use `.results` not direct iteration.
+- Facets are available in the API response without a separate endpoint.
+
+## 2026-05-24 — Meilisearch highlight rendering via dangerouslySetInnerHTML
+
+Status: Active
+Source: commit 8dfa896 on `claude/refine-local-plan-ohFc5`
+
+Decision:
+- `ResultRow` renders `title` and `snippet` with `dangerouslySetInnerHTML` + `highlightHtml()` sanitizer.
+- `highlightHtml()` strips all HTML tags except `<mark>` and `</mark>` via regex: `raw.replace(/<(?!\/?mark\b)[^>]*>/gi, "")`.
+- Meilisearch is configured with `highlightPreTag: "<mark>"` / `highlightPostTag: "</mark>"`. Only these tags are trusted; all other tags from the search index are stripped.
+- `mark` styled in CSS: `background: oklch(97% 0.15 90)`, `border-radius: 2px`, `padding: 0 1px`.
+
+Impact:
+- Any component rendering Meilisearch `_formatted.*` fields must use `highlightHtml()` before injecting HTML.
+- Do not use `dangerouslySetInnerHTML` on raw Meilisearch output without `highlightHtml()` first.
+
 ## 2026-05-23 — Pipeline efficiency optimizations
 
 Status: Active

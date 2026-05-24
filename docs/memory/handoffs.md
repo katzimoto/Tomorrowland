@@ -2,6 +2,36 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-24 — Search improvements: facets, highlight rendering, instant search
+
+Status: Done
+Source: Claude Code session; commit 8dfa896 on `claude/refine-local-plan-ohFc5`
+
+What changed:
+- `src/services/search/models.py` — Added `SearchResults(results, facets)` frozen dataclass
+- `src/services/search/meili_provider.py` — `search()` returns `SearchResults`; added `metadata.mime_type` to facets list; added `"title"` to `attributesToHighlight`; `_map_result()` prefers `_formatted.title`; extracts `facetDistribution` from raw response
+- `src/services/api/schemas.py` — `SearchResponse.facets: dict[str, dict[str, int]] = Field(default_factory=dict)`
+- `src/services/api/routers/search.py` — Unpacks `meili_results.results` / `.facets`; passes `facets=meili_facets` to `SearchResponse`
+- `tests/unit/test_meili_provider.py` — Updated 2 tests: `len(response)` → `len(response.results)`, `response[0]` → `response.results[0]`
+- `frontend/src/api/search.ts` — `SearchResponse.facets?: Record<string, Record<string, number>>`
+- `frontend/src/features/search/FilterPanel.tsx` — Added `facets` prop; file type checkboxes show live counts; Tags + Source sections with facet-driven checkboxes (top 10); Source+Tags removed from Advanced (Extension stays)
+- `frontend/src/features/search/SearchPage.tsx` — `useEffect` debounce 350ms on `inputValue`; passes `data?.facets ?? {}` to FilterPanel
+- `frontend/src/features/search/ResultRow.tsx` — `highlightHtml()` sanitizer; `dangerouslySetInnerHTML` on title + snippet
+- `frontend/src/features/search/ResultRow.module.css` — Mark highlight styles
+
+Verification:
+- Backend: 31/31 unit tests pass (`test_meili_provider`, `test_meili_search_path`) — no-cov
+- Frontend: 28/28 tests pass (`FilterPanel.test.tsx`, `SearchPage.test.tsx`)
+- `tsc --noEmit` — clean; `npm run build` — clean (756ms, 64 chunks)
+
+Open risks:
+- FilterPanel existing tests do not cover new Tags/Source sections (no test data for facets) — low risk since prop is optional and sections hidden when empty
+- Instant search doesn't navigate (URL not updated until explicit submit) — by design
+
+Next agent prompt:
+- Open PR from `claude/refine-local-plan-ohFc5` targeting `main` if not already done.
+- Consider adding a FilterPanel test that passes mock facets and asserts Tags/Source sections appear.
+
 ## 2026-05-24 — Frontend code splitting, Ollama fix, issue board cleanup, #480
 
 Status: Done
