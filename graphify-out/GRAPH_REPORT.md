@@ -1,16 +1,16 @@
-# Graph Report - Tomorrowland  (2026-05-22)
+# Graph Report - Tomorrowland  (2026-05-23)
 
 ## Corpus Check
-- 619 files · ~315,754 words
+- 665 files · ~350,774 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 7205 nodes · 10763 edges · 611 communities (539 shown, 72 thin omitted)
-- Extraction: 81% EXTRACTED · 19% INFERRED · 0% AMBIGUOUS · INFERRED: 2076 edges (avg confidence: 0.77)
+- 7354 nodes · 10888 edges · 612 communities (533 shown, 79 thin omitted)
+- Extraction: 81% EXTRACTED · 19% INFERRED · 0% AMBIGUOUS · INFERRED: 2066 edges (avg confidence: 0.77)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `01e29328`
+- Built from commit: `d4d2de5a`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -127,7 +127,7 @@
 - [[_COMMUNITY_Module Group 110|Module Group 110]]
 - [[_COMMUNITY_Module Group 111|Module Group 111]]
 - [[_COMMUNITY_Module Group 112|Module Group 112]]
-- [[_COMMUNITY_Module Group 113|Module Group 113]]
+- [[_COMMUNITY_Community 113|Community 113]]
 - [[_COMMUNITY_Module Group 114|Module Group 114]]
 - [[_COMMUNITY_Module Group 115|Module Group 115]]
 - [[_COMMUNITY_Module Group 116|Module Group 116]]
@@ -149,7 +149,7 @@
 - [[_COMMUNITY_Module Group 132|Module Group 132]]
 - [[_COMMUNITY_Module Group 133|Module Group 133]]
 - [[_COMMUNITY_Module Group 134|Module Group 134]]
-- [[_COMMUNITY_Module Group 135|Module Group 135]]
+- [[_COMMUNITY_Community 135|Community 135]]
 - [[_COMMUNITY_Module Group 136|Module Group 136]]
 - [[_COMMUNITY_Module Group 137|Module Group 137]]
 - [[_COMMUNITY_Module Group 138|Module Group 138]]
@@ -168,7 +168,7 @@
 - [[_COMMUNITY_Module Group 151|Module Group 151]]
 - [[_COMMUNITY_Module Group 152|Module Group 152]]
 - [[_COMMUNITY_Module Group 153|Module Group 153]]
-- [[_COMMUNITY_Module Group 154|Module Group 154]]
+- [[_COMMUNITY_Community 154|Community 154]]
 - [[_COMMUNITY_Module Group 155|Module Group 155]]
 - [[_COMMUNITY_Module Group 156|Module Group 156]]
 - [[_COMMUNITY_Module Group 157|Module Group 157]]
@@ -184,7 +184,7 @@
 - [[_COMMUNITY_Module Group 167|Module Group 167]]
 - [[_COMMUNITY_Module Group 168|Module Group 168]]
 - [[_COMMUNITY_Module Group 169|Module Group 169]]
-- [[_COMMUNITY_Module Group 170|Module Group 170]]
+- [[_COMMUNITY_Community 170|Community 170]]
 - [[_COMMUNITY_Module Group 171|Module Group 171]]
 - [[_COMMUNITY_Module Group 172|Module Group 172]]
 - [[_COMMUNITY_Module Group 173|Module Group 173]]
@@ -194,15 +194,14 @@
 - [[_COMMUNITY_Module Group 177|Module Group 177]]
 - [[_COMMUNITY_Module Group 178|Module Group 178]]
 - [[_COMMUNITY_Module Group 179|Module Group 179]]
-- [[_COMMUNITY_Module Group 180|Module Group 180]]
 - [[_COMMUNITY_Module Group 181|Module Group 181]]
 - [[_COMMUNITY_Module Group 182|Module Group 182]]
 - [[_COMMUNITY_Module Group 183|Module Group 183]]
 - [[_COMMUNITY_Module Group 184|Module Group 184]]
-- [[_COMMUNITY_Module Group 185|Module Group 185]]
+- [[_COMMUNITY_Community 185|Community 185]]
 - [[_COMMUNITY_Module Group 186|Module Group 186]]
-- [[_COMMUNITY_Module Group 187|Module Group 187]]
-- [[_COMMUNITY_Module Group 189|Module Group 189]]
+- [[_COMMUNITY_Community 187|Community 187]]
+- [[_COMMUNITY_Community 189|Community 189]]
 - [[_COMMUNITY_Module Group 190|Module Group 190]]
 - [[_COMMUNITY_Module Group 191|Module Group 191]]
 - [[_COMMUNITY_Module Group 192|Module Group 192]]
@@ -214,7 +213,7 @@
 - [[_COMMUNITY_Module Group 198|Module Group 198]]
 - [[_COMMUNITY_Module Group 199|Module Group 199]]
 - [[_COMMUNITY_Module Group 200|Module Group 200]]
-- [[_COMMUNITY_Module Group 201|Module Group 201]]
+- [[_COMMUNITY_Community 201|Community 201]]
 - [[_COMMUNITY_Module Group 202|Module Group 202]]
 - [[_COMMUNITY_Module Group 203|Module Group 203]]
 - [[_COMMUNITY_Module Group 204|Module Group 204]]
@@ -222,13 +221,13 @@
 - [[_COMMUNITY_Module Group 206|Module Group 206]]
 - [[_COMMUNITY_Module Group 207|Module Group 207]]
 - [[_COMMUNITY_Module Group 208|Module Group 208]]
-- [[_COMMUNITY_Module Group 209|Module Group 209]]
+- [[_COMMUNITY_Community 209|Community 209]]
 - [[_COMMUNITY_Module Group 210|Module Group 210]]
-- [[_COMMUNITY_Module Group 211|Module Group 211]]
+- [[_COMMUNITY_Community 211|Community 211]]
 - [[_COMMUNITY_Module Group 212|Module Group 212]]
 - [[_COMMUNITY_Module Group 213|Module Group 213]]
 - [[_COMMUNITY_Module Group 214|Module Group 214]]
-- [[_COMMUNITY_Module Group 215|Module Group 215]]
+- [[_COMMUNITY_Community 215|Community 215]]
 - [[_COMMUNITY_Module Group 216|Module Group 216]]
 - [[_COMMUNITY_Module Group 217|Module Group 217]]
 - [[_COMMUNITY_Module Group 218|Module Group 218]]
@@ -238,7 +237,7 @@
 - [[_COMMUNITY_Module Group 222|Module Group 222]]
 - [[_COMMUNITY_Module Group 223|Module Group 223]]
 - [[_COMMUNITY_Module Group 227|Module Group 227]]
-- [[_COMMUNITY_Module Group 228|Module Group 228]]
+- [[_COMMUNITY_Community 228|Community 228]]
 - [[_COMMUNITY_Module Group 229|Module Group 229]]
 - [[_COMMUNITY_Module Group 230|Module Group 230]]
 - [[_COMMUNITY_Module Group 231|Module Group 231]]
@@ -264,7 +263,7 @@
 - [[_COMMUNITY_Module Group 256|Module Group 256]]
 - [[_COMMUNITY_Module Group 257|Module Group 257]]
 - [[_COMMUNITY_Module Group 259|Module Group 259]]
-- [[_COMMUNITY_Module Group 260|Module Group 260]]
+- [[_COMMUNITY_Community 260|Community 260]]
 - [[_COMMUNITY_Module Group 261|Module Group 261]]
 - [[_COMMUNITY_Module Group 262|Module Group 262]]
 - [[_COMMUNITY_Module Group 263|Module Group 263]]
@@ -310,8 +309,8 @@
 - [[_COMMUNITY_Module Group 336|Module Group 336]]
 - [[_COMMUNITY_Module Group 337|Module Group 337]]
 - [[_COMMUNITY_Module Group 340|Module Group 340]]
-- [[_COMMUNITY_Module Group 342|Module Group 342]]
-- [[_COMMUNITY_Module Group 343|Module Group 343]]
+- [[_COMMUNITY_Community 342|Community 342]]
+- [[_COMMUNITY_Community 343|Community 343]]
 - [[_COMMUNITY_Module Group 345|Module Group 345]]
 - [[_COMMUNITY_Module Group 350|Module Group 350]]
 - [[_COMMUNITY_Module Group 354|Module Group 354]]
@@ -505,7 +504,6 @@
 - [[_COMMUNITY_Community 549|Community 549]]
 - [[_COMMUNITY_Community 550|Community 550]]
 - [[_COMMUNITY_Community 551|Community 551]]
-- [[_COMMUNITY_Community 552|Community 552]]
 - [[_COMMUNITY_Community 553|Community 553]]
 - [[_COMMUNITY_Community 554|Community 554]]
 - [[_COMMUNITY_Community 555|Community 555]]
@@ -548,15 +546,16 @@
 - [[_COMMUNITY_Community 599|Community 599]]
 - [[_COMMUNITY_Community 600|Community 600]]
 - [[_COMMUNITY_Community 601|Community 601]]
-- [[_COMMUNITY_Community 602|Community 602]]
 - [[_COMMUNITY_Community 603|Community 603]]
-- [[_COMMUNITY_Community 604|Community 604]]
-- [[_COMMUNITY_Community 605|Community 605]]
-- [[_COMMUNITY_Community 606|Community 606]]
-- [[_COMMUNITY_Community 607|Community 607]]
 - [[_COMMUNITY_Community 608|Community 608]]
 - [[_COMMUNITY_Community 609|Community 609]]
-- [[_COMMUNITY_Community 610|Community 610]]
+- [[_COMMUNITY_Community 611|Community 611]]
+- [[_COMMUNITY_Community 612|Community 612]]
+- [[_COMMUNITY_Community 613|Community 613]]
+- [[_COMMUNITY_Community 614|Community 614]]
+- [[_COMMUNITY_Community 620|Community 620]]
+- [[_COMMUNITY_Community 629|Community 629]]
+- [[_COMMUNITY_Community 636|Community 636]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `create_app()` - 218 edges
@@ -564,8 +563,8 @@
 3. `AuthRepository` - 128 edges
 4. `db_uuid()` - 124 edges
 5. `DocumentRepository` - 82 edges
-6. `QdrantSearchClient` - 55 edges
-7. `PipelineJobRepository` - 51 edges
+6. `PipelineJobRepository` - 56 edges
+7. `QdrantSearchClient` - 55 edges
 8. `to_uuid()` - 49 edges
 9. `ChatRepository` - 44 edges
 10. `useT()` - 44 edges
@@ -573,52 +572,52 @@
 ## Surprising Connections (you probably didn't know these)
 - `sample.pdf — PDF v1.3 test fixture (1 page)` --used_by--> `PR #11 — Preview Service (Phase 05a)`  [INFERRED]
   tests/fixtures/sample.pdf → review/11.md
+- `test_generate_success()` --calls--> `OllamaClient`  [INFERRED]
+  tests/unit/test_ollama_client.py → src/services/intelligence/ollama_client.py
+- `test_generate_with_custom_model()` --calls--> `OllamaClient`  [INFERRED]
+  tests/unit/test_ollama_client.py → src/services/intelligence/ollama_client.py
+- `test_generate_http_error()` --calls--> `OllamaClient`  [INFERRED]
+  tests/unit/test_ollama_client.py → src/services/intelligence/ollama_client.py
 - `ollama_client()` --calls--> `OllamaClient`  [INFERRED]
   tests/integration/test_intelligence_worker.py → src/services/intelligence/ollama_client.py
-- `encoder()` --calls--> `DeterministicTestEncoder`  [INFERRED]
-  tests/unit/test_rag_retrieval_eval.py → src/services/search/encoder.py
-- `test_plain_extractor_returns_empty_for_empty_file()` --calls--> `PlainExtractor`  [INFERRED]
-  tests/unit/test_extraction_edge_cases.py → src/services/extraction/plain.py
-- `_setup_admin()` --calls--> `AuthRepository`  [INFERRED]
-  tests/unit/test_meili_rollback.py → src/services/auth/repository.py
 
-## Communities (611 total, 72 thin omitted)
+## Communities (612 total, 79 thin omitted)
 
 ### Community 0 - "Atlassian Connector"
 Cohesion: 0.07
-Nodes (28): _as_list(), _AtlassianConnectorBase, ConfluenceConnector, _DownloadedAttachment, _html_to_text(), _jira_field_to_text(), JiraConnector, Atlassian Server/Data Center connectors for Confluence and Jira. (+20 more)
+Nodes (33): _as_list(), _AtlassianConnectorBase, ConfluenceConnector, _DownloadedAttachment, _html_to_text(), _jira_field_to_text(), JiraConnector, Atlassian Server/Data Center connectors for Confluence and Jira. (+25 more)
 
 ### Community 1 - "SMB File Connector"
 Cohesion: 0.08
-Nodes (28): _entry_stat(), _glob_matches(), _join_remote(), _normalise_remote_path(), _parse_bool(), _parse_globs(), _parse_max_size(), SMB / Windows file share connector. (+20 more)
+Nodes (30): _entry_stat(), _glob_matches(), _join_remote(), _normalise_remote_path(), _parse_bool(), _parse_globs(), _parse_max_size(), SMB / Windows file share connector. (+22 more)
 
 ### Community 2 - "Connector Factory"
 Cohesion: 0.06
 Nodes (38): build_connector(), connector_types(), _parse_config(), Build the correct SourceConnector from a DB source row., Return field metadata for all registered connector types.      The result drives, Return a connector for *source_row*.      Reads ``source_row["type"]`` and ``sou, Normalise the config column value to a dict.      SQLite returns JSON columns as, FolderConnector (+30 more)
 
 ### Community 3 - "Auth API & Tests"
-Cohesion: 0.14
-Nodes (9): Tests for Meilisearch feature-flag rollback., Tests proving Meilisearch flag rollback works correctly., When flag is off, search should work without Meilisearch being available., Verify rollback documentation covers key requirements., _setup_admin(), test_flag_on_creates_provider(), test_meili_provider_present_when_flag_on(), TestRollbackBehavior (+1 more)
+Cohesion: 0.16
+Nodes (29): _create_source_with_doc(), When encoder fails, search should still return BM25 results., When Qdrant fails, search should still return BM25 results., When Elasticsearch fails, search should fail because there is no fallback., When vector search fails, logs must not contain the raw query text., Create an ingestion source, grant it to a group, and create a document.     Retu, When encoder fails, related documents should return empty list safely., When encoder fails, expertise should return empty list safely. (+21 more)
 
 ### Community 4 - "Admin Config & DLQ"
-Cohesion: 0.07
-Nodes (52): admin_list_config(), admin_reset_config(), admin_update_config(), admin_list_dlq(), admin_requeue_dead_letter(), admin_retry_dlq(), Reset dead-lettered pipeline_jobs back to pending.      Optional query params:, admin_list_activity() (+44 more)
+Cohesion: 0.06
+Nodes (47): admin_list_config(), admin_reset_config(), admin_update_config(), admin_list_dlq(), admin_requeue_dead_letter(), admin_retry_dlq(), Reset dead-lettered pipeline_jobs back to pending.      Optional query params:, admin_connector_types() (+39 more)
 
 ### Community 5 - "Annotation Models"
-Cohesion: 0.13
-Nodes (24): Annotation, AnnotationCreateRequest, AnnotationUpdateRequest, Row model for the annotations table., Request body for creating an annotation., Request body for updating an annotation., AddChildGroupRequest, AddUserToGroupRequest (+16 more)
+Cohesion: 0.05
+Nodes (51): Alert subscription and notification models., Request body for updating an alert subscription., Request body for creating an alert subscription., SubscriptionCreateRequest, SubscriptionUpdateRequest, Annotation, AnnotationCreateRequest, AnnotationUpdateRequest (+43 more)
 
 ### Community 6 - "Annotation Repository"
-Cohesion: 0.04
-Nodes (42): Return an annotation by id., Update an annotation's fields., Hard-delete an annotation., Return whether *user_id* can modify or delete the annotation., List annotations visible to *user_id* on *document_id*.          Returns:, Create a new annotation and return its record., Record a successful login timestamp for a user., Create a minimal ingestion source for permission grants. (+34 more)
+Cohesion: 0.06
+Nodes (27): AttachmentData, Text extraction abstraction., Raw attachment extracted from a container document (email, archive)., Return raw bytes for each non-inline attachment in the EML file., Return raw bytes for each attachment in the MSG file., TAR archive text extractor., Extract file listing from TAR archives., Return a newline-separated list of filenames inside the archive. (+19 more)
 
 ### Community 7 - "Annotation Helpers"
-Cohesion: 0.06
-Nodes (52): AnnotationRepository, Database access for annotations., CRUD and queries for annotations., _parse_json(), AuthRepository, Database access for users, groups, and source grants., Return the local password hash for an email when present., CommentRepository (+44 more)
+Cohesion: 0.07
+Nodes (40): Read related document limit from runtime config., related_docs_limit(), _translation_score(), AuthRepository, Record a successful login timestamp for a user., Create a minimal ingestion source for permission grants., Database access for users, groups, and source grants., Grant a group access to an ingestion source (idempotent). (+32 more)
 
 ### Community 8 - "Chat Session Models"
-Cohesion: 0.18
-Nodes (33): ChatMessageCreate, ChatSessionCreate, ChatSessionUpdate, Input model for creating a new chat session., Input model for updating a chat session., Input model for creating a new chat message., ChatRepository, CRUD for chat sessions and messages. (+25 more)
+Cohesion: 0.11
+Nodes (41): ChatMessage, ChatMessageCreate, ChatSession, ChatSessionCreate, ChatSessionUpdate, Pydantic models for Document Chat sessions and messages., Row model for the chat_sessions table., Input model for creating a new chat session. (+33 more)
 
 ### Community 9 - "Backend Dev Guidelines"
 Cohesion: 0.20
@@ -629,16 +628,16 @@ Cohesion: 0.13
 Nodes (46): _admin_token(), _make_qdrant_mock(), Integration tests for the Document Chat API., Verify session delete cascades to messages at the API level., When RAG raises, the endpoint persists a fallback assistant message (no 500)., single_document scope must call search_filtered with a document_id condition., selected_documents scope must call search_filtered with a MatchAny document_id c, current_search_results scope produces the same document_id filter as selected_do (+38 more)
 
 ### Community 11 - "Pipeline Job Repository"
-Cohesion: 0.07
-Nodes (36): PipelineJobRepository, Update the current processing stage of a running job., Mark a running job as succeeded., Persist the extracted document text so downstream workers (e.g. translation-work, Persist the pipeline-translated text for later use by the index-worker., Reset dead-lettered jobs back to pending so workers retry them.          Clears, Return job counts grouped by (status, job_type).          Used to populate queue, Reset jobs stuck in ``running`` state past *max_age_seconds* to ``pending``. (+28 more)
+Cohesion: 0.06
+Nodes (40): PipelineJobRepository, Return the max_attempts value for a job (default 5 if not found)., Return the max_attempts value for a job (default 5 if not found)., Mark a running job as succeeded., Mark a running job as succeeded., Reset dead-lettered jobs back to pending so workers retry them.          Clears, Reset dead-lettered jobs back to pending so workers retry them.          Clears, Return job counts grouped by (status, job_type).          Used to populate queue (+32 more)
 
 ### Community 12 - "Logical Spec Domain"
 Cohesion: 0.05
 Nodes (45): Admin actor, Air-gap requirement (no external LLM/SaaS in v1), Background Worker actor, Chunk (vector-searchable section of document), DLQ Record (failed event for admin retry), Document (searchable unit from ingestion), Elasticsearch (document full-text search), Kafka (event topics) (+37 more)
 
 ### Community 13 - "API Readiness Checks"
-Cohesion: 0.07
-Nodes (24): _CachedReadiness, DependencyResult, JSON-serializable status and latency for one dependency probe., JSON-serializable readiness response., Cached dependency readiness checks for the admin readiness endpoint., Initialize readiness probes with short timeouts and a small result cache., Return cached readiness when fresh, otherwise probe dependencies., ReadinessChecker (+16 more)
+Cohesion: 0.06
+Nodes (26): _CachedReadiness, DependencyResult, HttpGetter, JSON-serializable status and latency for one dependency probe., JSON-serializable readiness response., Protocol for injectable HTTP GET calls used by readiness probes., Cached dependency readiness checks for the admin readiness endpoint., Initialize readiness probes with short timeouts and a small result cache. (+18 more)
 
 ### Community 14 - "Pipeline Runner"
 Cohesion: 0.09
@@ -646,19 +645,19 @@ Nodes (11): Claim one job, process it, and mark it done.      Args:         job_
 
 ### Community 15 - "Ollama Intelligence Client"
 Cohesion: 0.09
-Nodes (21): AnswerResponse, Citation, QuestionRequest, A citation backing an answer., Request body for RAG Q&A., Request body for RAG Q&A., Response body for RAG Q&A., Response body for RAG Q&A. (+13 more)
+Nodes (17): AnswerResponse, Citation, QuestionRequest, A citation backing an answer., Request body for RAG Q&A., Request body for RAG Q&A., Response body for RAG Q&A., Response body for RAG Q&A. (+9 more)
 
 ### Community 16 - "Document Versioning"
 Cohesion: 0.15
 Nodes (13): Meilisearch ACL Filter Model, src/services/search/meili_acl.py, Meilisearch Security Decisions, JWT Authentication, LDAP Adapter Boundary, Phase 02: Auth And Permissions, Source Permissions Model, Extractor Registry (+5 more)
 
 ### Community 17 - "Index Worker"
-Cohesion: 0.13
-Nodes (22): Index worker that processes ``index_document`` jobs.  Claims durable index jobs, Run ``run_index_once`` in a loop until interrupted., Claim one ``index_document`` job and index it into Elasticsearch.      Args:, run_index_loop(), run_index_once(), _FakeDoc, _FakeDocRepo, _FakeElasticsearch (+14 more)
+Cohesion: 0.15
+Nodes (17): _FakeDoc, _FakeDocRepo, _FakeElasticsearch, _FakeJobRepo, _make_job(), test_content_english_falls_back_to_original_when_no_translated_text(), test_dead_letters_when_max_attempts_reached(), test_enqueues_vector_job_after_success() (+9 more)
 
 ### Community 18 - "Qdrant Search Client"
-Cohesion: 0.06
-Nodes (42): QdrantSearchClient, Thin wrapper around the Qdrant client for vector (semantic) search., Close the underlying Qdrant client., Close the underlying Qdrant client., Keys absent from the chunk dict are not added to the payload., delete_existing=True should delete old chunks before upserting., Empty group_ids without allow_all must return empty — no data exposure., allow_all=True (admin bypass) should send the query without a group filter. (+34 more)
+Cohesion: 0.08
+Nodes (40): QdrantSearchClient, Thin wrapper around the Qdrant client for vector (semantic) search., Keys absent from the chunk dict are not added to the payload., delete_existing=True should delete old chunks before upserting., Empty group_ids without allow_all must return empty — no data exposure., allow_all=True (admin bypass) should send the query without a group filter., group_id filter must appear in the Qdrant query when group_ids is set., QdrantSearchClient built from encoder.dimension uses the matching collection. (+32 more)
 
 ### Community 19 - "API App Entrypoint"
 Cohesion: 0.14
@@ -681,56 +680,56 @@ Cohesion: 0.09
 Nodes (37): _chunk_by_token_estimate(), chunk_text(), _ensure_max_tokens(), _estimate_tokens(), Token-based text chunking with sentence-boundary awareness., Split *text* into sentences using the pattern for *language*., Return the sentence-boundary pattern for *language*., Estimate the number of tokens in *text* using a character-based heuristic. (+29 more)
 
 ### Community 24 - "Meilisearch Rollout"
-Cohesion: 0.10
-Nodes (39): call, initialize_meilisearch(), is_search_enabled(), is_shadow_enabled(), meilisearch_health_probe(), Emit pipeline metrics after a Meilisearch index (write) operation completes., Apply index settings to live (and optionally shadow) index at startup.      Idem, Run a health check and emit dependency metrics.      Returns the raw dict from : (+31 more)
+Cohesion: 0.11
+Nodes (38): initialize_meilisearch(), is_search_enabled(), is_shadow_enabled(), meilisearch_health_probe(), Emit pipeline metrics after a Meilisearch index (write) operation completes., Apply index settings to live (and optionally shadow) index at startup.      Idem, Run a health check and emit dependency metrics.      Returns the raw dict from :, Emit search backend metrics after a Meilisearch query completes. (+30 more)
 
 ### Community 25 - "Alerts & Subscriptions"
-Cohesion: 0.08
-Nodes (25): AlertRepository, Database access for alert subscriptions and notifications., Update a subscription and return the refreshed row., Delete a subscription and its notifications., Return active subscriptions whose owners can access a document., CRUD and matching queries for alerts., Create a notification if one does not already exist., List notifications for a user. (+17 more)
+Cohesion: 0.06
+Nodes (38): sync_now(), AlertRepository, Database access for alert subscriptions and notifications., Update a subscription and return the refreshed row., Delete a subscription and its notifications., Return active subscriptions whose owners can access a document., CRUD and matching queries for alerts., List notifications for a user. (+30 more)
 
 ### Community 26 - "Translation Worker"
 Cohesion: 0.13
 Nodes (18): Translation worker that processes ``translate_document`` jobs.  Claims durable t, Run ``run_translation_once`` in a loop until interrupted., Claim one ``translate_document`` job, translate, and persist result.      Args:, run_translation_loop(), run_translation_once(), _FakeDoc, _FakeDocRepo, _FakeJobRepo (+10 more)
 
 ### Community 27 - "Pipeline Worker Tests"
-Cohesion: 0.19
-Nodes (22): _document(), _FakeDocumentRepository, _FakeElasticsearch, _FakeEncoder, _FakeMeili, _FakeQdrant, _FakeTranslator, Meilisearch records use original text for content and translated for content_en. (+14 more)
+Cohesion: 0.14
+Nodes (26): DocumentRow, Row model for the documents table., _document(), _FakeDocumentRepository, _FakeDocumentRepositoryWithCreate, _FakeElasticsearch, _FakeEncoder, _FakeMeili (+18 more)
 
 ### Community 28 - "NiFi Kafka Consumer"
-Cohesion: 0.07
-Nodes (31): ConnectorDocument, Normalised document returned by any SourceConnector.      File-based connectors, NiFiEventEnvelope, NiFiEventError, Normalize one validated NiFi event into the standard connector document contract, Raised when a NiFi event cannot be parsed or normalized safely., Validated envelope for Kafka-delivered NiFi flow-file events., _classified_reason() (+23 more)
+Cohesion: 0.09
+Nodes (22): NiFiEventEnvelope, Validated envelope for Kafka-delivered NiFi flow-file events., _classified_reason(), _connector_config(), DatabaseDeadLetterSink, KafkaConsumer, KafkaMessage, NiFiKafkaDrain (+14 more)
 
 ### Community 29 - "Intelligence Repository"
-Cohesion: 0.07
-Nodes (19): IntelligenceRepository, Database access for intelligence outputs (summaries, entities, tags, key points), Upsert an entity by (name, type) and return its id.          Uses INSERT ... ON, Link a document to an entity, incrementing frequency on conflict., Upsert and query intelligence outputs for documents., Return all entities linked to a document., Replace all tags for a document with the given list., Return all tags for a document. (+11 more)
+Cohesion: 0.04
+Nodes (41): Regenerate the summary for a document. Admin-only, idempotent., regenerate_summary(), trigger_intelligence(), ollama_client(), test_worker_auto_tags(), test_worker_extracts_entities(), test_worker_failure_does_not_block(), test_worker_skips_disabled_tasks() (+33 more)
 
 ### Community 30 - "Module Group 30"
 Cohesion: 0.12
 Nodes (17): countMatches(), escapeRegex(), highlightMatches(), HighlightResult, ArchivePreview(), ArchivePreviewProps, marks, onMatchCountChange (+9 more)
 
 ### Community 31 - "Module Group 31"
-Cohesion: 0.07
-Nodes (59): BaseSettings, test_admin_route_forbids_non_admin_user(), test_auth_api_login_me_logout_and_admin_guard(), test_auth_api_rejects_invalid_credentials_and_missing_token(), test_related_routes_are_registered(), _create_source_with_doc(), When encoder fails, search should still return BM25 results., When Qdrant fails, search should still return BM25 results. (+51 more)
+Cohesion: 0.05
+Nodes (43): BaseSettings, test_admin_route_forbids_non_admin_user(), test_auth_api_login_me_logout_and_admin_guard(), test_auth_api_rejects_invalid_credentials_and_missing_token(), test_related_routes_are_registered(), Pydantic Settings (shared.config.Settings), build_encoder(), Build and return a text encoder based on *settings*.      Provider resolution: (+35 more)
 
 ### Community 32 - "Module Group 32"
-Cohesion: 0.08
-Nodes (22): build_permission_filter_for_ids(), Build a Meilisearch ACL filter from pre-resolved effective group IDs.      Use t, _map_result(), MeilisearchSearchProvider, Meilisearch client wrapper implementing the document search interface.      The, Apply index settings idempotently. Safe to call on every startup., Atomically swap the live and shadow indexes.          After the swap, live queri, Delete the shadow index. Call after a successful swap and validation. (+14 more)
+Cohesion: 0.06
+Nodes (28): build_permission_filter_for_ids(), Build a Meilisearch ACL filter from pre-resolved effective group IDs.      Use t, _map_result(), MeilisearchSearchProvider, Meilisearch client wrapper implementing the document search interface.      The, Apply index settings idempotently. Safe to call on every startup., Atomically swap the live and shadow indexes.          After the swap, live queri, Delete the shadow index. Call after a successful swap and validation. (+20 more)
 
 ### Community 33 - "Module Group 33"
 Cohesion: 0.10
 Nodes (21): _create_doc(), _doc(), json_like(), Integration tests for related documents and expertise services., Return a compact string representation for leak assertions., _setup_users(), test_expertise_ranks_weighted_signals_and_hides_private_evidence(), test_expertise_rejects_blank_topic_without_testclient() (+13 more)
 
 ### Community 34 - "Module Group 34"
-Cohesion: 0.14
-Nodes (23): LibreTranslateClient, Self-hosted LibreTranslate client with graceful fallback.      On any network or, Retry once on timeout, then succeed., Retry once on 5xx, then fallback on second failure., With zero retries, fallback immediately on 5xx., test_client_close(), test_translate_5xx_fallback_no_retries(), test_translate_auto_detect() (+15 more)
+Cohesion: 0.10
+Nodes (26): LibreTranslateClient, LibreTranslate HTTP client with timeout, retry, and fallback., Self-hosted LibreTranslate client with graceful fallback.      On any network or, Translate *text* from *source_lang* to *target_lang*.          Returns the origi, Close the underlying HTTP client., Retry once on timeout, then succeed., Retry once on 5xx, then fallback on second failure., With zero retries, fallback immediately on 5xx. (+18 more)
 
 ### Community 35 - "Module Group 35"
 Cohesion: 0.07
-Nodes (18): BackendDocumentEntity, DocumentEntitiesEnvelope, DocumentEntitiesResponse, DocumentEntity, DocumentPreview, DocumentSummary, DocumentText, DocumentVersion (+10 more)
+Nodes (17): BackendDocumentEntity, DocumentEntitiesEnvelope, DocumentEntitiesResponse, DocumentEntity, DocumentPreview, DocumentRelationship, DocumentSummary, DocumentText (+9 more)
 
 ### Community 36 - "Module Group 36"
-Cohesion: 0.15
-Nodes (17): AnnotationsTab(), CommentsTab(), EntitiesSection(), InsightPane(), InsightPaneProps, RelatedTab(), SubscriptionsStub(), SummaryTab() (+9 more)
+Cohesion: 0.11
+Nodes (25): AdminSourcesPage(), ChatSidebar(), ChatWindow(), DocumentChatPanel(), DocumentChatPanelProps, AnnotationsTab(), CommentsTab(), EntitiesSection() (+17 more)
 
 ### Community 37 - "Module Group 37"
 Cohesion: 0.20
@@ -753,8 +752,8 @@ Cohesion: 0.14
 Nodes (25): allowed_group_ids_for_indexing(), build_permission_filter(), compose_filters(), needs_acl_short_circuit(), Return True when the query should be short-circuited to empty results.      A no, Compose the ACL filter with an optional user-supplied filter.      The ACL filte, Convert a list of UUID group IDs to the string format stored in the index., Return the Meilisearch filter expression for the authenticated user.      Cases: (+17 more)
 
 ### Community 42 - "Module Group 42"
-Cohesion: 0.11
-Nodes (24): build_metadata_text(), chunk_record_id(), ChunkMetadata, ChunkPosition, content_sha256(), from_parts(), Return the Meilisearch primary key for a chunk record.      Format: doc_{documen, Build the full-text catch-all blob from an explicit allowlist.      Excluded int (+16 more)
+Cohesion: 0.12
+Nodes (24): build_metadata_text(), chunk_record_id(), ChunkMetadata, ChunkPosition, content_sha256(), DocumentSearchQuery, from_parts(), Return the Meilisearch primary key for a chunk record.      Format: doc_{documen (+16 more)
 
 ### Community 43 - "Module Group 43"
 Cohesion: 0.07
@@ -769,16 +768,16 @@ Cohesion: 0.05
 Nodes (45): document_views table, Phase 05: Preview And Enrichment, Preview Service (Phase 05a), SlowWorker (Translation Enrichment), document_translation_versions table, Phase 05c: Translation Versions, Translation Version Selector (Frontend), document_summaries table (+37 more)
 
 ### Community 46 - "Module Group 46"
-Cohesion: 0.18
-Nodes (25): _admin(), _chunk(), _mock_task(), _no_group_user(), _provider(), _query(), test_health_check_returns_ok_false_on_exception(), test_health_check_returns_ok_true_on_success() (+17 more)
+Cohesion: 0.14
+Nodes (33): _build_user_filter(), Translate DocumentSearchFilters into a Meilisearch filter expression., DocumentSearchFilters, _admin(), _chunk(), _mock_task(), _no_group_user(), _provider() (+25 more)
 
 ### Community 47 - "Module Group 47"
-Cohesion: 0.18
-Nodes (16): BackfillService, BackfillSummary, _build_arg_parser(), _log_summary(), main(), _make_engine(), _mock_doc_row(), _mock_provider() (+8 more)
+Cohesion: 0.11
+Nodes (14): AnnotationRepository, Database access for annotations., Return an annotation by id., CRUD and queries for annotations., Update an annotation's fields., Hard-delete an annotation., Return whether *user_id* can modify or delete the annotation., List annotations visible to *user_id* on *document_id*.          Returns: (+6 more)
 
 ### Community 48 - "Module Group 48"
-Cohesion: 0.15
-Nodes (19): _build_history_text(), Conversation-aware query rewrite for Document Chat., Format the last *MAX_HISTORY_PAIRS* user+assistant pairs as text., Rewrite *question* as a standalone search query using conversation history., rewrite_query(), _mock_ollama(), _msg(), No rewrite call when session has fewer than one prior turn. (+11 more)
+Cohesion: 0.10
+Nodes (17): FilterPanel(), FilterPanelProps, call, cb, filters, onChange, formatDate(), ResultRow() (+9 more)
 
 ### Community 49 - "Module Group 49"
 Cohesion: 0.33
@@ -793,8 +792,8 @@ Cohesion: 0.13
 Nodes (19): LangDisplay(), storageMock, TDisplay(), applyLanguageToDocument(), getInitialLanguage(), getTranslations(), Language, LanguageContext (+11 more)
 
 ### Community 52 - "Module Group 52"
-Cohesion: 0.09
-Nodes (24): _build_index(), _build_multilang_index(), encoder(), mean_reciprocal_rank(), multilang_qdrant_client(), qdrant_client(), Offline retrieval evaluation harness for RAG.  Uses DeterministicTestEncoder (no, Index the fixture corpus into a fake in-memory Qdrant client. (+16 more)
+Cohesion: 0.08
+Nodes (30): _build_index(), _build_multilang_index(), encoder(), hit_at_k(), mean_reciprocal_rank(), multilang_qdrant_client(), qdrant_client(), Offline retrieval evaluation harness for RAG.  Uses DeterministicTestEncoder (no (+22 more)
 
 ### Community 53 - "Module Group 53"
 Cohesion: 0.17
@@ -805,12 +804,12 @@ Cohesion: 0.12
 Nodes (16): AnnotationEditor(), AnnotationEditorProps, FormValues, schema, mocks, user, AnnotationItem(), AnnotationItemProps (+8 more)
 
 ### Community 55 - "Module Group 55"
-Cohesion: 0.16
-Nodes (14): clear_correlation_id(), Set and return the current correlation ID., Clear the correlation ID for the current context., set_correlation_id(), configure_json_logging(), JsonFormatter, log_extra(), Format log records as JSON with a correlation ID. (+6 more)
+Cohesion: 0.10
+Nodes (22): Legacy non-versioned enrichment path., Chunk, embed, and index a document (both original and translated)., Re-translate, re-chunk, and re-index documents with pending_high quality., Run the enrichment pipeline for a single document.          On success the docum, Process the oldest pending version for a document., SlowWorker, clear_correlation_id(), get_correlation_id() (+14 more)
 
 ### Community 56 - "Module Group 56"
-Cohesion: 0.18
-Nodes (24): ChatScope, Validated scope for a chat session's retrieval filter., build_qdrant_filter(), Build a Qdrant Filter combining permission and scope conditions.      Scope neve, Build a Qdrant Filter combining permission and scope conditions.      Scope neve, _must_keys(), Unit tests for Document Chat scope model, Qdrant filter builder, and query rewri, test_all_accessible_admin_returns_none_filter() (+16 more)
+Cohesion: 0.09
+Nodes (43): _build_history_text(), Conversation-aware query rewrite for Document Chat., Format the last *MAX_HISTORY_PAIRS* user+assistant pairs as text., Rewrite *question* as a standalone search query using conversation history., rewrite_query(), ChatScope, Validated scope for a chat session's retrieval filter., build_qdrant_filter() (+35 more)
 
 ### Community 57 - "Module Group 57"
 Cohesion: 0.15
@@ -857,8 +856,8 @@ Cohesion: 0.09
 Nodes (22): annotations, list, editable, fiscalYearStartMonth, graphTooltip, id, links, panels (+14 more)
 
 ### Community 69 - "Module Group 69"
-Cohesion: 0.15
-Nodes (10): ChatCitationCard(), ChatCitationCardProps, locationLine(), link, ChatCitationList(), ChatCitationListProps, MessageBubble(), MessageBubbleProps (+2 more)
+Cohesion: 0.18
+Nodes (8): ChatCitationCard(), ChatCitationCardProps, locationLine(), link, ChatCitationList(), ChatCitationListProps, MessageBubble(), MessageBubbleProps
 
 ### Community 70 - "Module Group 70"
 Cohesion: 0.22
@@ -869,12 +868,12 @@ Cohesion: 0.18
 Nodes (19): NiFiConnector, parse_nifi_event(), Parse and validate a NiFi event envelope without exposing payload contents., Normalize Kafka-delivered NiFi flow-file events into connector documents., NiFi ingestion is event-driven; bulk polling is intentionally unsupported., test_nifi_connector_fetch_documents_is_event_driven_empty_iterator(), test_nifi_connector_validate_accepts_event_driven_defaults(), _event() (+11 more)
 
 ### Community 72 - "Module Group 72"
-Cohesion: 0.09
-Nodes (20): AdminSourceDetailPage(), formatDateTime(), useToast(), FilterPanel(), FilterPanelProps, cb, filters, onChange (+12 more)
+Cohesion: 0.21
+Nodes (16): BackfillService, BackfillSummary, _build_arg_parser(), _log_summary(), main(), _make_engine(), _mock_doc_row(), _mock_provider() (+8 more)
 
 ### Community 73 - "Module Group 73"
-Cohesion: 0.10
-Nodes (18): TAR archive text extractor., Extract file listing from TAR archives., Return a newline-separated list of filenames inside the archive., Return every regular file inside the TAR as an AttachmentData., TarExtractor, ZIP archive text extractor., Extract file listing from ZIP archives., Return a newline-separated list of filenames inside the archive. (+10 more)
+Cohesion: 0.11
+Nodes (10): Database access for documents and ingestion deduplication., Return a document by primary key., List all documents belonging to a source., Return documents for a list of IDs., List documents queued for high-quality translation., Return all document versions in the same family as *document_id*, oldest first., Return the latest document version in the same family as *document_id*., Return (family_id_hex, next_version_number) for a source item.          Creates (+2 more)
 
 ### Community 74 - "Module Group 74"
 Cohesion: 0.09
@@ -882,31 +881,31 @@ Nodes (21): compilerOptions, allowImportingTsExtensions, baseUrl, ignoreDeprecat
 
 ### Community 75 - "Module Group 75"
 Cohesion: 0.12
-Nodes (15): 2026-05-20 — Repo memory is the durable record, 2026-05-21 — Document Chat: backend DELETE returns 200 JSON (not 204), 2026-05-21 — Document Chat: dual-gate feature flag in tests, 2026-05-21 — Document Chat: TanStack Query v5 message seeding pattern, 2026-05-21 — Document Chat: typed UUID path params, 2026-05-21 — Document viewer branching strategy, 2026-05-21 — TextPreview is API-driven via docId prop, 2026-05-21 — Virtualization uses react-window v2 with List + ARIA tables (+7 more)
+Nodes (16): 2026-05-20 — Repo memory is the durable record, 2026-05-21 — Document Chat: backend DELETE returns 200 JSON (not 204), 2026-05-21 — Document Chat: dual-gate feature flag in tests, 2026-05-21 — Document Chat: TanStack Query v5 message seeding pattern, 2026-05-21 — Document Chat: typed UUID path params, 2026-05-21 — Document viewer branching strategy, 2026-05-21 — TextPreview is API-driven via docId prop, 2026-05-21 — Virtualization uses react-window v2 with List + ARIA tables (+8 more)
 
 ### Community 76 - "Module Group 76"
-Cohesion: 0.05
-Nodes (51): DocumentRepository, Database access for documents and ingestion deduplication., Return a document by primary key., Update the document status., Update document status and translation quality after indexing., List all documents belonging to a source., Return documents for a list of IDs., Update the document translation quality. (+43 more)
+Cohesion: 0.21
+Nodes (17): _make_client(), Create admin + two regular users; return (admin_id, user1_id, user2_id)., _setup_nested_group_users(), test_admin_delete_group(), test_admin_delete_group_not_found(), test_admin_rename_group(), test_admin_rename_group_duplicate(), test_admin_rename_group_not_found() (+9 more)
 
 ### Community 77 - "Module Group 77"
 Cohesion: 0.17
 Nodes (16): Issue #453 Document Viewer Parent, PreviewPane Component, Document Viewer Implementation Guardrails, Issue Map, Document Viewer MVP Order, Office Conversion Policy, TIFF Policy, dangerouslySetInnerHTML Removal (+8 more)
 
 ### Community 78 - "Module Group 78"
-Cohesion: 0.25
-Nodes (7): DocumentSearchBar(), DocumentSearchBarProps, baseProps, onClose, onNext, onPrev, onQueryChange
+Cohesion: 0.09
+Nodes (20): getDownloadUrl(), DocumentPage(), link, mockPreview, DocumentSearchBar(), DocumentSearchBarProps, baseProps, onClose (+12 more)
 
 ### Community 79 - "Module Group 79"
-Cohesion: 0.13
-Nodes (13): _archive_snippet(), _parse_metadata(), PreviewService, Document preview service with truncated snippets and view tracking., Return the full resolved text for *document_id* without truncation.          Res, Resolve the full translated text for *document_id*.          When *translation_v, Return a truncated preview snippet for a document.          When *translation_ve, Queue document for enrichment if view threshold is crossed.          Creates a t (+5 more)
+Cohesion: 0.12
+Nodes (9): ElasticsearchSearchClient, Index or update a document by *document_id*., Thin wrapper around the Elasticsearch client for full-text (BM25) search., Remove a document from the index., Update a single field of an existing document (partial update)., Update multiple fields of an existing document atomically., Close the underlying Elasticsearch client., BM25 search with an explicit server-side permission filter.          Admin calle (+1 more)
 
 ### Community 80 - "Module Group 80"
-Cohesion: 0.15
-Nodes (8): NamedTuple, PipelineWorker, ProcessResult, Synchronous document ingestion pipeline., Result returned by process_document on success., Create a child document and run the pipeline for each attachment., Orchestrate extraction, translation, chunking, embedding, and indexing., Run the full pipeline for a single document.          When *pre_extracted_text*
+Cohesion: 0.05
+Nodes (32): admin_list_activity(), admin_list_enrich_jobs(), List all enrich_document jobs with their current state and priority., admin_get_user(), admin_list_groups(), admin_list_users(), _fmt_dt(), Return all ancestor group IDs reachable from the given seed group IDs. (+24 more)
 
 ### Community 81 - "Module Group 81"
-Cohesion: 0.14
-Nodes (10): _validate_cardinality(), NiFiEventPayload, NiFi event envelope parsing and connector normalization., Validate optional NiFi connector configuration., Release-supported NiFi event payload descriptor., _safe_metadata(), validate_payload_fields(), validate_sha256() (+2 more)
+Cohesion: 0.12
+Nodes (13): _validate_cardinality(), NiFiEventError, NiFiEventPayload, NiFi event envelope parsing and connector normalization., Validate optional NiFi connector configuration., Normalize one validated NiFi event into the standard connector document contract, Raised when a NiFi event cannot be parsed or normalized safely., Release-supported NiFi event payload descriptor. (+5 more)
 
 ### Community 82 - "Module Group 82"
 Cohesion: 0.13
@@ -917,12 +916,12 @@ Cohesion: 0.14
 Nodes (13): CommentComposer(), CommentComposerProps, button, user, CommentEditForm(), CommentEditFormProps, authorName(), CommentItem() (+5 more)
 
 ### Community 84 - "Module Group 84"
-Cohesion: 0.10
-Nodes (23): getDownloadUrl(), DocumentPage(), link, mockPreview, DocumentToolbar(), DocumentToolbarProps, ZOOM_STEPS, DOT_LABELS (+15 more)
+Cohesion: 0.18
+Nodes (10): DOT_LABELS, DotColor, FidelityStatusBar(), FidelityStatusBarProps, getStatus(), StatusDescriptor, amberLabel, greenLabel (+2 more)
 
 ### Community 85 - "Module Group 85"
-Cohesion: 0.15
-Nodes (18): build_reduce_prompt(), chunk_content(), content_hash(), normalize_bullets(), normalize_document_type(), normalize_language(), normalize_source_text(), normalize_summary_output() (+10 more)
+Cohesion: 0.13
+Nodes (19): build_reduce_prompt(), chunk_content(), content_hash(), normalize_bullets(), normalize_document_type(), normalize_language(), normalize_source_text(), normalize_summary_output() (+11 more)
 
 ### Community 86 - "Module Group 86"
 Cohesion: 0.13
@@ -942,11 +941,11 @@ Nodes (11): DialogProps, IconButton(), IconButtonProps, SearchInput, SearchInput
 
 ### Community 90 - "Module Group 90"
 Cohesion: 0.14
-Nodes (10): ImageViewer(), ImageViewerProps, container, img, onZoomChange, setup(), ZOOM_STEPS, makeQueryClient() (+2 more)
+Nodes (10): ExtractionFailedPreview(), ExtractionFailedPreviewProps, ImageViewer(), ImageViewerProps, container, img, onZoomChange, ZOOM_STEPS (+2 more)
 
 ### Community 91 - "Module Group 91"
-Cohesion: 0.15
-Nodes (19): AGENTS.md — Tomorrowland Agent Instructions, Alembic Database Migrations, CI Pipeline (.github/workflows/ci.yml), CLAUDE.md — Claude Code Entry Point, CODEX.md — Codex Entry Point, 90% Test Coverage Threshold, docs/agents/coding-behavior.md — Execution Discipline, docs/agents/token-efficiency.md — Context Budget & Token Efficiency (+11 more)
+Cohesion: 0.16
+Nodes (17): AGENTS.md — Tomorrowland Agent Instructions, Alembic Database Migrations, CI Pipeline (.github/workflows/ci.yml), CLAUDE.md — Claude Code Entry Point, CODEX.md — Codex Entry Point, 90% Test Coverage Threshold, docs/agents/coding-behavior.md — Execution Discipline, docs/agents/token-efficiency.md — Context Budget & Token Efficiency (+9 more)
 
 ### Community 92 - "Module Group 92"
 Cohesion: 0.13
@@ -970,19 +969,19 @@ Nodes (18): sample.pdf — PDF v1.3 test fixture (1 page), sample.txt — Plain 
 
 ### Community 97 - "Module Group 97"
 Cohesion: 0.13
-Nodes (10): Intelligence worker for best-effort LLM tasks., Return list of enabled task names from system_config., Extract entities and store them with document links., Generate tags and replace existing tags for the document., Extract a short ordered list of key bullet points for the document.          Rul, Build a prompt from config key + truncated content., Update a single field in the Elasticsearch document., Extract up to *max_points* key sentences from *text* without an LLM.      Strate (+2 more)
+Nodes (14): _archive_snippet(), _parse_metadata(), PreviewService, Document preview service with truncated snippets and view tracking., Return the full resolved text for *document_id* without truncation.          Res, Resolve the full translated text for *document_id*.          When *translation_v, Return a truncated preview snippet for a document.          When *translation_ve, Queue document for enrichment if view threshold is crossed.          Creates a t (+6 more)
 
 ### Community 98 - "Module Group 98"
-Cohesion: 0.21
-Nodes (17): _make_client(), Create admin + two regular users; return (admin_id, user1_id, user2_id)., _setup_nested_group_users(), test_admin_delete_group(), test_admin_delete_group_not_found(), test_admin_rename_group(), test_admin_rename_group_duplicate(), test_admin_rename_group_not_found() (+9 more)
+Cohesion: 0.25
+Nodes (3): test_generate_http_error(), test_generate_success(), test_generate_with_custom_model()
 
 ### Community 99 - "Module Group 99"
 Cohesion: 0.17
 Nodes (14): Annotation, AnnotationListEnvelope, AnnotationRaw, AnnotationWrite, AnnotationWriteRaw, createAnnotation(), listAnnotations(), mapAnnotation() (+6 more)
 
 ### Community 100 - "Module Group 100"
-Cohesion: 0.13
-Nodes (9): Vector search restricted to *group_ids*.          When *group_ids* is non-empty, Vector search restricted to *group_ids*.          When *group_ids* is non-empty, Vector search using a pre-built Qdrant Filter.          The caller is responsibl, Vector search using a pre-built Qdrant Filter.          The caller is responsibl, Remove all chunks belonging to *document_id*., Remove all chunks belonging to *document_id*., Create the chunk collection if it does not exist., Raise if *vector* dimension does not match the collection dimension. (+1 more)
+Cohesion: 0.20
+Nodes (4): AdminSourceDetailPage(), formatDateTime(), _JOB_LABELS, _PIPELINE_ORDER
 
 ### Community 101 - "Module Group 101"
 Cohesion: 0.15
@@ -993,56 +992,56 @@ Cohesion: 0.15
 Nodes (17): Meilisearch Rollback to Elasticsearch, Phase 03b: Translation and Chunking, LibreTranslate httpx Client, Token-Based Chunker (512 tokens, 50 overlap), Phase 03b: Translation And Chunking, Translation State Machine (null/fast/high), Elasticsearch Document Index, Hybrid Score Merger (BM25 + Vector) (+9 more)
 
 ### Community 103 - "Module Group 103"
-Cohesion: 0.12
-Nodes (9): _estimate_tokens(), _parse_ollama_error(), Return a vector for *text* via Ollama., Return vectors for *texts* via Ollama., Use the modern ``/api/embed`` endpoint., Return a 384-dimensional vector for *text*., Return a list of vectors for *texts*., Extract the error message from an Ollama error response body. (+1 more)
+Cohesion: 0.20
+Nodes (6): _estimate_tokens(), _parse_ollama_error(), Return vectors for *texts* via Ollama., Use the modern ``/api/embed`` endpoint., Extract the error message from an Ollama error response body., Estimate the number of tokens in *text* using a character-based heuristic.
 
 ### Community 104 - "Module Group 104"
-Cohesion: 0.25
-Nodes (19): docker-compose.logging.yml — Logging Compose Override, docker-compose.yml — Standard Compose Stack, Hybrid Keyword/Vector Search, Intelligence Layer (Summarization, Entity Extraction, Auto-Tagging), Permission-Based Access Control, RAG Q&A (Retrieval-Augmented Generation), API Service (FastAPI/ASGI), Elasticsearch Service (+11 more)
+Cohesion: 0.18
+Nodes (14): Annotations System, CHANGELOG.md — Tomorrowland Release History, Document Comments System, document_translation_versions Table, Expertise Map (Related Documents + User Behavior), Hybrid Keyword/Vector Search, Intelligence Layer (Summarization, Entity Extraction, Auto-Tagging), Observability Stack (Prometheus/Grafana/Loki/Promtail) (+6 more)
 
 ### Community 105 - "Module Group 105"
-Cohesion: 0.12
-Nodes (8): DocumentRow, Row model for the documents table., _FakeAttachmentExtractor, _FakeDocumentRepositoryWithCreate, _FakeExtractorRegistry, Fake extractor that supports both extract() and extract_attachments()., Fake registry that routes MIME types to concrete fakes., test_worker_creates_child_doc_for_supported_attachment()
+Cohesion: 0.09
+Nodes (35): OllamaClient, Ollama HTTP client for local LLM inference., Thin wrapper around the Ollama HTTP API., Thin wrapper around the Ollama HTTP API., Send a generate request to Ollama and return the response text.          Args:, Send a generate request to Ollama and return the response text.          Args:, Stream generated tokens from Ollama.          Yields each token as it is produce, CrossEncoderReranker (+27 more)
 
 ### Community 106 - "Module Group 106"
 Cohesion: 0.14
-Nodes (14): ChatPage(), parseScopeFromSearch(), ASSISTANT_REPLY, deleteBtns, input, mockNavigate, mockSearchParams, NEW_SESSION (+6 more)
+Nodes (13): ChatPage(), parseScopeFromSearch(), ASSISTANT_REPLY, deleteBtns, input, mockNavigate, mockSearchParams, NEW_SESSION (+5 more)
 
 ### Community 107 - "Module Group 107"
 Cohesion: 0.15
 Nodes (13): DetailsTab(), DetailsTabProps, formatDateTime(), MIME_LABELS, mimeLabel(), RowProps, basePreview, code (+5 more)
 
 ### Community 108 - "Module Group 108"
-Cohesion: 0.17
+Cohesion: 0.14
 Nodes (11): ExtractorRegistry, Extractor registry mapping MIME types to extractors., Map MIME types to concrete extractors., Add or override an extractor for a MIME type., Return the extractor for *mime_type* when registered., Extract text from *path* using the extractor for *mime_type*.          Returns a, test_registry_allows_custom_extractor_registration(), test_registry_extracts_text_for_known_mime_type() (+3 more)
 
 ### Community 109 - "Module Group 109"
-Cohesion: 0.11
-Nodes (18): ExtractionFailedPreview(), ExtractionFailedPreviewProps, PdfViewer(), PdfViewerProps, getPageMock, makeMockPage(), makeMockTask(), mockGetDocument (+10 more)
+Cohesion: 0.14
+Nodes (14): getPageMock, makeMockPage(), makeMockTask(), mockGetDocument, neverTask, onMatchCountChange, page1, page2 (+6 more)
 
 ### Community 110 - "Module Group 110"
 Cohesion: 0.14
 Nodes (15): Meilisearch Data Model Implementation Plan, allowedGroupIds Field in Meilisearch Record, Chunk Primary Key Format (doc_{id}_chunk_{idx:04d}), Flat Language-Suffixed Fields (content_en, content_he, etc.), src/services/search/meili_types.py, SearchChunkRecord Pydantic Model, Meilisearch Index Settings Decisions, distinctAttribute: document_id (+7 more)
 
 ### Community 111 - "Module Group 111"
-Cohesion: 0.12
-Nodes (16): _cosine_similarity(), _dedupe_results(), _ExpertiseAggregate, _rank_aggregates(), Related document and expertise map service., Return users with activity related to a topic., Build related document and expertise responses., Return related documents for a source document. (+8 more)
+Cohesion: 0.07
+Nodes (38): AlertMatcher, _cosine_similarity(), Alert matching service., Match indexed documents against active subscriptions., Create notifications for active subscriptions matching a document., Return cosine similarity for two vectors., _row_uuid(), _cosine_similarity() (+30 more)
 
 ### Community 112 - "Module Group 112"
 Cohesion: 0.05
 Nodes (43): Acceptance Criteria, Acceptance Criteria, Acceptance Criteria, Acceptance Criteria, Acceptance Criteria, Acceptance Criteria, Acceptance Criteria, API Availability Map (+35 more)
 
-### Community 113 - "Module Group 113"
-Cohesion: 0.12
-Nodes (16): sync_now(), alerts_check_on_ingest(), _classify_connection_error(), Raise 404 when related documents are disabled., Raise 404 when expertise map is disabled., Read related document limit from runtime config., Return whether ingest-time alert matching is enabled., _record_source_sync_state() (+8 more)
+### Community 113 - "Community 113"
+Cohesion: 0.14
+Nodes (12): current_user(), Decode the bearer token for the current request., JwtService, Create and verify signed access tokens., Encode a user identity as an HS256 JWT., Authenticated user with resolved group memberships., UserIdentity, _make_non_admin_token() (+4 more)
 
 ### Community 114 - "Module Group 114"
 Cohesion: 0.18
 Nodes (10): ApiError, ApiRequestInit, AuthRedirectHandler, getToken(), redirectToExpiredLogin(), request(), resetAuthRedirectHandler(), setAuthRedirectHandler() (+2 more)
 
 ### Community 115 - "Module Group 115"
-Cohesion: 0.17
-Nodes (12): backendSort(), Comment, CommentAuthor, CommentListEnvelope, CommentListParams, CommentPage, CommentRaw, createComment() (+4 more)
+Cohesion: 0.15
+Nodes (13): backendSort(), Comment, CommentAuthor, CommentListEnvelope, CommentListParams, CommentPage, CommentRaw, createComment() (+5 more)
 
 ### Community 116 - "Module Group 116"
 Cohesion: 0.26
@@ -1054,15 +1053,15 @@ Nodes (15): Elasticsearch, Qdrant Vector Search, ACL Audit Document, H2: /expert
 
 ### Community 118 - "Module Group 118"
 Cohesion: 0.10
-Nodes (17): AnswerPanel(), AnswerPanelProps, mockResult, CitationCard(), CitationCardProps, mockCitation, CitationList(), CitationListProps (+9 more)
+Nodes (16): AnswerPanel(), AnswerPanelProps, mockResult, CitationCard(), CitationCardProps, mockCitation, CitationList(), CitationListProps (+8 more)
 
 ### Community 119 - "Module Group 119"
 Cohesion: 0.41
 Nodes (14): _admin_token(), _create_doc(), Integration tests for the RAG Q&A API., _settings(), _setup_users(), test_qa_disabled_by_settings_returns_404(), test_qa_disabled_by_system_config_returns_404(), test_qa_empty_question_returns_422() (+6 more)
 
 ### Community 120 - "Module Group 120"
-Cohesion: 0.22
-Nodes (14): DeterministicTestEncoder, Deterministic test encoder that produces 384-dimensional vectors.      Vectors a, Ensure the encoder module does not import torch, transformers, etc., test_encoder_batch_empty_list(), test_encoder_batch_encoding(), test_encoder_different_inputs_different_vectors(), test_encoder_dimension_is_384(), test_encoder_empty_string() (+6 more)
+Cohesion: 0.14
+Nodes (17): DeterministicTestEncoder, Return a vector for *text* via Ollama., Deterministic test encoder that produces 384-dimensional vectors.      Vectors a, Return a 384-dimensional vector for *text*., Return a list of vectors for *texts*., Ensure the encoder module does not import torch, transformers, etc., test_encoder_batch_empty_list(), test_encoder_batch_encoding() (+9 more)
 
 ### Community 121 - "Module Group 121"
 Cohesion: 0.26
@@ -1073,16 +1072,16 @@ Cohesion: 0.05
 Nodes (41): 1. Test-Driven Development (TDD), 2. Linting & Type Checking, 3. Documentation, 4. Security, 5. FastAPI Patterns, 6. Database & Migrations, 7. CI Pipeline, 8. Token Budget Guidelines (+33 more)
 
 ### Community 123 - "Module Group 123"
-Cohesion: 0.24
-Nodes (7): AlertMatcher, _cosine_similarity(), Alert matching service., Match indexed documents against active subscriptions., Create notifications for active subscriptions matching a document., Return cosine similarity for two vectors., _row_uuid()
+Cohesion: 0.29
+Nodes (4): FormValues, mockConnectorTypes, sourceDefaults, user
 
 ### Community 124 - "Module Group 124"
 Cohesion: 0.14
-Nodes (6): api, get, ActivityItem, Notification, QACitation, QAResponse
+Nodes (10): api, ExpertiseResult, ExpertiseSignals, ExpertiseTopDoc, getExpertise(), get, response, ActivityItem (+2 more)
 
 ### Community 125 - "Module Group 125"
-Cohesion: 0.10
-Nodes (15): HttpGetter, Protocol for injectable HTTP GET calls used by readiness probes., ConnectorField, Connector protocol and shared document dataclass., Describes one config field required by a connector type.      ``sensitive=True``, Protocol satisfied by every concrete source connector., Raise ValueError if the connector is misconfigured., Yield all documents available from this source. (+7 more)
+Cohesion: 0.11
+Nodes (12): Connector protocol and shared document dataclass., Protocol satisfied by every concrete source connector., Raise ValueError if the connector is misconfigured., Yield all documents available from this source., SourceConnector, Extractor, Boundary for file-type-specific text extractors., Return plain text extracted from the file at *path*.          Returns an empty s (+4 more)
 
 ### Community 126 - "Module Group 126"
 Cohesion: 0.19
@@ -1102,11 +1101,11 @@ Nodes (14): CORS_ORIGINS Configuration, Phase 08f-1: Production Defaults And Sec
 
 ### Community 130 - "Module Group 130"
 Cohesion: 0.33
-Nodes (6): Annotations System, CHANGELOG.md — Tomorrowland Release History, Document Comments System, document_translation_versions Table, Expertise Map (Related Documents + User Behavior), Subscriptions and Notifications System
+Nodes (14): _admin_token(), _create_source_with_doc(), In 05c, multiple manual versions are allowed., _setup_users(), test_admin_enrichment_queue_lists_pending(), test_admin_enrichment_queue_requires_admin(), test_auto_enrich_fires_exactly_once(), test_auto_enrich_fires_when_threshold_crossed() (+6 more)
 
 ### Community 131 - "Module Group 131"
-Cohesion: 0.27
-Nodes (15): _expertise_response(), _make_aggregate(), Unit tests for expertise() signal_details explanation fields (C2 #400)., top_docs comes from aggregate.docs which is group-filtered by expertise_signals(, signal_details[x]['count'] must equal the backward-compat signals[x] value., Backward compat: signals.views is still an integer count., test_existing_signals_field_unchanged(), test_signal_details_contribution_is_rounded() (+7 more)
+Cohesion: 0.22
+Nodes (3): DocumentPublisher, DocumentPublisher — writes DB state and publishes RabbitMQ messages per pipeline, Publish a document to the next pipeline stage queue.      Always writes a DB row
 
 ### Community 132 - "Module Group 132"
 Cohesion: 0.15
@@ -1120,13 +1119,13 @@ Nodes (8): ChatMessage, ChatScopeType, ChatSession, ChatSessionWithMessages, Cha
 Cohesion: 0.18
 Nodes (8): _parse_json_str(), Database access for chat sessions and messages., List sessions for a user, newest first.          Returns (sessions, total_count), Get a session by user + session ID., Update session title and/or archived_at.          Returns None if the session do, List messages in a session, oldest first., _row_to_message(), _row_to_session()
 
-### Community 135 - "Module Group 135"
-Cohesion: 0.18
-Nodes (4): _FakeQdrantStore, Re-indexing with delete_existing=True removes old chunks for the document., In-memory Qdrant stand-in that does cosine-like search via dot product., test_stale_chunk_overwrite()
+### Community 135 - "Community 135"
+Cohesion: 0.17
+Nodes (6): _auth_source(), Replace a user's group memberships by group name., Return an existing group ID or create a group by name., Return a user identity and group memberships by email., Create a local user with optional group memberships., Insert or update an LDAP-backed user and synchronize groups.
 
 ### Community 136 - "Module Group 136"
-Cohesion: 0.51
-Nodes (14): _create_doc(), _insert_payload(), _make_client(), _setup_users(), test_empty_text_returns_empty_response_not_error(), test_limit_validation_rejects_above_100000(), test_missing_document_returns_404(), test_offset_and_limit_slicing() (+6 more)
+Cohesion: 0.13
+Nodes (5): _FakeAttachmentExtractor, _FakeExtractor, _FakeExtractorRegistry, Fake extractor that supports both extract() and extract_attachments()., Fake registry that routes MIME types to concrete fakes.
 
 ### Community 137 - "Module Group 137"
 Cohesion: 0.22
@@ -1137,8 +1136,8 @@ Cohesion: 0.18
 Nodes (13): AlertMatcher, Q&A Endpoint and RAG Service, Phase 07: RAG And UI Features, Phase 07e: Related Documents and Expertise Map Backend, Phase 07d: Subscriptions and Notifications Backend, Frontend Stack (React, TypeScript, Vite, TanStack, Zod), Annotations Feature (AnnotationList, AnnotationEditor, PrivacyLabel), Phase 08e: Collaboration And Discovery (+5 more)
 
 ### Community 139 - "Module Group 139"
-Cohesion: 0.24
-Nodes (9): _checker(), Clock, Deterministic clock for readiness cache tests., test_admin_readiness_reports_degraded_for_optional_dependency_failure(), test_admin_readiness_reports_down_for_core_dependency_failure(), test_admin_readiness_reports_ok_and_caches_probe_results(), test_admin_readiness_route_requires_admin(), test_admin_readiness_route_returns_cached_response() (+1 more)
+Cohesion: 0.21
+Nodes (6): ABC, BaseConsumer, handle_message(), Base class for all RabbitMQ stage consumers., Consume one RabbitMQ queue; ack on success, nack (→ DLQ) on failure.      Subcla, Connect, declare topology, consume. Blocks until SIGTERM.
 
 ### Community 140 - "Module Group 140"
 Cohesion: 0.25
@@ -1149,20 +1148,20 @@ Cohesion: 0.05
 Nodes (36): #210 Kafka-backed pipeline transport recommendation, A. DB-only queue, B. Kafka-only queue, C. Hybrid DB + Kafka wake-up event, code:json ({), code:block2 (loop:), code:block3 (on kafka_event(event):), code:block4 (Implement Phase 1 of the pipeline job queue for Tomorrowland) (+28 more)
 
 ### Community 142 - "Module Group 142"
-Cohesion: 0.16
-Nodes (15): Admin Action Log Events, Connector Sync Log Events, Correlation model, User-Facing Error ID Flow, Event taxonomy, http_request_completed event, JSON Log Record Schema, Logging System Architecture (+7 more)
+Cohesion: 0.05
+Nodes (48): Admin Action Log Events, Admin action failure, Admin and audit logs, Admin/operator debugging workflow, API and user error correlation, Audit log entries, Auth events, code:text (User sees Error ID) (+40 more)
 
 ### Community 143 - "Module Group 143"
 Cohesion: 0.08
 Nodes (29): Accessibility, Authentication UX, Core Interaction Model, Design Quality Checklist, Design References, Document Comments, Empty State Requirements, Error And Permission Copy (+21 more)
 
 ### Community 144 - "Module Group 144"
-Cohesion: 0.27
-Nodes (6): Legacy non-versioned enrichment path., Chunk, embed, and index a document (both original and translated)., Re-translate, re-chunk, and re-index documents with pending_high quality., Run the enrichment pipeline for a single document.          On success the docum, Process the oldest pending version for a document., SlowWorker
+Cohesion: 0.13
+Nodes (9): Vector search restricted to *group_ids*.          When *group_ids* is non-empty, Vector search restricted to *group_ids*.          When *group_ids* is non-empty, Vector search using a pre-built Qdrant Filter.          The caller is responsibl, Vector search using a pre-built Qdrant Filter.          The caller is responsibl, Remove all chunks belonging to *document_id*., Remove all chunks belonging to *document_id*., Create the chunk collection if it does not exist., Raise if *vector* dimension does not match the collection dimension. (+1 more)
 
 ### Community 145 - "Module Group 145"
-Cohesion: 0.11
-Nodes (13): DocxExtractor, Extract text from Word .docx files using python-docx., Return concatenated text from all paragraphs and tables., PdfExtractor, Extract text from PDF files using pypdf., Return concatenated text from all pages., test_docx_extractor_reads_text_from_docx(), test_docx_extractor_returns_empty_for_missing_file() (+5 more)
+Cohesion: 0.27
+Nodes (11): _create_source(), Simulate a case where insert succeeds but immediate select returns nothing., Ensure metadata stored as a JSON string is parsed correctly., test_create_document_and_retrieve_by_id(), test_create_raises_when_insert_does_not_persist(), test_dedup_prevents_duplicate_ingestion(), test_get_by_id_returns_none_for_missing_document(), test_list_by_source() (+3 more)
 
 ### Community 146 - "Module Group 146"
 Cohesion: 0.47
@@ -1196,17 +1195,17 @@ Nodes (9): _admin_token(), _make_row(), Connector factory registry tests., _setu
 Cohesion: 0.44
 Nodes (9): _create_doc(), Integration tests for subscriptions, notifications, and alert matching., _settings(), _setup_users(), test_alert_trigger_creates_access_filtered_notification(), test_mark_notification_read(), test_subscription_crud(), test_subscription_feature_flag_disabled() (+1 more)
 
-### Community 154 - "Module Group 154"
-Cohesion: 0.35
-Nodes (14): _check_system_config_flag(), create_message(), create_message_stream(), create_session(), delete_session(), get_session(), list_sessions(), _message_response() (+6 more)
+### Community 154 - "Community 154"
+Cohesion: 0.18
+Nodes (4): _FakeQdrantStore, Re-indexing with delete_existing=True removes old chunks for the document., In-memory Qdrant stand-in that does cosine-like search via dot product., test_stale_chunk_overwrite()
 
 ### Community 155 - "Module Group 155"
-Cohesion: 0.18
-Nodes (7): _is_sqlite(), Claim the next eligible job.          Returns the job row or None.         Prior, Mark a running job for retry with a sanitized error and backoff., Move a running job to dead-letter state (final failure)., Return True when the connection uses SQLite dialect., Store only exception type/class-name and optional stage — never raw message text, _sanitize_error()
+Cohesion: 0.14
+Nodes (10): _is_sqlite(), Claim the next eligible job.          Returns the job row or None.         Prior, Claim the next eligible job.          Returns the job row or None.         Prior, Mark a running job for retry with a sanitized error and backoff., Mark a running job for retry with a sanitized error and backoff., Move a running job to dead-letter state (final failure)., Move a running job to dead-letter state (final failure)., Return True when the connection uses SQLite dialect. (+2 more)
 
 ### Community 156 - "Module Group 156"
-Cohesion: 0.10
-Nodes (25): CrossEncoderReranker, _parse_score(), Reranker protocol and implementations for RAG., LLM-based reranker that scores each chunk's relevance via an Ollama model., _make_ollama_mock(), Tests for the RAG reranker protocol and built-in implementations., Returned chunks must be ordered by relevance score descending., min_score=0 should keep all non-zero-scored chunks. (+17 more)
+Cohesion: 0.08
+Nodes (30): _make_ollama_mock(), Tests for the RAG reranker protocol and built-in implementations., Returned chunks must be ordered by relevance score descending., min_score=0 should keep all non-zero-scored chunks., The score parser must extract a number from full-sentence responses., When Ollama generate raises, the chunk must receive score 0 (and be dropped)., Ollama generate must be called with a prompt containing the question and chunk_t, NoOpReranker must return the exact same list. (+22 more)
 
 ### Community 157 - "Module Group 157"
 Cohesion: 0.18
@@ -1241,12 +1240,12 @@ Cohesion: 0.24
 Nodes (3): prompt_yesno(), validate_port(), warn()
 
 ### Community 165 - "Module Group 165"
-Cohesion: 0.05
-Nodes (42): configure_api_logging(), enhanced_request_observability_middleware(), install_enhanced_request_observability(), _is_default_request_observability_middleware(), Configure API log verbosity for container runtimes.      The container writes lo, Return true for the basic request middleware registered in create_app., Replace the default request middleware with one that logs exceptions.      ``ser, Attach request IDs, record HTTP metrics, and log unhandled 500s. (+34 more)
+Cohesion: 0.29
+Nodes (7): BaseConsumer, FailingConsumer, _make_delivery(), SucceedingConsumer, test_failure_dead_letters_when_attempts_exhausted(), test_failure_nacks_and_retries_when_attempts_remaining(), test_success_acks_message()
 
 ### Community 166 - "Module Group 166"
-Cohesion: 0.20
-Nodes (9): Durable pipeline job runner that claims jobs from the queue and processes them., Process a ``process_document`` job end-to-end., Process an ``intelligence_document`` job (best-effort)., Process an ``alert_document`` job (best-effort)., Run ``run_once`` in a loop until interrupted.      Emits a heartbeat gauge and q, _run_alert_job(), _run_intelligence_job(), run_loop() (+1 more)
+Cohesion: 0.22
+Nodes (12): _create_source(), Tests for latest-version-only filtering in search results.  The filtering logic, When there is only one version, it is latest and should not be filtered., Doc IDs not in the DB (e.g. from ES but not yet enriched) are kept., With multiple version families, only latest of each is kept., Simulate what the search route does: build non_latest set, filter merged list., test_filter_non_latest_set_excludes_older_versions(), test_filter_non_latest_set_includes_all_when_single_version() (+4 more)
 
 ### Community 167 - "Module Group 167"
 Cohesion: 0.07
@@ -1260,9 +1259,9 @@ Nodes (9): Accent Color Bars — Three proportioned rectangles (teal, blue, gold
 Cohesion: 0.25
 Nodes (7): Extraction Context Map, ExtractorRegistry, Frontend Context Map, Older Version Warning Banner, Version Badges (Search Results), Available maps, Context Maps
 
-### Community 170 - "Module Group 170"
-Cohesion: 0.13
-Nodes (10): JsonExtractor, Read the file as UTF-8 text., Extract raw text from JSON files for indexing., PptxExtractor, Extract text from PowerPoint .pptx files using python-pptx., Return concatenated text from all slides and shapes., test_json_extractor_reads_raw_json(), test_json_extractor_returns_empty_for_missing_file() (+2 more)
+### Community 170 - "Community 170"
+Cohesion: 0.51
+Nodes (14): _create_doc(), _insert_payload(), _make_client(), _setup_users(), test_empty_text_returns_empty_response_not_error(), test_limit_validation_rejects_above_100000(), test_missing_document_returns_404(), test_offset_and_limit_slicing() (+6 more)
 
 ### Community 171 - "Module Group 171"
 Cohesion: 0.22
@@ -1289,16 +1288,12 @@ Cohesion: 0.22
 Nodes (9): Docker Compose Runtime — ASGI entrypoint, /health, migrate/api/frontend services, Post-review fix: migrations/env.py gated POSTGRES_URL override on cmd_opts, PR #22 — Compose Runtime Foundation (Phase 08a), Auth and Routing — TanStack Router, sessionStorage boundary, Bearer token injection, 401 redirect, Warning: JS bundle 405 kB uncompressed; lazy route splitting deferred to Phase 08c, Warning: Phase 08b depends on Phase 08a (PR #22) — merge order required, Frontend Design System — tokens.css, base.css, utilities.css, PR #23 — Frontend Foundation (Phase 08b) (+1 more)
 
 ### Community 178 - "Module Group 178"
-Cohesion: 0.17
-Nodes (6): _auth_source(), Replace a user's group memberships by group name., Return an existing group ID or create a group by name., Return a user identity and group memberships by email., Create a local user with optional group memberships., Insert or update an LDAP-backed user and synchronize groups.
+Cohesion: 0.60
+Nodes (4): _admin_token(), Unit tests for GET /admin/rabbit/queues., _settings(), test_admin_rabbit_queues_returns_shape()
 
 ### Community 179 - "Module Group 179"
 Cohesion: 0.25
 Nodes (3): authStorage, CurrentUser, LoginResponse
-
-### Community 180 - "Module Group 180"
-Cohesion: 0.29
-Nodes (6): ExpertiseResult, ExpertiseSignals, ExpertiseTopDoc, getExpertise(), get, response
 
 ### Community 181 - "Module Group 181"
 Cohesion: 0.15
@@ -1313,32 +1308,32 @@ Cohesion: 0.33
 Nodes (5): AdminUserDetailPage(), adminApi, mockGroups, mockUser, navigate
 
 ### Community 184 - "Module Group 184"
-Cohesion: 0.29
-Nodes (5): Extract text from RTF files using striprtf., Return plain text with RTF control words stripped., RtfExtractor, test_rtf_extractor_reads_text(), test_rtf_extractor_returns_empty_for_missing_file()
+Cohesion: 0.05
+Nodes (42): configure_api_logging(), enhanced_request_observability_middleware(), install_enhanced_request_observability(), _is_default_request_observability_middleware(), Configure API log verbosity for container runtimes.      The container writes lo, Return true for the basic request middleware registered in create_app., Replace the default request middleware with one that logs exceptions.      ``ser, Attach request IDs, record HTTP metrics, and log unhandled 500s. (+34 more)
 
-### Community 185 - "Module Group 185"
-Cohesion: 0.29
-Nodes (5): Extract text from Excel .xlsx files using openpyxl., Return concatenated text from all cells., XlsxExtractor, test_xlsx_extractor_reads_text_from_xlsx(), test_xlsx_extractor_returns_empty_for_missing_file()
+### Community 185 - "Community 185"
+Cohesion: 0.33
+Nodes (6): _create_source(), _MetadataConnector, Regression tests for connector metadata and content-version persistence., test_create_allows_same_source_file_with_different_sha(), test_create_persists_metadata(), test_sync_now_persists_connector_metadata()
 
 ### Community 186 - "Module Group 186"
+Cohesion: 0.09
+Nodes (15): JsonExtractor, Read the file as UTF-8 text., Extract raw text from JSON files for indexing., PptxExtractor, Extract text from PowerPoint .pptx files using python-pptx., Return concatenated text from all slides and shapes., Extract text from Excel .xlsx files using openpyxl., Return concatenated text from all cells. (+7 more)
+
+### Community 187 - "Community 187"
+Cohesion: 0.20
+Nodes (9): Durable pipeline job runner that claims jobs from the queue and processes them., Process a ``process_document`` job end-to-end., Process an ``intelligence_document`` job (best-effort)., Process an ``alert_document`` job (best-effort)., Run ``run_once`` in a loop until interrupted.      Emits a heartbeat gauge and q, _run_alert_job(), _run_intelligence_job(), run_loop() (+1 more)
+
+### Community 189 - "Community 189"
 Cohesion: 0.29
-Nodes (5): Read the file as UTF-8 text., Extract raw text from XML files for indexing., XmlExtractor, test_xml_extractor_reads_raw_xml(), test_xml_extractor_returns_empty_for_missing_file()
-
-### Community 187 - "Module Group 187"
-Cohesion: 0.14
-Nodes (13): Admin action failure, Admin/operator debugging workflow, code:text (User sees Error ID), Connector validation or sync failure, Goal, Goals, HTTP request failure, Logging System Architecture And Event Taxonomy (+5 more)
-
-### Community 189 - "Module Group 189"
-Cohesion: 0.39
-Nodes (8): _build_user_filter(), Translate DocumentSearchFilters into a Meilisearch filter expression., DocumentSearchFilters, test_build_user_filter_date_gte(), test_build_user_filter_empty_returns_empty_string(), test_build_user_filter_multiple_fields_joined_with_and(), test_build_user_filter_multiple_values(), test_build_user_filter_single_field()
+Nodes (5): RequestTranslationDialog(), RequestTranslationDialogProps, invalidateSpy, onClose, qc
 
 ### Community 190 - "Module Group 190"
 Cohesion: 0.07
 Nodes (26): Acceptance criteria, Attribute naming convention, code:block1 (title, title_en, title_he          — document title, highest), code:block2 (document_id          — fetch all chunks of a document), code:block3 (metadata.created_at), code:block4 (words → typo → proximity → attribute → sort → exactness), code:block5 (של (of/belonging to)    עם (with)           את (accusative m), code:block6 (spec  ↔  specification, specifications) (+18 more)
 
 ### Community 191 - "Module Group 191"
-Cohesion: 0.20
-Nodes (10): ollama_client(), test_worker_auto_tags(), test_worker_extracts_entities(), test_worker_failure_does_not_block(), test_worker_skips_disabled_tasks(), test_worker_stops_on_first_failure(), test_worker_summarizes_and_stores(), IntelligenceWorker (+2 more)
+Cohesion: 0.39
+Nodes (3): IndexConsumer, main(), Index stage consumer — indexes document in Elasticsearch and Meilisearch.
 
 ### Community 192 - "Module Group 192"
 Cohesion: 0.25
@@ -1353,8 +1348,8 @@ Cohesion: 0.16
 Nodes (13): Tomorrowland Logo Options, Option A: Compass N, Option B: Source Lattice, Option C: Horizon Gate, Logo Option D: Cyber Bike (Active), Option D: Cyber Bike ✅ Active, Recommendation, Tomorrowland Logo Options (+5 more)
 
 ### Community 196 - "Module Group 196"
-Cohesion: 0.29
-Nodes (5): AdminSourcesPage(), FormValues, mockConnectorTypes, sourceDefaults, user
+Cohesion: 0.43
+Nodes (3): main(), Translate stage consumer — translates extracted text and publishes embed., TranslateConsumer
 
 ### Community 197 - "Module Group 197"
 Cohesion: 0.33
@@ -1368,13 +1363,9 @@ Nodes (7): feature.atlassian_permission_sync Feature Flag, ConfluenceConnector, 
 Cohesion: 0.33
 Nodes (7): Agent Handoff Format, scripts/check-pr-cleanliness.sh — PR Cleanliness Guard, docs/agents/templates.md — Agent Claim/Transfer/Handoff Templates, copilot-instructions.md — GitHub Copilot Instructions, pull_request_template.md — Legacy PR Template, PULL_REQUEST_TEMPLATE.md — Mission PR Template, tl-handoff SKILL.md — Agent Handoff Skill
 
-### Community 200 - "Module Group 200"
-Cohesion: 0.29
-Nodes (7): DocumentToolbar Component, Hebrew/English UI Localization (i18n), InsightPane — Document Insight Tab Architecture, PreviewPane — MIME-Aware Document Preview, QAPanel — Q&A Sub-Components, Frontend Service (React/Nginx), React 19 + TanStack Router/Query Frontend Stack
-
-### Community 201 - "Module Group 201"
-Cohesion: 0.25
-Nodes (5): Feature Flags (FEATURE_* env vars + system_config DB), Pydantic Settings (shared.config.Settings), get_settings(), Return settings loaded from the current environment., Return settings loaded from the current environment.
+### Community 201 - "Community 201"
+Cohesion: 0.33
+Nodes (4): SearchFilters, SearchMode, SearchResponse, SearchResult
 
 ### Community 202 - "Module Group 202"
 Cohesion: 0.33
@@ -1393,32 +1384,32 @@ Cohesion: 0.08
 Nodes (23): Agent Handoff, Changed Files Audit, Changes, Checklist, code:block1 (# paste output here), Completed, Context Loaded, Context Skipped (+15 more)
 
 ### Community 206 - "Module Group 206"
-Cohesion: 0.12
-Nodes (16): ChatInput(), ChatInputProps, phaseLabels, ChatWindow(), ChatWindowProps, DocumentChatPanel(), DocumentChatPanelProps, ScopeBadge() (+8 more)
+Cohesion: 0.13
+Nodes (15): ChatInput(), ChatInputProps, phaseLabels, ChatWindowProps, MessageList(), MessageListProps, ScopeBadge(), ScopeBadgeProps (+7 more)
 
 ### Community 207 - "Module Group 207"
-Cohesion: 0.48
-Nodes (4): _jwt_service(), login(), _repository_context(), signup()
+Cohesion: 0.17
+Nodes (17): enrichment_queue(), DocumentRepository, Update the document status., Update document status and translation quality after indexing., Update the document translation quality., CRUD and queries for the documents table., _create_source(), test_changed_content_creates_version_number_2_in_same_family() (+9 more)
 
 ### Community 208 - "Module Group 208"
 Cohesion: 0.12
 Nodes (16): Coding Agent Behavior Rules, Honest Verification Principle, Simplicity First Principle, Surgical Changes Principle, code:text (Use this issue as the source of truth. Read AGENTS.md, docs/), code:text (Add targeted tests for the behavior described in this issue.), code:text (Use the failing output as the source of truth. Identify the ), code:text (Plan mode first: restate the goal, assumptions, smallest saf) (+8 more)
 
-### Community 209 - "Module Group 209"
-Cohesion: 0.33
-Nodes (4): SearchFilters, SearchMode, SearchResponse, SearchResult
+### Community 209 - "Community 209"
+Cohesion: 0.43
+Nodes (3): EnrichConsumer, main(), Enrich stage consumer — high-quality translation for frequently viewed documents
 
 ### Community 210 - "Module Group 210"
 Cohesion: 0.67
 Nodes (3): FormValues, makeSchema(), SignUpPage()
 
-### Community 211 - "Module Group 211"
-Cohesion: 0.06
-Nodes (26): _config_bool(), OllamaClient, Ollama HTTP client for local LLM inference., Thin wrapper around the Ollama HTTP API., Thin wrapper around the Ollama HTTP API., Send a generate request to Ollama and return the response text.          Args:, Send a generate request to Ollama and return the response text.          Args:, Stream generated tokens from Ollama.          Yields each token as it is produce (+18 more)
+### Community 211 - "Community 211"
+Cohesion: 0.40
+Nodes (3): EmbedConsumer, main(), Embed stage consumer — chunks + vectorizes text and publishes index.
 
 ### Community 212 - "Module Group 212"
-Cohesion: 0.15
-Nodes (9): Decode a JWT into a token payload., LoginRequest, LoginResponse, JWT payload used by backend permission checks., Sign-up request body., Public authenticated user shape., SignUpRequest, TokenPayload (+1 more)
+Cohesion: 0.14
+Nodes (9): RabbitClient, RabbitConnectionError, Thin RabbitMQ client wrapper for Tomorrowland document pipeline., Close the connection gracefully., Raised when a connection to RabbitMQ cannot be established., Synchronous pika-based RabbitMQ client.      When *enabled* is False every metho, Open a connection and channel. Raises RabbitConnectionError on failure., Declare exchanges, queues, and bindings — idempotent. (+1 more)
 
 ### Community 213 - "Module Group 213"
 Cohesion: 0.25
@@ -1428,9 +1419,9 @@ Nodes (8): Annotation TypeScript Type, Annotations, Citation TypeScript Type, In
 Cohesion: 0.40
 Nodes (3): HistoryPage(), firstPage, mocks
 
-### Community 215 - "Module Group 215"
-Cohesion: 0.33
-Nodes (5): btn, link, mockPreview, onImageZoomChange, onSearchToggle
+### Community 215 - "Community 215"
+Cohesion: 0.29
+Nodes (5): Read the file as UTF-8 text., Extract raw text from XML files for indexing., XmlExtractor, test_xml_extractor_reads_raw_xml(), test_xml_extractor_returns_empty_for_missing_file()
 
 ### Community 216 - "Module Group 216"
 Cohesion: 0.12
@@ -1460,9 +1451,9 @@ Nodes (4): handler, input, TextInput(), TextInputProps
 Cohesion: 0.80
 Nodes (5): fail(), main(), parsed_specifiers(), qdrant_client_requirement(), qdrant_server_versions()
 
-### Community 228 - "Module Group 228"
-Cohesion: 0.33
-Nodes (6): _create_source(), _MetadataConnector, Regression tests for connector metadata and content-version persistence., test_create_allows_same_source_file_with_different_sha(), test_create_persists_metadata(), test_sync_now_persists_connector_metadata()
+### Community 228 - "Community 228"
+Cohesion: 0.40
+Nodes (3): main(), ParseConsumer, Parse stage consumer — extracts text from a document and publishes translate.
 
 ### Community 229 - "Module Group 229"
 Cohesion: 0.40
@@ -1489,8 +1480,8 @@ Cohesion: 0.18
 Nodes (11): DocumentToolbar Component, code:text (Translation), Default Version Selection, Document Toolbar, Placement In The UI, Reading A Version, Request Translation Dialog, Translation Version Selector (Toolbar) (+3 more)
 
 ### Community 235 - "Module Group 235"
-Cohesion: 0.20
-Nodes (10): 12. Frontend UX Design, Active chat with answer and citations, code:block19 (frontend/src/), code:block20 (┌─────────────────────────────────────────────────────────┐), code:block21 (┌─────────────────────────────────────────────────────────┐), Document-level chat (InsightPane "Chat" tab, Phase C), Error and empty states, Global chat page (`/chat`) (+2 more)
+Cohesion: 0.12
+Nodes (16): 12. Frontend UX Design, Active chat with answer and citations, ChatCitationCard Component, ChatPage Component, ChatSidebar Component, ChatWindow Component, code:block19 (frontend/src/), code:block20 (┌─────────────────────────────────────────────────────────┐) (+8 more)
 
 ### Community 236 - "Module Group 236"
 Cohesion: 0.50
@@ -1501,16 +1492,16 @@ Cohesion: 0.40
 Nodes (4): gutter, marks, onMatchCountChange, rawBtn
 
 ### Community 239 - "Module Group 239"
-Cohesion: 0.09
-Nodes (22): 2026-05-20 — Agent skills and memory branch, 2026-05-21 — #441 full text API complete; #442 PDF.js viewer next, 2026-05-21 — #442 PDF.js viewer complete; #443 view mode switcher next, 2026-05-21 — #443 view mode switcher complete, 2026-05-21 — #444 image viewer complete, 2026-05-21 — #445 metadata Details tab complete, 2026-05-21 — #447 code/syntax viewer complete, 2026-05-21 — #448 media viewer complete (+14 more)
+Cohesion: 0.08
+Nodes (23): 2026-05-20 — Agent skills and memory branch, 2026-05-21 — #441 full text API complete; #442 PDF.js viewer next, 2026-05-21 — #442 PDF.js viewer complete; #443 view mode switcher next, 2026-05-21 — #443 view mode switcher complete, 2026-05-21 — #444 image viewer complete, 2026-05-21 — #445 metadata Details tab complete, 2026-05-21 — #447 code/syntax viewer complete, 2026-05-21 — #448 media viewer complete (+15 more)
 
 ### Community 240 - "Module Group 240"
 Cohesion: 0.40
 Nodes (5): detect_query_language, Flat Translation Fields (content_en, content_he), Hebrew Unicode Heuristic Language Detection, src/services/search/meili_lang.py, Meilisearch Multilingual Search
 
 ### Community 241 - "Module Group 241"
-Cohesion: 0.60
-Nodes (5): Document Event Schema (Kafka: documents.raw), Indexed Document Schema, Intelligence Event Schema (Kafka: documents.intelligence), Kafka Topics (documents.raw, documents.enrichment, documents.intelligence, documents.dlq), spec-v4.pdf — Local Semantic Search Engine Specification v4 (PDF)
+Cohesion: 0.43
+Nodes (7): Document Event Schema (Kafka: documents.raw), mission.yml — Agent Mission Issue Template, Indexed Document Schema, Intelligence Event Schema (Kafka: documents.intelligence), Kafka Topics (documents.raw, documents.enrichment, documents.intelligence, documents.dlq), spec.md — Local Semantic Search Engine Specification v4, spec-v4.pdf — Local Semantic Search Engine Specification v4 (PDF)
 
 ### Community 242 - "Module Group 242"
 Cohesion: 0.40
@@ -1552,9 +1543,9 @@ Nodes (4): Atlassian Source Connectors, Warning: Targeted test file fails 90% co
 Cohesion: 0.83
 Nodes (3): do_translate(), fail(), log()
 
-### Community 260 - "Module Group 260"
+### Community 260 - "Community 260"
 Cohesion: 0.33
-Nodes (4): Return the status dict for a Meilisearch task.          Keys always present: ``s, Poll task_status until the task succeeds, fails, or times out.          Raises `, Return the status dict for a Meilisearch task.          Keys always present: ``s, Poll task_status until the task succeeds, fails, or times out.          Raises `
+Nodes (4): Return the stored document payload for a document_id., Return the stored document payload for a document_id., Persist the extracted document text so downstream workers (e.g. translation-work, Persist the extracted document text so downstream workers (e.g. translation-work
 
 ### Community 261 - "Module Group 261"
 Cohesion: 0.10
@@ -1604,10 +1595,6 @@ Nodes (3): Suggestion: Return AnswerResponse as FastAPI response model for /qa, 
 Cohesion: 0.10
 Nodes (20): 0. Purpose, 11. RAG Q&A Pipeline (api/services/rag.py), 15. Chunking Strategy, 16. Translation Strategy, 18. Permissions, 19. Dead-Letter Queue, 1. Repository Structure, 20. Delete Cascade (+12 more)
 
-### Community 291 - "Module Group 291"
-Cohesion: 0.20
-Nodes (6): AttachmentData, Text extraction abstraction., Raw attachment extracted from a container document (email, archive)., Return raw bytes for each non-inline attachment in the EML file., Return raw bytes for each attachment in the MSG file., Return every file inside the ZIP as an AttachmentData.
-
 ### Community 308 - "Module Group 308"
 Cohesion: 0.67
 Nodes (3): npm audit Frontend Dependency Audit, pip-audit Python Dependency Audit, Security CI Workflow
@@ -1619,6 +1606,10 @@ Nodes (19): Acceptance Criteria, API Availability, Auth UX Contract, Branch, cod
 ### Community 340 - "Module Group 340"
 Cohesion: 0.10
 Nodes (19): Air-Gapped Compose Deployment, code:text (tomorrowland-release-<version>.tar.gz        platform archiv), code:bash (tar xzf tomorrowland-release-<version>.tar.gz), code:bash (cp .env.airgap.example .env), code:text (tomorrowland-ollama-bundle-mistral-<version>.tar.gz), code:bash (# Verify checksums before transfer or use), code:env (AUTH_PROVIDER=ldap), code:bash (./scripts/tomorrowland-airgap.sh upgrade \) (+11 more)
+
+### Community 343 - "Community 343"
+Cohesion: 0.50
+Nodes (4): setup(), makeQueryClient(), render(), Wrapper()
 
 ### Community 383 - "Community 383"
 Cohesion: 0.11
@@ -1653,8 +1644,8 @@ Cohesion: 0.11
 Nodes (17): Check status, code:text (tomorrowland-release-<version>.tar.gz), code:text (tomorrowland-ollama-bundle-<model>-<version>.tar.gz), code:bash (sha256sum -c tomorrowland-release-<version>.tar.gz.sha256), code:bash (cp .env.airgap.example .env), code:bash (./scripts/tomorrowland-airgap.sh validate --load-images), code:bash (./scripts/tomorrowland-airgap.sh validate --load-images \), code:bash (./scripts/tomorrowland-airgap.sh up) (+9 more)
 
 ### Community 391 - "Community 391"
-Cohesion: 0.12
-Nodes (9): ElasticsearchSearchClient, Index or update a document by *document_id*., Thin wrapper around the Elasticsearch client for full-text (BM25) search., Remove a document from the index., Update a single field of an existing document (partial update)., Update multiple fields of an existing document atomically., Close the underlying Elasticsearch client., BM25 search with an explicit server-side permission filter.          Admin calle (+1 more)
+Cohesion: 0.27
+Nodes (4): Update the current processing stage, transitioning to running if pending., Update the current processing stage, transitioning to running if pending., Persist the RabbitMQ message ID for observability., Persist the RabbitMQ message ID for observability.
 
 ### Community 392 - "Community 392"
 Cohesion: 0.12
@@ -1713,8 +1704,8 @@ Cohesion: 0.13
 Nodes (14): Acceptance Criteria, code:json ({), code:bash (ruff check src/ tests/), Current Baseline, Dependencies, Dependency Gauge Export, `GET /admin/readiness`, Goal (+6 more)
 
 ### Community 406 - "Community 406"
-Cohesion: 0.12
-Nodes (15): 2026-05-20 — Shared agent skills setup, 2026-05-21 — Python dependency audit fix, 2026-05-21 — Resource safety guards (#463), 2026-05-22 — Admin Users UI (#491), 2026-05-22 — Document Chat merged to main (#492), 2026-05-22 — Document Chat Phase C frontend complete (#474), 2026-05-22 — Document Chat Phase D — query rewrite (#475), 2026-05-22 — Document Chat Phase F — Citation UX (#477) (+7 more)
+Cohesion: 0.11
+Nodes (18): 2026-05-20 — Shared agent skills setup, 2026-05-21 — Python dependency audit fix, 2026-05-21 — Resource safety guards (#463), 2026-05-22 — Admin Users UI (#491), 2026-05-22 — Document Chat merged to main (#492), 2026-05-22 — Document Chat Phase C frontend complete (#474), 2026-05-22 — Document Chat Phase D — query rewrite (#475), 2026-05-22 — Document Chat Phase F — Citation UX (#477) (+10 more)
 
 ### Community 407 - "Community 407"
 Cohesion: 0.13
@@ -1756,17 +1747,13 @@ Nodes (14): code:text (Source type: folder), code:bash (sudo mkdir -p /mnt/tomor
 Cohesion: 0.14
 Nodes (14): 10.1 Structure, 10.2 Task: Summarize, 10.3 Task: Extract Entities, 10.4 Task: Auto Tag, 10.5 Task: Match Alerts, 10.6 Ollama Client, 10.7 Error Handling, 10. Worker Intelligence (NEW SERVICE) (+6 more)
 
-### Community 417 - "Community 417"
-Cohesion: 0.25
-Nodes (7): CommentCreateRequest, CommentUpdateRequest, DocumentComment, Document comment models., Row model for the document_comments table., Request body for creating a comment., Request body for updating a comment.
-
 ### Community 418 - "Community 418"
 Cohesion: 0.15
 Nodes (12): Acceptance criteria, Algorithm, code:block1 (hebrew_ratio = hebrew_char_count / non_whitespace_char_count), `detected_language` in the search response, Flat translation fields are the right choice, Language detection, `language` query parameter behaviour, Meilisearch Multilingual Search — Decisions (+4 more)
 
 ### Community 419 - "Community 419"
-Cohesion: 0.33
-Nodes (5): Rerank *chunks* given the *question*.          The returned list may be a subset, Protocol for reranking retrieved chunks before context assembly.      Implementa, Rerank *chunks* given the *question*.          The returned list may be a subset, Protocol for reranking retrieved chunks before context assembly.      Implementa, Reranker
+Cohesion: 0.24
+Nodes (9): _checker(), Clock, Deterministic clock for readiness cache tests., test_admin_readiness_reports_degraded_for_optional_dependency_failure(), test_admin_readiness_reports_down_for_core_dependency_failure(), test_admin_readiness_reports_ok_and_caches_probe_results(), test_admin_readiness_route_requires_admin(), test_admin_readiness_route_returns_cached_response() (+1 more)
 
 ### Community 420 - "Community 420"
 Cohesion: 0.17
@@ -1985,8 +1972,8 @@ Cohesion: 0.22
 Nodes (9): code:bash (docker compose config), code:bash (docker compose run --rm migrate), code:bash (docker compose up --build), code:bash (docker compose up --build -d), code:bash (docker compose logs -f api frontend migrate), code:bash (docker compose logs -f postgres elasticsearch qdrant libretr), code:bash (docker compose down), code:bash (docker compose down -v) (+1 more)
 
 ### Community 474 - "Community 474"
-Cohesion: 0.14
-Nodes (12): current_user(), Decode the bearer token for the current request., JwtService, Create and verify signed access tokens., Encode a user identity as an HS256 JWT., Authenticated user with resolved group memberships., UserIdentity, _make_non_admin_token() (+4 more)
+Cohesion: 0.50
+Nodes (4): admin_rabbit_queues(), _mgmt_get(), Admin routes for RabbitMQ queue observability., Call RabbitMQ management API and return the parsed JSON response.
 
 ### Community 475 - "Community 475"
 Cohesion: 0.25
@@ -2021,8 +2008,8 @@ Cohesion: 0.25
 Nodes (7): Blockers Before Phase 01, Blockers Before Phase 03, Blockers Before Phase 05, Blockers Before Phase 07, Blockers Before Phase 09, Default Decisions For Planning, Spec Gaps And Decision Log
 
 ### Community 483 - "Community 483"
-Cohesion: 0.29
-Nodes (5): RequestTranslationDialog(), RequestTranslationDialogProps, invalidateSpy, onClose, qc
+Cohesion: 0.16
+Nodes (11): DocumentToolbarProps, ZOOM_STEPS, base, TrustDisplay(), TrustDisplayProps, MODE_LABELS, { container }, onModeChange (+3 more)
 
 ### Community 484 - "Community 484"
 Cohesion: 0.25
@@ -2296,14 +2283,6 @@ Nodes (5): 3. Access Evaluation — Current (Flat Groups), Admin bypass detail, 
 Cohesion: 0.40
 Nodes (5): Admin First Login, First-Run And Onboarding States, No Accessible Sources, No Documents Indexed, Partially Indexed System
 
-### Community 552 - "Community 552"
-Cohesion: 0.50
-Nodes (3): base, TrustDisplay(), TrustDisplayProps
-
-### Community 553 - "Community 553"
-Cohesion: 0.50
-Nodes (3): link, VersionBanner(), VersionBannerProps
-
 ### Community 554 - "Community 554"
 Cohesion: 0.40
 Nodes (4): Affected Phase, Decision, Gap, Proposed Resolution
@@ -2333,8 +2312,8 @@ Cohesion: 0.40
 Nodes (5): Frontend Instructions, Hebrew English Localization, React TypeScript Conventions, OpenCode Frontend Agent, Frontend CI Workflow
 
 ### Community 561 - "Community 561"
-Cohesion: 0.70
-Nodes (5): Observability Stack (Prometheus/Grafana/Loki/Promtail), Grafana Dashboard Service, Loki Log Aggregation Service, Prometheus Monitoring Service, Promtail Log Shipper Service
+Cohesion: 0.18
+Nodes (5): PipelineWorker, Synchronous document ingestion pipeline., Create a child document and run the pipeline for each attachment., Orchestrate extraction, translation, chunking, embedding, and indexing., Run the full pipeline for a single document.          When *pre_extracted_text*
 
 ### Community 562 - "Community 562"
 Cohesion: 0.40
@@ -2429,60 +2408,48 @@ Cohesion: 0.67
 Nodes (3): 17. UI (Next.js), Components, Pages
 
 ### Community 586 - "Community 586"
-Cohesion: 0.25
-Nodes (8): Conditional admin fields, Conditional count fields, Conditional error fields, Conditional HTTP fields, Conditional operation fields, JSON log record schema, Recommended base fields, Required base fields
-
-### Community 587 - "Community 587"
 Cohesion: 0.33
-Nodes (5): Alert subscription and notification models., Request body for updating an alert subscription., Request body for creating an alert subscription., SubscriptionCreateRequest, SubscriptionUpdateRequest
-
-### Community 588 - "Community 588"
-Cohesion: 0.33
-Nodes (3): Return all ancestor group IDs reachable from the given seed group IDs., Return whether any of a user's effective groups can access a source., Return True if the user belongs to the 'admins' group.
+Nodes (5): Annotation, PreviewAnchor, PreviewAnchorPosition, RelatedDocument, TranslationQuality
 
 ### Community 589 - "Community 589"
-Cohesion: 0.33
-Nodes (5): ChatMessage, ChatSession, Pydantic models for Document Chat sessions and messages., Row model for the chat_sessions table., Row model for the chat_messages table.
+Cohesion: 0.20
+Nodes (5): Integration tests validating that consumer DB writes are committed and visible t, Consumer writes + commits; another connection sees the data., Without commit(), another connection sees stale data — proves the bug., _SimpleWriterConsumer, TestConsumerCommit
 
-### Community 599 - "Community 599"
-Cohesion: 0.33
-Nodes (6): ChatCitationCard Component, ChatPage Component, ChatSidebar Component, ChatWindow Component, code:block22 ([Chatting with: ▾]), Scope selector
+### Community 613 - "Community 613"
+Cohesion: 0.11
+Nodes (13): DocxExtractor, Extract text from Word .docx files using python-docx., Return concatenated text from all paragraphs and tables., PdfExtractor, Extract text from PDF files using pypdf., Return concatenated text from all pages., test_docx_extractor_reads_text_from_docx(), test_docx_extractor_returns_empty_for_missing_file() (+5 more)
 
-### Community 600 - "Community 600"
-Cohesion: 0.33
-Nodes (6): Admin and audit logs, API and user error correlation, Auth events, Connector operation logs, Implementation dependency map, Logging core
+### Community 614 - "Community 614"
+Cohesion: 0.29
+Nodes (5): Extract text from RTF files using striprtf., Return plain text with RTF control words stripped., RtfExtractor, test_rtf_extractor_reads_text(), test_rtf_extractor_returns_empty_for_missing_file()
 
-### Community 601 - "Community 601"
-Cohesion: 0.33
-Nodes (6): Audit log entries, DLQ records, Logs, Metrics, Relationship to other observability data, User-facing messages
+### Community 620 - "Community 620"
+Cohesion: 0.48
+Nodes (4): _jwt_service(), login(), _repository_context(), signup()
 
-### Community 602 - "Community 602"
+### Community 629 - "Community 629"
 Cohesion: 0.33
-Nodes (5): DocumentTranslationVersion, DocumentVersionFamily, Document persistence models., Row model for the document_version_families table., Row model for the document_translation_versions table.
-
-### Community 603 - "Community 603"
-Cohesion: 0.33
-Nodes (6): hit_at_k(), Return True if *expected_doc_id* appears in the top-k results., Each golden question should retrieve its expected document in top-5., Each Hebrew golden question retrieves its expected doc in top-5., test_hit_at_5(), test_multilang_hit_at_5()
+Nodes (5): Rerank *chunks* given the *question*.          The returned list may be a subset, Protocol for reranking retrieved chunks before context assembly.      Implementa, Rerank *chunks* given the *question*.          The returned list may be a subset, Protocol for reranking retrieved chunks before context assembly.      Implementa, Reranker
 
 ## Knowledge Gaps
-- **2501 isolated node(s):** `2026-05-22 — Document viewer MVP complete (#453 closed)`, `2026-05-21 — Resource safety guards (#463)`, `2026-05-21 — Python dependency audit fix`, `2026-05-22 — Vector embedding context-length safety (#468)`, `2026-05-22 — Document Chat Phase C frontend complete (#474)` (+2496 more)
+- **2520 isolated node(s):** `2026-05-23 — RabbitMQ stage-based job bus (#432) merged to main`, `2026-05-23 — Document quality-of-life improvements`, `2026-05-23 — Chat defaults + Qdrant bootstrap + SSE fix + Edit Source page`, `2026-05-22 — Document details & advanced search track complete (#483–#489)`, `2026-05-22 — Document viewer MVP complete (#453 closed)` (+2515 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **72 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **79 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Settings` connect `Module Group 31` to `Auth API & Tests`, `Annotation Repository`, `Module Group 136`, `Chat API Integration Tests`, `Module Group 139`, `API Readiness Checks`, `Module Group 144`, `Module Group 146`, `API App Entrypoint`, `Module Group 152`, `Module Group 153`, `Module Group 33`, `Module Group 165`, `Module Group 47`, `Module Group 49`, `Module Group 60`, `Module Group 70`, `Module Group 201`, `Module Group 218`, `Module Group 95`, `Module Group 98`, `Module Group 228`, `Module Group 119`, `Module Group 125`?**
-  _High betweenness centrality (0.054) - this node is a cross-community bridge._
-- **Why does `useT()` connect `Module Group 36` to `API Readiness Checks`, `Module Group 157`, `Module Group 158`, `Module Group 39`, `Community 553`, `Module Group 51`, `Module Group 54`, `Module Group 196`, `Module Group 69`, `Module Group 72`, `Module Group 206`, `Module Group 210`, `Module Group 83`, `Module Group 84`, `Module Group 214`, `Module Group 106`, `Module Group 236`, `Module Group 118`, `Module Group 251`, `Module Group 126`?**
-  _High betweenness centrality (0.037) - this node is a cross-community bridge._
-- **Why does `MetricsRegistry` connect `Module Group 140` to `Module Group 32`, `Module Group 165`, `API Readiness Checks`, `Module Group 144`, `Module Group 80`, `API App Entrypoint`, `Module Group 53`, `Vector Pipeline Worker`, `Module Group 87`, `Module Group 125`?**
+- **Why does `useT()` connect `Module Group 36` to `Module Group 69`, `Module Group 39`, `Module Group 106`, `Module Group 236`, `API Readiness Checks`, `Module Group 78`, `Module Group 206`, `Module Group 48`, `Module Group 251`, `Module Group 210`, `Module Group 83`, `Module Group 51`, `Module Group 54`, `Module Group 118`, `Module Group 214`, `Module Group 158`, `Module Group 157`, `Module Group 126`?**
   _High betweenness centrality (0.032) - this node is a cross-community bridge._
+- **Why does `request()` connect `Module Group 114` to `Atlassian Connector`?**
+  _High betweenness centrality (0.029) - this node is a cross-community bridge._
+- **Why does `db_uuid()` connect `Admin Config & DLQ` to `Module Group 130`, `Community 260`, `Module Group 134`, `Community 391`, `Annotation Helpers`, `Chat Session Models`, `Community 135`, `Pipeline Job Repository`, `Module Group 146`, `Alerts & Subscriptions`, `Module Group 155`, `NiFi Kafka Consumer`, `Intelligence Repository`, `Module Group 33`, `Community 553`, `Community 170`, `Module Group 47`, `Module Group 49`, `Module Group 60`, `Module Group 73`, `Module Group 207`, `Module Group 80`, `Module Group 92`, `Module Group 95`, `Module Group 97`?**
+  _High betweenness centrality (0.027) - this node is a cross-community bridge._
 - **Are the 216 inferred relationships involving `create_app()` (e.g. with `test_admin_list_users()` and `test_admin_create_user()`) actually correct?**
   _`create_app()` has 216 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 165 inferred relationships involving `Settings` (e.g. with `test_admin_list_users()` and `test_admin_create_user()`) actually correct?**
   _`Settings` has 165 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 109 inferred relationships involving `AuthRepository` (e.g. with `admin_create_user()` and `admin_set_user_groups()`) actually correct?**
+- **Are the 109 inferred relationships involving `AuthRepository` (e.g. with `preview()` and `get_document_text()`) actually correct?**
   _`AuthRepository` has 109 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 122 inferred relationships involving `db_uuid()` (e.g. with `admin_delete_group()` and `admin_rename_group()`) actually correct?**
+- **Are the 122 inferred relationships involving `db_uuid()` (e.g. with `.enqueue_document()` and `.mark_running_stage()`) actually correct?**
   _`db_uuid()` has 122 INFERRED edges - model-reasoned connections that need verification._

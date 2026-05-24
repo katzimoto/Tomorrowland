@@ -6,7 +6,7 @@ import { listNotifications } from "@/api/notifications";
 import { AppShell } from "@/components/layout/AppShell";
 import { CommandMenu } from "@/components/feedback/CommandMenu";
 import { EmptyState } from "@/components/primitives/EmptyState";
-import { Skeleton } from "@/components/primitives/Skeleton";
+import { Skeleton, SkeletonRow } from "@/components/primitives/Skeleton";
 import { useT } from "@/i18n/index";
 import { finishNamedPerformanceTimer } from "@/lib/performanceTelemetry";
 import styles from "./AppLayout.module.css";
@@ -66,7 +66,7 @@ export function AppLayout() {
       userEmail={user?.email ?? null}
     >
       <CommandMenu />
-      <Suspense fallback={null}>
+      <Suspense fallback={<div className={styles.loadingContent}><SkeletonRow count={6} /></div>}>
         <Outlet />
       </Suspense>
     </AppShell>

@@ -1,7 +1,6 @@
 FROM ollama/ollama:latest
 
 ARG OLLAMA_MODEL=mistral
-ARG EMBEDDING_MODEL=nomic-embed-text
 
 RUN /bin/ollama serve & \
     pid=$! && \
@@ -11,6 +10,5 @@ RUN /bin/ollama serve & \
         [ $timeout -gt 0 ] || { kill $pid; exit 1; }; \
     done && \
     ollama pull "$OLLAMA_MODEL" && \
-    ollama pull "$EMBEDDING_MODEL" && \
     kill $pid && \
     wait $pid 2>/dev/null || true

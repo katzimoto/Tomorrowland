@@ -7,6 +7,11 @@ SHADOW_INDEX_NAME = "documents_shadow"
 
 SETTINGS_VERSION = 1
 
+# documentTemplate controls what text Meilisearch sends to Ollama for embedding.
+# Must stay stable — changing it after documents are indexed invalidates all
+# existing vectors and requires a full reindex.
+EMBEDDER_DOCUMENT_TEMPLATE = "{{doc.title}} {{doc.content}}"
+
 # ---------------------------------------------------------------------------
 # Searchable attributes
 # ---------------------------------------------------------------------------
@@ -266,18 +271,69 @@ INDEX_SETTINGS: dict[str, Any] = {
 }
 
 
-def apply_index_settings(client: Any, *, shadow: bool = False) -> None:
-    """Apply INDEX_SETTINGS to the live index (or shadow index if shadow=True).
+def _embedder_settings(
+    embedding_url: str,
+    model: str,
+    dimensions: int,
+    embedder_name: str,
+) -> dict[str, Any]:
+    """Return the ``embedders`` index-settings block for the Ollama source."""
+    return {
+        embedder_name: {
+            "source": "ollama",
+            "url": embedding_url,
+            "model": model,
+            "dimensions": dimensions,
+            "documentTemplate": EMBEDDER_DOCUMENT_TEMPLATE,
+        }
+    }
+
+
+def apply_index_settings(
+    client: Any,
+    *,
+    shadow: bool = False,
+    hybrid: bool = False,
+    embedding_url: str = "http://ollama-embed:11434/api/embed",
+    embedding_model: str = "nomic-embed-text",
+    embedding_dimension: int = 768,
+    embedder_name: str = "default",
+) -> None:
+    """Apply index settings to the live index (or shadow index if shadow=True).
 
     Creates the index if it does not exist. Safe to call on every startup —
     Meilisearch applies settings as a task and does not drop existing documents.
 
+    When *hybrid* is True, injects an ``embedders`` block pointing at the
+    Ollama embed service and appends the ``"vector"`` ranking rule so
+    Meilisearch performs hybrid (BM25 + vector) scoring natively.
+
     Args:
         client: A meilisearch.Client instance.
         shadow: When True, targets SHADOW_INDEX_NAME instead of INDEX_NAME.
+        hybrid: When True, configures the Ollama embedder and vector ranking.
+        embedding_url: Full URL to the Ollama ``/api/embed`` endpoint.
+        embedding_model: Ollama model name (must match the pulled model).
+        embedding_dimension: Vector dimension (must match the model output).
+        embedder_name: Name of the embedder in Meilisearch (default ``"default"``).
     """
     name = SHADOW_INDEX_NAME if shadow else INDEX_NAME
     existing = [idx.uid for idx in client.get_indexes()["results"]]
     if name not in existing:
         client.create_index(name, {"primaryKey": "id"})
-    client.index(name).update_settings(INDEX_SETTINGS)
+
+    settings: dict[str, Any] = dict(INDEX_SETTINGS)
+
+    if hybrid:
+        # Append the vector ranking rule after exactness so BM25 rules still
+        # dominate for keyword-heavy queries.
+        settings = dict(settings)
+        settings["rankingRules"] = list(settings["rankingRules"]) + ["vector"]
+        settings["embedders"] = _embedder_settings(
+            embedding_url=embedding_url,
+            model=embedding_model,
+            dimensions=embedding_dimension,
+            embedder_name=embedder_name,
+        )
+
+    client.index(name).update_settings(settings)

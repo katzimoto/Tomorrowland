@@ -203,7 +203,7 @@ def main() -> None:
             settings.meilisearch_url,
             api_key=settings.meilisearch_master_key,
         )
-        meili = MeilisearchSearchProvider(meili_client)
+        meili = MeilisearchSearchProvider.from_settings(meili_client, settings)
 
     consumer = IndexConsumer(
         rabbit=rabbit,

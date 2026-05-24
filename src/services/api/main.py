@@ -83,8 +83,11 @@ def create_app(
             app.state.settings.meilisearch_url,
             api_key=app.state.settings.meilisearch_master_key,
         )
-        app.state.meili_provider = MeilisearchSearchProvider(
-            meili_client, metrics=app.state.metrics, is_shadow=is_meiliseach_shadow
+        app.state.meili_provider = MeilisearchSearchProvider.from_settings(
+            meili_client,
+            app.state.settings,
+            metrics=app.state.metrics,
+            is_shadow=is_meiliseach_shadow,
         )
     else:
         app.state.meili_provider = None

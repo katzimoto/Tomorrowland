@@ -129,18 +129,51 @@ class MeilisearchSearchProvider:
         client: _MeilisearchClient,
         metrics: MetricsRegistry | None = None,
         is_shadow: bool = False,
+        hybrid: bool = False,
+        embedding_url: str = "http://ollama-embed:11434/api/embed",
+        embedding_model: str = "nomic-embed-text",
+        embedding_dimension: int = 768,
+        embedder_name: str = "default",
+        semantic_ratio: float = 0.5,
     ) -> None:
         self._client = client
         self._metrics = metrics
-        self.apply_settings(shadow=is_shadow)
+        self._hybrid = hybrid
+        self._embedder_name = embedder_name
+        self._semantic_ratio = semantic_ratio
+        self.apply_settings(
+            shadow=is_shadow,
+            hybrid=hybrid,
+            embedding_url=embedding_url,
+            embedding_model=embedding_model,
+            embedding_dimension=embedding_dimension,
+            embedder_name=embedder_name,
+        )
 
     # ------------------------------------------------------------------
     # Index management
     # ------------------------------------------------------------------
 
-    def apply_settings(self, *, shadow: bool = False) -> None:
+    def apply_settings(
+        self,
+        *,
+        shadow: bool = False,
+        hybrid: bool = False,
+        embedding_url: str = "http://ollama-embed:11434/api/embed",
+        embedding_model: str = "nomic-embed-text",
+        embedding_dimension: int = 768,
+        embedder_name: str = "default",
+    ) -> None:
         """Apply index settings idempotently. Safe to call on every startup."""
-        apply_index_settings(self._client, shadow=shadow)
+        apply_index_settings(
+            self._client,
+            shadow=shadow,
+            hybrid=hybrid,
+            embedding_url=embedding_url,
+            embedding_model=embedding_model,
+            embedding_dimension=embedding_dimension,
+            embedder_name=embedder_name,
+        )
 
     def swap_indexes(self) -> str:
         """Atomically swap the live and shadow indexes.
@@ -311,6 +344,11 @@ class MeilisearchSearchProvider:
             params["filter"] = combined_filter
         if sort:
             params["sort"] = sort
+        if self._hybrid:
+            params["hybrid"] = {
+                "embedder": self._embedder_name,
+                "semanticRatio": self._semantic_ratio,
+            }
 
         raw = self._client.index(INDEX_NAME).search(query.q, params)
 
@@ -351,6 +389,11 @@ class MeilisearchSearchProvider:
         }
         if filter_expr:
             params["filter"] = filter_expr
+        if self._hybrid:
+            params["hybrid"] = {
+                "embedder": self._embedder_name,
+                "semanticRatio": self._semantic_ratio,
+            }
 
         raw = self._client.index(INDEX_NAME).search(text, params)
 
@@ -492,6 +535,40 @@ class MeilisearchSearchProvider:
             "status": task.status,
             "error": getattr(task, "error", None),
         }
+
+    # ------------------------------------------------------------------
+    # Factory
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_settings(
+        cls,
+        client: _MeilisearchClient,
+        settings: Any,
+        *,
+        metrics: Any = None,
+        is_shadow: bool = False,
+    ) -> "MeilisearchSearchProvider":
+        """Construct a provider from a ``Settings`` instance.
+
+        Reads ``feature_meilisearch_hybrid``, ``embedding_url``,
+        ``embedding_model``, ``embedding_dimension``, ``meili_embedder_name``,
+        and ``meili_semantic_ratio`` so every call site stays in sync.
+        """
+        embedding_url = (
+            getattr(settings, "embedding_url", "") or "http://ollama-embed:11434"
+        ).rstrip("/") + "/api/embed"
+        return cls(
+            client=client,
+            metrics=metrics,
+            is_shadow=is_shadow,
+            hybrid=getattr(settings, "feature_meilisearch_hybrid", False),
+            embedding_url=embedding_url,
+            embedding_model=getattr(settings, "embedding_model", "nomic-embed-text"),
+            embedding_dimension=getattr(settings, "embedding_dimension", 768),
+            embedder_name=getattr(settings, "meili_embedder_name", "default"),
+            semantic_ratio=getattr(settings, "meili_semantic_ratio", 0.5),
+        )
 
     def wait_for_task(
         self,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 from uuid import UUID
 
@@ -12,6 +14,45 @@ from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
 from services.search.encoder import TextEncoder
 from services.search.qdrant import QdrantSearchClient
+
+_log = logging.getLogger(__name__)
+
+
+def _warmup_encoder(
+    encoder: TextEncoder,
+    retries: int = 5,
+    delay: float = 10.0,
+) -> None:
+    """Pre-load the embedding model before the worker starts consuming.
+
+    Ollama loads models from disk on the first request, which can take longer
+    than the per-job timeout.  Calling encode() here — before any real job
+    arrives — absorbs that cold-start latency without burning a retry attempt.
+    If warmup fails after all retries (e.g. Ollama is still starting), we log
+    an error and proceed; the first job will go through the normal retry path.
+    """
+    for attempt in range(1, retries + 1):
+        try:
+            encoder.encode("warmup")
+            _log.info("embed-worker: encoder ready (warmup attempt %d)", attempt)
+            return
+        except Exception as exc:
+            if attempt < retries:
+                _log.warning(
+                    "embed-worker: warmup attempt %d/%d failed, retrying in %.0fs: %s",
+                    attempt,
+                    retries,
+                    delay,
+                    exc,
+                )
+                time.sleep(delay)
+            else:
+                _log.error(
+                    "embed-worker: encoder warmup failed after %d attempts — "
+                    "first job may still encounter a cold-start timeout: %s",
+                    retries,
+                    exc,
+                )
 
 
 class EmbedConsumer(BaseConsumer):
@@ -131,6 +172,7 @@ def main() -> None:
     doc_repo = DocumentRepository(connection)
     publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
     encoder = build_encoder(settings)
+    _warmup_encoder(encoder)
     qdrant = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
     consumer = EmbedConsumer(
         rabbit=rabbit,

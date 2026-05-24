@@ -67,8 +67,14 @@ class Settings(BaseSettings):
     meilisearch_url: str = "http://meilisearch:7700"
     meilisearch_master_key: str = ""
     meilisearch_search_key: str = ""
-    feature_meilisearch_search: bool = False
-    feature_meilisearch_shadow_index: bool = False
+    feature_meilisearch_search: bool = True
+    feature_meilisearch_shadow_index: bool = True
+    # When true, Meilisearch calls ollama-embed directly during indexing and
+    # serves hybrid (BM25 + vector) results natively.  Eliminates embed-worker,
+    # vector-worker, and qdrant containers.
+    feature_meilisearch_hybrid: bool = False
+    meili_embedder_name: str = "default"
+    meili_semantic_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
 
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
     rabbitmq_user: str = "tomorrowland"
@@ -80,7 +86,9 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         """Return configured CORS origins from a comma-separated setting."""
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        return [
+            origin.strip() for origin in self.cors_origins.split(",") if origin.strip()
+        ]
 
     @property
     def supported_translation_source_languages_list(self) -> list[str]:

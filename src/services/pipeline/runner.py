@@ -587,7 +587,7 @@ if __name__ == "__main__":
             settings.meilisearch_url,
             api_key=settings.meilisearch_master_key,
         )
-        meili_provider = MeilisearchSearchProvider(meili_client)
+        meili_provider = MeilisearchSearchProvider.from_settings(meili_client, settings)
 
     with engine.connect() as conn:
         doc_repo = DocumentRepository(conn)

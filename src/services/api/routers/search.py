@@ -18,10 +18,8 @@ from services.auth.repository import AuthRepository
 from services.documents.models import DocumentRow
 from services.documents.repository import DocumentRepository
 from services.search.elastic import ElasticsearchSearchClient
-from services.search.factory import build_encoder
 from services.search.hybrid import SearchResult, merge_results
 from services.search.meili_types import DocumentSearchFilters, DocumentSearchQuery
-from services.search.qdrant import QdrantSearchClient
 from shared.correlation import get_correlation_id
 
 _MeiliSort = Literal["relevance", "updatedAt:desc", "createdAt:desc", "importedAt:desc"]
@@ -113,61 +111,77 @@ def search(
             )
             # Degrade gracefully: continue with empty BM25 results.
 
-    vector_results: list[SearchResult] = []
-    try:
-        qdrant_client = http_request.app.state.qdrant_client or QdrantSearchClient(
-            url=http_request.app.state.settings.qdrant_url
-        )
-        encoder = build_encoder(http_request.app.state.settings)
-        query_vector = encoder.encode(request.query)
-        backend_start = time.perf_counter()
-        vector_results = qdrant_client.search(
-            vector=query_vector, group_ids=search_group_ids, limit=50, allow_all=is_admin
-        )
-        logger.debug(f"The word vector returned {vector_results}")
-        http_request.app.state.metrics.search_backend_duration_seconds.labels(
-            "qdrant", "search"
-        ).observe(time.perf_counter() - backend_start)
-    except Exception as exc:
-        logger.warning(
-            "Vector search degraded route=/search stage=vector_search "
-            "error_type=%s correlation_id=%s",
-            exc.__class__.__name__,
-            get_correlation_id(),
-        )
     http_request.app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
 
-    with http_request.app.state.engine.begin() as connection:
-        _weight_rows = connection.execute(
-            sa.text(
-                "SELECT key, value FROM system_config"
-                " WHERE key IN ('search.vector_weight', 'search.bm25_weight')"
-            ),
-        ).fetchall()
-    _weight_map = {row[0]: row[1] for row in _weight_rows}
-    try:
-        vector_weight = float(_weight_map["search.vector_weight"])
-    except (KeyError, TypeError, ValueError):
-        vector_weight = 0.7
-    try:
-        bm25_weight = float(_weight_map["search.bm25_weight"])
-    except (KeyError, TypeError, ValueError):
-        bm25_weight = 0.3
-
-    if vector_results:
-        merged = merge_results(
-            bm25_results=bm25_results,
-            vector_results=vector_results,
-            vector_weight=vector_weight,
-            bm25_weight=bm25_weight,
-        )
-    else:
+    settings = http_request.app.state.settings
+    if settings.feature_meilisearch_hybrid:
+        # Meilisearch performed hybrid (BM25 + vector) scoring internally.
+        # bm25_results already contains the merged ranked list — use it directly.
         merged = merge_results(
             bm25_results=bm25_results,
             vector_results=[],
             vector_weight=0.0,
             bm25_weight=1.0,
         )
+    else:
+        # Legacy path: separate Qdrant vector search + Python merge.
+        from services.search.factory import build_encoder  # lazy — not needed in hybrid mode
+        from services.search.qdrant import QdrantSearchClient
+
+        vector_results: list[SearchResult] = []
+        try:
+            qdrant_client = http_request.app.state.qdrant_client or QdrantSearchClient(
+                url=settings.qdrant_url
+            )
+            encoder = build_encoder(settings)
+            query_vector = encoder.encode(request.query)
+            backend_start = time.perf_counter()
+            vector_results = qdrant_client.search(
+                vector=query_vector, group_ids=search_group_ids, limit=50, allow_all=is_admin
+            )
+            logger.debug(f"The word vector returned {vector_results}")
+            http_request.app.state.metrics.search_backend_duration_seconds.labels(
+                "qdrant", "search"
+            ).observe(time.perf_counter() - backend_start)
+        except Exception as exc:
+            logger.warning(
+                "Vector search degraded route=/search stage=vector_search "
+                "error_type=%s correlation_id=%s",
+                exc.__class__.__name__,
+                get_correlation_id(),
+            )
+
+        with http_request.app.state.engine.begin() as connection:
+            _weight_rows = connection.execute(
+                sa.text(
+                    "SELECT key, value FROM system_config"
+                    " WHERE key IN ('search.vector_weight', 'search.bm25_weight')"
+                ),
+            ).fetchall()
+        _weight_map = {row[0]: row[1] for row in _weight_rows}
+        try:
+            vector_weight = float(_weight_map["search.vector_weight"])
+        except (KeyError, TypeError, ValueError):
+            vector_weight = 0.7
+        try:
+            bm25_weight = float(_weight_map["search.bm25_weight"])
+        except (KeyError, TypeError, ValueError):
+            bm25_weight = 0.3
+
+        if vector_results:
+            merged = merge_results(
+                bm25_results=bm25_results,
+                vector_results=vector_results,
+                vector_weight=vector_weight,
+                bm25_weight=bm25_weight,
+            )
+        else:
+            merged = merge_results(
+                bm25_results=bm25_results,
+                vector_results=[],
+                vector_weight=0.0,
+                bm25_weight=1.0,
+            )
 
     # Load all merged doc rows in one query — used for both is_latest filtering and enrichment.
     all_merged_ids: list[UUID] = []

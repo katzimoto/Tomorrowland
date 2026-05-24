@@ -212,7 +212,7 @@ def main() -> None:
     meili_url = getattr(settings, "meilisearch_url", "http://meilisearch:7700")
     meili_key = getattr(settings, "meilisearch_master_key", "")
     meili_client = Client(meili_url, meili_key)
-    provider = MeilisearchSearchProvider(meili_client)
+    provider = MeilisearchSearchProvider.from_settings(meili_client, settings)
 
     service = BackfillService(
         engine,
