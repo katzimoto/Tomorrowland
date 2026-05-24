@@ -6,6 +6,8 @@ from typing import Any, Protocol
 
 import httpx
 
+from services.chunking.splitter import chunk_text as _chunk_text
+
 DIMENSIONS = 384
 
 logger = logging.getLogger(__name__)
@@ -128,31 +130,63 @@ class OllamaEmbeddingEncoder:
         return self._embed_batch(texts)
 
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """Use the modern ``/api/embed`` endpoint."""
+        """Embed *texts*, splitting any that exceed the context window and
+        mean-pooling the sub-chunk vectors back to one vector per input text.
+
+        Dense scripts (Hebrew, Arabic, CJK) tokenise at 1–2 chars/token, so
+        the old ``len/4`` estimate was too optimistic.  Using 3 chars/token as
+        the split boundary is conservative enough to prevent context overflows
+        while keeping sub-chunks large.  Sub-chunk vectors are averaged
+        (mean-pooled) so no content is lost from the returned embedding.
+        """
         if self._max_tokens is not None:
-            # Use 3 chars/token as the safety ratio instead of the 4 chars/token
-            # heuristic used by _estimate_tokens.  Dense scripts (Hebrew, Arabic,
-            # CJK) can tokenise at 1–2 chars/token, so len/4 underestimates badly.
-            # Truncating is far better than a job failure: the chunk still embeds,
-            # just slightly shorter than its original length.
-            char_limit = self._max_tokens * 3
-            sanitized: list[str] = []
+            char_limit = self._max_tokens * 3  # conservative 3 chars/token
+            # Expand each input text into one or more sub-chunks and record
+            # the slice of the flat list that belongs to each original text.
+            expanded: list[str] = []
+            spans: list[tuple[int, int]] = []  # (start, end) into expanded
             for i, text in enumerate(texts):
+                start = len(expanded)
                 if len(text) > char_limit:
+                    # Delegate to the pipeline chunker so we get the same
+                    # sentence-boundary-aware splitting used upstream.
+                    sub_chunks = _chunk_text(text, max_tokens=self._max_tokens) or [
+                        text[:char_limit]
+                    ]
                     logger.warning(
-                        "Embedding text at index %d truncated from %d to %d chars "
-                        "(max_tokens=%d char_limit=%d model=%s)",
+                        "Embedding text at index %d split into %d sub-chunks "
+                        "(len=%d char_limit=%d model=%s)",
                         i,
+                        len(sub_chunks),
                         len(text),
-                        char_limit,
-                        self._max_tokens,
                         char_limit,
                         self._model,
                     )
-                    sanitized.append(text[:char_limit])
+                    expanded.extend(sub_chunks)
                 else:
-                    sanitized.append(text)
-            texts = sanitized
+                    expanded.append(text)
+                spans.append((start, len(expanded)))
+
+            raw = self._request_embed(expanded)
+
+            # Mean-pool sub-chunk vectors back to one vector per original text.
+            result: list[list[float]] = []
+            for start, end in spans:
+                vecs = raw[start:end]
+                if len(vecs) == 1:
+                    result.append(vecs[0])
+                else:
+                    dim = len(vecs[0])
+                    mean_vec = [
+                        sum(v[d] for v in vecs) / len(vecs) for d in range(dim)
+                    ]
+                    result.append(mean_vec)
+            return result
+
+        return self._request_embed(texts)
+
+    def _request_embed(self, texts: list[str]) -> list[list[float]]:
+        """POST *texts* to ``/api/embed`` and return the raw embedding list."""
         url = f"{self._base_url}/api/embed"
         payload: dict[str, Any] = {
             "model": self._model,

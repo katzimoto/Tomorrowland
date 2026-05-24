@@ -23,14 +23,17 @@ def _sentence_pattern(language: str | None = None) -> Pattern[str]:
     return _FALLBACK_PATTERN
 
 
-_TOKEN_ESTIMATE_RATIO: float = 4.0
+_TOKEN_ESTIMATE_RATIO: float = 2.0
 
 
 def _estimate_tokens(text: str) -> int:
     """Estimate the number of tokens in *text* using a character-based heuristic.
 
-    Uses ``len(text) / _TOKEN_ESTIMATE_RATIO`` (default 4.0), which is
-    conservative for English text. CJK-heavy text may need a lower ratio.
+    Uses ``len(text) / _TOKEN_ESTIMATE_RATIO`` (default 2.0).  A ratio of 2.0
+    is deliberately conservative: Latin scripts tokenise at ~4 chars/token, but
+    dense scripts such as Hebrew, Arabic, and CJK can be 1–2 chars/token.
+    Using 2.0 ensures ``max_tokens`` enforcement in the splitter is safe for all
+    supported languages at the cost of slightly smaller English chunks.
     """
     return max(1, int(len(text) / _TOKEN_ESTIMATE_RATIO))
 
