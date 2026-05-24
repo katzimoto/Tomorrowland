@@ -17,6 +17,7 @@ from services.api._helpers import (
 )
 from services.api.main import current_user
 from services.auth.models import TokenPayload
+from services.auth.repository import AuthRepository
 from services.documents.repository import DocumentRepository
 from services.extraction.registry import ExtractorRegistry
 from services.permissions.enforcer import require_admin
@@ -107,10 +108,24 @@ def list_notifications(
 ) -> list[dict[str, Any]]:
     with request.app.state.engine.begin() as connection:
         require_subscriptions_enabled(connection, request.app.state.settings)
+        # Compute effective groups for non-admin callers so that notifications
+        # referencing documents the user has since lost access to are filtered out.
+        if user.is_admin:
+            effective_groups: list[UUID] = []
+        else:
+            auth_repo = AuthRepository(connection)
+            effective_groups = list(
+                set(user.groups) | set(auth_repo.get_effective_group_ids(user.groups))
+            )
         repo = AlertRepository(connection)
         return [
             _notification_response(row)
-            for row in repo.list_notifications(user.sub, unread_only=unread_only)
+            for row in repo.list_notifications(
+                user.sub,
+                unread_only=unread_only,
+                group_ids=effective_groups,
+                allow_all=user.is_admin,
+            )
         ]
 
 

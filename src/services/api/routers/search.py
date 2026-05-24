@@ -188,8 +188,7 @@ def search(
     # Orphaned vectors (no doc row) are also dropped here.
     if not request.include_older_versions:
         merged = [
-            r for r in merged
-            if r.document_id in all_docs and all_docs[r.document_id].is_latest
+            r for r in merged if r.document_id in all_docs and all_docs[r.document_id].is_latest
         ]
 
     start = (request.page - 1) * request.page_size

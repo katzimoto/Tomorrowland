@@ -199,8 +199,23 @@ def me_activity(
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[dict[str, Any]]:
     with request.app.state.engine.begin() as connection:
+        # Compute effective groups for non-admin callers so that activity rows
+        # referencing documents the user has since lost access to are filtered out.
+        if user.is_admin:
+            effective_groups: list[UUID] = []
+        else:
+            auth_repo = AuthRepository(connection)
+            effective_groups = list(
+                set(user.groups) | set(auth_repo.get_effective_group_ids(user.groups))
+            )
         preview_service = PreviewService(connection)
-        return preview_service.get_user_activity(user.sub, limit=limit, offset=skip)
+        return preview_service.get_user_activity(
+            user.sub,
+            limit=limit,
+            offset=skip,
+            group_ids=effective_groups,
+            allow_all=user.is_admin,
+        )
 
 
 @router.post("/documents/{document_id}/translate")
@@ -323,6 +338,17 @@ def list_document_versions(
 
         doc_repo = DocumentRepository(connection)
         versions = doc_repo.list_versions_in_family(document_id)
+
+        # Per-version ACL: a version may have been reassigned to a different
+        # source with narrower group grants. Filter out versions the caller
+        # cannot access.  Admins bypass this check.
+        if not user.is_admin:
+            versions = [
+                v
+                for v in versions
+                if auth_repo.user_can_access_source(user, v.source_id)  # type: ignore[arg-type,unused-ignore]
+            ]
+
         return [
             {
                 "document_id": str(v.id),
