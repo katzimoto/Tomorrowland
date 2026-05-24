@@ -7,6 +7,7 @@ from uuid import UUID
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.translation.client import LibreTranslateClient
+from shared.rabbit import RabbitClient
 
 
 class EnrichConsumer(BaseConsumer):
@@ -15,7 +16,7 @@ class EnrichConsumer(BaseConsumer):
 
     def __init__(
         self,
-        rabbit,
+        rabbit: RabbitClient,
         job_repo: PipelineJobRepository,
         translator: LibreTranslateClient,
         health_port: int = 8087,

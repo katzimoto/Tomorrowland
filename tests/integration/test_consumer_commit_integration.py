@@ -67,12 +67,14 @@ class TestConsumerCommit:
 
         import json
 
-        body = json.dumps({
-            "job_id": str(uuid4()),
-            "document_id": str(doc_id),
-            "source_id": str(uuid4()),
-            "attempt": 1,
-        }).encode()
+        body = json.dumps(
+            {
+                "job_id": str(uuid4()),
+                "document_id": str(doc_id),
+                "source_id": str(uuid4()),
+                "attempt": 1,
+            }
+        ).encode()
         method = MagicMock()
         method.delivery_tag = 1
 

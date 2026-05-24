@@ -113,6 +113,8 @@ class IndexConsumer(BaseConsumer):
         translated_text: str,
         allowed_group_ids: list[str],
     ) -> None:
+        if self._meili is None:
+            return
         original_chunks = list(
             chunk_text(
                 content_text,
