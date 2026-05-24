@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import urllib.parse
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Annotated, Any
@@ -43,6 +44,17 @@ from shared.metrics import mime_family
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["documents"])
+
+
+def _content_disposition(disposition: str, filename: str) -> str:
+    """Build a Content-Disposition header value safe for non-ASCII filenames.
+
+    Uses RFC 5987 ``filename*`` for the original name (URL-encoded) and
+    falls back to an ASCII-only ``filename`` for legacy clients.
+    """
+    safe_ascii = filename.encode("ascii", "replace").decode("ascii").replace("?", "_")
+    encoded = urllib.parse.quote(filename, safe="")
+    return f"{disposition}; filename=\"{safe_ascii}\"; filename*=UTF-8''{encoded}"
 
 
 @router.get("/preview/{document_id}", response_model=PreviewResponse)
@@ -583,7 +595,7 @@ def download(
                 iter([content_bytes]),
                 media_type="text/plain; charset=utf-8",
                 headers={
-                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Content-Disposition": _content_disposition("attachment", filename),
                     "Content-Length": str(len(content_bytes)),
                     "X-Content-Type-Options": "nosniff",
                 },
@@ -654,7 +666,7 @@ def download(
             status_code=206,
             media_type=doc.mime_type,
             headers={
-                "Content-Disposition": f'inline; filename="{target.name}"',
+                "Content-Disposition": _content_disposition("inline", target.name),
                 "Content-Range": f"bytes {start}-{end}/{file_size}",
                 "Content-Length": str(length),
                 "Accept-Ranges": "bytes",
@@ -671,7 +683,7 @@ def download(
         file_iterator(),
         media_type=doc.mime_type,
         headers={
-            "Content-Disposition": f'inline; filename="{target.name}"',
+            "Content-Disposition": _content_disposition("inline", target.name),
             "Content-Length": str(file_size),
             "Accept-Ranges": "bytes",
             "X-Content-Type-Options": "nosniff",
