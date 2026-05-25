@@ -316,18 +316,21 @@ _MEILI_SORT_MAP = {
 
 
 def _map_sort(sort_by: str, sort_dir: str) -> _MeiliSort:
-    """Map frontend sort to Meilisearch sort string."""
+    """Map frontend sort to Meilisearch sort string.
+
+    ``sort_by`` arrives in snake_case (e.g. ``updated_at``). The valid
+    Meilisearch sort strings use camelCase fields (e.g. ``updatedAt:desc``).
+    ``_MEILI_SORT_MAP`` holds the snake→camel translation; we apply the
+    requested direction after looking up the camel field name.
+    """
     if sort_by == "relevance":
         return "relevance"
+    # Resolve the camelCase base (e.g. "updated_at" → "updatedAt:desc").
+    # The map values already include ":desc" as the canonical form; strip it
+    # to get the bare field name, then re-apply the requested direction.
+    mapped = _MEILI_SORT_MAP.get(sort_by)
+    if mapped is None or mapped == "relevance":
+        return "relevance"
+    camel_field = mapped.split(":")[0]  # e.g. "updatedAt"
     suffix = "desc" if sort_dir == "desc" else "asc"
-    label = f"{sort_by}:{suffix}"
-    if label in (
-        "updatedAt:desc",
-        "createdAt:desc",
-        "importedAt:desc",
-        "updatedAt:asc",
-        "createdAt:asc",
-        "importedAt:asc",
-    ):
-        return label  # type: ignore[return-value]
-    return "relevance"
+    return f"{camel_field}:{suffix}"  # type: ignore[return-value]
