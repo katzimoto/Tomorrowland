@@ -15,7 +15,7 @@ def test_enhanced_observability_logs_unhandled_errors(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     engine = sa.create_engine("sqlite:///:memory:")
-    app = create_app(engine, Settings(app_env="test", auth_provider="local"))
+    app = create_app(engine, Settings(_env_file=None, app_env="test", auth_provider="local"))
     install_enhanced_request_observability(app)
 
     @app.get("/boom")

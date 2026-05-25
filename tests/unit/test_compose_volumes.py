@@ -22,7 +22,9 @@ STANDARD_VOLUMES = {
     "elasticsearch_data": "/usr/share/elasticsearch/data",
     "qdrant_data": "/qdrant/storage",
     "libretranslate_data": "/home/libretranslate/.local",
-    "ollama_data": "/root/.ollama",
+    # Ollama was split into separate LLM and embed services in standard compose
+    "ollama_llm_data": "/root/.ollama",
+    "ollama_embed_data": "/root/.ollama",
 }
 
 STANDARD_MONITORING_VOLUMES = {
@@ -113,7 +115,8 @@ class TestComposeVolumeDefaults:
             ("elasticsearch_data", "tomorrowland_elasticsearch_data"),
             ("qdrant_data", "tomorrowland_qdrant_data"),
             ("libretranslate_data", "tomorrowland_libretranslate_data"),
-            ("ollama_data", "tomorrowland_ollama_data"),
+            ("ollama_llm_data", "tomorrowland_ollama_llm_data"),
+            ("ollama_embed_data", "tomorrowland_ollama_embed_data"),
         ]:
             assert names.get(key) == default_name, f"{key} default mismatch"
 
