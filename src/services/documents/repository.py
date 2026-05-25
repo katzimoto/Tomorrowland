@@ -134,6 +134,27 @@ class DocumentRepository:
             {"status": status, "id": db_uuid(document_id)},
         )
 
+    def update_source_language(
+        self,
+        document_id: UUID,
+        language: str,
+        *,
+        language_detected: bool = True,
+    ) -> None:
+        """Set the source_language (and language_detected flag) on a document."""
+        self._connection.execute(
+            sa.text(
+                "UPDATE documents"
+                " SET source_language = :lang, language_detected = :detected"
+                " WHERE id = :id"
+            ),
+            {
+                "lang": language,
+                "detected": language_detected,
+                "id": db_uuid(document_id),
+            },
+        )
+
     def update_indexed(
         self,
         document_id: UUID,
@@ -353,6 +374,7 @@ class DocumentRepository:
             mime_type=str(row["mime_type"]),
             title=row["title"],
             source_language=row["source_language"],
+            language_detected=bool(row.get("language_detected", False)),
             target_language=str(row["target_language"]),
             translation_quality=row["translation_quality"],
             status=cast("DocumentStatus", str(row["status"])),

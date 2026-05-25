@@ -34,6 +34,7 @@ class DocumentRow(BaseModel):
     mime_type: str
     title: str | None = None
     source_language: str | None = None
+    language_detected: bool = False
     target_language: str = "en"
     translation_quality: str | None = None
     status: DocumentStatus = "pending"

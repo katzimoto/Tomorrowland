@@ -15,6 +15,7 @@ from services.alerts.service import AlertMatcher
 from services.chunking.splitter import chunk_text
 from services.documents.repository import DocumentRelationshipRepository, DocumentRepository
 from services.extraction.base import AttachmentData
+from services.extraction.language import LanguageDetector
 from services.extraction.registry import ExtractorRegistry
 from services.intelligence.worker import IntelligenceWorker
 from services.search.elastic import ElasticsearchSearchClient
@@ -52,6 +53,8 @@ class PipelineWorker:
         alert_matcher: AlertMatcher | None = None,
         metrics: MetricsRegistry | None = None,
         embedding_max_tokens: int | None = None,
+        lang_detector: LanguageDetector | None = None,
+        enable_language_detection: bool = True,
     ) -> None:
         self._doc_repo = document_repository
         self._extractor = extractor_registry
@@ -64,6 +67,8 @@ class PipelineWorker:
         self._alert_matcher = alert_matcher
         self._metrics = metrics
         self._embedding_max_tokens = embedding_max_tokens
+        self._lang_detector = lang_detector or LanguageDetector()
+        self._enable_language_detection = enable_language_detection
 
     @property
     def document_repository(self) -> DocumentRepository:
@@ -142,6 +147,13 @@ class PipelineWorker:
                     self._metrics.pipeline_document_bytes.labels(doc.source).observe(
                         float(Path(doc.path).stat().st_size)
                     )
+
+        # 1b. Auto-detect source language when the connector did not supply one.
+        if self._enable_language_detection and doc.source_language is None:
+            detected_lang = self._lang_detector.detect(text)
+            if detected_lang:
+                self._doc_repo.update_source_language(document_id, detected_lang)
+                doc = doc.model_copy(update={"source_language": detected_lang})
 
         # 2. Translate (falls back to original text on failure)
         start = time.perf_counter()

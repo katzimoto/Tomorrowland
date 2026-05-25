@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     ldap_bind_user: str = "cn=svc-search,DC=company,DC=local"
     ldap_bind_password: str = "changeme"
 
+    # --- Extraction feature flags ---
+    # Requires tesseract-ocr + poppler-utils in PATH (or Docker image).
+    enable_ocr: bool = False
+    # Requires LibreOffice (soffice) in PATH.
+    enable_legacy_office: bool = False
+    # Auto-detect source_language when not provided by the connector.
+    enable_language_detection: bool = True
+
     feature_rag_qa: bool = True
     rag_max_chunks: int = Field(default=5, ge=1, le=50)
     rag_max_tokens_context: int = Field(default=2000, ge=100)

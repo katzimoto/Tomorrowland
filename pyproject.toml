@@ -25,6 +25,11 @@ dependencies = [
   "sqlalchemy>=2.0",
   "striprtf>=0.0.32",
   "uvicorn>=0.30",
+  # Extraction additions
+  "charset-normalizer>=3.0",
+  "ebooklib>=0.18",
+  "langdetect>=1.0.9",
+  "python-magic>=0.4",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +41,12 @@ dev = [
   "ruff>=0.5",
   "testcontainers>=4.0",
   "types-openpyxl>=3.1",
+]
+# pip install tomorrowland[ocr] — requires tesseract + poppler in PATH
+ocr = [
+  "pytesseract>=0.3",
+  "Pillow>=10.0",
+  "pdf2image>=1.16",
 ]
 
 [project.scripts]
