@@ -20,7 +20,9 @@ Conflicts (all resolved → keep main — main was superset in every case):
 
 Verification: 61 tests pass, ruff clean.
 
-Next action: Meilisearch native embedder deferred — plan at docs/superpowers/plans/2026-05-24-meilisearch-native-embedder.md remains valid; sub-issues A–F and branch feature/meili-native-embedder not started. Do not pick up without explicit promotion.
+Deferred items (do not pick up without explicit promotion):
+- Meilisearch native embedder — plan at docs/superpowers/plans/2026-05-24-meilisearch-native-embedder.md; sub-issues A–F; branch feature/meili-native-embedder not started.
+- Rust vector worker — issue #511, sub-issues #501–#510; branch feature/rust-vector-worker not started; chunker parity is highest risk.
 
 ## 2026-05-25 — Search + infra hardening sprint (all merged)
 
