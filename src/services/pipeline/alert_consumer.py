@@ -52,7 +52,7 @@ def main() -> None:
     from services.alerts.repository import AlertRepository
     from services.alerts.service import AlertMatcher
     from services.documents.repository import DocumentRepository
-    from services.search.encoder import DeterministicTestEncoder
+    from services.search.factory import build_encoder
     from shared.config import Settings
     from shared.rabbit import RabbitClient
 
@@ -64,7 +64,7 @@ def main() -> None:
         job_repo = PipelineJobRepository(conn)
         doc_repo = DocumentRepository(conn)
         alert_repo = AlertRepository(conn)
-        encoder = DeterministicTestEncoder()
+        encoder = build_encoder(settings)
         matcher = AlertMatcher(alert_repo, encoder)
         consumer = AlertConsumer(rabbit, job_repo, matcher, doc_repo)
         consumer.run()

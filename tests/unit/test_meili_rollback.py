@@ -41,7 +41,7 @@ def _setup_admin(app):
 class TestRollbackBehavior:
     """Tests proving Meilisearch flag rollback works correctly."""
 
-    @patch("services.api.main.meilisearch.Client")
+    @patch("meilisearch.Client")
     def test_meili_provider_present_when_flag_on(self, mock_meili, engine):
         mock_meili.return_value = MagicMock()
         settings = Settings(app_env="test", auth_provider="local", jwt_secret=TEST_JWT_SECRET)
@@ -57,7 +57,7 @@ class TestRollbackBehavior:
         app = create_app(engine, settings=settings)
         assert app.state.meili_provider is None
 
-    @patch("services.api.main.meilisearch.Client")
+    @patch("meilisearch.Client")
     def test_flag_on_creates_provider(self, mock_meili, engine):
         mock_meili.return_value = MagicMock()
         settings = Settings(app_env="test", auth_provider="local", jwt_secret=TEST_JWT_SECRET)

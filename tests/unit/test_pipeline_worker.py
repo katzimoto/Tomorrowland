@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -425,6 +426,8 @@ class _FakeDocumentRepositoryWithCreate(_FakeDocumentRepository):
         super().__init__(doc, group_ids)
         self.created_children: list[dict[str, object]] = []
         self._child_doc: DocumentRow | None = None
+        # _process_attachments accesses _connection to build DocumentRelationshipRepository
+        self._connection = None
 
     def set_child_doc(self, child: DocumentRow) -> None:
         self._child_doc = child
@@ -472,7 +475,9 @@ def test_worker_skips_attachment_when_mime_not_supported(tmp_path: Path) -> None
     assert repo.created_children == []
 
 
-def test_worker_creates_child_doc_for_supported_attachment(tmp_path: Path) -> None:
+@patch("services.pipeline.worker.DocumentRelationshipRepository")
+def test_worker_creates_child_doc_for_supported_attachment(mock_rel_repo_cls: MagicMock, tmp_path: Path) -> None:
+    mock_rel_repo_cls.return_value = MagicMock()  # rel_repo.create_relationship is a no-op
     from services.extraction.base import AttachmentData
 
     now = datetime.now(UTC)

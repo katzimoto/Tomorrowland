@@ -11,7 +11,9 @@ def test_rabbitmq_disabled_by_default(monkeypatch):
 
 def test_rabbitmq_url_default(monkeypatch):
     monkeypatch.delenv("RABBITMQ_URL", raising=False)
-    s = Settings()
+    # _env_file=None prevents pydantic-settings from loading .env, which may
+    # set RABBITMQ_URL to a non-default container value.
+    s = Settings(_env_file=None)
     assert s.rabbitmq_url == "amqp://guest:guest@localhost:5672/"
 
 

@@ -229,7 +229,7 @@ def test_record_index_metrics_noop_when_metrics_none() -> None:
 class TestAppInitialization:
     """Tests that Meilisearch provider is initialized in create_app."""
 
-    @patch("services.api.main.meilisearch.Client")
+    @patch("meilisearch.Client")
     def test_meili_provider_initialized_when_flag_enabled(self, mock_meili: MagicMock) -> None:
         import sqlalchemy as sa
 
