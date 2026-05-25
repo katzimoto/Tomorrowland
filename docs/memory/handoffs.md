@@ -2,67 +2,33 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
-## 2026-05-25 — Ollama split + model routing
+## 2026-05-25 — Search + infra hardening sprint
 
-Status: Active
-Source: Claude Code session; branch `infra/split-ollama-containers`; commits d5b5893 + 1920be2
+Status: Done — all merged to main
+Source: Claude Code session
 
 What changed:
-- `docker/ollama-llm.Dockerfile` — new; pulls OLLAMA_MODEL + optional OLLAMA_UTILITY_MODEL/OLLAMA_RERANKER_MODEL
-- `docker/ollama-embed.Dockerfile` — new; pulls EMBEDDING_MODEL only
-- `docker-compose.yml` — removed `ollama`; added `ollama-llm` + `ollama-embed` with correct worker `depends_on` and dedicated volumes
-- `src/shared/config.py` — `ollama_utility_model`, `ollama_reranker_model`, `effective_utility_model`, `effective_reranker_model`
-- `src/services/intelligence/worker.py` — `utility_model` param; map/tag/key-points → utility; reduce/entities → main
-- `src/services/chat/message_service.py` — `rewrite_query()` accepts `model=` override
-- `src/services/rag/reranker.py` — `CrossEncoderReranker` accepts `model=` override
-- `src/services/api/routers/chat.py` — both endpoints wire utility → rewrite, reranker model → CrossEncoderReranker
-- `intelligence_consumer`, `runner`, `slow_worker`, `admin/intelligence` — pass `utility_model`
-- `.env.example` + `.env.airgap.example` — updated hostnames, EMBEDDING_URL, new vars, volume names
-- `tests/unit/test_model_routing.py` — 17 new tests
+- `docker/ollama-llm.Dockerfile`, `docker/ollama-embed.Dockerfile` — new; split LLM and embed containers
+- `docker-compose.yml` — `ollama` removed; `ollama-llm` + `ollama-embed` added with correct `depends_on`
+- `src/shared/config.py` — `ollama_utility_model`, `ollama_reranker_model`, `effective_utility_model`, `effective_reranker_model`, `search_embedding_timeout`
+- `src/services/search/factory.py` — `build_encoder(..., *, timeout=None)` override
+- `src/services/api/routers/search.py` — pass `search_embedding_timeout` to encoder; fix `_map_sort` to resolve camelCase via `_MEILI_SORT_MAP` before appending direction
+- `src/services/intelligence/worker.py`, `message_service.py`, `reranker.py`, `chat.py`, consumers — role-based model routing (utility/reranker)
+- `frontend/src/api/expertise.ts`, `ExpertiseResult.tsx` — removed stale `comments` signal
+- `tests/unit/test_model_routing.py` — 17 routing tests
+- `tests/unit/test_search_factory.py` — 4 timeout override tests; `_env_file=None` fix
+- `tests/unit/test_search_sort.py` — 10 parametrised `_map_sort` tests (new)
+- `.env.example`, `.env.airgap.example` — `SEARCH_EMBEDDING_TIMEOUT`, split Ollama vars
 
 Verification:
-- 17/17 new routing tests pass; 49/49 existing (reranker, ollama client, intelligence repo, chat service) pass
-- Branch pushed; PR open at github.com/katzimoto/Tomorrowland/pull/new/infra/split-ollama-containers
+- All new tests pass. Pre-existing coverage-threshold noise only.
 
 Open risks:
-- `_map_sort()` camelCase bug (`updated_at:desc` vs `updatedAt:desc`) still unresolved — separate fix needed
-- Operator must `docker compose build ollama-llm ollama-embed` before `up -d`; existing `ollama_data` volume not migrated automatically
+- Operator must `docker compose build ollama-llm ollama-embed` on first deploy after the split.
+- `ollama_data` volume not migrated automatically (models must be re-pulled).
 
 Next agent prompt:
-- Merge PR on `infra/split-ollama-containers` once CI passes.
-- Fix `_map_sort()` camelCase mismatch in `src/services/api/routers/search.py` (date sort silently broken).
-
-## 2026-05-25 — Search results not rendering — active bug investigation
-
-Status: Watch
-Source: Claude Code debugging session; triggered by user report after commit f225007
-
-What changed:
-- Nothing changed yet — investigation only, no code edits.
-
-Findings so far:
-- All 24 `SearchPage.test.tsx` frontend tests pass.
-- Backend: `SearchResponse.total = len(merged)` (pre-filter count); `results` is post-filter. These can diverge.
-- `_map_sort()` in `src/services/api/routers/search.py` silently falls back to relevance for any non-default sort because it builds `"updated_at:desc"` but the valid-labels set contains `"updatedAt:desc"` (camelCase mismatch).
-- `highlightHtml()` in `ResultRow.tsx` expects a string; `result.title ?? ""` guards nulls but not arrays.
-
-Diagnostic needed (from user):
-1. Browser DevTools Console — any `TypeError` or red error?
-2. Network tab → `POST /api/search` → Preview — is `results` array empty with `total > 0`?
-
-Fix path once confirmed:
-- **Candidate A (total/results mismatch):** `search.py` line ~270: `total=len(merged)` → `total=len(results)`.
-- **Candidate B (type crash):** `ResultRow.tsx` `highlightHtml`: add `if (typeof raw !== "string") return "";` at top.
-- **Sort bug (definite, fix regardless):** `_map_sort()` needs a lookup table mapping `"updated_at"` → `"updatedAt:desc"` etc. instead of building the string from snake_case.
-
-Open risks:
-- Neither candidate is confirmed — do not patch blindly before seeing console/network output.
-- Sort bug is separate and confirmed; safe to fix independently.
-
-Next agent prompt:
-- Ask user for browser console + network tab output for `/api/search` when results don't appear.
-- Once confirmed, apply the minimal targeted fix (Candidate A or B) plus the sort bug fix.
-- Re-run `vitest run src/features/search/` and `pytest tests/unit/test_meili_provider.py` after fix.
+- Pick up next issue from release queue in AGENTS.md — no open items from this sprint.
 
 ## 2026-05-24 — Search improvements: facets, highlight rendering, instant search
 
