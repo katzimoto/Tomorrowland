@@ -132,15 +132,14 @@ function EntitiesSection({ docId }: { docId: string }) {
   return (
     <div className={styles.section}>
       <h3 className={styles.sectionHeading}>{t.insight.entities}</h3>
-      <ul className={styles.entityList}>
-        {data.entities.map((e) => (
-          <li key={`${e.label}-${e.type}`} className={styles.entityRow}>
-            <span className={styles.entityLabel}>{e.label}</span>
-            <Badge variant="neutral">{e.type}</Badge>
-            <span className={styles.entityCount}>×{e.count}</span>
-          </li>
+      <div className={styles.dotList}>
+        {data.entities.map((e, i) => (
+          <span key={`${e.label}-${e.type}`}>
+            {i > 0 && <span className="sep">·</span>}
+            <span className="item">{e.label}</span>
+          </span>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
@@ -159,11 +158,12 @@ function TagsSection({ docId }: { docId: string }) {
   return (
     <div className={styles.section}>
       <h3 className={styles.sectionHeading}>{t.insight.tags}</h3>
-      <div className={styles.tagCloud}>
-        {data.tags.map((tag) => (
-          <Badge key={tag} variant="tag">
-            {tag}
-          </Badge>
+      <div className={styles.dotList}>
+        {data.tags.map((tag, i) => (
+          <span key={tag}>
+            {i > 0 && <span className="sep">·</span>}
+            <span className="item">{tag}</span>
+          </span>
         ))}
       </div>
     </div>

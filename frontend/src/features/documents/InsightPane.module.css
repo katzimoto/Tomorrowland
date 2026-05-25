@@ -44,10 +44,17 @@
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   margin: 0;
 }
+
+/* Dot-list: inline dot-separated items — used for entities and tags */
+.dotList {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-text-secondary);
+}
+.dotList .item { color: var(--color-text-primary); }
+.dotList .sep { color: var(--color-border); margin: 0 6px; }
 
 .entityList { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-1); }
 

@@ -9,11 +9,14 @@ describe("HtmlPreview", () => {
     expect(container.querySelector("iframe")).not.toBeNull();
   });
 
-  it("passes html as srcDoc", () => {
+  it("passes html as srcDoc with dark-mode override prepended", () => {
     const html = "<p>Document content</p>";
     const { container } = render(<HtmlPreview html={html} />);
     const iframe = container.querySelector("iframe") as HTMLIFrameElement;
-    expect(iframe.getAttribute("srcdoc")).toBe(html);
+    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
+    // The dark-mode stylesheet is injected before the document content
+    expect(srcdoc).toContain("<style>");
+    expect(srcdoc).toContain(html);
   });
 
   it("sandboxes the iframe without allow-scripts", () => {
