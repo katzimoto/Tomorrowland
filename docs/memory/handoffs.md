@@ -148,6 +148,23 @@ and adding one is out of scope. `.gz` (standalone, no .tar prefix) and `.bz2` si
 
 ---
 
+## 2026-05-25 — Feat: GenericExtractor fallback for unrecognised file types
+
+Status: Done — commit dc02c66 on main
+Source: Claude Code session
+
+`ExtractorRegistry.extract()` now falls back to `GenericExtractor` instead of returning
+`""` when no specific extractor matches. `GenericExtractor` tries UTF-8 then
+charset-normalizer; it deliberately omits the latin-1 final step used by `PlainExtractor`
+so binary files (images, executables) still produce `""` rather than garbage in the index.
+`registry.get()` is unchanged — still returns `None` for unregistered types (used by
+attachment extraction gating in `worker.py`).
+
+**Files:** `src/services/extraction/generic.py` (new), `registry.py` (fallback wired in),
+`tests/unit/test_extraction_registry.py` (updated + binary-safety test).
+
+---
+
 ## 2026-05-25 — Fix: original document view showed translated content
 
 Status: Done — commit 69c8aa3 on main
