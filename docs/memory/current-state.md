@@ -2,6 +2,27 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-25 — Unit test suite cleanup (21 → 0 failures)
+
+Status: Done — commits f4217a5, a8106d0, 09c300e on main
+Source: Claude Code session
+
+Result: **660 passed / 0 failed** (was 638 / 21). 108 ERRORs remain — integration tests
+requiring `migrated_engine` fixture (testcontainers + real Postgres); not run in local dev.
+
+Fixes applied (all test-only except alert_consumer):
+- `test_consumer_base` — `handle_message` stubs missing `content_text`/`translated_text` kwargs that `_on_message` now passes.
+- `test_search_regression` — `alert_consumer.py::main()` used `DeterministicTestEncoder()` directly; replaced with `build_encoder(settings)`.
+- `test_rabbit_config`, `test_request_id_middleware`, `test_api_runtime`, `test_api_observability_logging`, `test_metrics_foundation` — `Settings()` loaded `.env` which sets `FEATURE_MEILISEARCH_SEARCH=true`/`RABBITMQ_URL`; fixed with `_env_file=None` in all test `Settings(...)` calls.
+- `test_pipeline_worker` — `_FakeDocumentRepositoryWithCreate` lacked `_connection`; `DocumentRelationshipRepository` not patched. Added `_connection = None` + `@patch`.
+- `test_meili_rollback`, `test_meili_rollout` — patch target `services.api.main.meilisearch.Client` fails because `meilisearch` is imported lazily inside `create_app()`; changed to `meilisearch.Client`.
+- `test_compose_volumes` — `STANDARD_VOLUMES` and `test_standard_compose_defaults` still expected `ollama_data`; updated to `ollama_llm_data` + `ollama_embed_data` following the Ollama split.
+
+Recurring pattern to watch: any test that calls `Settings()` without `_env_file=None` will load the project `.env` file and inherit container values (`RABBITMQ_URL`, `FEATURE_MEILISEARCH_SEARCH`, `EMBEDDING_URL`, etc.). Always add `_env_file=None` to isolate unit tests.
+
+Next action:
+- No open items from this work. Pick up next issue from release queue in AGENTS.md.
+
 ## 2026-05-25 — feat/400-remaining-slices merged (d6d73d4)
 
 Status: Done — merged to main

@@ -2,6 +2,27 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-25 — Unit test suite cleanup
+
+Status: Done — commits f4217a5, a8106d0, 09c300e on main
+Source: Claude Code session
+
+Result: 660 passed / 0 failed unit tests (was 638 / 21).
+
+Key pattern established: **always pass `_env_file=None` to `Settings(...)` in unit tests**.
+The project `.env` sets `FEATURE_MEILISEARCH_SEARCH=true`, `RABBITMQ_URL`, `EMBEDDING_URL`
+and other container values — without `_env_file=None` these leak into every `Settings()` call
+and break tests that expect code defaults or deleted env vars.
+
+Other fixes:
+- `alert_consumer.py::main()` now uses `build_encoder(settings)` instead of `DeterministicTestEncoder()`.
+- Patch targets for lazily-imported modules must use the module path directly (e.g. `meilisearch.Client` not `services.api.main.meilisearch.Client`).
+- Test fakes that back prod code accessing `_connection` must expose `_connection = None`.
+- `STANDARD_VOLUMES` in `test_compose_volumes.py` updated to `ollama_llm_data` + `ollama_embed_data`.
+
+Next agent prompt:
+- Pick up next issue from release queue in AGENTS.md — no open items from this session.
+
 ## 2026-05-25 — Search + infra hardening sprint
 
 Status: Done — all merged to main
