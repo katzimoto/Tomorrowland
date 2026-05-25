@@ -2,6 +2,26 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-25 — feat/400-remaining-slices merged (d6d73d4)
+
+Status: Done — merged to main
+Source: Claude Code session; branch feat/400-remaining-slices
+
+Changes (branch-unique files, taken as-is):
+- `src/services/vault/service.py` — group-scoped Markdown zip export with wikilink resolution and tag index
+- `src/services/api/routers/vault.py` — vault export + tag-index endpoints
+- `src/services/api/routers/documents.py` — `/key_points` and `/intelligence` projection endpoints
+- `src/services/search/meili_provider.py` — `search_rag_metadata()`, `search_rag_translated()`; duplicate `search_rag()` removed
+- `src/services/pipeline/slow_worker.py` — passes `language` to `chunk_text`
+- Tests: expanded retrieval eval, chunking language cases
+
+Conflicts (all resolved → keep main — main was superset in every case):
+- `reranker.py`, `service.py`, `splitter.py`, `vector_worker.py`, `worker.py`, `main.py`, `documents.py`, `qa.py`
+
+Verification: 61 tests pass, ruff clean.
+
+Next action: Meilisearch native embedder (plan at docs/superpowers/plans/2026-05-24-meilisearch-native-embedder.md, sub-issues A–F, branch feature/meili-native-embedder).
+
 ## 2026-05-25 — Search + infra hardening sprint (all merged)
 
 Status: Done — all commits on main
