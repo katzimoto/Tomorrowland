@@ -76,6 +76,26 @@ misidentification. Not addressed in this fix.
 
 ---
 
+## 2026-05-25 — Fix: Alembic multiple-heads on startup
+
+Status: Done
+Source: Claude Code session
+
+**Symptom:** `migrate-1 | FAILED: Multiple head revisions are present for given argument 'head'`
+
+**Root cause:** `2026_05_23_1200_pipeline_jobs_stage_rabbit.py` (`a1b2c3d4e5f6`) and
+`v6w7x8y9z0a1_add_language_detected_flag.py` (`v6w7x8y9z0a1`) both descended from
+`u5v6w7x8y9z0` — merged in separate branches without awareness of each other.
+
+**Fix:** `migrations/versions/w7x8y9z0a1b2_merge_rabbit_and_language_flag.py` — empty
+merge migration, `down_revision = ("a1b2c3d4e5f6", "v6w7x8y9z0a1")`. No schema changes.
+The two forks touch disjoint tables (`pipeline_jobs` vs `documents`), so no conflict.
+
+**Pattern to avoid:** When merging a feature branch that adds a migration, always run
+`alembic heads` before the merge and add a merge migration if count > 1.
+
+---
+
 ## 2026-05-25 — Fix: original document view showed translated content
 
 Status: Done — commit 69c8aa3 on main
