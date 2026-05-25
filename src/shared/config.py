@@ -79,6 +79,12 @@ class Settings(BaseSettings):
     embedding_dimension: int = 768
     embedding_max_tokens: int = 1024
     embedding_timeout: float = 180.0
+    # Short timeout used specifically during the search request path so that a
+    # slow/unavailable embedding service degrades to lexical-only results rather
+    # than blocking until nginx times out (110 s). Kept well below nginx's read
+    # timeout; the existing fallback in search.py catches the exception and
+    # continues with BM25-only results.
+    search_embedding_timeout: float = 5.0
     embedding_provider_unsafe_allow_test_in_prod: bool = False
 
     meilisearch_url: str = "http://meilisearch:7700"

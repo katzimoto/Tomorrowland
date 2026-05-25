@@ -13,7 +13,6 @@ function displayName(result: ExpertiseResultType): string {
 export function ExpertiseResult({ result }: ExpertiseResultProps) {
   const signalEntries = [
     ["Views", result.signals.views],
-    ["Comments", result.signals.comments],
     ["Annotations", result.signals.annotations],
     ["Subscriptions", result.signals.subscriptions],
   ] as const;
