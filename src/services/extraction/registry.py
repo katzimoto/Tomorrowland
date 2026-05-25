@@ -7,6 +7,7 @@ from pathlib import Path
 
 from services.extraction.base import Extractor
 from services.extraction.docx import DocxExtractor
+from services.extraction.generic import GenericExtractor
 from services.extraction.eml import EmlExtractor
 from services.extraction.epub import EpubExtractor
 from services.extraction.html import HtmlExtractor
@@ -125,6 +126,11 @@ class ExtractorRegistry:
         if enable_ocr:
             self._register_ocr()
 
+        # Fallback used when no specific extractor is registered.
+        # GenericExtractor tries UTF-8 then charset-normalizer but does NOT
+        # fall back to latin-1, so true binary files still return "".
+        self._fallback = GenericExtractor()
+
     def _register_legacy_office(self) -> None:
         """Register legacy Office extractors (requires LibreOffice in PATH)."""
         from services.extraction.legacy_office import LegacyOfficeExtractor
@@ -157,13 +163,15 @@ class ExtractorRegistry:
     def extract(self, path: Path, mime_type: str) -> str:
         """Extract text from *path* using the extractor for *mime_type*.
 
-        Returns an empty string when the MIME type is unknown or extraction
-        fails.
+        Falls back to :class:`~services.extraction.generic.GenericExtractor`
+        when no specific extractor is registered, so unrecognised file types
+        still produce a best-effort text result rather than silently returning
+        an empty string.
         """
         extractor = self.get(mime_type)
         if extractor is None:
-            logger.debug("no extractor for mime_type=%s path=%s", mime_type, path)
-            return ""
+            logger.debug("no specific extractor for mime_type=%s path=%s; using generic", mime_type, path)
+            extractor = self._fallback
         result = extractor.extract(path)
         if not result:
             logger.debug(

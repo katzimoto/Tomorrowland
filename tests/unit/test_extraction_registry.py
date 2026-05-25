@@ -31,9 +31,26 @@ def test_registry_extracts_text_for_known_mime_type() -> None:
     assert "Hello TXT World" in text
 
 
-def test_registry_returns_empty_for_unknown_mime_type() -> None:
+def test_registry_generic_fallback_extracts_text_for_unknown_mime_type(tmp_path: Path) -> None:
+    """Unknown MIME types now fall back to GenericExtractor instead of returning ''."""
+    p = tmp_path / "notes.unknown"
+    p.write_text("hello from an unrecognised file type", encoding="utf-8")
+
     registry = ExtractorRegistry()
-    text = registry.extract(FIXTURES / "sample.txt", "application/unknown")
+    text = registry.extract(p, "application/x-totally-unknown")
+
+    assert "hello from an unrecognised file type" in text
+
+
+def test_registry_generic_fallback_returns_empty_for_binary_content(tmp_path: Path) -> None:
+    """Binary files (e.g. images) must NOT produce garbage latin-1 output."""
+    # A realistic JPEG header followed by high-entropy binary bytes.
+    binary_data = bytes([0xFF, 0xD8, 0xFF, 0xE0]) + bytes(range(256)) * 4
+    p = tmp_path / "photo.unknown"
+    p.write_bytes(binary_data)
+
+    registry = ExtractorRegistry()
+    text = registry.extract(p, "application/x-totally-unknown")
 
     assert text == ""
 
