@@ -5,6 +5,7 @@ import { getDownloadUrl } from "@/api/documents";
 import { Button } from "@/components/primitives/Button";
 import type { DocumentPreview } from "@/api/documents";
 import { useT } from "@/i18n/index";
+import { useToast } from "@/components/primitives/ToastContext";
 import { TrustDisplay } from "./TrustDisplay";
 import { TranslationVersionSelector } from "./TranslationVersionSelector";
 import { RequestTranslationDialog } from "./RequestTranslationDialog";
@@ -49,6 +50,7 @@ export function DocumentToolbar({
 }: DocumentToolbarProps) {
   const t = useT();
   const navigate = useNavigate();
+  const { show: showToast } = useToast();
   const [translationDialogOpen, setTranslationDialogOpen] = useState(false);
 
   function handleBack() {
@@ -159,7 +161,10 @@ export function DocumentToolbar({
                 showOriginal: activeMode !== "translation",
               });
               fetch(url, { headers: { Authorization: `Bearer ${token || ""}` } })
-                .then((r) => r.blob())
+                .then((r) => {
+                  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                  return r.blob();
+                })
                 .then((blob) => {
                   const a = document.createElement("a");
                   a.href = URL.createObjectURL(blob);
@@ -168,6 +173,9 @@ export function DocumentToolbar({
                     : (preview.title || preview.document_id);
                   a.click();
                   URL.revokeObjectURL(a.href);
+                })
+                .catch(() => {
+                  showToast("error", t.document.downloadError);
                 });
             }}
           >

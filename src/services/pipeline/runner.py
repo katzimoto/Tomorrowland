@@ -224,12 +224,21 @@ def _run_process_job(
                 "failed to persist translated text: worker_id=%s error_type=PersistError",
                 worker_id,
             )
-        # Use extracted_text as fallback when the translator returned an empty
-        # string (e.g. LibreTranslate returned {"translatedText": ""} for an
-        # EML or other document whose content confused auto-detection).  Both
-        # fields being empty means there is nothing worth storing.
+        # Create a translation version when there is content to show, UNLESS the
+        # translator returned the same non-empty text (a no-op meaning auto-detect
+        # failed or the document is already in the target language).  In that case
+        # a misleading "fast translation" version is not created and the UI falls
+        # back to document_payloads.content_text instead.
+        #
+        # The EML/archive fallback is preserved: when translation returned "" but
+        # extraction produced text, the extracted text is stored in the version so
+        # the document remains readable in translation mode.
         _version_text = process_result.translated_text or process_result.extracted_text
-        if _version_text:
+        _translation_was_no_op = (
+            bool(process_result.extracted_text)
+            and process_result.translated_text == process_result.extracted_text
+        )
+        if _version_text and not _translation_was_no_op:
             try:
                 doc = worker.document_repository.get_by_id(document_id)
                 target_lang = doc.target_language if doc is not None else "en"
@@ -239,7 +248,7 @@ def _run_process_job(
                     created = version_repo.create_version(
                         document_id=document_id,
                         label="Ingestion",
-                        quality="fast",
+                        quality=process_result.translation_quality or "fast",
                         request_type="ingestion",
                         target_language=target_lang,
                     )
@@ -256,6 +265,13 @@ def _run_process_job(
                     "failed to create translation version: worker_id=%s error_type=PersistError",
                     worker_id,
                 )
+        elif _translation_was_no_op:
+            logger.info(
+                "no translation version created for document_id=%s — translation returned "
+                "unchanged text (configure source_language on the ingestion source or ensure "
+                "LibreTranslate supports the document language)",
+                document_id,
+            )
 
     # Enqueue downstream jobs after successful text processing
     # Vector job is always enqueued; intelligence and alert jobs are
@@ -627,6 +643,7 @@ if __name__ == "__main__":
             intelligence_worker=intelligence_worker,
             embedding_max_tokens=settings.embedding_max_tokens,
             enable_language_detection=settings.enable_language_detection,
+            attachment_store=settings.files_root / "attachments",
         )
 
         run_loop(job_repo, worker, conn, worker_id="pipeline-worker")

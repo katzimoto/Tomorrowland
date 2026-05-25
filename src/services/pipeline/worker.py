@@ -35,6 +35,7 @@ class ProcessResult(NamedTuple):
 
     extracted_text: str
     translated_text: str
+    translation_quality: str | None  # "fast" when translation changed the text; None otherwise
 
 
 class PipelineWorker:
@@ -55,6 +56,7 @@ class PipelineWorker:
         embedding_max_tokens: int | None = None,
         lang_detector: LanguageDetector | None = None,
         enable_language_detection: bool = True,
+        attachment_store: Path | None = None,
     ) -> None:
         self._doc_repo = document_repository
         self._extractor = extractor_registry
@@ -69,6 +71,7 @@ class PipelineWorker:
         self._embedding_max_tokens = embedding_max_tokens
         self._lang_detector = lang_detector or LanguageDetector()
         self._enable_language_detection = enable_language_detection
+        self._attachment_store = attachment_store
 
     @property
     def document_repository(self) -> DocumentRepository:
@@ -157,8 +160,24 @@ class PipelineWorker:
 
         # 2. Translate (falls back to original text on failure)
         start = time.perf_counter()
+        if doc.source_language is None and text.strip():
+            logger.warning(
+                "source_language not set for document_id=%s; LibreTranslate will use "
+                "auto-detect which may fail — configure source_language on the ingestion source",
+                document_id,
+            )
         translated = self._translator.translate(text, source_lang=doc.source_language)
-        translation_quality: str | None = "fast" if translated != text else None
+        # "fast" only when translation produced a non-empty result that differs from the input.
+        # Empty or identical output means LibreTranslate returned unchanged / failed auto-detect.
+        translation_quality: str | None = "fast" if (translated and translated != text) else None
+        if translation_quality is None and text.strip():
+            logger.warning(
+                "Translation returned unchanged text for document_id=%s source_language=%s — "
+                "LibreTranslate may have failed auto-detect or the document is already in the "
+                "target language. No translation version will be created.",
+                document_id,
+                doc.source_language,
+            )
         if self._metrics is not None:
             self._metrics.translation_duration_seconds.labels("pipeline").observe(
                 time.perf_counter() - start
@@ -378,7 +397,11 @@ class PipelineWorker:
                         get_correlation_id(),
                     )
 
-        return ProcessResult(extracted_text=text, translated_text=translated)
+        return ProcessResult(
+            extracted_text=text,
+            translated_text=translated,
+            translation_quality=translation_quality,
+        )
 
     def _process_attachments(
         self,
@@ -409,11 +432,22 @@ class PipelineWorker:
                 )
                 continue
             try:
-                with tempfile.NamedTemporaryFile(
-                    suffix=Path(att.filename).suffix or ".bin", delete=False
-                ) as tmp:
-                    tmp.write(att.data)
-                    tmp_path = tmp.name
+                suffix = Path(att.filename).suffix or ".bin"
+                # Prefer a permanent location inside files_root so the download
+                # endpoint can serve the original file later.  Fall back to a
+                # temp file (deleted after pipeline) when no store is configured.
+                if self._attachment_store is not None:
+                    att_dir = self._attachment_store / sha256[:2]
+                    att_dir.mkdir(parents=True, exist_ok=True)
+                    att_path = att_dir / f"{sha256}{suffix}"
+                    att_path.write_bytes(att.data)
+                    tmp_path = str(att_path)
+                    persistent = True
+                else:
+                    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                        tmp.write(att.data)
+                        tmp_path = tmp.name
+                    persistent = False
 
                 child_external_id = (
                     f"{parent_doc.external_id}::attachment::{att.filename}::{sha256[:12]}"
@@ -430,7 +464,8 @@ class PipelineWorker:
                 )
                 if child_doc is None:
                     # Already ingested — dedup hit
-                    Path(tmp_path).unlink(missing_ok=True)
+                    if not persistent:
+                        Path(tmp_path).unlink(missing_ok=True)
                     continue
 
                 rel_repo = DocumentRelationshipRepository(self._doc_repo._connection)
@@ -457,7 +492,8 @@ class PipelineWorker:
                         child_doc.id,
                     )
                 finally:
-                    Path(tmp_path).unlink(missing_ok=True)
+                    if not persistent:
+                        Path(tmp_path).unlink(missing_ok=True)
             except Exception:
                 logger.exception(
                     "Failed to create child document for attachment: parent_id=%s filename=%s",

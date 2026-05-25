@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import suppress
 from typing import Annotated, Any, cast
@@ -7,6 +8,8 @@ from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Request
+
+logger = logging.getLogger(__name__)
 
 from services.api._helpers import _record_source_sync_state, _sanitize_source_error
 from services.api.main import current_user
@@ -156,6 +159,17 @@ def sync_now(
                         safe_label_value(connector_type), "skipped"
                     ).inc()
                     continue
+
+                effective_lang = item.source_language or source_language
+                if effective_lang is None:
+                    logger.warning(
+                        "document ingested without source_language: source_id=%s "
+                        "external_id=%s mime_type=%s — translation will use LibreTranslate "
+                        "auto-detect which may fail. Set source_language on the ingestion source.",
+                        source_id,
+                        item.external_id,
+                        item.mime_type,
+                    )
 
                 results["created"] += 1
                 try:

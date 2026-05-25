@@ -2,6 +2,26 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-25 — fix: translation no-op + download JSON
+
+Status: Done — committed to main
+Source: Claude Code session
+
+Changed files:
+- `src/services/pipeline/worker.py` — `ProcessResult` gets `translation_quality: str | None`; warning logs; `attachment_store: Path | None` param; `_process_attachments` saves to persistent path when store is set
+- `src/services/pipeline/runner.py` — version creation gated on `_translation_was_no_op`; passes `attachment_store=settings.files_root/"attachments"` in `__main__`
+- `src/services/api/routers/admin/ingestion.py` — `logger` added; warns when `source_language` is None at ingest time
+- `frontend/src/features/documents/DocumentToolbar.tsx` — `useToast` + `r.ok` check in download handler
+- `frontend/src/i18n/locales/en.ts` / `he.ts` — `downloadError` key added
+- `tests/unit/test_pipeline_runner.py` — 3 `ProcessResult` calls updated with `translation_quality`
+
+Key invariant: a `document_translation_versions` record is now only created when `translated_text` is non-empty AND differs from `extracted_text`. The EML/archive fallback (empty translated → use extracted) is kept but no longer for same-text no-ops.
+
+Remaining risk:
+- `files_root/attachments/` files not GC'd on document delete
+- `PdfViewer` loads via `pdfjsLib.getDocument(url)` without Bearer token — PDF in-viewer rendering still fails for auth-protected endpoint (separate issue)
+- Scanned PDFs still need `ENABLE_OCR=true` for any text extraction
+
 ## 2026-05-25 — feat: parsers architecture — full file-type extraction & translation coverage
 
 Status: Done — commit 0ec5226 on main

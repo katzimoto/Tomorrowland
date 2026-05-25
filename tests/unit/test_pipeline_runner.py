@@ -202,6 +202,7 @@ class TestRunOnce:
         worker.process_document.return_value = ProcessResult(
             extracted_text="raw document text",
             translated_text="translated document body",
+            translation_quality="fast",
         )
 
         run_once(repo, worker)
@@ -564,6 +565,7 @@ class TestRunOnce:
         worker.process_document.return_value = ProcessResult(
             extracted_text="email body in some language",
             translated_text="",
+            translation_quality=None,
         )
         doc_mock = MagicMock()
         doc_mock.target_language = "en"
@@ -613,6 +615,7 @@ class TestRunOnce:
         worker.process_document.return_value = ProcessResult(
             extracted_text="",
             translated_text="",
+            translation_quality=None,
         )
         doc_mock = MagicMock()
         doc_mock.target_language = "en"

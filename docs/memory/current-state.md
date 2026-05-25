@@ -2,6 +2,31 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-25 — fix: translation no-op detection + download JSON bug
+
+Status: Done — committed to main
+Source: Claude Code session
+
+Two bugs fixed:
+
+**Translation (all file types incl. PDF):**
+- `ProcessResult` now carries `translation_quality: str | None` — `"fast"` only when LibreTranslate returned a non-empty result different from input; `None` otherwise.
+- `runner.py` skips creating a `document_translation_versions` record when translation was a no-op (translated == extracted). Previously a misleading `quality="fast"` version was created even when LibreTranslate returned the original text unchanged. EML/archive fallback preserved: when translation returns `""` but extraction produced text, a version is still created with extracted text as content.
+- `worker.py` logs `WARNING` when `source_language` is `None` before translation (auto-detect will be used) and when translation returned unchanged text.
+- `ingestion.py` logs `WARNING` when documents are ingested without `source_language`.
+
+**Operator action required:** Set `source_language` on each ingestion source (e.g. `"he"` for Hebrew). Without it LibreTranslate uses auto-detect which silently fails for many PDF/binary file types.
+
+**Download (PDF and attachment files):**
+- `DocumentToolbar.tsx` download handler now checks `r.ok`; shows `showToast("error", t.document.downloadError)` instead of silently downloading the JSON error body.
+- `PipelineWorker` accepts `attachment_store: Path | None`. When set, `_process_attachments` saves attachment files to `attachment_store/{sha256[:2]}/{sha256}{ext}` (persistent, inside `files_root`) instead of `/tmp/` (deleted after pipeline). Files in `/tmp/` are outside `files_root` and were blocked by the path-traversal check → 400 JSON → downloaded as "PDF".
+- `runner.py` passes `attachment_store=settings.files_root / "attachments"` to `PipelineWorker`.
+- `downloadError` i18n key added to en.ts and he.ts.
+
+**Watch:** Attachment files under `files_root/attachments/` accumulate indefinitely — no GC yet. A cleanup job is needed when documents are deleted.
+
+Next action: Smoke-test by ingesting a Hebrew PDF via folder connector; confirm translation version is created and UI shows translated text.
+
 ## 2026-05-25 — feat: parsers architecture — full file-type extraction & translation coverage
 
 Status: Done — commit 0ec5226, merged to main

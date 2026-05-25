@@ -90,6 +90,7 @@ export interface Translations {
     requestTranslation: string;
     download: string;
     downloadTranslation: string;
+    downloadError: string;
   };
   insight: {
     tabSummary: string;
@@ -420,6 +421,7 @@ export const en: Translations = {
     requestTranslation: "Request translation",
     download: "Download",
     downloadTranslation: "Download translated",
+    downloadError: "Download failed. The file may no longer be available.",
   },
   insight: {
     tabSummary: "Summary",

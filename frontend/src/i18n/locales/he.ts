@@ -92,6 +92,7 @@ export const he: Translations = {
     requestTranslation: "בקש תרגום",
     download: "הורדה",
     downloadTranslation: "הורד תרגום",
+    downloadError: "ההורדה נכשלה. ייתכן שהקובץ אינו זמין עוד.",
   },
   insight: {
     tabSummary: "סיכום",
