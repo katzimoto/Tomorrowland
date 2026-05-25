@@ -224,7 +224,12 @@ def _run_process_job(
                 "failed to persist translated text: worker_id=%s error_type=PersistError",
                 worker_id,
             )
-        if process_result.translated_text:
+        # Use extracted_text as fallback when the translator returned an empty
+        # string (e.g. LibreTranslate returned {"translatedText": ""} for an
+        # EML or other document whose content confused auto-detection).  Both
+        # fields being empty means there is nothing worth storing.
+        _version_text = process_result.translated_text or process_result.extracted_text
+        if _version_text:
             try:
                 doc = worker.document_repository.get_by_id(document_id)
                 target_lang = doc.target_language if doc is not None else "en"
@@ -244,7 +249,7 @@ def _run_process_job(
                 version_repo.update_version_status(
                     version_id,
                     "available",
-                    translated_text=process_result.translated_text,
+                    translated_text=_version_text,
                 )
             except Exception:
                 logger.exception(

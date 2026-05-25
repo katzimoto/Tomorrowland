@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import UUID, uuid4
 
 from services.pipeline.runner import run_once
@@ -20,6 +20,7 @@ class _FakeJobRepo:
         self.content_text_updates: list[tuple[UUID, str]] = []
         self.translated_text_updates: list[tuple[UUID, str]] = []
         self.enqueue_calls: list[dict] = []
+        self._connection: object = None  # required by TranslationVersionRepository init
 
     def claim_next(self, worker_id: str, job_types: list[str] | None = None) -> dict | None:
         self.claim_next_calls.append((worker_id, job_types))
@@ -530,3 +531,97 @@ class TestRunOnce:
         assert result is True
         assert repo.dead_lettered is not None
         assert repo.dead_lettered[0] == repo.claimed_job["id"]
+
+    # ------------------------------------------------------------------ #
+    #  Translation version fallback
+    # ------------------------------------------------------------------ #
+
+    @patch("services.pipeline.runner.TranslationVersionRepository")
+    def test_translation_version_uses_extracted_text_when_translated_is_empty(
+        self, mock_version_repo_cls: MagicMock
+    ) -> None:
+        """When translator returns '' (e.g. LibreTranslate empty response),
+        the translation version is still created using extracted_text so the
+        UI is not left with no translation at all."""
+        document_id = uuid4()
+        repo = _FakeJobRepo()
+        repo.claimed_job = {
+            "id": uuid4(),
+            "document_id": document_id,
+            "source_id": uuid4(),
+            "job_type": "process_document",
+            "priority": 0,
+            "attempts": 1,
+            "max_attempts": 5,
+            "stage": None,
+            "last_error": None,
+            "run_after": None,
+            "locked_by": "runner",
+        }
+
+        # Simulate: extraction produced text, but translation returned empty string.
+        worker = MagicMock()
+        worker.process_document.return_value = ProcessResult(
+            extracted_text="email body in some language",
+            translated_text="",
+        )
+        doc_mock = MagicMock()
+        doc_mock.target_language = "en"
+        worker.document_repository.get_by_id.return_value = doc_mock
+
+        mock_version_repo = MagicMock()
+        mock_version_repo.find_pending_or_running.return_value = None
+        mock_version_repo.create_version.return_value = {"id": str(uuid4())}
+        mock_version_repo_cls.return_value = mock_version_repo
+
+        run_once(repo, worker)
+
+        # A translation version must have been created and marked available.
+        mock_version_repo.create_version.assert_called_once()
+        mock_version_repo.update_version_status.assert_called_once()
+        _version_id, status, *_ = mock_version_repo.update_version_status.call_args.args
+        assert status == "available"
+        # The stored text must be the extracted text, not the empty translated string.
+        stored_text = mock_version_repo.update_version_status.call_args.kwargs.get(
+            "translated_text"
+        )
+        assert stored_text == "email body in some language"
+
+    @patch("services.pipeline.runner.TranslationVersionRepository")
+    def test_translation_version_skipped_when_both_texts_empty(
+        self, mock_version_repo_cls: MagicMock
+    ) -> None:
+        """When both extracted_text and translated_text are empty (truly empty
+        document), no translation version is created."""
+        document_id = uuid4()
+        repo = _FakeJobRepo()
+        repo.claimed_job = {
+            "id": uuid4(),
+            "document_id": document_id,
+            "source_id": uuid4(),
+            "job_type": "process_document",
+            "priority": 0,
+            "attempts": 1,
+            "max_attempts": 5,
+            "stage": None,
+            "last_error": None,
+            "run_after": None,
+            "locked_by": "runner",
+        }
+
+        worker = MagicMock()
+        worker.process_document.return_value = ProcessResult(
+            extracted_text="",
+            translated_text="",
+        )
+        doc_mock = MagicMock()
+        doc_mock.target_language = "en"
+        worker.document_repository.get_by_id.return_value = doc_mock
+
+        mock_version_repo = MagicMock()
+        mock_version_repo_cls.return_value = mock_version_repo
+
+        run_once(repo, worker)
+
+        mock_version_repo.create_version.assert_not_called()
+        mock_version_repo.update_version_status.assert_not_called()

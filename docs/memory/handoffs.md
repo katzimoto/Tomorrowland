@@ -2,6 +2,39 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-25 — Fix: EML translation version silently skipped on empty translator response
+
+Status: Done — committed to main
+Source: Claude Code session
+
+**Bug:** `runner.py::_run_process_job` guarded translation-version creation with
+`if process_result.translated_text:`. `LibreTranslateClient.translate()` returns
+`str(data["translatedText"])` from the JSON response — if LibreTranslate returns
+`{"translatedText": ""}` (empty string) for a document with valid extracted content
+(observed with EML files whose English headers bias auto-detection), `translated_text`
+was falsy, so no `document_translation_versions` row was ever written and the UI
+showed no translation.
+
+**Fix:** One-line guard change in `runner.py`:
+```python
+_version_text = process_result.translated_text or process_result.extracted_text
+if _version_text:
+    ...update_version_status(..., translated_text=_version_text)
+```
+Falls back to `extracted_text` so the UI always receives something. Both empty → skip
+(nothing to store). Also added `self._connection = None` to `_FakeJobRepo` so the
+version-repo path can be properly patched in unit tests.
+
+**Files changed:** `src/services/pipeline/runner.py`, `tests/unit/test_pipeline_runner.py`
+
+**Verification:** 39 unit tests pass (runner, extraction, pipeline worker).
+
+**Remaining:** Bug 2 (English-header bias in LibreTranslate auto-detection for EML)
+is still open — body text should be passed separately from headers to avoid
+misidentification. Not addressed in this fix.
+
+---
+
 ## 2026-05-25 — Fix: original document view showed translated content
 
 Status: Done — commit 69c8aa3 on main
