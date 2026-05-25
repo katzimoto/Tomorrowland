@@ -120,7 +120,11 @@ def search(
         qdrant_client = http_request.app.state.qdrant_client or QdrantSearchClient(
             url=http_request.app.state.settings.qdrant_url
         )
-        encoder = build_encoder(http_request.app.state.settings)
+        _settings = http_request.app.state.settings
+        encoder = build_encoder(
+            _settings,
+            timeout=_settings.search_embedding_timeout,
+        )
         query_vector = encoder.encode(request.query)
         backend_start = time.perf_counter()
         vector_results = qdrant_client.search(

@@ -7,6 +7,8 @@ from .encoder import DeterministicTestEncoder, OllamaEmbeddingEncoder, TextEncod
 
 def build_encoder(
     settings: Settings,
+    *,
+    timeout: float | None = None,
 ) -> TextEncoder:
     """Build and return a text encoder based on *settings*.
 
@@ -44,7 +46,7 @@ def build_encoder(
             model=settings.embedding_model,
             dimension=settings.embedding_dimension,
             max_tokens=settings.embedding_max_tokens,
-            timeout=settings.embedding_timeout,
+            timeout=timeout if timeout is not None else settings.embedding_timeout,
         )
 
     raise ValueError(f"Unknown embedding provider: {provider}")

@@ -97,3 +97,45 @@ def test_factory_ollama_falls_back_to_ollama_url() -> None:
 
     assert isinstance(encoder, OllamaEmbeddingEncoder)
     assert encoder._base_url == "http://fallback-ollama:11434"
+
+
+# ---------------------------------------------------------------------------
+# search_embedding_timeout — graceful degradation
+# ---------------------------------------------------------------------------
+
+
+def test_factory_timeout_override_applied() -> None:
+    """build_encoder(timeout=N) produces an encoder with that timeout, not embedding_timeout."""
+    settings = Settings(
+        app_env="prod",
+        embedding_provider="ollama",
+        embedding_timeout=180.0,
+    )
+    encoder = build_encoder(settings, timeout=5.0)
+
+    assert isinstance(encoder, OllamaEmbeddingEncoder)
+    assert encoder._timeout == 5.0
+
+
+def test_factory_uses_settings_timeout_when_override_absent() -> None:
+    """When no override is given, embedding_timeout from settings is used."""
+    settings = Settings(
+        app_env="prod",
+        embedding_provider="ollama",
+        embedding_timeout=42.0,
+    )
+    encoder = build_encoder(settings)
+
+    assert isinstance(encoder, OllamaEmbeddingEncoder)
+    assert encoder._timeout == 42.0
+
+
+def test_settings_search_embedding_timeout_default() -> None:
+    """search_embedding_timeout default is 5 s — safely below nginx's 110 s read timeout."""
+    settings = Settings()
+    assert settings.search_embedding_timeout == 5.0
+
+
+def test_settings_search_embedding_timeout_customisable() -> None:
+    settings = Settings(search_embedding_timeout=10.0)
+    assert settings.search_embedding_timeout == 10.0
