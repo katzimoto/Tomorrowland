@@ -1,5 +1,4 @@
 import { FileText, Image, Archive, Mail, File, Info, Eye } from "lucide-react";
-import { Badge } from "@/components/primitives/Badge";
 import { VersionBadge } from "@/features/documents/VersionBadge";
 import type { SearchResult } from "@/api/search";
 import styles from "./ResultRow.module.css";
@@ -60,26 +59,38 @@ export function ResultRow({ result, id, selected = false, onClick, onSelect, onP
         <span className={styles.mimeIcon} aria-hidden>
           <MimeIcon mimeType={result.mime_type} />
         </span>
-        <Badge variant="source">{result.source_label}</Badge>
       </div>
 
       <div className={styles.main}>
         <span className={styles.title} dangerouslySetInnerHTML={{ __html: highlightHtml(result.title ?? "") }} />
         <span className={styles.snippet} dangerouslySetInnerHTML={{ __html: highlightHtml(result.snippet ?? "") }} />
         <div className={styles.meta}>
+          <span className={styles.source}>{result.source_label}</span>
           {visibleTags.map((tag) => (
-            <Badge key={tag} variant="tag">{tag}</Badge>
+            <span key={tag} className={styles.metaGroup}>
+              <span className={styles.dot}>·</span>
+              <span className={styles.tag}>{tag}</span>
+            </span>
           ))}
           {extraTags > 0 && (
-            <Badge variant="neutral">+{extraTags}</Badge>
+            <span className={styles.metaGroup}>
+              <span className={styles.dot}>·</span>
+              <span className={styles.tag}>+{extraTags} more</span>
+            </span>
           )}
           {result.version_number != null && result.is_latest != null && (
-            <VersionBadge versionNumber={result.version_number} isLatest={result.is_latest} />
+            <span className={styles.metaGroup}>
+              <span className={styles.dot}>·</span>
+              <VersionBadge versionNumber={result.version_number} isLatest={result.is_latest} />
+            </span>
           )}
           {result.translation_quality && (
-            <Badge variant="translation">
-              {result.translation_quality === "fast" ? "Fast translation" : "High quality"}
-            </Badge>
+            <span className={styles.metaGroup}>
+              <span className={styles.dot}>·</span>
+              <span className={styles.trans}>
+                {result.translation_quality === "fast" ? "Fast translation" : "High quality"}
+              </span>
+            </span>
           )}
         </div>
       </div>
