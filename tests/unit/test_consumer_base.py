@@ -9,7 +9,10 @@ class SucceedingConsumer(BaseConsumer):
     queue_name = "document.parse.requested"
     worker_type = "parse-worker"
 
-    def handle_message(self, job_id, document_id, source_id, attempt, correlation_id):
+    def handle_message(
+        self, job_id, document_id, source_id, attempt, correlation_id,
+        content_text: str = "", translated_text: str = "",
+    ):
         pass
 
 
@@ -17,7 +20,10 @@ class FailingConsumer(BaseConsumer):
     queue_name = "document.parse.requested"
     worker_type = "parse-worker"
 
-    def handle_message(self, job_id, document_id, source_id, attempt, correlation_id):
+    def handle_message(
+        self, job_id, document_id, source_id, attempt, correlation_id,
+        content_text: str = "", translated_text: str = "",
+    ):
         raise RuntimeError("something broke")
 
 
