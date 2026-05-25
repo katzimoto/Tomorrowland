@@ -2,25 +2,32 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
-## 2026-05-25 — Ollama split + model routing (PR open, pending merge)
+## 2026-05-25 — Search 504 graceful degradation + expertise UI fix (merged)
 
-Status: Active
+Status: Done — merged to main (7da68a5)
+Source: Claude Code session
+
+Finding:
+- **Search 504 root cause:** `encoder.encode()` used `EMBEDDING_TIMEOUT=180 s`; nginx read timeout is 110 s so nginx killed the connection before the existing BM25 fallback could fire.
+- **Fix:** Added `SEARCH_EMBEDDING_TIMEOUT=5 s` (new setting). `build_encoder()` accepts `timeout=` override. Search path passes 5 s cap → encoder fails fast → existing try/except degrades to BM25-only results. Pipeline indexing path keeps 180 s unchanged.
+- **Expertise UI:** Removed stale `Comments` signal row (undefined in backend schema). `ExpertiseSignals` had no `comments` field; component and type both cleaned up.
+- **Pre-existing test failure noted:** `test_factory_ollama_falls_back_to_ollama_url` breaks because pydantic-settings reads `EMBEDDING_URL` from `.env` file. Predates this session; needs `env_file=None` constructor fix.
+
+## 2026-05-25 — Ollama split + model routing (merged)
+
+Status: Done — merged to main
 Source: Claude Code session; branch `infra/split-ollama-containers`; closes #513
 
 Finding:
-- **Root cause of Search 504 + intelligence-worker DNS failure:** `docker-compose.yml` had a single `ollama` service but `.env` pointed at `ollama-llm` and `ollama-embed` — hostnames that never existed. Fixed by splitting into two real services.
-- **Ollama split done:** `ollama-llm` (LLM; port OLLAMA_PORT) and `ollama-embed` (embeddings; port OLLAMA_EMBED_PORT=11437) with dedicated volumes (`ollama_llm_data`, `ollama_embed_data`). Worker `depends_on` routed correctly per service.
-- **Model routing done (#513):** `OLLAMA_UTILITY_MODEL` + `OLLAMA_RERANKER_MODEL` added to config with fallback chain. Map-phase chunks, auto-tag, key-points, query rewrite → utility; reduce, entity extraction, RAG answer → main; reranking → reranker→utility→main. 17 new tests pass.
+- **Root cause of intelligence-worker DNS failure:** `docker-compose.yml` had a single `ollama` service but `.env` pointed at `ollama-llm` and `ollama-embed` — hostnames that never existed.
+- **Ollama split done:** `ollama-llm` (LLM) and `ollama-embed` (embeddings; OLLAMA_EMBED_PORT=11437) with dedicated volumes. Worker `depends_on` routed correctly.
+- **Model routing done (#513):** `OLLAMA_UTILITY_MODEL` + `OLLAMA_RERANKER_MODEL` added to config with fallback chain. Map-phase chunks, auto-tag, key-points, query rewrite → utility; reduce, entity extraction, RAG answer → main; reranking → reranker→utility→main. 17 tests.
 - **Sort bug (still unresolved):** `_map_sort()` builds `"updated_at:desc"` but valid-labels set contains `"updatedAt:desc"` — all date sorts silently fall back to relevance.
 - **embed-worker disconnect:** Fixed in PR #517 (merged).
 
-Impact:
-- After `docker compose build && docker compose up -d`: search 504 gone, intelligence-worker DNS error gone.
-- Date sort still broken (independent fix needed).
-
 Next action:
-- Merge PR on `infra/split-ollama-containers` once CI passes.
 - Fix `_map_sort` camelCase mismatch (small standalone fix).
+- Fix `test_factory_ollama_falls_back_to_ollama_url` to use `env_file=None`.
 - Operator must run `docker compose build ollama-llm ollama-embed` before `up -d` on existing installs.
 
 ## 2026-05-24 — D2 MEDIUM ACL hardening (#400 Groups 1-3 final work)
