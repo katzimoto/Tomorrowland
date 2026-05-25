@@ -8,10 +8,12 @@ from pathlib import Path
 from services.extraction.base import Extractor
 from services.extraction.docx import DocxExtractor
 from services.extraction.eml import EmlExtractor
+from services.extraction.epub import EpubExtractor
 from services.extraction.html import HtmlExtractor
 from services.extraction.json_extractor import JsonExtractor
 from services.extraction.msg_extractor import MsgExtractor
 from services.extraction.odt import OdtExtractor
+from services.extraction.opendocument import OdpExtractor, OdsExtractor
 from services.extraction.pdf import PdfExtractor
 from services.extraction.plain import PlainExtractor
 from services.extraction.pptx_extractor import PptxExtractor
@@ -26,31 +28,74 @@ logger = logging.getLogger(__name__)
 _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 _PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_ODT_MIME = "application/vnd.oasis.opendocument.text"
+_ODS_MIME = "application/vnd.oasis.opendocument.spreadsheet"
+_ODP_MIME = "application/vnd.oasis.opendocument.presentation"
+
+# Alias map: non-canonical MIME type → canonical registered type.
+# Resolved in get() before the main extractor dict is consulted.
+_ALIASES: dict[str, str] = {
+    # ZIP variants
+    "application/x-zip": "application/zip",
+    "application/x-zip-compressed": "application/zip",
+    # Gzip / tar
+    "application/x-gzip": "application/gzip",
+    "application/x-tar": "application/x-tar",
+    # HTML
+    "application/xhtml+xml": "text/html",
+    # Images (common mis-spellings / vendor types)
+    "image/jpg": "image/jpeg",
+    "image/pjpeg": "image/jpeg",
+    # Markdown / reStructuredText / log files → plain
+    "text/x-markdown": "text/plain",
+    "text/x-rst": "text/plain",
+    "text/x-log": "text/plain",
+    # YAML / TOML / config → plain (readable as-is)
+    "application/x-yaml": "text/plain",
+    "text/yaml": "text/plain",
+    "application/toml": "text/plain",
+    "text/x-toml": "text/plain",
+}
 
 
 class ExtractorRegistry:
     """Map MIME types to concrete extractors."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        enable_ocr: bool = False,
+        enable_legacy_office: bool = False,
+    ) -> None:
+        pdf_extractor = PdfExtractor(ocr_fallback=enable_ocr)
+
         self._extractors: dict[str, Extractor] = {
             # Plain text family
             "text/plain": PlainExtractor(),
             "text/markdown": PlainExtractor(),
             "text/csv": PlainExtractor(),
+            # HTML / XML
             "text/html": HtmlExtractor(),
             "text/xml": XmlExtractor(),
-            "text/rtf": RtfExtractor(),
-            "application/json": JsonExtractor(),
             "application/xml": XmlExtractor(),
+            "application/xhtml+xml": HtmlExtractor(),
+            # RTF
+            "text/rtf": RtfExtractor(),
             "application/rtf": RtfExtractor(),
+            # JSON
+            "application/json": JsonExtractor(),
             # PDF
-            "application/pdf": PdfExtractor(),
-            # Microsoft Office
+            "application/pdf": pdf_extractor,
+            # Microsoft Office (Open XML)
             _DOCX_MIME: DocxExtractor(),
             _PPTX_MIME: PptxExtractor(),
             _XLSX_MIME: XlsxExtractor(),
             # OpenDocument
-            "application/vnd.oasis.opendocument.text": OdtExtractor(),
+            _ODT_MIME: OdtExtractor(),
+            _ODS_MIME: OdsExtractor(),
+            _ODP_MIME: OdpExtractor(),
+            # EPUB
+            "application/epub+zip": EpubExtractor(),
             # Email
             "message/rfc822": EmlExtractor(),
             "application/vnd.ms-outlook": MsgExtractor(),
@@ -59,17 +104,42 @@ class ExtractorRegistry:
             "application/x-zip-compressed": ZipExtractor(),
             "application/x-tar": TarExtractor(),
             "application/gzip": TarExtractor(),
-            # Fallback for unrecognised binary / extensionless files
-            "application/octet-stream": PlainExtractor(),
         }
+
+        if enable_legacy_office:
+            self._register_legacy_office()
+
+        if enable_ocr:
+            self._register_ocr()
+
+    def _register_legacy_office(self) -> None:
+        """Register legacy Office extractors (requires LibreOffice in PATH)."""
+        from services.extraction.legacy_office import LegacyOfficeExtractor
+
+        extractor = LegacyOfficeExtractor()
+        self._extractors["application/msword"] = extractor
+        self._extractors["application/vnd.ms-excel"] = extractor
+        self._extractors["application/vnd.ms-powerpoint"] = extractor
+
+    def _register_ocr(self) -> None:
+        """Register the OCR extractor for raster image MIME types."""
+        from services.extraction.ocr import OcrExtractor
+
+        extractor = OcrExtractor()
+        for mime in ("image/png", "image/jpeg", "image/tiff", "image/bmp", "image/webp"):
+            self._extractors[mime] = extractor
 
     def register(self, mime_type: str, extractor: Extractor) -> None:
         """Add or override an extractor for a MIME type."""
         self._extractors[mime_type] = extractor
 
     def get(self, mime_type: str) -> Extractor | None:
-        """Return the extractor for *mime_type* when registered."""
-        return self._extractors.get(mime_type)
+        """Return the extractor for *mime_type* when registered.
+
+        Resolves MIME type aliases before looking up the extractor dict.
+        """
+        canonical = _ALIASES.get(mime_type, mime_type)
+        return self._extractors.get(canonical)
 
     def extract(self, path: Path, mime_type: str) -> str:
         """Extract text from *path* using the extractor for *mime_type*.

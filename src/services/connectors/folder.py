@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import mimetypes
 from collections.abc import Iterator
 from pathlib import Path
 
 from services.connectors.base import ConnectorDocument, ConnectorField
+from services.extraction.mime_detector import detect_mime_type
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +42,7 @@ class FolderConnector:
         for file_path in self._folder.rglob("*"):
             if not file_path.is_file():
                 continue
-            mime_type, _ = mimetypes.guess_type(str(file_path))
-            if mime_type is None:
-                mime_type = "application/octet-stream"
+            mime_type = detect_mime_type(file_path)
             try:
                 sha256 = hashlib.sha256(file_path.read_bytes()).hexdigest()
             except OSError as exc:

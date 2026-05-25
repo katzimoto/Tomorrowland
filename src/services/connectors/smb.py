@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import hashlib
-import mimetypes
 import tempfile
 from collections.abc import Iterator
 from contextlib import suppress
 from dataclasses import dataclass
 from fnmatch import fnmatch
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import smbclient  # type: ignore
 
 from services.connectors.base import ConnectorDocument, ConnectorField
+from services.extraction.mime_detector import detect_mime_type
 
 _CHUNK_SIZE = 1024 * 1024
 _DEFAULT_RECURSIVE = True
@@ -201,9 +201,7 @@ class SmbConnector:
         except Exception as exc:
             raise self._sanitised_error("download file", exc) from exc
 
-        mime_type, _ = mimetypes.guess_type(title)
-        if mime_type is None:
-            mime_type = "application/octet-stream"
+        mime_type = detect_mime_type(Path(local_path), filename=title)
 
         return ConnectorDocument(
             external_id=self._external_id(remote_file.remote_path),

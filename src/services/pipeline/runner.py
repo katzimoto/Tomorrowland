@@ -615,7 +615,10 @@ if __name__ == "__main__":
         job_repo = PipelineJobRepository(conn)
         worker = PipelineWorker(
             document_repository=doc_repo,
-            extractor_registry=ExtractorRegistry(),
+            extractor_registry=ExtractorRegistry(
+                enable_ocr=settings.enable_ocr,
+                enable_legacy_office=settings.enable_legacy_office,
+            ),
             translator=translator,
             encoder=encoder,
             es_client=es_client,
@@ -623,6 +626,7 @@ if __name__ == "__main__":
             meili_provider=meili_provider,
             intelligence_worker=intelligence_worker,
             embedding_max_tokens=settings.embedding_max_tokens,
+            enable_language_detection=settings.enable_language_detection,
         )
 
         run_loop(job_repo, worker, conn, worker_id="pipeline-worker")
