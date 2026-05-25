@@ -88,9 +88,13 @@ def test_factory_ollama_uses_embedding_url_when_set() -> None:
 
 
 def test_factory_ollama_falls_back_to_ollama_url() -> None:
+    # Suppress .env file loading so EMBEDDING_URL from the dev env file does
+    # not shadow the ollama_url fallback being tested here.
     settings = Settings(
+        _env_file=None,
         app_env="dev",
         embedding_provider="ollama",
+        embedding_url="",
         ollama_url="http://fallback-ollama:11434",
     )
     encoder = build_encoder(settings)
