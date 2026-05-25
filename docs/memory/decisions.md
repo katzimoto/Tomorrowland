@@ -2,6 +2,64 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-05-25 — Extraction: MIME detection uses python-magic + mimetypes fallback
+
+Status: Active
+Source: commit 0ec5226; src/services/extraction/mime_detector.py
+
+Decision:
+- `MimeDetector.detect()` tries `python-magic` (content-sniffing via libmagic) first.
+- Falls back to `mimetypes.guess_type(filename)` when magic returns `application/octet-stream` or is not installed.
+- Module-level `detect_mime_type()` convenience wrapper used by connectors.
+- `application/octet-stream` is **no longer registered** in `ExtractorRegistry` — previously it silently returned binary bytes as UTF-8 text. Unknown MIME types now return `""`.
+
+Impact:
+- Extensionless or misnamed files get content-sniffed correctly.
+- Connectors (folder, SMB) call `detect_mime_type()` not `mimetypes.guess_type()`.
+
+## 2026-05-25 — Extraction: OCR and Legacy Office are feature-flagged off by default
+
+Status: Active
+Source: commit 0ec5226; src/shared/config.py
+
+Decision:
+- `ENABLE_OCR=false` — requires `tesseract-ocr` + `poppler-utils` in PATH and `pip install tomorrowland[ocr]`.
+- `ENABLE_LEGACY_OFFICE=false` — requires LibreOffice (`soffice`) in PATH.
+- `ENABLE_LANGUAGE_DETECTION=true` — on by default; failures never block extraction (caught with `None` return).
+- `ExtractorRegistry` accepts `enable_ocr` and `enable_legacy_office` constructor flags; `runner.py` passes `settings.enable_ocr` / `settings.enable_legacy_office`.
+
+Impact:
+- No Docker image changes required for base deployment.
+- OCR and LibreOffice extractors lazily import deps inside methods — missing deps degrade to empty string, not exception.
+
+## 2026-05-25 — Extraction: PlainExtractor is charset-aware (UTF-8 → charset-normalizer → latin-1)
+
+Status: Active
+Source: commit 0ec5226; src/services/extraction/plain.py
+
+Decision:
+- Three-step decode: UTF-8 first; on `UnicodeDecodeError`, try `charset_normalizer.from_path()` (best-match detection); final fallback latin-1 (never raises).
+- `charset-normalizer` is already a transitive dependency (via `requests`); no new required dep.
+- Latin-1 fallback ensures non-UTF-8 files always produce non-empty text rather than silently returning `""`.
+
+Impact:
+- Windows-1252, latin-1, and other legacy encodings now produce readable text instead of empty strings.
+
+## 2026-05-25 — Extraction: language auto-detection uses langdetect (min 100 chars, 0.80 confidence)
+
+Status: Active
+Source: commit 0ec5226; src/services/extraction/language.py, src/services/pipeline/worker.py
+
+Decision:
+- `LanguageDetector.detect()` uses `langdetect` with `DetectorFactory.seed = 0` (reproducible results).
+- Returns `None` for texts under 100 chars or confidence below 0.80.
+- Wired into `PipelineWorker._run()` between extraction and translation: if `doc.source_language is None` and detection succeeds, `update_source_language()` is called and `doc` updated in-memory for the rest of the pipeline.
+- `documents.language_detected` bool column (migration `v6w7x8y9z0a1`) distinguishes auto-detected from connector-supplied languages.
+
+Impact:
+- Documents without a declared source language now get auto-detected language used for chunking and translation.
+- Translation quality improves when LibreTranslate receives a known source language vs. "auto".
+
 ## 2026-05-24 — BM25 search failures degrade gracefully (no 500)
 
 Status: Active

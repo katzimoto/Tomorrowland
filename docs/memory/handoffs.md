@@ -2,6 +2,47 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-25 — feat: parsers architecture — full file-type extraction & translation coverage
+
+Status: Done — commit 0ec5226 on main
+Source: Claude Code session
+
+What changed:
+- `src/services/extraction/mime_detector.py` — **new** MimeDetector (python-magic + mimetypes fallback)
+- `src/services/extraction/opendocument.py` — **new** OdsExtractor + OdpExtractor
+- `src/services/extraction/epub.py` — **new** EpubExtractor (ebooklib)
+- `src/services/extraction/ocr.py` — **new** OcrExtractor (pytesseract + Pillow; `ENABLE_OCR=false`)
+- `src/services/extraction/legacy_office.py` — **new** LegacyOfficeExtractor (LibreOffice subprocess; `ENABLE_LEGACY_OFFICE=false`)
+- `src/services/extraction/language.py` — **new** LanguageDetector (langdetect; `ENABLE_LANGUAGE_DETECTION=true`)
+- `src/services/extraction/registry.py` — alias map; ODS/ODP/EPUB registered; removed `octet-stream` fallback; feature-flagged OCR/LegacyOffice
+- `src/services/extraction/plain.py` — charset-aware 3-step decode
+- `src/services/extraction/pdf.py` — `ocr_fallback` flag + `_ocr_pdf()` helper
+- `src/services/connectors/folder.py`, `smb.py` — use `detect_mime_type()` instead of `mimetypes.guess_type()`
+- `src/services/pipeline/worker.py` — language detection injected; `lang_detector` + `enable_language_detection` constructor params
+- `src/services/documents/repository.py` — `update_source_language()` added; `_row_to_model` maps `language_detected`
+- `src/services/documents/models.py` — `language_detected: bool = False` on DocumentRow
+- `src/shared/config.py` — `enable_ocr`, `enable_legacy_office`, `enable_language_detection` flags
+- `src/services/pipeline/runner.py` — passes feature flags to ExtractorRegistry and PipelineWorker
+- `migrations/versions/v6w7x8y9z0a1_add_language_detected_flag.py` — **new** `language_detected` bool column on documents
+- `pyproject.toml` — added charset-normalizer, ebooklib, langdetect, python-magic; `[ocr]` optional group
+- 14 new/updated test files (54 extraction unit tests total)
+
+Verification:
+- `ruff check` — clean
+- `mypy --strict` — clean (29 source files)
+- 54 unit tests — all passed
+
+Open risks:
+- `octet-stream` fallback removed — any connector explicitly setting `mime_type=application/octet-stream` now gets no extractor. MimeDetector mitigates this for folder/SMB.
+- OCR/LibreOffice off by default; Docker image updates required before enabling.
+- Migration `v6w7x8y9z0a1` adds `language_detected` column — additive, safe to roll back.
+
+Next agent prompt:
+- No open items. Pick up next issue from release queue in AGENTS.md.
+- Optional follow-up: backfill job to re-process documents with empty `extracted_text` (previously unregistered MIME types).
+
+---
+
 ## 2026-05-25 — Fix: EML translation version silently skipped on empty translator response
 
 Status: Done — committed to main

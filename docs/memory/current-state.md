@@ -2,6 +2,27 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-25 — feat: parsers architecture — full file-type extraction & translation coverage
+
+Status: Done — commit 0ec5226, merged to main
+Source: Claude Code session; plan at `.claude/plans/design-the-parsers-architecture-curried-nova.md`
+
+5 phases implemented and merged:
+- **Phase 1**: `mime_detector.py` (python-magic content-sniffing + mimetypes fallback); registry alias map; removed `octet-stream → PlainExtractor` (was returning binary garbage); connectors use `detect_mime_type()`
+- **Phase 2**: `opendocument.py` (OdsExtractor + OdpExtractor); `epub.py` (ebooklib); charset-aware `plain.py` (UTF-8 → charset-normalizer → latin-1)
+- **Phase 3**: `language.py` (LanguageDetector, langdetect, ≥100 chars, 0.80 confidence); wired into `worker.py` after extraction; `update_source_language()` on DocumentRepository; migration `v6w7x8y9z0a1` adds `language_detected` bool column
+- **Phase 4**: `ocr.py` (OcrExtractor, pytesseract + Pillow); `pdf.py` OCR fallback (`ENABLE_OCR=false` by default)
+- **Phase 5**: `legacy_office.py` (LegacyOfficeExtractor, LibreOffice subprocess, 30s timeout; `ENABLE_LEGACY_OFFICE=false` by default)
+
+New core deps: charset-normalizer, ebooklib, langdetect, python-magic
+New optional dep group: `[ocr]` = pytesseract + Pillow + pdf2image
+New feature flags in Settings: `enable_ocr`, `enable_legacy_office`, `enable_language_detection`
+54 unit tests added/updated; mypy strict clean.
+
+Next action:
+- Smoke-test by ingesting `.ods`, `.epub`, and a scanned PDF via folder connector; confirm `document_translation_versions.status = 'available'` in DB.
+- Consider backfill job to re-process documents with empty `extracted_text` due to previously unregistered MIME types.
+
 ## 2026-05-25 — Fix: auto-enrich unconditional call removed from index_worker
 
 Status: Done — committed to main
