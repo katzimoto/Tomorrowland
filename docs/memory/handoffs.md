@@ -2,6 +2,25 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-25 — Fix: original document view showed translated content
+
+Status: Done — commit 69c8aa3 on main
+Source: Claude Code session
+
+**Bug:** `PreviewPane.tsx` only threaded `showOriginal` in its first `if`-block
+(extracted/translation/original+HTML). Plain text, CSV, Word, RTF, Markdown, and
+code files fell through to per-mime branches that called `TextPreview`, `CodeViewer`,
+and `MarkdownPreview` without the flag. Backend defaults `show_original=False`, so
+those renderers silently returned translated content even when `activeMode === "original"`.
+
+**Fix:** Pass `showOriginal={activeMode !== "translation"}` at every `TextPreview`,
+`CodeViewer`, and `MarkdownPreview` callsite in `PreviewPane`. Added `showOriginal`
+prop + `queryKey` slot to `CodeViewer` and `MarkdownPreview`. 88 unit tests pass.
+
+**Files changed:** `PreviewPane.tsx`, `CodeViewer.tsx`, `MarkdownPreview.tsx`
+
+---
+
 ## 2026-05-25 — Fix: auto-enrich fired on every document at index time
 
 Status: Done — committed to main
