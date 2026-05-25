@@ -100,9 +100,6 @@ class IndexConsumer(BaseConsumer):
         self._publisher.publish_alert(
             job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
         )
-        self._publisher.publish_enrich(
-            job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
-        )
         self._job_repo.mark_succeeded(job_id)
 
     def _index_meili(

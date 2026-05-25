@@ -2,6 +2,16 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-25 — Fix: auto-enrich unconditional call removed from index_worker
+
+Status: Done — committed to main
+Source: Claude Code session
+
+`index_worker.py` called `publish_enrich()` for every indexed document. Removed.
+Auto-enrich is now only triggered by `PreviewService._maybe_auto_enrich()` (view threshold)
+or manual `POST /documents/{document_id}/translate`. Config: `auto_enrich_threshold` (default 5)
+reads from `system_config` table key `auto_enrich.threshold`.
+
 ## 2026-05-25 — Unit test suite cleanup (21 → 0 failures)
 
 Status: Done — commits f4217a5, a8106d0, 09c300e on main

@@ -2,6 +2,27 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-25 — Fix: auto-enrich fired on every document at index time
+
+Status: Done — committed to main
+Source: Claude Code session
+
+**Bug:** `index_worker.py` called `publisher.publish_enrich()` unconditionally for every
+document after indexing, bypassing the `auto_enrich_threshold` (default 5 views) entirely.
+
+**Fix:** Removed 3 lines from `src/services/pipeline/index_worker.py` — the unconditional
+`publish_enrich()` call after `publish_alert()`.
+
+**Correct paths:**
+- Auto-enrich: `PreviewService._maybe_auto_enrich()` fires from the `/preview/{document_id}`
+  endpoint when `view_count >= threshold` and quality is not already `high`/`pending_high`.
+- Manual enrich: `POST /documents/{document_id}/translate` → enqueues `enrich_document` job directly.
+
+**Verification:** 31 unit tests pass (index worker, slow worker, rabbit client).
+
+Next agent prompt:
+- No open items from this session. Pick up next issue from AGENTS.md release queue.
+
 ## 2026-05-25 — Unit test suite cleanup
 
 Status: Done — commits f4217a5, a8106d0, 09c300e on main
