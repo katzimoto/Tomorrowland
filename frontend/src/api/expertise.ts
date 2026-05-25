@@ -2,7 +2,6 @@ import { api } from "./client";
 
 export interface ExpertiseSignals {
   views: number;
-  comments: number;
   annotations: number;
   subscriptions: number;
 }

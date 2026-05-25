@@ -9,7 +9,7 @@ test("uses neutral evidence language with backend-shaped results", () => {
         user_id: "u1",
         display_name: "Ari",
         score: 1.4,
-        signals: { views: 2, comments: 1, annotations: 0, subscriptions: 1 },
+        signals: { views: 2, annotations: 3, subscriptions: 1 },
         reason: "Has activity on matching documents",
         top_docs: [{ document_id: "d1", title: "Risk memo", score: 0.9 }],
       }}
@@ -23,7 +23,8 @@ test("uses neutral evidence language with backend-shaped results", () => {
   expect(screen.getByText("Evidence, not ranking")).toBeInTheDocument();
   expect(screen.getByText("Risk memo")).toBeInTheDocument();
   expect(screen.getByText("Views")).toBeInTheDocument();
-  expect(screen.getByText("Comments")).toBeInTheDocument();
+  expect(screen.getByText("Annotations")).toBeInTheDocument();
+  expect(screen.queryByText("Comments")).not.toBeInTheDocument();
   expect(
     screen.queryByText(/undefined evidence items/i)
   ).not.toBeInTheDocument();
@@ -37,7 +38,7 @@ test("does not require invented topic or evidence fields", () => {
         user_id: "u2",
         display_name: null,
         score: 0,
-        signals: { views: 0, comments: 0, annotations: 0, subscriptions: 0 },
+        signals: { views: 0, annotations: 0, subscriptions: 0 },
         reason: "Has activity on matching documents",
         top_docs: [],
       }}
