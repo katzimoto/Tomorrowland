@@ -96,6 +96,35 @@ The two forks touch disjoint tables (`pipeline_jobs` vs `documents`), so no conf
 
 ---
 
+## 2026-05-25 — Fix: EML (and EPUB) parsed with wrong extractor due to libmagic generic result
+
+Status: Done
+Source: Claude Code session
+
+**Symptom:** EML files "weren't parsed" (garbled content) and appeared to not exist in
+the source documents view. EPUB files similarly could land on `ZipExtractor`.
+
+**Root cause:** `MimeDetector.detect()` returned libmagic's result immediately for anything
+non-`application/octet-stream`. libmagic classifies EML as `text/plain` (it's a text format)
+and EPUB as `application/zip` (it's a ZIP). This caused `PlainExtractor` / `ZipExtractor`
+to be used instead of `EmlExtractor` / `EpubExtractor`, and attachment extraction was
+silently skipped (PlainExtractor has no `extract_attachments`).
+
+**Fix:** `src/services/extraction/mime_detector.py` — after libmagic returns a *generic*
+type (`text/plain`, `application/zip`, `application/octet-stream`), prefer
+`mimetypes.guess_type` when it returns a more specific type for the file extension.
+Non-generic libmagic results (e.g. `application/pdf` for a `.txt` file) are still trusted.
+
+**Files changed:**
+- `src/services/extraction/mime_detector.py` — `_GENERIC_TYPES` frozenset + fallback logic
+- `tests/unit/test_extraction_mime_detector.py` — 2 new tests (EML and EPUB cases)
+
+**Follow-up for "doesn't appear":** Likely dedup — EML docs were synced before the fix
+with `mime_type=text/plain` and empty/garbled content. Delete those rows or trigger a
+re-sync with content changes so SHA256 differs and `doc_repo.create()` re-creates them.
+
+---
+
 ## 2026-05-25 — Fix: original document view showed translated content
 
 Status: Done — commit 69c8aa3 on main

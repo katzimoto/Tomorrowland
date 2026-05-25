@@ -61,3 +61,41 @@ def test_detect_falls_back_when_magic_returns_octet_stream(tmp_path: Path) -> No
 
     # mimetypes maps .docx to the correct OOXML type
     assert "wordprocessingml" in mime or mime == "application/octet-stream"
+
+
+def test_detect_prefers_extension_over_generic_magic_for_eml(tmp_path: Path) -> None:
+    """libmagic returns text/plain for EML (it's text-based); extension wins."""
+    p = tmp_path / "email.eml"
+    p.write_bytes(b"From: alice@example.com\r\nSubject: Hi\r\n\r\nBody\r\n")
+
+    import types
+
+    fake_magic = types.ModuleType("magic")
+    fake_magic.from_file = lambda path, mime: "text/plain"  # type: ignore[attr-defined]
+
+    with (
+        patch("services.extraction.mime_detector._MAGIC_AVAILABLE", True),
+        patch("services.extraction.mime_detector._magic", fake_magic, create=True),
+    ):
+        mime = MimeDetector().detect(p)
+
+    assert mime == "message/rfc822"
+
+
+def test_detect_prefers_extension_over_generic_magic_for_epub(tmp_path: Path) -> None:
+    """libmagic returns application/zip for EPUB (it's a ZIP); extension wins."""
+    p = tmp_path / "book.epub"
+    p.write_bytes(b"PK\x03\x04")
+
+    import types
+
+    fake_magic = types.ModuleType("magic")
+    fake_magic.from_file = lambda path, mime: "application/zip"  # type: ignore[attr-defined]
+
+    with (
+        patch("services.extraction.mime_detector._MAGIC_AVAILABLE", True),
+        patch("services.extraction.mime_detector._magic", fake_magic, create=True),
+    ):
+        mime = MimeDetector().detect(p)
+
+    assert mime == "application/epub+zip"

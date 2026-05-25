@@ -24,25 +24,40 @@ except ImportError:  # pragma: no cover
 class MimeDetector:
     """Detect the MIME type of a file by content and extension."""
 
+    # Generic MIME types that libmagic may return for files whose format is
+    # better identified by file extension (e.g. EML files detected as text/plain).
+    _GENERIC_TYPES: frozenset[str] = frozenset(
+        {"text/plain", "application/octet-stream", "application/zip"}
+    )
+
     def detect(self, path: Path, filename: str | None = None) -> str:
         """Return the MIME type for *path*.
 
         Resolution order:
         1. ``python-magic`` content-sniffing (if libmagic is installed).
+           If the sniffed type is generic (e.g. ``text/plain``), the
+           extension-based guess is preferred when it is more specific.
         2. ``mimetypes.guess_type`` on *filename* (or *path.name*).
         3. Fallback: ``"application/octet-stream"``.
         """
         name = filename or path.name
 
+        # Always compute the extension-based guess so we can fall back to it.
+        guessed, _ = mimetypes.guess_type(name)
+
         if _MAGIC_AVAILABLE:
             try:
                 detected: str = _magic.from_file(str(path), mime=True)
                 if detected and detected != "application/octet-stream":
+                    # Prefer a specific extension-based type over a generic
+                    # libmagic result (e.g. message/rfc822 over text/plain for
+                    # .eml files, or application/epub+zip over application/zip).
+                    if detected in self._GENERIC_TYPES and guessed:
+                        return guessed
                     return detected
             except Exception:
                 logger.debug("python-magic failed for path=%s; falling back to mimetypes", path)
 
-        guessed, _ = mimetypes.guess_type(name)
         if guessed:
             return guessed
 
