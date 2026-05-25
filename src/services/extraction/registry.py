@@ -46,15 +46,28 @@ _ALIASES: dict[str, str] = {
     # Images (common mis-spellings / vendor types)
     "image/jpg": "image/jpeg",
     "image/pjpeg": "image/jpeg",
+    # Outlook MSG — libmagic returns compound-document types; mimetypes returns None for .msg
+    "application/CDFV2": "application/vnd.ms-outlook",
+    "application/x-ole-storage": "application/vnd.ms-outlook",
     # Markdown / reStructuredText / log files → plain
     "text/x-markdown": "text/plain",
+    # Python stdlib mimetypes maps .rst to text/prs.fallenstein.rst; libmagic uses text/x-rst
     "text/x-rst": "text/plain",
+    "text/prs.fallenstein.rst": "text/plain",
     "text/x-log": "text/plain",
-    # YAML / TOML / config → plain (readable as-is)
+    # YAML — stdlib mimetypes returns application/yaml (RFC 9512); older tools return x-yaml or text/yaml
+    "application/yaml": "text/plain",
     "application/x-yaml": "text/plain",
     "text/yaml": "text/plain",
+    # TOML / config → plain
     "application/toml": "text/plain",
     "text/x-toml": "text/plain",
+    # Source code → plain (text-readable; enables extraction from code repositories)
+    "text/x-python": "text/plain",
+    "text/javascript": "text/plain",
+    # mimetypes incorrectly maps .ts to Trolltech Linguist; treat as plain text
+    "text/vnd.trolltech.linguist": "text/plain",
+    "text/x-typescript": "text/plain",
 }
 
 

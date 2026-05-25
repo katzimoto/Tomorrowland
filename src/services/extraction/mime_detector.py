@@ -20,6 +20,15 @@ try:
 except ImportError:  # pragma: no cover
     _MAGIC_AVAILABLE = False
 
+# Supplement stdlib mimetypes with types it does not know about.
+# This ensures the extension-based fallback path works for these formats
+# even when libmagic is not installed.
+mimetypes.add_type("application/vnd.ms-outlook", ".msg")
+mimetypes.add_type("text/plain", ".log")
+mimetypes.add_type("text/plain", ".ini")
+mimetypes.add_type("text/plain", ".conf")
+mimetypes.add_type("application/toml", ".toml")
+
 
 class MimeDetector:
     """Detect the MIME type of a file by content and extension."""

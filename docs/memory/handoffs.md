@@ -125,6 +125,29 @@ re-sync with content changes so SHA256 differs and `doc_repo.create()` re-create
 
 ---
 
+## 2026-05-25 — Fix: MIME alias/detection gaps for .yaml, .msg, .rst, .py, .js, .ts, .log, .toml
+
+Status: Done
+Source: Claude Code session — follow-up audit of EML fix
+
+**Root cause:** Two complementary gaps:
+1. `_ALIASES` in `registry.py` was missing several types that stdlib `mimetypes` emits
+   (e.g. `application/yaml` for .yaml, `text/prs.fallenstein.rst` for .rst) and libmagic
+   compound-document types for .msg (`application/CDFV2`, `application/x-ole-storage`).
+2. `mimetypes` stdlib has no entry for `.msg`, `.log`, `.ini`, `.conf`, `.toml` — these
+   fell to `application/octet-stream` when libmagic was unavailable.
+
+**Files changed:**
+- `src/services/extraction/registry.py` — 9 new aliases added to `_ALIASES`
+- `src/services/extraction/mime_detector.py` — 5 `mimetypes.add_type()` calls at module
+  init to patch stdlib gaps (.msg → application/vnd.ms-outlook, .log/.ini/.conf → text/plain,
+  .toml → application/toml)
+
+**Intentional non-coverage:** `.7z`, `.rar`, `.odg`, `.odf`, `.gif` — no extractor exists
+and adding one is out of scope. `.gz` (standalone, no .tar prefix) and `.bz2` similarly.
+
+---
+
 ## 2026-05-25 — Fix: original document view showed translated content
 
 Status: Done — commit 69c8aa3 on main
