@@ -77,6 +77,7 @@ interface CodeViewerProps {
   docId: string;
   mimeType: string;
   title?: string;
+  showOriginal?: boolean;
   searchQuery?: string;
   activeSearchIndex?: number;
   onMatchCountChange?: (count: number) => void;
@@ -86,6 +87,7 @@ export function CodeViewer({
   docId,
   mimeType,
   title,
+  showOriginal,
   searchQuery = "",
   activeSearchIndex = 0,
   onMatchCountChange,
@@ -98,8 +100,8 @@ export function CodeViewer({
   const language = detectLanguage(mimeType, title);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["doc-code-text", docId],
-    queryFn: () => getDocumentText(docId, { offset: 0, limit: CODE_TRUNCATE }),
+    queryKey: ["doc-code-text", docId, showOriginal],
+    queryFn: () => getDocumentText(docId, { offset: 0, limit: CODE_TRUNCATE, showOriginal }),
     staleTime: 5 * 60_000,
   });
 

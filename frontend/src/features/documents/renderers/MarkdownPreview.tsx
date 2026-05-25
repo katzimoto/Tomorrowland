@@ -10,6 +10,7 @@ interface MarkdownPreviewProps {
   docId: string;
   /** Fallback snippet used if docId fetch is unavailable. */
   fallbackText?: string;
+  showOriginal?: boolean;
 }
 
 DOMPurify.addHook("afterSanitizeAttributes", (node) => {
@@ -29,13 +30,13 @@ const SANITIZE_CONFIG: DOMPurifyConfig = {
   FORBID_TAGS: ["script", "style"],
 };
 
-export function MarkdownPreview({ docId, fallbackText = "" }: MarkdownPreviewProps) {
+export function MarkdownPreview({ docId, fallbackText = "", showOriginal }: MarkdownPreviewProps) {
   const [mode, setMode] = useState<"rendered" | "raw">("rendered");
   const [copied, setCopied] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["doc-text", docId],
-    queryFn: () => getDocumentText(docId, { offset: 0, limit: 100_000 }),
+    queryKey: ["doc-text", docId, showOriginal],
+    queryFn: () => getDocumentText(docId, { offset: 0, limit: 100_000, showOriginal }),
     enabled: !!docId,
     staleTime: 5 * 60_000,
   });

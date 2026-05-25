@@ -111,6 +111,7 @@ export function PreviewPane({
         <MarkdownPreview
           docId={preview.document_id}
           fallbackText={text ?? ""}
+          showOriginal={activeMode !== "translation"}
         />
       </div>
     );
@@ -121,6 +122,7 @@ export function PreviewPane({
       <div className={styles.pane}>
         <TextPreview
           docId={preview.document_id}
+          showOriginal={activeMode !== "translation"}
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
@@ -136,6 +138,7 @@ export function PreviewPane({
           docId={preview.document_id}
           mimeType={mime}
           title={preview.title ?? undefined}
+          showOriginal={activeMode !== "translation"}
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
@@ -261,6 +264,7 @@ export function PreviewPane({
       <div className={styles.pane}>
         <TextPreview
           docId={preview.document_id}
+          showOriginal={activeMode !== "translation"}
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
