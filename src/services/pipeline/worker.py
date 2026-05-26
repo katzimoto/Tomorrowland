@@ -30,6 +30,24 @@ from shared.metrics import MetricsRegistry
 logger = logging.getLogger(__name__)
 
 
+def _maybe_delete_connector_temp(path: str) -> None:
+    """Delete *path* if it lives inside the system temporary directory.
+
+    Connectors that download files to a temp location (SMB, Atlassian
+    attachment downloads) set ``doc.path`` to a temp file the worker owns
+    after extraction.  Folder and NiFi staged files live outside the system
+    temp directory and are intentionally left untouched.
+
+    Errors are silently suppressed — a failed cleanup is never fatal.
+    """
+    try:
+        p = Path(path)
+        if p.is_relative_to(Path(tempfile.gettempdir())):
+            p.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 class ProcessResult(NamedTuple):
     """Result returned by process_document on success."""
 
@@ -136,6 +154,11 @@ class PipelineWorker:
             text = pre_extracted_text
         elif doc.path is not None:
             text = self._extractor.extract(Path(doc.path), doc.mime_type)
+            # Release connector-owned temp files (SMB downloads, Atlassian
+            # attachment downloads) immediately after text is extracted.
+            # Folder and NiFi staged files live outside the system temp dir
+            # and are not affected.
+            _maybe_delete_connector_temp(doc.path)
         else:
             raise ValueError(
                 f"Document {document_id} has neither a file path nor pre_extracted_text"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -9,8 +10,63 @@ from uuid import UUID, uuid4
 import pytest
 
 from services.documents.models import DocumentRow
-from services.pipeline.worker import PipelineWorker, ProcessResult
+from services.pipeline.worker import PipelineWorker, ProcessResult, _maybe_delete_connector_temp
 from services.search.meili_types import SearchChunkRecord
+
+# ---------------------------------------------------------------------------
+# _maybe_delete_connector_temp — connector temp-file cleanup helper
+# ---------------------------------------------------------------------------
+
+
+def test_maybe_delete_connector_temp_removes_file_in_tmpdir(tmp_path: Path) -> None:
+    """Files inside the system temp directory are deleted after extraction (SMB, Atlassian)."""
+    f = tmp_path / "smb_download.pdf"
+    f.write_bytes(b"content")
+
+    _maybe_delete_connector_temp(str(f))
+
+    assert not f.exists()
+
+
+def test_maybe_delete_connector_temp_silent_when_already_gone(tmp_path: Path) -> None:
+    """No exception when the temp file was already cleaned up."""
+    missing = str(tmp_path / "gone.pdf")
+    _maybe_delete_connector_temp(missing)  # must not raise
+
+
+def test_maybe_delete_connector_temp_preserves_files_outside_tmpdir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Folder-connector source files that live outside the temp dir are not deleted."""
+    f = tmp_path / "folder_doc.pdf"
+    f.write_bytes(b"keep me")
+
+    # Redirect gettempdir so our file appears to be outside the temp tree,
+    # simulating a folder-connector path like /data/documents/report.pdf.
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path / "other-tmp"))
+
+    _maybe_delete_connector_temp(str(f))
+
+    assert f.exists()
+
+
+def test_maybe_delete_connector_temp_is_noop_on_exception(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Any unexpected error inside the helper is silently swallowed."""
+    f = tmp_path / "file.pdf"
+    f.write_bytes(b"x")
+
+    # Force is_relative_to to raise so we exercise the outer except clause.
+    def _boom(*_: object) -> bool:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(Path, "is_relative_to", _boom)  # type: ignore[attr-defined]
+
+    _maybe_delete_connector_temp(str(f))  # must not raise
+    assert f.exists()  # file untouched because cleanup was skipped
 
 
 class _FakeDocumentRepository:
@@ -479,7 +535,9 @@ def test_worker_skips_attachment_when_mime_not_supported(tmp_path: Path) -> None
 
 
 @patch("services.pipeline.worker.DocumentRelationshipRepository")
-def test_worker_creates_child_doc_for_supported_attachment(mock_rel_repo_cls: MagicMock, tmp_path: Path) -> None:
+def test_worker_creates_child_doc_for_supported_attachment(
+    mock_rel_repo_cls: MagicMock, tmp_path: Path
+) -> None:
     mock_rel_repo_cls.return_value = MagicMock()  # rel_repo.create_relationship is a no-op
     from services.extraction.base import AttachmentData
 

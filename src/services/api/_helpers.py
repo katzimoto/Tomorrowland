@@ -97,6 +97,11 @@ def _classify_connection_error(
             return ("permission_denied", _sanitize_source_error(str(exc), source_row))
         if "connection" in message or "timeout" in message or "refused" in message:
             return ("unreachable", _sanitize_source_error(str(exc), source_row))
+    if connector_type == "nifi":
+        if "staging_root" in message or "does not exist" in message or "not a directory" in message:
+            return ("config_invalid", _sanitize_source_error(str(exc), source_row))
+        if "connection" in message or "timeout" in message or "refused" in message:
+            return ("unreachable", _sanitize_source_error(str(exc), source_row))
     if "requires" in message or "missing" in message or "invalid" in message:
         return ("config_invalid", _sanitize_source_error(str(exc), source_row))
     return ("config_invalid", _sanitize_source_error(str(exc), source_row))

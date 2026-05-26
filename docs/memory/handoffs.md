@@ -2,6 +2,40 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-26 — pipeline connector parity — 6-bug sweep
+
+Status: Done — committed to main
+Source: Claude Code session
+
+**Root cause:** Both ingestion paths (`sync-now` API and scheduler) used hard-coded `connector_type == "smb"` string checks instead of capability-based checks, causing SMB temp files to be deleted too early (before the async worker reads them), Atlassian attachment temp files to leak, RabbitMQ messages to never be published from the scheduler, generator-level exceptions to be silently swallowed, and a logically unreachable `"failed"` sync outcome.
+
+**Bugs fixed:**
+1. **Temp file deleted before worker reads it** — `sync-now` called `os.unlink` on `item.path` inside the ingestion loop; the pipeline worker needs the file after the HTTP request returns. Removed the early unlink entirely.
+2. **Atlassian temp files leaked** — SMB-only `os.unlink` never ran for Confluence/Jira attachment paths. Moved cleanup into `PipelineWorker._run()` via `_maybe_delete_connector_temp()`: deletes `doc.path` only if it lives under `tempfile.gettempdir()` (SMB + Atlassian), leaves Folder/NiFi staged files alone.
+3. **Scheduler never published RabbitMQ messages** — `_sync_source` returned nothing; messages were enqueued in `pipeline_jobs` but never published. Added `_publish_scheduled_rabbit_messages()` mirroring the sync-now API path; refactored `_run_scheduled_syncs` to accept `engine` + `settings` and publish post-commit.
+4. **`sync_outcome = "failed"` logically unreachable** — condition was `failed_discovery > 0 and discovered == 0` which can never be true. Fixed to `discovered > 0 and failed_discovery == discovered`.
+5. **Generator exception swallowed** — `try/except` wrapped `connector.fetch_documents()` (the call), not the iteration. Since all real connectors are generators, the call always succeeds; mid-iteration errors (page 2 network failure etc.) were uncaught. Moved `try/except` around the `for item in documents:` loop.
+6. **NiFi missing from `_classify_connection_error`** — Folder, SMB, Confluence, Jira all had connector-specific error classification; NiFi was absent, defaulting to a generic branch. Added NiFi branch for `staging_root`/`does not exist`/`not a directory` → `config_invalid` and `connection`/`timeout`/`refused` → `unreachable`.
+
+**Changed files:**
+- `src/services/api/_helpers.py` — Bug 6: NiFi branch in `_classify_connection_error`
+- `src/services/api/routers/admin/ingestion.py` — Bugs 1+4: removed early `os.unlink`; fixed `sync_outcome` condition
+- `src/services/pipeline/worker.py` — Bugs 1+2: added `_maybe_delete_connector_temp()`, called after extraction
+- `src/services/pipeline/scheduler.py` — Bugs 1+2+3+4+5: refactored to per-source transactions, added RabbitMQ publish, fixed generator iteration guard, fixed `sync_outcome`
+- `tests/integration/test_pipeline.py` — updated SMB cleanup test (temp files now preserved for worker)
+- `tests/unit/test_pipeline_worker.py` — 4 new tests for `_maybe_delete_connector_temp`
+
+**Verification:** 80 unit tests passed, 35 integration tests passed, ruff clean, mypy clean.
+
+**Remaining risks:**
+- `_maybe_delete_connector_temp` relies on `Path.is_relative_to(tempfile.gettempdir())`. On systems where a connector writes to a custom temp dir outside `gettempdir()` (e.g. Docker volume mounts), files would not be cleaned up. A future `ConnectorDocument.owned_by_caller: bool` flag would be cleaner.
+- NiFi `staging_root` temp files are permanent staged paths — not cleaned up by the new helper (correct behavior: NiFi manages its own staging). No change needed, but worth noting.
+
+**Next agent prompt:**
+> Continue the ACL HIGH items from `docs/context/acl-audit.md`: `/search` admin bypass, `/expertise` admin bypass, stub `SearchResultItem`, transitive-group expansion, and `/expertise` subscription leak.
+
+---
+
 ## 2026-05-26 — annotations router — security fixes (delete_reply + list_replies)
 
 Status: Done — committed to main

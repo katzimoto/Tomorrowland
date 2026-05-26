@@ -736,10 +736,15 @@ def test_sync_now_connector_enumeration_failure_returns_safe_error(
     assert "super-secret-key" not in detail.lower()
 
 
-def test_sync_now_smb_cleanup_on_item_failure(
+def test_sync_now_smb_preserves_temp_files_for_worker(
     migrated_engine: Engine,
 ) -> None:
-    """SMB staged files are cleaned up even when the item fails."""
+    """sync-now no longer deletes connector temp files — that is the worker's job.
+
+    SMB (and Atlassian attachment) temp files must survive the ingestion loop
+    so the pipeline worker can read doc.path during extraction.  Cleanup moves
+    to PipelineWorker._run via _maybe_delete_connector_temp.
+    """
     _setup_admin(migrated_engine)
 
     source_id = uuid4()
@@ -792,10 +797,7 @@ def test_sync_now_smb_cleanup_on_item_failure(
     mock_translator.translate.side_effect = lambda text, **_: text
 
     _ingestion = "services.api.routers.admin.ingestion"
-    with (
-        patch(f"{_ingestion}.build_connector", return_value=_SmbConnector()),
-        patch(f"{_ingestion}.os.unlink") as mock_unlink,
-    ):
+    with patch(f"{_ingestion}.build_connector", return_value=_SmbConnector()):
         client = TestClient(
             create_app(
                 migrated_engine,
@@ -816,6 +818,4 @@ def test_sync_now_smb_cleanup_on_item_failure(
     assert data["enqueued"] == 2
     assert data["failed_enqueue"] == 0
     assert data["failed_discovery"] == 0
-    assert mock_unlink.call_count == 2
-    paths = {call.args[0] for call in mock_unlink.call_args_list}
-    assert paths == {"/tmp/staged_001.txt", "/tmp/staged_002.txt"}
+    # Temp files are NOT deleted during sync-now; the pipeline worker owns cleanup.

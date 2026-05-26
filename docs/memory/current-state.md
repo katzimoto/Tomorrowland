@@ -2,6 +2,18 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-26 — pipeline connector parity — 6-bug sweep complete
+
+Status: Done — committed to main
+Source: Claude Code session
+
+6 logical bugs fixed across pipeline ingestion paths (sync-now API + scheduler + worker):
+temp file lifecycle (SMB/Atlassian), RabbitMQ scheduler publish gap, generator iteration guard,
+unreachable `sync_outcome = "failed"`, and NiFi missing from error classification.
+See `handoffs.md` for full detail.
+
+---
+
 ## 2026-05-26 — annotations router — 2 security bugs fixed, ACL MEDIUM items still open
 
 Status: Active

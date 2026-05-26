@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
-from contextlib import suppress
 from typing import Annotated, Any, cast
 from uuid import UUID, uuid4
 
@@ -213,12 +211,8 @@ def sync_now(
                 request.app.state.metrics.ingestion_documents_total.labels(
                     safe_label_value(connector_type), "failure"
                 ).inc()
-            finally:
-                if connector_type == "smb" and item.path:
-                    with suppress(OSError):
-                        os.unlink(item.path)
 
-        if results["failed_discovery"] > 0 and results["discovered"] == 0:
+        if results["discovered"] > 0 and results["failed_discovery"] == results["discovered"]:
             sync_outcome = "failed"
         elif results["failed_enqueue"] > 0 or results["failed_discovery"] > 0:
             sync_outcome = "partial_failure"
