@@ -2,9 +2,9 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
-## 2026-05-26 — fix/extractor-bugs — 14-bug sweep (extractors + translation pipeline)
+## 2026-05-26 — fix/extractor-bugs — 15-bug sweep (extractors + translation pipeline)
 
-Status: Active — branch fix/extractor-bugs; PR open
+Status: Merged — main
 Source: Claude Code session
 
 **Changed files:**
@@ -19,10 +19,11 @@ Source: Claude Code session
 - `src/services/extraction/registry.py` — remove self-alias + dead x-zip-compressed entry
 - `src/services/pipeline/translation_worker.py` — graceful skip for empty content_text
 - `src/services/pipeline/slow_worker.py` — `type(exc).__name__` in loop error log
-- `tests/unit/test_extractor_bug_fixes.py` — 18 new regression tests (new file)
+- `src/services/pipeline/translate_worker.py` — use doc.target_language (default "en") instead of hardcoded "en"
+- `tests/unit/test_extractor_bug_fixes.py` — 20 regression tests (new file; +2 for bug 15)
 - `tests/unit/test_translation_worker.py` — 2 tests updated for new graceful-skip behavior
 
-**Verification:** 807 unit tests pass (26/26 translation_worker + 18/18 regression). 28 pre-existing failures in `test_compose_volumes.py` are unrelated.
+**Verification:** 28/28 targeted tests pass. 28 pre-existing failures in `test_compose_volumes.py` are unrelated.
 
 **Remaining risks:**
 - `test_compose_volumes.py` pre-existing failures need a separate fix (airgap compose YAML shape).
@@ -30,8 +31,7 @@ Source: Claude Code session
 - Scanned PDFs still need `ENABLE_OCR=true` for any text extraction.
 
 **Next agent prompt:**
-- Merge fix/extractor-bugs to main after CI passes.
-- Consider a backfill job to re-extract documents that had XML, RTF, or HTML files previously returning empty (mime_type known + extracted_text empty + content_sha256 matches original file).
+- Consider a backfill job to re-extract documents that had XML, RTF, or HTML files previously returning empty.
 
 ## 2026-05-26 — fix: translation sweep — read-path, 6 bugs, TOCTOU race, xlsx, attachments
 

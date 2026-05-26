@@ -49,6 +49,7 @@ class TranslateConsumer(BaseConsumer):
         lang = doc.source_language if doc else None
         if lang == "":
             lang = None
+        target_lang = (doc.target_language if doc else None) or "en"
 
         if not content_text:
             logger.debug("translate skipped: empty content_text for document_id=%s", document_id)
@@ -65,7 +66,7 @@ class TranslateConsumer(BaseConsumer):
         translated = content_text
         if self._translator:
             translated = (
-                self._translator.translate(content_text, source_lang=lang, target_lang="en")
+                self._translator.translate(content_text, source_lang=lang, target_lang=target_lang)
                 or content_text
             )
 
@@ -78,7 +79,7 @@ class TranslateConsumer(BaseConsumer):
             self._doc_repo.update_indexed(document_id, "indexed", quality)
 
         if self._version_repo and did_translate:
-            existing = self._version_repo.find_pending_or_running(document_id, "en")
+            existing = self._version_repo.find_pending_or_running(document_id, target_lang)
             if existing is not None:
                 self._version_repo.update_version_status(
                     UUID(str(existing["id"])),
@@ -91,9 +92,9 @@ class TranslateConsumer(BaseConsumer):
                     label="Ingestion",
                     quality="fast",
                     request_type="ingestion",
-                    target_language="en",
+                    target_language=target_lang,
                 )
-                created = self._version_repo.find_pending_or_running(document_id, "en")
+                created = self._version_repo.find_pending_or_running(document_id, target_lang)
                 if created is not None:
                     self._version_repo.update_version_status(
                         UUID(str(created["id"])),

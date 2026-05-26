@@ -472,3 +472,121 @@ def test_eml_extract_attachments_prefers_filename_mime_over_default(tmp_path: Pa
     assert len(attachments) == 1
     # Must use filename-guessed type, not the default "text/plain"
     assert attachments[0].mime_type == "application/pdf"
+
+
+# ---------------------------------------------------------------------------
+# Bug 15: TranslateConsumer hardcodes target_lang="en", ignores doc.target_language
+# ---------------------------------------------------------------------------
+
+
+def test_translate_consumer_uses_doc_target_language() -> None:
+    """TranslateConsumer must pass doc.target_language to the translator, not hardcode 'en'.
+
+    Previously all three translation calls used the string literal "en":
+      - translator.translate(..., target_lang="en")
+      - version_repo.find_pending_or_running(document_id, "en")
+      - version_repo.create_version(..., target_language="en")
+
+    After the fix each uses (doc.target_language or "en") so that documents
+    configured for French, Spanish, etc. are actually translated to those
+    languages and their version records are tagged correctly.
+    """
+    from uuid import uuid4
+
+    from services.pipeline.translate_worker import TranslateConsumer
+
+    document_id = uuid4()
+    source_id = uuid4()
+    job_id = uuid4()
+
+    mock_doc = MagicMock()
+    mock_doc.source_language = "fr"
+    mock_doc.target_language = "de"  # German — must NOT be overridden to "en"
+
+    mock_doc_repo = MagicMock()
+    mock_doc_repo.get_by_id.return_value = mock_doc
+
+    mock_translator = MagicMock()
+    mock_translator.translate.return_value = "Übersetzter Text"
+
+    mock_version_repo = MagicMock()
+    mock_version_repo.find_pending_or_running.return_value = None  # create new version
+
+    mock_job_repo = MagicMock()
+    mock_publisher = MagicMock()
+
+    consumer = TranslateConsumer(
+        rabbit=MagicMock(),
+        job_repo=mock_job_repo,
+        publisher=mock_publisher,
+        translator=mock_translator,
+        version_repo=mock_version_repo,
+        doc_repo=mock_doc_repo,
+    )
+
+    consumer.handle_message(
+        job_id=job_id,
+        document_id=document_id,
+        source_id=source_id,
+        attempt=1,
+        correlation_id="test-corr",
+        content_text="Bonjour le monde",
+    )
+
+    # Translator must have been called with target_lang="de", not "en"
+    mock_translator.translate.assert_called_once()
+    call_kwargs = mock_translator.translate.call_args
+    assert call_kwargs.kwargs.get("target_lang") == "de", (
+        f"Expected target_lang='de' but got {call_kwargs.kwargs.get('target_lang')!r}"
+    )
+
+    # Version lookup and creation must use "de", not "en"
+    mock_version_repo.find_pending_or_running.assert_called_with(document_id, "de")
+    create_call = mock_version_repo.create_version.call_args
+    assert create_call.kwargs.get("target_language") == "de", (
+        f"Expected target_language='de' but got {create_call.kwargs.get('target_language')!r}"
+    )
+
+
+def test_translate_consumer_defaults_target_lang_to_en_when_doc_missing() -> None:
+    """When doc_repo is None or doc is not found, target_lang must default to 'en'."""
+    from uuid import uuid4
+
+    from services.pipeline.translate_worker import TranslateConsumer
+
+    document_id = uuid4()
+    source_id = uuid4()
+    job_id = uuid4()
+
+    mock_translator = MagicMock()
+    mock_translator.translate.return_value = "Hello world"
+
+    mock_version_repo = MagicMock()
+    mock_version_repo.find_pending_or_running.return_value = None
+
+    mock_job_repo = MagicMock()
+    mock_publisher = MagicMock()
+
+    # No doc_repo provided — doc will be None
+    consumer = TranslateConsumer(
+        rabbit=MagicMock(),
+        job_repo=mock_job_repo,
+        publisher=mock_publisher,
+        translator=mock_translator,
+        version_repo=mock_version_repo,
+        doc_repo=None,
+    )
+
+    consumer.handle_message(
+        job_id=job_id,
+        document_id=document_id,
+        source_id=source_id,
+        attempt=1,
+        correlation_id="test-corr",
+        content_text="Bonjour",
+    )
+
+    # Must fall back to "en"
+    call_kwargs = mock_translator.translate.call_args
+    assert call_kwargs.kwargs.get("target_lang") == "en"
+    mock_version_repo.find_pending_or_running.assert_called_with(document_id, "en")
