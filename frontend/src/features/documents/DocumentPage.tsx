@@ -76,9 +76,11 @@ export function DocumentPage() {
   // Reset mode and image zoom when navigating to a different document.
   useEffect(() => {
     initialModeDoneRef.current = false;
+    hadInProgressRef.current = false;
     startTransition(() => {
       setActiveMode("original");
       setImageZoom(null);
+      setSelectedVersionId(undefined);
       closeSearch();
     });
   }, [docId, closeSearch]);
