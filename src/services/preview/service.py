@@ -321,47 +321,43 @@ class PreviewService:
         if view_count < threshold:
             return
 
-        # Check if a pending/running version already exists
-        existing = self._connection.execute(
-            sa.text("""
-                    SELECT id FROM document_translation_versions
-                    WHERE document_id = :document_id
-                      AND request_type = 'auto_enrich'
-                      AND status IN ('pending', 'running')
-                    LIMIT 1
-                    """),
-            {"document_id": db_uuid(document_id)},
-        ).scalar_one_or_none()
-        if existing:
-            return
-
-        # Create auto_enrich version
-        next_number = self._connection.execute(
-            sa.text("""
-                    SELECT COALESCE(MAX(version_number), 0) + 1
-                    FROM document_translation_versions
-                    WHERE document_id = :document_id
-                    """),
-            {"document_id": db_uuid(document_id)},
-        ).scalar_one()
-
-        self._connection.execute(
+        # Atomic insert: compute next version_number and insert in one statement.
+        # ON CONFLICT with the partial unique index on (document_id, request_type)
+        # WHERE status IN ('pending', 'running') ensures only one active
+        # auto_enrich job exists per document — even under concurrent requests
+        # that both pass the view-count threshold at the same time.
+        result = self._connection.execute(
             sa.text("""
                 INSERT INTO document_translation_versions (
                     id, document_id, version_number, label, quality, request_type,
                     status, target_language
                 )
-                VALUES (
-                    :id, :document_id, :version_number, 'Auto-enrich', 'high',
-                    'auto_enrich', 'pending', 'en'
-                )
+                SELECT
+                    :id,
+                    :document_id,
+                    COALESCE(
+                        (SELECT MAX(version_number)
+                         FROM document_translation_versions
+                         WHERE document_id = :document_id),
+                        0
+                    ) + 1,
+                    'Auto-enrich',
+                    'high',
+                    'auto_enrich',
+                    'pending',
+                    'en'
+                ON CONFLICT (document_id, request_type)
+                WHERE status IN ('pending', 'running')
+                DO NOTHING
                 """),
             {
                 "id": db_uuid(uuid4()),
                 "document_id": db_uuid(document_id),
-                "version_number": next_number,
             },
         )
+        if result.rowcount == 0:
+            # Another request beat us to it — job already queued.
+            return
 
         self._connection.execute(
             sa.text("""
