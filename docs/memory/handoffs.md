@@ -2,6 +2,40 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-26 — fix/office-extraction-empty-text — 3-bug sweep (PR #521)
+
+Status: Done — merged to main
+Source: Claude Code session
+
+**Root cause:** Three independent bugs all produced empty text for PPTX/DOCX documents.
+
+**Bug 1 — preview snippet from deleted temp files (`src/services/preview/service.py`)**
+`_generate_snippet` fell through to file re-extraction when no translation was found. SMB/Atlassian connectors delete the temp file after pipeline processing — file re-extraction always returned `""` even though `content_text` was safely stored in `document_payloads`. Fix: read `document_payloads.content_text` before the file fallback. Primary-key lookup; negligible overhead.
+
+**Bug 2 — content_text lost on retry (`src/services/pipeline/consumer_base.py`)**
+The manual retry path (`attempt >= retry_limit`, `< max_attempts`) rebuilt the retry JSON without `content_text`. Translate/embed/index workers all received `content_text=""` on retried messages. Fix: call `job_repo.get_payload(document_id)` in the retry branch and include `content_text` when the payload exists.
+
+**Bug 3 — extractor exception gaps (`src/services/extraction/pptx_extractor.py`, `docx.py`)**
+Both caught `(OSError, KeyError, PackageNotFoundError)` but not `zipfile.BadZipFile` or `ValueError`. Corrupted or mis-identified ZIP-based Office files propagated unhandled exceptions. Fix: added `zipfile.BadZipFile` and `ValueError` to both tuples.
+
+**Changed files:**
+- `src/services/preview/service.py`
+- `src/services/pipeline/consumer_base.py`
+- `src/services/extraction/pptx_extractor.py`
+- `src/services/extraction/docx.py`
+- `tests/unit/test_preview_service.py` (new)
+- `tests/unit/test_extraction_pptx.py` (+2 tests)
+- `tests/unit/test_extraction_docx.py` (+2 tests)
+- `tests/unit/test_consumer_base.py` (+2 tests)
+
+**Verification:** 17/17 targeted tests pass; ruff clean; mypy clean (4 source files, strict).
+
+**Remaining risks:**
+- Early retry attempts (attempt < `retry_limit` = `min(3, max_attempts)`) still use `basic_nack` → RabbitMQ DLQ re-route which does not carry `content_text`. Downstream workers can re-read from `document_payloads` if needed.
+- `_generate_snippet` now makes one additional primary-key DB query per non-translated preview; negligible at current scale.
+
+---
+
 ## 2026-05-26 — pipeline connector parity — 6-bug sweep
 
 Status: Done — committed to main

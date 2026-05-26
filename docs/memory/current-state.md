@@ -2,6 +2,20 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-26 — fix/office-extraction-empty-text — 3-bug sweep merged (PR #521)
+
+Status: Done — merged to main
+Source: Claude Code session
+
+PPTX/DOCX/XLSX showing no extracted text in the app — three separate bugs all contributed:
+1. `PreviewService._generate_snippet` skipped `document_payloads.content_text` and went straight to file re-extraction; temp-file connectors (SMB/Atlassian) delete the file after the pipeline, so snippets were always empty. Fixed: read payload row first.
+2. `consumer_base.py` manual retry path (attempt ≥ retry_limit) rebuilt message JSON without `content_text`; translate/embed/index workers all received `""`. Fixed: `get_payload()` + include in retry body.
+3. `PptxExtractor` / `DocxExtractor` didn't catch `zipfile.BadZipFile` or `ValueError`; corrupted files propagated unhandled exceptions. Fixed: widened exception tuple.
+
+8 regression tests (17 total across 4 files). Ruff + mypy clean.
+
+---
+
 ## 2026-05-26 — pipeline connector parity — 6-bug sweep complete
 
 Status: Done — committed to main
