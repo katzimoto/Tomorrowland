@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import zipfile
 from pathlib import Path
 
 from docx import Document
@@ -36,5 +37,5 @@ class DocxExtractor:
                         if cell.text:
                             texts.append(cell.text)
             return "\n".join(texts)
-        except (OSError, KeyError, PackageNotFoundError):
+        except (OSError, KeyError, ValueError, zipfile.BadZipFile, PackageNotFoundError):
             return ""
