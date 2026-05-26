@@ -699,3 +699,140 @@ def test_owner_gets_can_modify_true_on_update(migrated_engine: Engine) -> None:
     )
     assert update_resp.status_code == 200
     assert update_resp.json()["can_modify"] is True
+
+
+# ---------------------------------------------------------------------------
+# Bug regression: delete_reply must enforce document-level access
+# ---------------------------------------------------------------------------
+
+
+def _user_token(client: TestClient) -> str:
+    login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
+    assert login.status_code == 200
+    return str(login.json()["access_token"])
+
+
+def test_delete_reply_blocked_without_doc_access(migrated_engine: Engine) -> None:
+    """delete_reply must reject callers who lost document-level access.
+
+    Regression for the bug where DELETE /annotation-replies/{id} skipped
+    assert_doc_access, allowing a revoked user to delete their own reply by
+    knowing the reply UUID.
+    """
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+
+    # Create a doc that belongs to the "admins" group only — regular user has no access.
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    admin_token = _admin_token(client)
+
+    # Admin creates an annotation on the doc.
+    ann_resp = client.post(
+        f"/documents/{doc_id}/annotations",
+        json={"text": "Admin annotation"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert ann_resp.status_code == 201
+    annotation_id = ann_resp.json()["id"]
+
+    # Admin creates a reply (so the reply is owned by admin).
+    reply_resp = client.post(
+        f"/annotations/{annotation_id}/replies",
+        json={"body": "Admin reply"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert reply_resp.status_code == 201
+    reply_id = reply_resp.json()["id"]
+
+    # Regular user (no doc access) tries to delete the reply — must be rejected.
+    user_token = _user_token(client)
+    del_resp = client.delete(
+        f"/annotation-replies/{reply_id}",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    # 403 from assert_doc_access (or 404 if reply lookup fails first) — either way not 204.
+    assert del_resp.status_code in (403, 404)
+
+    # Confirm the reply still exists (admin can still fetch replies).
+    list_resp = client.get(
+        f"/annotations/{annotation_id}/replies",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert list_resp.status_code == 200
+    assert len(list_resp.json()["replies"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Bug regression: list_replies must hide replies on private annotations
+# ---------------------------------------------------------------------------
+
+
+def test_list_replies_hidden_for_private_annotation(migrated_engine: Engine) -> None:
+    """list_replies must return 404 for a private annotation owned by another user.
+
+    Regression for the bug where GET /annotations/{id}/replies only checked
+    document-level access but not annotation-level visibility, allowing a
+    non-owner with doc access to enumerate replies on a private annotation.
+    """
+    _setup_users(migrated_engine)
+
+    # Doc shared with both groups so both users have document access.
+    with migrated_engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        users_group_id = auth_repo.ensure_group("users")
+        admins_group_id = auth_repo.ensure_group("admins")
+        source_id = auth_repo.create_ingestion_source("Shared Source")
+        auth_repo.grant_source_to_group(source_id, users_group_id)
+        auth_repo.grant_source_to_group(source_id, admins_group_id)
+
+        doc_repo = DocumentRepository(connection)
+        doc = doc_repo.create(
+            source_id=source_id,
+            external_id="file:/data/private-ann-test.txt",
+            source="folder",
+            mime_type="text/plain",
+            title="Private Annotation Test Doc",
+            path="/data/private-ann-test.txt",
+        )
+        assert doc is not None
+        doc_id = doc.id
+
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+
+    admin_token = _admin_token(client)
+    user_token = _user_token(client)
+
+    # Admin creates a *private* annotation on the shared doc.
+    ann_resp = client.post(
+        f"/documents/{doc_id}/annotations",
+        json={"text": "Private annotation", "is_private": True},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert ann_resp.status_code == 201
+    annotation_id = ann_resp.json()["id"]
+
+    # Admin adds a reply to their own private annotation.
+    reply_resp = client.post(
+        f"/annotations/{annotation_id}/replies",
+        json={"body": "Private reply"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert reply_resp.status_code == 201
+
+    # Owner (admin) can list replies.
+    owner_list = client.get(
+        f"/annotations/{annotation_id}/replies",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert owner_list.status_code == 200
+    assert len(owner_list.json()["replies"]) == 1
+
+    # Non-owner (user) has doc access but must NOT see replies on a private annotation.
+    non_owner_list = client.get(
+        f"/annotations/{annotation_id}/replies",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert non_owner_list.status_code == 404

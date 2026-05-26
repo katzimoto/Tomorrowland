@@ -21,6 +21,29 @@ from shared.db import to_uuid
 router = APIRouter(tags=["annotations"])
 
 
+def _get_annotation_or_404_with_access(
+    annotation_id: UUID,
+    user: TokenPayload,
+    repo: AnnotationRepository,
+    connection: Any,
+) -> dict[str, Any]:
+    """Fetch annotation, assert document-level access, return the annotation row.
+
+    Raises 404 if the annotation does not exist.
+    Delegates to assert_doc_access for document-level permission enforcement
+    (raises 403 when the user cannot access the document).
+
+    Centralising this check here prevents individual endpoints from accidentally
+    skipping the assert_doc_access call — the root cause of the delete_reply bug.
+    """
+    annotation = repo.get_by_id(annotation_id)
+    if annotation is None:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    auth_repo = AuthRepository(connection)
+    assert_doc_access(to_uuid(annotation["document_id"]), user, auth_repo)
+    return annotation
+
+
 @router.get("/documents/{document_id}/annotations")
 def list_annotations(
     document_id: UUID,
@@ -97,13 +120,7 @@ def update_annotation(
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         repo = AnnotationRepository(connection)
-        annotation = repo.get_by_id(annotation_id)
-        if annotation is None:
-            raise HTTPException(status_code=404, detail="Annotation not found")
-
-        # Verify doc access
-        auth_repo = AuthRepository(connection)
-        assert_doc_access(to_uuid(annotation["document_id"]), user, auth_repo)
+        _get_annotation_or_404_with_access(annotation_id, user, repo, connection)
 
         if not repo.can_modify(annotation_id, user.sub, user.is_admin):
             raise HTTPException(status_code=403, detail="Cannot modify this annotation")
@@ -142,13 +159,7 @@ def delete_annotation(
 ) -> None:
     with request.app.state.engine.begin() as connection:
         repo = AnnotationRepository(connection)
-        annotation = repo.get_by_id(annotation_id)
-        if annotation is None:
-            raise HTTPException(status_code=404, detail="Annotation not found")
-
-        # Verify doc access
-        auth_repo = AuthRepository(connection)
-        assert_doc_access(to_uuid(annotation["document_id"]), user, auth_repo)
+        annotation = _get_annotation_or_404_with_access(annotation_id, user, repo, connection)
 
         if not repo.can_modify(annotation_id, user.sub, user.is_admin):
             raise HTTPException(status_code=403, detail="Cannot delete this annotation")
@@ -171,11 +182,17 @@ def list_replies(
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         repo = AnnotationRepository(connection)
-        annotation = repo.get_by_id(annotation_id)
-        if annotation is None:
+        annotation = _get_annotation_or_404_with_access(annotation_id, user, repo, connection)
+
+        # Private annotations are only visible to their owner and admins — the same
+        # rule enforced by list_annotations.  A non-owner with doc access must not
+        # be able to enumerate replies on a private annotation by knowing its ID.
+        if (
+            annotation["is_private"]
+            and not user.is_admin
+            and to_uuid(annotation["user_id"]) != user.sub
+        ):
             raise HTTPException(status_code=404, detail="Annotation not found")
-        auth_repo = AuthRepository(connection)
-        assert_doc_access(to_uuid(annotation["document_id"]), user, auth_repo)
 
         replies = repo.list_replies(annotation_id)
         return {
@@ -204,11 +221,7 @@ def create_reply(
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         repo = AnnotationRepository(connection)
-        annotation = repo.get_by_id(annotation_id)
-        if annotation is None:
-            raise HTTPException(status_code=404, detail="Annotation not found")
-        auth_repo = AuthRepository(connection)
-        assert_doc_access(to_uuid(annotation["document_id"]), user, auth_repo)
+        _get_annotation_or_404_with_access(annotation_id, user, repo, connection)
 
         reply = repo.create_reply(annotation_id, user.sub, body.body)
         return {
@@ -229,6 +242,16 @@ def delete_reply(
 ) -> None:
     with request.app.state.engine.begin() as connection:
         repo = AnnotationRepository(connection)
+
+        # Bug fix: assert document-level access before checking reply ownership.
+        # Previously this endpoint skipped assert_doc_access entirely, allowing a
+        # user whose document permission had been revoked to still delete their
+        # own replies by knowing the reply UUID.
+        reply = repo.get_reply_by_id(reply_id)
+        if reply is None:
+            raise HTTPException(status_code=404, detail="Reply not found")
+        _get_annotation_or_404_with_access(to_uuid(reply["annotation_id"]), user, repo, connection)
+
         if not repo.can_modify_reply(reply_id, user.sub, user.is_admin):
             raise HTTPException(status_code=404, detail="Reply not found")
         repo.delete_reply(reply_id)

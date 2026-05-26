@@ -2,6 +2,25 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-26 — annotations router — security fixes (delete_reply + list_replies)
+
+Status: Done — committed to main
+Source: Claude Code session
+
+**Changed files:**
+- `src/services/annotations/repository.py` — added `get_reply_by_id()` (returns non-deleted reply by id)
+- `src/services/api/routers/annotations.py` — extracted `_get_annotation_or_404_with_access()`; fixed `delete_reply` (missing `assert_doc_access`); fixed `list_replies` (private annotation visibility); refactored `update_annotation`, `delete_annotation`, `create_reply` to use helper
+- `tests/integration/test_annotations_api.py` — 2 regression tests: `test_delete_reply_blocked_without_doc_access`, `test_list_replies_hidden_for_private_annotation`
+
+**Verification:** 22 integration tests passed (ruff clean, mypy clean).
+
+**Remaining risks:**
+- `create_reply` does not gate on annotation visibility (can reply to a private annotation if you have doc access + know annotation ID). Pre-existing; deliberate policy decision needed before fixing.
+- ACL audit HIGH items still open — see current-state.md.
+
+**Next agent prompt:**
+> Implement the ACL audit HIGH items from `docs/context/acl-audit.md`: fix `/search` and `/expertise` admin bypass, drop stub `SearchResultItem`, add transitive-group expansion, and tighten the `/expertise` subscription leak. These block the D2 PR.
+
 ## 2026-05-26 — fix/extractor-bugs — 15-bug sweep (extractors + translation pipeline)
 
 Status: Merged — main

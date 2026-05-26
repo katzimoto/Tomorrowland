@@ -294,6 +294,22 @@ class AnnotationRepository:
             raise RuntimeError("reply insert did not persist")
         return dict(row)
 
+    def get_reply_by_id(self, reply_id: UUID) -> dict[str, Any] | None:
+        """Return a non-deleted reply by id."""
+        row = (
+            self._connection.execute(
+                sa.text("""
+                    SELECT id, annotation_id, user_id, body, created_at
+                    FROM annotation_replies
+                    WHERE id = :id AND deleted_at IS NULL
+                    """),
+                {"id": db_uuid(reply_id)},
+            )
+            .mappings()
+            .first()
+        )
+        return dict(row) if row else None
+
     def delete_reply(self, reply_id: UUID) -> None:
         """Soft-delete a reply."""
         self._connection.execute(

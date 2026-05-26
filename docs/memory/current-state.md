@@ -2,6 +2,31 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-26 — annotations router — 2 security bugs fixed, ACL MEDIUM items still open
+
+Status: Active
+Source: Claude Code session (graphify codebase analysis)
+
+**Fixed — committed to main (direct push, no open branch):**
+1. `DELETE /annotation-replies/{reply_id}` — was missing `assert_doc_access` entirely; a revoked user could delete their own replies by knowing the UUID. Fixed: fetch reply → fetch parent annotation → `assert_doc_access` before ownership check.
+2. `GET /annotations/{annotation_id}/replies` — only checked doc-level access, not annotation visibility. Non-owner with doc access could enumerate replies on a private annotation by knowing its ID. Fixed: 404 if `is_private && user != owner && !admin`.
+
+**Structural change:** `_get_annotation_or_404_with_access()` helper extracted in router — all 4 per-annotation endpoints now route through it, preventing future endpoints from accidentally skipping the access check.
+
+**Still open — ACL audit HIGH items (`docs/context/acl-audit.md`):**
+- `/search` admin path returns no results (broken bypass)
+- `/expertise` admin path broken
+- Stub `SearchResultItem` in `/search` (data leak risk)
+- `get_effective_group_ids` transitive-group expansion missing
+- `/expertise` subscription leak
+
+**Still open — ACL audit MEDIUM items:**
+- `/me/activity` and `/notifications` not filtered by current doc-access
+- Per-version ACL on `/documents/{id}/versions`
+- Sensitive key masking in `GET /admin/config`
+
+**Next action:** Pick up ACL HIGH items (D2 PR blocker) or MEDIUM ACL items.
+
 ## 2026-05-26 — fix/extractor-bugs — 15-bug sweep across extractors + translation pipeline
 
 Status: Done — merged to main (squash commit from PR #520)
