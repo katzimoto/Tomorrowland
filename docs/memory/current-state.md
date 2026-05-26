@@ -2,14 +2,14 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
-## 2026-05-26 — fix/extractor-bugs — 14-bug sweep across extractors + translation pipeline
+## 2026-05-26 — fix/extractor-bugs — 15-bug sweep across extractors + translation pipeline
 
-Status: Active — branch fix/extractor-bugs, commits e659a68 + 9d04cea; PR pending
+Status: Done — merged to main (squash commit from PR #520)
 Source: Claude Code session
 
-14 bugs found and fixed across two passes. Branch is ready to PR.
+15 bugs found and fixed across three passes.
 
-**Pass 1 — extractor correctness (e659a68)**
+**Pass 1 — extractor correctness**
 1. `html.py` — nested skip-tag depth counter (was boolean, leaked text from `<nav><style>` etc.)
 2. `html.py` — latin-1 encoding fallback (ISO-8859-1/Win-1252 HTML was silently empty)
 3. `rtf.py` — latin-1 encoding fallback (most RTF files are Win-1252, were silently empty)
@@ -21,15 +21,21 @@ Source: Claude Code session
 9. `registry.py` — removed self-alias `x-tar → x-tar` (no-op)
 10. `registry.py` — removed dead `x-zip-compressed` direct registration (alias already routes it)
 
-**Pass 2 — translation pipeline + extractor quality (9d04cea)**
+**Pass 2 — translation pipeline + extractor quality**
 11. `translation_worker.py` — empty `content_text` now skips gracefully (previously raised ValueError → retried → dead-lettered valid docs with no text)
 12. `slow_worker.py` — `type(exc).__name__` in enrich-loop error log (was always `"type"`)
 13. `epub.py` — `re.DOTALL` on tag regex (multiline HTML attributes left tag fragments in text)
 14. `eml.py` — prefer filename-guessed MIME when declared type is default `text/plain` and no `Content-Type` header present (PDFs named `report.pdf` were extracted as plain text)
 
-**Invariant:** All 18 regression tests + 26 translation_worker tests pass (807 total unit tests; 28 pre-existing failures in `test_compose_volumes.py` are unrelated — Docker Compose YAML issue).
+**Pass 3 — RabbitMQ translate path**
+15. `translate_worker.py` — `TranslateConsumer` hardcoded `target_lang="en"` in three call sites; now uses `(doc.target_language or "en")` — non-English configured targets are actually translated
 
-**Watch:** `test_compose_volumes.py` — 12 pre-existing failures related to airgap compose YAML; not caused by this branch.
+**Verification:** 28/28 targeted tests pass. 28 pre-existing failures in `test_compose_volumes.py` unrelated (airgap compose YAML shape).
+
+**Watch:**
+- `.doc`/`.xls`/`.ppt` (legacy Office) still return empty unless `ENABLE_LEGACY_OFFICE=true`.
+- Scanned PDFs still need `ENABLE_OCR=true` for any text extraction.
+- Consider a backfill job to re-extract documents with previously empty `extracted_text` (XML, RTF, HTML).
 
 ## 2026-05-26 — fix: translation read-path + 6-bug sweep + TOCTOU race
 
