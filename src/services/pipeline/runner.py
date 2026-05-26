@@ -224,16 +224,22 @@ def _run_process_job(
                 "failed to persist translated text: worker_id=%s error_type=PersistError",
                 worker_id,
             )
-        # Create a translation version when there is content to show, UNLESS the
-        # translator returned the same non-empty text (a no-op meaning auto-detect
-        # failed or the document is already in the target language).  In that case
-        # a misleading "fast translation" version is not created and the UI falls
-        # back to document_payloads.content_text instead.
+        # Create a translation version only when the translator produced a
+        # non-empty result that differs from the source text.  Two cases are
+        # explicitly excluded:
         #
-        # The EML/archive fallback is preserved: when translation returned "" but
-        # extraction produced text, the extracted text is stored in the version so
-        # the document remains readable in translation mode.
-        _version_text = process_result.translated_text or process_result.extracted_text
+        # 1. No-op: translated_text == extracted_text (auto-detect failed or
+        #    the document is already in the target language).  A misleading
+        #    "fast translation" version is not created; the UI hides the
+        #    translation tab for such documents.
+        #
+        # 2. Empty translation: translated_text == "" (LibreTranslate failed).
+        #    Previously the extracted_text was stored as a fallback so the
+        #    document stayed "readable" in translation mode, but this caused
+        #    the original-language text to appear where users expected a
+        #    translation.  Instead we skip version creation so the translation
+        #    tab is hidden and the document is viewed in original mode.
+        _version_text = process_result.translated_text  # must be non-empty AND differ
         _translation_was_no_op = (
             bool(process_result.extracted_text)
             and process_result.translated_text == process_result.extracted_text
@@ -270,6 +276,12 @@ def _run_process_job(
                 "no translation version created for document_id=%s — translation returned "
                 "unchanged text (configure source_language on the ingestion source or ensure "
                 "LibreTranslate supports the document language)",
+                document_id,
+            )
+        elif not _version_text:
+            logger.info(
+                "no translation version created for document_id=%s — translation returned "
+                "empty text (LibreTranslate may be unavailable or the language is unsupported)",
                 document_id,
             )
 
