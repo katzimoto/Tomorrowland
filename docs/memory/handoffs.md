@@ -2,6 +2,35 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-26 — fix: translation mode shows original-language text + octet-stream preview
+
+Status: Done — branch feat/design-system-update, commits 0c10cca + 0947937 (pushed)
+Source: Claude Code session
+
+Three translation bugs fixed and one preview improvement made:
+
+**1. Navigation reset (frontend — DocumentPage.tsx, TranslationVersionSelector.tsx)**
+- `selectedVersionId` was not cleared on `docId` change; `TranslationVersionSelector` `if (selectedVersionId !== undefined) return` guard blocked auto-selection on every doc after the first.
+- Fix: reset `selectedVersionId(undefined)` + `hadInProgressRef.current` in docId effect; add docId-keyed effect in selector resetting `initialSelectDoneRef` + `hadInProgressRef`.
+
+**2. Empty-translation fallback (backend — src/services/pipeline/runner.py)**
+- `_version_text = translated or extracted` — when translation returned `""`, a version was created with `translated_text = extracted_text` (original-language text). Translation tab showed source language.
+- Fix: `_version_text = translated_text` only; empty → no version → tab hidden. Added info log. Unit test `test_translation_version_skipped_when_translated_is_empty` updated (was asserting buggy behavior).
+
+**3. No-op synthetic version (backend — src/services/api/routers/documents.py)**
+- After df93072 no-op detection, `document_payloads.translated_text = content_text` for no-op docs; synthetic fallback had no guard → translation tab appeared with original text.
+- Fix: `AND dp.translated_text IS DISTINCT FROM dp.content_text` in fallback WHERE clause.
+
+**4. application/octet-stream preview (frontend — PreviewPane.tsx, GenericPreview.tsx)**
+- "Cannot be previewed" error wall replaced with extension-based routing (CODE_EXTENSIONS, TEXT_EXTENSIONS, MD_EXTENSIONS) and `GenericPreview` fallback showing extracted text + MIME banner + download link.
+- New file: `src/features/documents/renderers/GenericPreview.tsx`.
+
+Verification: `tsc --noEmit` clean; 21 pipeline runner unit tests pass; 5 pre-existing frontend test failures unchanged.
+
+Risks / follow-ups:
+- Existing documents in DB with `translated_text = content_text` in `document_translation_versions` (created before df93072) still surface as "available" via the real version record — `get_translated_text` returns original text. A data-cleanup pass or `get_translated_text` guard would close this edge case.
+- Attachment GC still missing (files_root/attachments/ grows without bound on doc delete).
+
 ## 2026-05-26 — feat: design system update — search + document UI
 
 Status: Done — commit c62094d on feat/design-system-update (pushed, PR ready)
