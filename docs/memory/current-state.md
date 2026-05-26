@@ -2,32 +2,34 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
-## 2026-05-26 — fix: translation shows original-language text (three bugs closed)
+## 2026-05-26 — fix: translation read-path + 6-bug sweep + TOCTOU race
 
-Status: Done — branch feat/design-system-update, commits 0c10cca + 0947937
+Status: Done — main, commits 263171c + e0c74fb + ab3e3ac
 Source: Claude Code session
 
-Three translation bugs fixed:
+All translation-related bugs found and fixed across three commits.
 
-**Bug 1 — Navigation: `selectedVersionId` not reset on document change (frontend)**
-- `DocumentPage.tsx` docId reset effect now calls `setSelectedVersionId(undefined)` and resets `hadInProgressRef.current`. Previously, navigating to doc B kept doc A's version UUID in state; `TranslationVersionSelector`'s `if (selectedVersionId !== undefined) return` guard then skipped auto-selection for every subsequent document.
-- `TranslationVersionSelector.tsx` adds a `docId`-keyed effect resetting `initialSelectDoneRef` and `hadInProgressRef` so auto-select fires cleanly on each navigation.
+**Commit 263171c — read-path no-op guard (repository + preview service)**
+- `list_versions`: LEFT JOIN `document_payloads`; excludes `available` versions where `translated_text IS NOT DISTINCT FROM content_text` — old DB records created before no-op detection no longer surface in the translation tab.
+- `get_translated_text`: same `IS DISTINCT FROM` guard added to all three lookup branches (specific version, latest version, payload fallback).
 
-**Bug 2 — runner.py: empty translation stored as fake version (backend)**
-- `_version_text = process_result.translated_text or process_result.extracted_text` — when LibreTranslate returned `""`, the fallback created a version with `translated_text = extracted_text` (original-language text). Translation tab appeared but showed source language.
-- Fix: `_version_text = process_result.translated_text` only. Empty translation → no version created → translation tab hidden → user stays in original mode. Added info log for the empty-translation case. Test renamed and asserts `create_version` NOT called.
+**Commit e0c74fb — 6-bug sweep**
+1. `slow_worker._run_versioned`: added no-op + empty translation guard (matches `runner.py`). Marks version `"failed"` instead of `"available"` for no-ops, so `translation_quality` stays unchanged and the "Request Translation" button is not hidden.
+2. `request_translation` API: now publishes to RabbitMQ when enabled (was silently skipping push; auto-enrich did publish). Fixed `"Manual None"` label when `doc.target_language` is `None`.
+3. Download endpoint: new `translation_version_id` param; `get_translated_text` now respects it. Frontend `DocumentToolbar` passes `selectedVersionId` so download matches the viewed version.
+4. Frontend polling: added `"processing"` to `hasInProgressVersions` in `TranslationVersionSelector` and `DocumentPage` — was missing from the in-progress check, causing polling to stop early.
+5. XLSX extractor: `data_only=True` (values not formulas), `read_only=True`, `wb.close()`, catches `InvalidFileException` + `BadZipFile`. Macro-enabled XLSX MIME aliases added to registry.
+6. `ExtractorRegistry.has_extractor()`: new method; `_process_attachments` now uses it instead of `get()-is-None` so attachments with uncommon `text/*` MIME types reach translation instead of being silently dropped.
 
-**Bug 3 — list_translation_versions: no-op synthetic version (backend)**
-- After the df93072 no-op detection commit, no-op docs no longer get real version records. But `document_payloads.translated_text` (= `content_text`) was still stored. The synthetic fallback query had no guard, synthesizing an "available" version pointing at original-language text.
-- Fix: added `AND dp.translated_text IS DISTINCT FROM dp.content_text` to the WHERE clause. If texts are identical, no synthetic version is returned.
+**Commit ab3e3ac — TOCTOU race fix (migration + preview service)**
+- Migration `x8y9z0a1b2c3`: `CREATE UNIQUE INDEX idx_dtv_one_active_per_type ON document_translation_versions (document_id, request_type) WHERE status IN ('pending', 'running')`.
+- `_maybe_auto_enrich`: replaced racy SELECT-then-INSERT with single atomic `INSERT ... SELECT ... ON CONFLICT (document_id, request_type) WHERE status IN ('pending', 'running') DO NOTHING`. `rowcount == 0` → bail without duplicate job enqueue or RabbitMQ publish.
 
-**Invariant (updated from 2026-05-25 entry):** A `document_translation_versions` record or synthetic version is now only surfaced when `translated_text` is non-empty AND differs from `content_text`. The EML/archive fallback (empty translated → use extracted) was removed — it was causing source-language text to appear in translation view.
+**Invariant:** A translation version is only surfaced when `translated_text` is non-empty AND `IS DISTINCT FROM content_text`. No-ops are marked `failed`, not `available`. One active `auto_enrich` job per document at a time, enforced at DB level.
 
-**Operator action required:** Set `source_language` on each ingestion source (e.g. `"he"` for Hebrew). Without it LibreTranslate uses auto-detect which silently fails for many PDF/binary file types.
+**Operator action required:** Run migration `x8y9z0a1b2c3` on next deploy. Set `source_language` on each ingestion source (e.g. `"he"` for Hebrew) — without it LibreTranslate auto-detect silently fails for many binary types.
 
-**Watch:** Attachment files under `files_root/attachments/` accumulate indefinitely — no GC yet. A cleanup job is needed when documents are deleted.
-
-Next action: Smoke-test by ingesting a Hebrew PDF via folder connector; confirm translation version created and UI shows translated text in translation mode.
+**Watch:** Attachment files under `files_root/attachments/` accumulate indefinitely — no GC yet. Cleanup job needed when documents are deleted.
 
 ## 2026-05-25 — fix: translation no-op detection + download JSON bug
 

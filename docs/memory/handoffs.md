@@ -2,6 +2,36 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-26 — fix: translation sweep — read-path, 6 bugs, TOCTOU race, xlsx, attachments
+
+Status: Done — main, commits 263171c + e0c74fb + ab3e3ac
+Source: Claude Code session
+
+All translation bugs found in a systematic audit and fixed across three commits.
+
+**Changed files:**
+- `src/services/preview/service.py` — read-path IS DISTINCT FROM guard in all 3 `get_translated_text` branches; atomic INSERT ON CONFLICT in `_maybe_auto_enrich`
+- `src/services/documents/repository.py` — `list_versions` LEFT JOIN + no-op exclusion
+- `src/services/pipeline/slow_worker.py` — no-op + empty guard in `_run_versioned`
+- `src/services/api/routers/documents.py` — `request_translation` RabbitMQ publish + `target_lang or "en"` label fix; download endpoint accepts `translation_version_id`
+- `src/services/extraction/xlsx.py` — `data_only=True`, `read_only=True`, broad exception catch
+- `src/services/extraction/registry.py` — macro-enabled XLSX aliases; `has_extractor()` method
+- `src/services/pipeline/worker.py` — `_process_attachments` uses `has_extractor()` not `get()-is-None`
+- `frontend/src/api/documents.ts` — `getDownloadUrl` accepts `translationVersionId`
+- `frontend/src/features/documents/DocumentToolbar.tsx` — passes `selectedVersionId` to download
+- `frontend/src/features/documents/DocumentPage.tsx` — `"processing"` in polling check
+- `frontend/src/features/documents/TranslationVersionSelector.tsx` — `"processing"` in `hasInProgressVersions`
+- `migrations/versions/x8y9z0a1b2c3_dtv_unique_active_per_type.py` — partial unique index
+- `tests/unit/test_pipeline_worker.py` — `has_extractor()` added to `_FakeExtractorRegistry`
+
+**Verification:** 124 backend unit tests pass; `tsc --noEmit` clean; `ruff check` clean.
+
+**Deploy note:** Migration `x8y9z0a1b2c3` must run before restart — adds partial unique index.
+
+**Remaining watch items:**
+- Attachment GC: `files_root/attachments/` grows without bound on doc delete.
+- `request_translation` duplicate guard: uses `find_pending_or_running` SELECT then INSERT — not atomic. Lower risk than auto-enrich (user-triggered, not concurrent) but the same partial index now enforces uniqueness at DB level as a backstop.
+
 ## 2026-05-26 — fix: translation mode shows original-language text + octet-stream preview
 
 Status: Done — branch feat/design-system-update, commits 0c10cca + 0947937 (pushed)
