@@ -420,6 +420,9 @@ class _FakeExtractorRegistry:
             return self._attachment
         return None
 
+    def has_extractor(self, mime_type: str) -> bool:
+        return self.get(mime_type) is not None
+
 
 class _FakeDocumentRepositoryWithCreate(_FakeDocumentRepository):
     def __init__(self, doc: DocumentRow, group_ids: list[UUID]) -> None:

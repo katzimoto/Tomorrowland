@@ -93,7 +93,10 @@ export function DocumentPage() {
     queryFn: () => getTranslationVersions(docId),
     refetchInterval: (query) => {
       const data = query.state.data;
-      return data && data.some((v) => v.status === "pending" || v.status === "running")
+      return data &&
+        data.some(
+          (v) => v.status === "pending" || v.status === "running" || v.status === "processing",
+        )
         ? 5000
         : false;
     },
@@ -113,7 +116,11 @@ export function DocumentPage() {
     if (!versions) return;
     if (selectedVersionId !== undefined) return;
     if (showOriginal) return;
-    if (versions.some((v) => v.status === "pending" || v.status === "running")) {
+    if (
+      versions.some(
+        (v) => v.status === "pending" || v.status === "running" || v.status === "processing",
+      )
+    ) {
       hadInProgressRef.current = true;
       return;
     }

@@ -159,6 +159,7 @@ export function DocumentToolbar({
               const token = sessionStorage.getItem("tomorrowland_token");
               const url = getDownloadUrl(preview.document_id, {
                 showOriginal: activeMode !== "translation",
+                translationVersionId: activeMode === "translation" ? selectedVersionId : undefined,
               });
               fetch(url, { headers: { Authorization: `Bearer ${token || ""}` } })
                 .then((r) => {

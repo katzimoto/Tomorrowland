@@ -18,7 +18,9 @@ function isSelectableTranslationVersion(status: TranslationVersion["status"]): b
 }
 
 function hasInProgressVersions(versions: TranslationVersion[]): boolean {
-  return versions.some((v) => v.status === "pending" || v.status === "running");
+  return versions.some(
+    (v) => v.status === "pending" || v.status === "running" || v.status === "processing",
+  );
 }
 
 export function TranslationVersionSelector({

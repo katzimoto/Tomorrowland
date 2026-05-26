@@ -242,22 +242,34 @@ def request_translation(
                 "status": existing["status"],
             }
 
+        target_lang = doc.target_language or "en"
         version = version_repo.create_version(
             document_id=document_id,
-            label=f"Manual {doc.target_language}",
+            label=f"Manual {target_lang}",
             quality="high",
             request_type="manual",
             requested_by_id=user.sub,
-            target_language=doc.target_language,
+            target_language=target_lang,
         )
         doc_repo.update_translation_quality(document_id, "pending_high")
 
         job_repo = PipelineJobRepository(connection)
-        job_repo.enqueue_document(
+        job_id = job_repo.enqueue_document(
             document_id=document_id,
             source_id=doc.source_id,
             job_type="enrich_document",
         )
+
+        rabbit = getattr(request.app.state, "rabbit", None)
+        if rabbit is not None and getattr(rabbit, "_enabled", False):
+            from services.pipeline.publisher import DocumentPublisher
+
+            publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
+            publisher.publish_enrich(
+                job_id=job_id,
+                document_id=document_id,
+                source_id=doc.source_id,
+            )
 
         return {
             "document_id": str(document_id),
@@ -595,6 +607,7 @@ def download(
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
     show_original: bool = True,
+    translation_version_id: UUID | None = None,
 ) -> StreamingResponse:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
@@ -608,7 +621,9 @@ def download(
 
         if not show_original:
             preview_service = PreviewService(connection)
-            translated_text = preview_service.get_translated_text(document_id)
+            translated_text = preview_service.get_translated_text(
+                document_id, translation_version_id=translation_version_id
+            )
             if not translated_text:
                 raise HTTPException(
                     status_code=404,

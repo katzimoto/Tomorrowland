@@ -7,9 +7,9 @@ from pathlib import Path
 
 from services.extraction.base import Extractor
 from services.extraction.docx import DocxExtractor
-from services.extraction.generic import GenericExtractor
 from services.extraction.eml import EmlExtractor
 from services.extraction.epub import EpubExtractor
+from services.extraction.generic import GenericExtractor
 from services.extraction.html import HtmlExtractor
 from services.extraction.json_extractor import JsonExtractor
 from services.extraction.msg_extractor import MsgExtractor
@@ -50,13 +50,17 @@ _ALIASES: dict[str, str] = {
     # Outlook MSG — libmagic returns compound-document types; mimetypes returns None for .msg
     "application/CDFV2": "application/vnd.ms-outlook",
     "application/x-ole-storage": "application/vnd.ms-outlook",
+    # XLSX — libmagic may return the generic zip type for xlsx/xlsm files
+    "application/vnd.ms-excel.sheet.macroEnabled.12": _XLSX_MIME,
+    "application/vnd.ms-excel.sheet.binary.macroEnabled.12": _XLSX_MIME,
     # Markdown / reStructuredText / log files → plain
     "text/x-markdown": "text/plain",
     # Python stdlib mimetypes maps .rst to text/prs.fallenstein.rst; libmagic uses text/x-rst
     "text/x-rst": "text/plain",
     "text/prs.fallenstein.rst": "text/plain",
     "text/x-log": "text/plain",
-    # YAML — stdlib mimetypes returns application/yaml (RFC 9512); older tools return x-yaml or text/yaml
+    # YAML — stdlib mimetypes returns application/yaml (RFC 9512);
+    # older tools return x-yaml or text/yaml
     "application/yaml": "text/plain",
     "application/x-yaml": "text/plain",
     "text/yaml": "text/plain",
@@ -160,6 +164,19 @@ class ExtractorRegistry:
         canonical = _ALIASES.get(mime_type, mime_type)
         return self._extractors.get(canonical)
 
+    def has_extractor(self, mime_type: str) -> bool:
+        """Return True when *mime_type* has a specific extractor or a text alias.
+
+        Unlike ``get()``, this returns True for any ``text/*`` MIME type even
+        when not explicitly registered — the GenericExtractor fallback in
+        ``extract()`` will handle it.  Use this to decide whether an attachment
+        is worth processing rather than silently dropping it.
+        """
+        if self.get(mime_type) is not None:
+            return True
+        canonical = _ALIASES.get(mime_type, mime_type)
+        return canonical.startswith("text/")
+
     def extract(self, path: Path, mime_type: str) -> str:
         """Extract text from *path* using the extractor for *mime_type*.
 
@@ -170,7 +187,11 @@ class ExtractorRegistry:
         """
         extractor = self.get(mime_type)
         if extractor is None:
-            logger.debug("no specific extractor for mime_type=%s path=%s; using generic", mime_type, path)
+            logger.debug(
+                "no specific extractor for mime_type=%s path=%s; using generic",
+                mime_type,
+                path,
+            )
             extractor = self._fallback
         result = extractor.extract(path)
         if not result:

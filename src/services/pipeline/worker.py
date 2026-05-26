@@ -422,10 +422,16 @@ class PipelineWorker:
                 )
                 continue
 
-            # Skip attachment types we cannot extract text from
-            if self._extractor.get(att.mime_type) is None:
+            # Skip attachment types that genuinely cannot yield text.
+            # Use has_extractor() so that MIME aliases (e.g. application/yaml →
+            # text/plain) are resolved before the check.  Types with no specific
+            # extractor fall through to GenericExtractor, which handles text
+            # files with uncommon MIME types — those should NOT be skipped.
+            # Only truly unextractable types (images without OCR, audio, video)
+            # will have no registered extractor and no alias, so we skip them.
+            if not self._extractor.has_extractor(att.mime_type):
                 logger.debug(
-                    "Skipping attachment with unsupported mime_type=%s filename=%s parent_id=%s",
+                    "Skipping attachment with unextractable mime_type=%s filename=%s parent_id=%s",
                     att.mime_type,
                     att.filename,
                     parent_id,

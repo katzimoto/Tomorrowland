@@ -116,15 +116,36 @@ class SlowWorker:
             # 2. Translate
             translated = self._translator.translate(text, source_lang=doc.source_language)
 
-            # 3. Store translated text on version
+            # 3. No-op guard: translation returned the same text (document already
+            #    in the target language, or LibreTranslate failed auto-detect).
+            #    Mark failed so the tab doesn't appear and quality stays unchanged.
+            _is_no_op = bool(text) and translated == text
+            if _is_no_op or not translated:
+                reason = (
+                    "Document already in target language or LibreTranslate returned unchanged text"
+                    if _is_no_op
+                    else "LibreTranslate returned empty translation"
+                )
+                logger.info(
+                    "Slow worker no-op for document_id=%s version_id=%s: %s",
+                    doc.id,
+                    version_id,
+                    reason,
+                )
+                self._version_repo.update_version_status(
+                    version_id, "failed", error_summary=reason
+                )
+                return
+
+            # 4. Store translated text on version
             self._version_repo.update_version_status(
                 version_id, "available", translated_text=translated
             )
 
-            # 4. Chunk and index (reuse legacy indexing)
+            # 5. Chunk and index (reuse legacy indexing)
             self._index_document(doc, translated, original=text)
 
-            # 5. Update document summary quality
+            # 6. Update document summary quality
             self._doc_repo.update_translation_quality(doc.id, "high")
 
         except Exception:

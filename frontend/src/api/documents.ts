@@ -145,10 +145,15 @@ export function requestTranslation(docId: string): Promise<{ document_id: string
 
 export function getDownloadUrl(
   docId: string,
-  opts?: { showOriginal?: boolean },
+  opts?: { showOriginal?: boolean; translationVersionId?: string },
 ): string {
   const params = new URLSearchParams();
-  if (opts?.showOriginal === false) params.set("show_original", "false");
+  if (opts?.showOriginal === false) {
+    params.set("show_original", "false");
+    if (opts.translationVersionId) {
+      params.set("translation_version_id", opts.translationVersionId);
+    }
+  }
   const qs = params.toString();
   return `/api/download/${docId}${qs ? `?${qs}` : ""}`;
 }
