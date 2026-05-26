@@ -294,6 +294,10 @@ def list_translation_versions(
 
         # Fallback: synthesize a version from document_payloads for documents
         # processed before the version-creation code was deployed.
+        # Exclude no-ops where translated_text equals content_text — those
+        # documents were already in the target language or had a failed
+        # auto-detect, so showing a translation tab would mislead the user
+        # into thinking they are viewing a real translation.
         payload_row = (
             connection.execute(
                 sa.text("""
@@ -304,6 +308,7 @@ def list_translation_versions(
                 WHERE dp.document_id = :document_id
                   AND dp.translated_text IS NOT NULL
                   AND dp.translated_text != ''
+                  AND dp.translated_text IS DISTINCT FROM dp.content_text
                 """),
                 {"document_id": db_uuid(document_id)},
             )

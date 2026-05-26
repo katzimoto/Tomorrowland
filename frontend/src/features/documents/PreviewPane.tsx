@@ -10,7 +10,7 @@ import { ImageViewer } from "./renderers/ImageViewer";
 import { PdfViewer } from "./renderers/PdfViewer";
 import { CodeViewer } from "./renderers/CodeViewer";
 import { MediaPreview } from "./renderers/MediaPreview";
-import { UnsupportedPreview } from "./renderers/UnsupportedPreview";
+import { GenericPreview } from "./renderers/GenericPreview";
 import type { ViewMode } from "./ViewModeSwitcher";
 import styles from "./PreviewPane.module.css";
 
@@ -21,6 +21,28 @@ const MARKDOWN_MIMES = new Set([
 ]);
 
 const MARKDOWN_EXTS = [".md", ".markdown", ".mdown"];
+
+// Extensions that CodeViewer can syntax-highlight (it handles its own EXT_TO_LANGUAGE).
+// Used as a fallback when the MIME type is generic (e.g. application/octet-stream).
+const CODE_EXTENSIONS = new Set([
+  ".json", ".xml", ".yaml", ".yml",
+  ".py", ".js", ".jsx", ".ts", ".tsx",
+  ".sh", ".bash", ".zsh", ".fish", ".bat", ".ps1",
+  ".sql",
+  ".rb", ".go", ".rs", ".java", ".c", ".cpp", ".h", ".hpp",
+  ".cs", ".php", ".swift", ".kt", ".scala", ".lua", ".pl", ".r",
+  ".toml", ".ini", ".cfg", ".conf", ".env",
+  ".tf", ".hcl", ".proto", ".graphql",
+]);
+
+// Extensions that render well as plain text
+const TEXT_EXTENSIONS = new Set([
+  ".txt", ".log", ".nfo", ".readme",
+  ".rst", ".adoc", ".asciidoc",
+]);
+
+// Extensions that render as Markdown (beyond text/plain handled above)
+const MD_EXTENSIONS = new Set([".md", ".markdown", ".mdown", ".mdx"]);
 
 const CODE_MIMES = new Set([
   "application/json",
@@ -273,9 +295,71 @@ export function PreviewPane({
     );
   }
 
+  // Extension-based routing: covers files that arrive with a generic or wrong
+  // MIME type (application/octet-stream is the most common case). Derive the
+  // renderer from the file extension so the user still gets a real preview.
+  const titleExt = (() => {
+    const t = preview.title ?? "";
+    const dot = t.lastIndexOf(".");
+    return dot !== -1 ? t.slice(dot).toLowerCase() : "";
+  })();
+
+  if (MD_EXTENSIONS.has(titleExt)) {
+    return (
+      <div className={styles.pane}>
+        <MarkdownPreview
+          docId={preview.document_id}
+          fallbackText={text ?? ""}
+          showOriginal={activeMode !== "translation"}
+        />
+      </div>
+    );
+  }
+
+  if (TEXT_EXTENSIONS.has(titleExt)) {
+    return (
+      <div className={styles.pane}>
+        <TextPreview
+          docId={preview.document_id}
+          showOriginal={activeMode !== "translation"}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
+      </div>
+    );
+  }
+
+  if (CODE_EXTENSIONS.has(titleExt)) {
+    return (
+      <div className={styles.pane}>
+        <CodeViewer
+          docId={preview.document_id}
+          mimeType={mime}
+          title={preview.title ?? undefined}
+          showOriginal={activeMode !== "translation"}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
+      </div>
+    );
+  }
+
+  // Final fallback: show whatever the backend extracted, with a banner
+  // identifying the original MIME type and a download link. TextPreview
+  // gracefully shows "No text content available." if extraction produced nothing.
   return (
     <div className={styles.pane}>
-      <UnsupportedPreview mimeType={mime} downloadUrl={dl} />
+      <GenericPreview
+        docId={preview.document_id}
+        mimeType={mime}
+        downloadUrl={dl}
+        showOriginal={activeMode !== "translation"}
+        searchQuery={searchQuery}
+        activeSearchIndex={activeSearchIndex}
+        onMatchCountChange={onMatchCountChange}
+      />
     </div>
   );
 }

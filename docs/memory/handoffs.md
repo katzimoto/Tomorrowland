@@ -2,6 +2,52 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-26 — fix: translation mode shows original-language text + octet-stream preview
+
+Status: Done — branch feat/design-system-update, commits 0c10cca + 0947937 (pushed)
+Source: Claude Code session
+
+Three translation bugs fixed and one preview improvement made:
+
+**1. Navigation reset (frontend — DocumentPage.tsx, TranslationVersionSelector.tsx)**
+- `selectedVersionId` was not cleared on `docId` change; `TranslationVersionSelector` `if (selectedVersionId !== undefined) return` guard blocked auto-selection on every doc after the first.
+- Fix: reset `selectedVersionId(undefined)` + `hadInProgressRef.current` in docId effect; add docId-keyed effect in selector resetting `initialSelectDoneRef` + `hadInProgressRef`.
+
+**2. Empty-translation fallback (backend — src/services/pipeline/runner.py)**
+- `_version_text = translated or extracted` — when translation returned `""`, a version was created with `translated_text = extracted_text` (original-language text). Translation tab showed source language.
+- Fix: `_version_text = translated_text` only; empty → no version → tab hidden. Added info log. Unit test `test_translation_version_skipped_when_translated_is_empty` updated (was asserting buggy behavior).
+
+**3. No-op synthetic version (backend — src/services/api/routers/documents.py)**
+- After df93072 no-op detection, `document_payloads.translated_text = content_text` for no-op docs; synthetic fallback had no guard → translation tab appeared with original text.
+- Fix: `AND dp.translated_text IS DISTINCT FROM dp.content_text` in fallback WHERE clause.
+
+**4. application/octet-stream preview (frontend — PreviewPane.tsx, GenericPreview.tsx)**
+- "Cannot be previewed" error wall replaced with extension-based routing (CODE_EXTENSIONS, TEXT_EXTENSIONS, MD_EXTENSIONS) and `GenericPreview` fallback showing extracted text + MIME banner + download link.
+- New file: `src/features/documents/renderers/GenericPreview.tsx`.
+
+Verification: `tsc --noEmit` clean; 21 pipeline runner unit tests pass; 5 pre-existing frontend test failures unchanged.
+
+Risks / follow-ups:
+- Existing documents in DB with `translated_text = content_text` in `document_translation_versions` (created before df93072) still surface as "available" via the real version record — `get_translated_text` returns original text. A data-cleanup pass or `get_translated_text` guard would close this edge case.
+- Attachment GC still missing (files_root/attachments/ grows without bound on doc delete).
+
+## 2026-05-26 — feat: design system update — search + document UI
+
+Status: Done — commit c62094d on feat/design-system-update (pushed, PR ready)
+Source: Tomorrowland Design System.zip + Claude Code session
+
+Changed files (all pass tsc + vite build, zero errors):
+- `frontend/src/features/search/ResultRow.tsx` — source label moved to left column as `<Badge variant="source">`; tags, overflow count, version, translation quality all use `<Badge>` instead of dot-separated inline spans
+- `frontend/src/features/search/ResultRow.module.css` — left column is column-direction to stack mime icon + source badge; snippet expands to 2 lines; meta row uses gap tokens; preview button always visible; highlight marks use oklch amber tint
+- `frontend/src/features/search/SearchPage.module.css` — active mode button gets `box-shadow`; keyboard help bar gains `border-bottom`, bg token, `font-size-meta`
+- `frontend/src/features/documents/InsightPane.module.css` — section headings get `text-transform: uppercase; letter-spacing: 0.04em`
+- `frontend/src/features/documents/DocumentPage.module.css` — insight column `min-width: 360px → 300px` per spec
+
+Design system zip coverage: all 52 zip files now match project. One valid exception: InsightPane.module.css retains `.dotList` / `.dotList .item` / `.dotList .sep` classes used by InsightPane.tsx that the zip snapshot predates.
+
+Known follow-up:
+- `.left` column is `width: 36px` with a `white-space: nowrap` source badge — long source labels (e.g. "Confluence") will visually overflow. Widening to `fit-content` or adding `overflow: hidden` is a safe follow-up if it causes layout collisions in practice.
+
 ## 2026-05-25 — fix: translation no-op + download JSON
 
 Status: Done — committed to main

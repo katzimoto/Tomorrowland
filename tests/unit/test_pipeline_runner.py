@@ -538,12 +538,14 @@ class TestRunOnce:
     # ------------------------------------------------------------------ #
 
     @patch("services.pipeline.runner.TranslationVersionRepository")
-    def test_translation_version_uses_extracted_text_when_translated_is_empty(
+    def test_translation_version_skipped_when_translated_is_empty(
         self, mock_version_repo_cls: MagicMock
     ) -> None:
-        """When translator returns '' (e.g. LibreTranslate empty response),
-        the translation version is still created using extracted_text so the
-        UI is not left with no translation at all."""
+        """When translator returns '' (e.g. LibreTranslate empty response /
+        unavailable), no translation version is created.  Previously the
+        extracted_text was stored as a fallback, but that caused original-
+        language text to appear in the translation UI.  Skipping the version
+        hides the translation tab so users only see original mode."""
         document_id = uuid4()
         repo = _FakeJobRepo()
         repo.claimed_job = {
@@ -572,22 +574,13 @@ class TestRunOnce:
         worker.document_repository.get_by_id.return_value = doc_mock
 
         mock_version_repo = MagicMock()
-        mock_version_repo.find_pending_or_running.return_value = None
-        mock_version_repo.create_version.return_value = {"id": str(uuid4())}
         mock_version_repo_cls.return_value = mock_version_repo
 
         run_once(repo, worker)
 
-        # A translation version must have been created and marked available.
-        mock_version_repo.create_version.assert_called_once()
-        mock_version_repo.update_version_status.assert_called_once()
-        _version_id, status, *_ = mock_version_repo.update_version_status.call_args.args
-        assert status == "available"
-        # The stored text must be the extracted text, not the empty translated string.
-        stored_text = mock_version_repo.update_version_status.call_args.kwargs.get(
-            "translated_text"
-        )
-        assert stored_text == "email body in some language"
+        # No translation version should be created when translation returned empty.
+        mock_version_repo.create_version.assert_not_called()
+        mock_version_repo.update_version_status.assert_not_called()
 
     @patch("services.pipeline.runner.TranslationVersionRepository")
     def test_translation_version_skipped_when_both_texts_empty(

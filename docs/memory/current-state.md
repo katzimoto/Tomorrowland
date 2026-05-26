@@ -2,30 +2,51 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-26 — fix: translation shows original-language text (three bugs closed)
+
+Status: Done — branch feat/design-system-update, commits 0c10cca + 0947937
+Source: Claude Code session
+
+Three translation bugs fixed:
+
+**Bug 1 — Navigation: `selectedVersionId` not reset on document change (frontend)**
+- `DocumentPage.tsx` docId reset effect now calls `setSelectedVersionId(undefined)` and resets `hadInProgressRef.current`. Previously, navigating to doc B kept doc A's version UUID in state; `TranslationVersionSelector`'s `if (selectedVersionId !== undefined) return` guard then skipped auto-selection for every subsequent document.
+- `TranslationVersionSelector.tsx` adds a `docId`-keyed effect resetting `initialSelectDoneRef` and `hadInProgressRef` so auto-select fires cleanly on each navigation.
+
+**Bug 2 — runner.py: empty translation stored as fake version (backend)**
+- `_version_text = process_result.translated_text or process_result.extracted_text` — when LibreTranslate returned `""`, the fallback created a version with `translated_text = extracted_text` (original-language text). Translation tab appeared but showed source language.
+- Fix: `_version_text = process_result.translated_text` only. Empty translation → no version created → translation tab hidden → user stays in original mode. Added info log for the empty-translation case. Test renamed and asserts `create_version` NOT called.
+
+**Bug 3 — list_translation_versions: no-op synthetic version (backend)**
+- After the df93072 no-op detection commit, no-op docs no longer get real version records. But `document_payloads.translated_text` (= `content_text`) was still stored. The synthetic fallback query had no guard, synthesizing an "available" version pointing at original-language text.
+- Fix: added `AND dp.translated_text IS DISTINCT FROM dp.content_text` to the WHERE clause. If texts are identical, no synthetic version is returned.
+
+**Invariant (updated from 2026-05-25 entry):** A `document_translation_versions` record or synthetic version is now only surfaced when `translated_text` is non-empty AND differs from `content_text`. The EML/archive fallback (empty translated → use extracted) was removed — it was causing source-language text to appear in translation view.
+
+**Operator action required:** Set `source_language` on each ingestion source (e.g. `"he"` for Hebrew). Without it LibreTranslate uses auto-detect which silently fails for many PDF/binary file types.
+
+**Watch:** Attachment files under `files_root/attachments/` accumulate indefinitely — no GC yet. A cleanup job is needed when documents are deleted.
+
+Next action: Smoke-test by ingesting a Hebrew PDF via folder connector; confirm translation version created and UI shows translated text in translation mode.
+
 ## 2026-05-25 — fix: translation no-op detection + download JSON bug
 
-Status: Done — committed to main
+Status: Superseded by 2026-05-26 entry above (EML/archive fallback section updated)
 Source: Claude Code session
 
 Two bugs fixed:
 
 **Translation (all file types incl. PDF):**
 - `ProcessResult` now carries `translation_quality: str | None` — `"fast"` only when LibreTranslate returned a non-empty result different from input; `None` otherwise.
-- `runner.py` skips creating a `document_translation_versions` record when translation was a no-op (translated == extracted). Previously a misleading `quality="fast"` version was created even when LibreTranslate returned the original text unchanged. EML/archive fallback preserved: when translation returns `""` but extraction produced text, a version is still created with extracted text as content.
+- `runner.py` skips creating a `document_translation_versions` record when translation was a no-op (translated == extracted). Previously a misleading `quality="fast"` version was created even when LibreTranslate returned the original text unchanged. ~~EML/archive fallback preserved~~ (removed in 2026-05-26 fix — fallback caused original-language text to appear in translation view).
 - `worker.py` logs `WARNING` when `source_language` is `None` before translation (auto-detect will be used) and when translation returned unchanged text.
 - `ingestion.py` logs `WARNING` when documents are ingested without `source_language`.
-
-**Operator action required:** Set `source_language` on each ingestion source (e.g. `"he"` for Hebrew). Without it LibreTranslate uses auto-detect which silently fails for many PDF/binary file types.
 
 **Download (PDF and attachment files):**
 - `DocumentToolbar.tsx` download handler now checks `r.ok`; shows `showToast("error", t.document.downloadError)` instead of silently downloading the JSON error body.
 - `PipelineWorker` accepts `attachment_store: Path | None`. When set, `_process_attachments` saves attachment files to `attachment_store/{sha256[:2]}/{sha256}{ext}` (persistent, inside `files_root`) instead of `/tmp/` (deleted after pipeline). Files in `/tmp/` are outside `files_root` and were blocked by the path-traversal check → 400 JSON → downloaded as "PDF".
 - `runner.py` passes `attachment_store=settings.files_root / "attachments"` to `PipelineWorker`.
 - `downloadError` i18n key added to en.ts and he.ts.
-
-**Watch:** Attachment files under `files_root/attachments/` accumulate indefinitely — no GC yet. A cleanup job is needed when documents are deleted.
-
-Next action: Smoke-test by ingesting a Hebrew PDF via folder connector; confirm translation version is created and UI shows translated text.
 
 ## 2026-05-25 — feat: parsers architecture — full file-type extraction & translation coverage
 

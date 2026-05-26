@@ -40,6 +40,13 @@ export function TranslationVersionSelector({
     },
   });
 
+  // Reset selection-guard refs when the document changes so that the
+  // auto-select logic fires correctly for each new document.
+  useEffect(() => {
+    initialSelectDoneRef.current = false;
+    hadInProgressRef.current = false;
+  }, [docId]);
+
   // Auto-select the latest available translation version:
   // - on initial load when translations are already available, and
   // - when a pending/running translation completes.
