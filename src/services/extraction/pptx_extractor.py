@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import zipfile
 from pathlib import Path
 
 from pptx import Presentation
@@ -21,5 +22,5 @@ class PptxExtractor:
                     if hasattr(shape, "text") and shape.text:
                         texts.append(shape.text)
             return "\n".join(texts)
-        except (OSError, KeyError, PackageNotFoundError):
+        except (OSError, KeyError, ValueError, zipfile.BadZipFile, PackageNotFoundError):
             return ""

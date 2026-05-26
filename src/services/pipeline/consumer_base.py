@@ -176,6 +176,14 @@ class BaseConsumer(ABC):
                 self._channel.basic_nack(delivery_tag=delivery_tag, requeue=False)  # type: ignore[union-attr]
             elif attempt < (max_attempts or 5):
                 self._job_repo.mark_retry(job_id, exc, stage=self.worker_type)
+                # Re-read stored text so the retry message carries content_text.
+                # Without this, downstream workers (translate, embed, index) receive
+                # content_text="" and silently skip processing on every retry attempt.
+                _stored = self._job_repo.get_payload(document_id) or {}
+                _stored_text: str = _stored.get("content_text") or ""
+                _retry_extra: dict[str, str] = (
+                    {"content_text": _stored_text} if _stored_text else {}
+                )
                 retry_body = json.dumps(
                     {
                         "job_id": str(job_id),
@@ -183,6 +191,7 @@ class BaseConsumer(ABC):
                         "source_id": str(source_id),
                         "attempt": attempt + 1,
                         "pipeline_version": "v1",
+                        **_retry_extra,
                     }
                 ).encode()
                 self._channel.basic_publish(  # type: ignore[union-attr]

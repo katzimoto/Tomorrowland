@@ -10,8 +10,14 @@ class SucceedingConsumer(BaseConsumer):
     worker_type = "parse-worker"
 
     def handle_message(
-        self, job_id, document_id, source_id, attempt, correlation_id,
-        content_text: str = "", translated_text: str = "",
+        self,
+        job_id,
+        document_id,
+        source_id,
+        attempt,
+        correlation_id,
+        content_text: str = "",
+        translated_text: str = "",
     ):
         pass
 
@@ -21,8 +27,14 @@ class FailingConsumer(BaseConsumer):
     worker_type = "parse-worker"
 
     def handle_message(
-        self, job_id, document_id, source_id, attempt, correlation_id,
-        content_text: str = "", translated_text: str = "",
+        self,
+        job_id,
+        document_id,
+        source_id,
+        attempt,
+        correlation_id,
+        content_text: str = "",
+        translated_text: str = "",
     ):
         raise RuntimeError("something broke")
 
@@ -83,3 +95,49 @@ def test_failure_dead_letters_when_attempts_exhausted():
 
     consumer._channel.basic_nack.assert_called_once_with(delivery_tag=42, requeue=False)
     consumer._job_repo.mark_dead_letter.assert_called_once()
+
+
+def test_retry_message_includes_stored_content_text():
+    """Retry bodies must carry content_text so downstream workers do not see empty text.
+
+    Previously the retry JSON was rebuilt without content_text, causing translate/
+    embed/index workers to silently treat the document as having no content.
+
+    The basic_publish retry path fires when attempt >= retry_limit (min(3, max_attempts))
+    AND attempt < max_attempts. With max_attempts=5 and retry_limit=3, attempt=3 reaches
+    the elif branch that calls basic_publish.
+    """
+    consumer = FailingConsumer.__new__(FailingConsumer)
+    consumer._channel = MagicMock()
+    consumer._job_repo = MagicMock()
+    consumer._job_repo.get_max_attempts.return_value = 5
+    # Simulate stored payload with extracted text
+    consumer._job_repo.get_payload.return_value = {"content_text": "extracted slide text"}
+    consumer._jobs_processed = 0
+
+    # attempt=3: >= retry_limit(3) AND < max_attempts(5) → basic_publish branch
+    ch, method, props, body = _make_delivery(attempt=3)
+    consumer._on_message(ch, method, props, body)
+
+    # Should have published a retry message
+    consumer._channel.basic_publish.assert_called_once()
+    published_body = json.loads(consumer._channel.basic_publish.call_args.kwargs["body"])
+    assert published_body.get("content_text") == "extracted slide text"
+
+
+def test_retry_message_omits_content_text_when_payload_empty():
+    """When no payload exists the retry body must not include content_text."""
+    consumer = FailingConsumer.__new__(FailingConsumer)
+    consumer._channel = MagicMock()
+    consumer._job_repo = MagicMock()
+    consumer._job_repo.get_max_attempts.return_value = 5
+    consumer._job_repo.get_payload.return_value = None
+    consumer._jobs_processed = 0
+
+    # attempt=3: >= retry_limit(3) AND < max_attempts(5) → basic_publish branch
+    ch, method, props, body = _make_delivery(attempt=3)
+    consumer._on_message(ch, method, props, body)
+
+    consumer._channel.basic_publish.assert_called_once()
+    published_body = json.loads(consumer._channel.basic_publish.call_args.kwargs["body"])
+    assert "content_text" not in published_body

@@ -265,7 +265,23 @@ class PreviewService:
             if translated_text:
                 return translated_text[:SNIPPET_LENGTH]
 
-        # Fall back to original document extraction
+        # Try stored payload text before re-extracting from file.
+        # Temp files (SMB downloads, Atlassian attachments) are deleted
+        # after pipeline processing, so file-based re-extraction would
+        # always return "" for those sources.  The pipeline already stored
+        # the content in document_payloads, so prefer that here.
+        payload_row = (
+            self._connection.execute(
+                sa.text("SELECT content_text FROM document_payloads WHERE document_id = :id"),
+                {"id": db_uuid(document_id)},
+            )
+            .mappings()
+            .first()
+        )
+        if payload_row and payload_row["content_text"]:
+            return str(payload_row["content_text"])[:SNIPPET_LENGTH]
+
+        # Fall back to original document extraction (file still on disk)
         if file_path is None:
             return ""
 
