@@ -41,7 +41,6 @@ _ALIASES: dict[str, str] = {
     "application/x-zip-compressed": "application/zip",
     # Gzip / tar
     "application/x-gzip": "application/gzip",
-    "application/x-tar": "application/x-tar",
     # HTML
     "application/xhtml+xml": "text/html",
     # Images (common mis-spellings / vendor types)
@@ -119,7 +118,6 @@ class ExtractorRegistry:
             "application/vnd.ms-outlook": MsgExtractor(),
             # Archives
             "application/zip": ZipExtractor(),
-            "application/x-zip-compressed": ZipExtractor(),
             "application/x-tar": TarExtractor(),
             "application/gzip": TarExtractor(),
         }

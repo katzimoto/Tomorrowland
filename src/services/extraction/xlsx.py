@@ -18,7 +18,10 @@ class XlsxExtractor:
         Uses ``data_only=True`` so formula cells yield their last computed
         value rather than the formula string, giving translatable content.
         Uses ``read_only=True`` for memory efficiency on large sheets.
+        ``wb.close()`` is always called via ``finally`` so file handles are
+        released even when an exception occurs mid-iteration.
         """
+        wb = None
         try:
             wb = load_workbook(str(path), read_only=True, data_only=True)
             texts: list[str] = []
@@ -27,9 +30,14 @@ class XlsxExtractor:
                     for cell in row:
                         if cell.value is not None:
                             texts.append(str(cell.value))
-            wb.close()
             return "\n".join(texts)
         except (OSError, KeyError, ValueError, InvalidFileException, zipfile.BadZipFile):
             return ""
         except Exception:  # noqa: BLE001
             return ""
+        finally:
+            if wb is not None:
+                try:
+                    wb.close()
+                except Exception:  # noqa: BLE001
+                    pass
