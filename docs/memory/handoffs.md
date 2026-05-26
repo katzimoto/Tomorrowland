@@ -2,6 +2,37 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-26 — fix/extractor-bugs — 15-bug sweep (extractors + translation pipeline)
+
+Status: Merged — main
+Source: Claude Code session
+
+**Changed files:**
+- `src/services/extraction/html.py` — depth counter for nested skip tags; latin-1 fallback
+- `src/services/extraction/rtf.py` — latin-1 fallback for Win-1252 RTF files
+- `src/services/extraction/xml_extractor.py` — ET.parse() + itertext() (tag stripping + encoding)
+- `src/services/extraction/docx.py` — merged-cell dedup by `_tc` identity
+- `src/services/extraction/msg_extractor.py` — `msg.close()` in finally; contextlib.suppress import
+- `src/services/extraction/xlsx.py` — `wb.close()` in finally block
+- `src/services/extraction/epub.py` — re.DOTALL on `_TAG_RE`
+- `src/services/extraction/eml.py` — filename-guessed MIME when no explicit Content-Type
+- `src/services/extraction/registry.py` — remove self-alias + dead x-zip-compressed entry
+- `src/services/pipeline/translation_worker.py` — graceful skip for empty content_text
+- `src/services/pipeline/slow_worker.py` — `type(exc).__name__` in loop error log
+- `src/services/pipeline/translate_worker.py` — use doc.target_language (default "en") instead of hardcoded "en"
+- `tests/unit/test_extractor_bug_fixes.py` — 20 regression tests (new file; +2 for bug 15)
+- `tests/unit/test_translation_worker.py` — 2 tests updated for new graceful-skip behavior
+
+**Verification:** 28/28 targeted tests pass. 28 pre-existing failures in `test_compose_volumes.py` are unrelated.
+
+**Remaining risks:**
+- `test_compose_volumes.py` pre-existing failures need a separate fix (airgap compose YAML shape).
+- `.doc`/`.xls`/`.ppt` (legacy Office) still return empty unless `ENABLE_LEGACY_OFFICE=true`.
+- Scanned PDFs still need `ENABLE_OCR=true` for any text extraction.
+
+**Next agent prompt:**
+- Consider a backfill job to re-extract documents that had XML, RTF, or HTML files previously returning empty.
+
 ## 2026-05-26 — fix: translation sweep — read-path, 6 bugs, TOCTOU race, xlsx, attachments
 
 Status: Done — main, commits 263171c + e0c74fb + ab3e3ac

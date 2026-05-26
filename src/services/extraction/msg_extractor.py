@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import mimetypes
+from contextlib import suppress
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -24,6 +25,9 @@ class MsgExtractor:
         """
         try:
             msg = extract_msg.Message(str(path))  # type: ignore[no-untyped-call]
+        except Exception:
+            return ""
+        try:
 
             def _safe_str(val: object | None) -> str:
                 if val is None:
@@ -115,11 +119,17 @@ class MsgExtractor:
             return "\n\n".join(sections)
         except Exception:
             return ""
+        finally:
+            with suppress(Exception):
+                msg.close()
 
     def extract_attachments(self, path: Path) -> list[AttachmentData]:
         """Return raw bytes for each attachment in the MSG file."""
         try:
             msg = extract_msg.Message(str(path))  # type: ignore[no-untyped-call]
+        except Exception:
+            return []
+        try:
             result: list[AttachmentData] = []
             for att in getattr(msg, "attachments", []) or []:
                 fname = (
@@ -146,3 +156,6 @@ class MsgExtractor:
             return result
         except Exception:
             return []
+        finally:
+            with suppress(Exception):
+                msg.close()

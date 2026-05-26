@@ -173,7 +173,13 @@ def test_retries_when_document_not_found() -> None:
     assert job_repo.enqueued == []
 
 
-def test_retries_when_content_text_missing() -> None:
+def test_skips_gracefully_when_content_text_missing() -> None:
+    """Empty content_text must be handled gracefully (not retried / dead-lettered).
+
+    Documents with no extractable text (e.g. scanned PDFs without OCR) used to
+    cause the job to be retried up to max_attempts times and then dead-lettered.
+    After the fix the job succeeds immediately and the index stage is enqueued.
+    """
     job = _make_job()
     payload = {"content_text": "", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
@@ -183,20 +189,33 @@ def test_retries_when_content_text_missing() -> None:
     result = run_translation_once(job_repo, doc_repo, translator)
 
     assert result is True
-    assert job_repo.retried == [job["id"]]
-    assert job_repo.translated_text_updates == []
+    # Must NOT retry or dead-letter
+    assert job_repo.retried == []
+    assert job_repo.dead_lettered == []
+    # Must have stored empty translated text so index worker has a payload row
+    assert job_repo.translated_text_updates == [(job["document_id"], "")]
+    # Must have succeeded and enqueued the index stage
+    assert job_repo.succeeded == [job["id"]]
+    assert len(job_repo.enqueued) == 1
+    assert job_repo.enqueued[0]["document_id"] == job["document_id"]
+    assert job_repo.enqueued[0]["job_type"] == "index_document"
 
 
-def test_dead_letters_when_max_attempts_reached() -> None:
+def test_dead_letters_only_when_translation_itself_fails() -> None:
+    """Dead-lettering must only happen when translation raises, not for empty text."""
     job = _make_job()
     job["attempts"] = 5
     job["max_attempts"] = 5
-    payload = {"content_text": "", "translated_text": None}
+    # Give it real content so it tries to translate
+    payload = {"content_text": "some content", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=_FakeDoc())
-    translator = _FakeTranslator()
 
-    result = run_translation_once(job_repo, doc_repo, translator)
+    class _BrokenTranslator:
+        def translate(self, text: str, source_lang: str | None) -> str:
+            raise RuntimeError("LibreTranslate unreachable")
+
+    result = run_translation_once(job_repo, doc_repo, _BrokenTranslator())
 
     assert result is True
     assert job_repo.dead_lettered == [job["id"]]

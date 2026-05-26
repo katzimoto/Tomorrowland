@@ -70,7 +70,28 @@ def run_translation_once(
         payload = job_repo.get_payload(document_id)
         content_text = (payload["content_text"] if payload else None) or ""
         if not content_text:
-            raise ValueError(f"No content_text for document {document_id}")
+            # Document has no extractable text (e.g. scanned PDF without OCR,
+            # empty file).  Skip translation gracefully — raising here would
+            # retry and dead-letter a valid document.
+            logger.info(
+                "translation skipped: empty content_text document_id=%s", document_id
+            )
+            job_repo.update_translated_text(document_id, "")
+            job_repo.mark_succeeded(job_id)
+            try:
+                job_repo.enqueue_document(
+                    document_id=document_id,
+                    source_id=source_id,
+                    job_type="index_document",
+                )
+            except Exception:
+                logger.exception(
+                    "failed to enqueue index job after empty translation: "
+                    "worker_id=%s document_id=%s",
+                    worker_id,
+                    document_id,
+                )
+            return True
 
         translated = translator.translate(content_text, source_lang=doc.source_language)
         job_repo.update_translated_text(document_id, translated)

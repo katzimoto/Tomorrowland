@@ -2,6 +2,35 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-26 — fix/extractor-bugs — 14-bug sweep across extractors + translation pipeline
+
+Status: Active — branch fix/extractor-bugs, commits e659a68 + 9d04cea; PR pending
+Source: Claude Code session
+
+14 bugs found and fixed across two passes. Branch is ready to PR.
+
+**Pass 1 — extractor correctness (e659a68)**
+1. `html.py` — nested skip-tag depth counter (was boolean, leaked text from `<nav><style>` etc.)
+2. `html.py` — latin-1 encoding fallback (ISO-8859-1/Win-1252 HTML was silently empty)
+3. `rtf.py` — latin-1 encoding fallback (most RTF files are Win-1252, were silently empty)
+4. `xml_extractor.py` — strip XML tags via `ET.itertext()` (was sending raw markup to translator)
+5. `xml_extractor.py` — use `ET.parse()` for encoding-aware parsing (declared encoding respected)
+6. `docx.py` — deduplicate merged cells by `_tc` identity (merged cell text appeared N times)
+7. `msg_extractor.py` — `msg.close()` in `finally` for both `extract()` + `extract_attachments()`
+8. `xlsx.py` — `wb.close()` in `finally` block (was skipped on any exception)
+9. `registry.py` — removed self-alias `x-tar → x-tar` (no-op)
+10. `registry.py` — removed dead `x-zip-compressed` direct registration (alias already routes it)
+
+**Pass 2 — translation pipeline + extractor quality (9d04cea)**
+11. `translation_worker.py` — empty `content_text` now skips gracefully (previously raised ValueError → retried → dead-lettered valid docs with no text)
+12. `slow_worker.py` — `type(exc).__name__` in enrich-loop error log (was always `"type"`)
+13. `epub.py` — `re.DOTALL` on tag regex (multiline HTML attributes left tag fragments in text)
+14. `eml.py` — prefer filename-guessed MIME when declared type is default `text/plain` and no `Content-Type` header present (PDFs named `report.pdf` were extracted as plain text)
+
+**Invariant:** All 18 regression tests + 26 translation_worker tests pass (807 total unit tests; 28 pre-existing failures in `test_compose_volumes.py` are unrelated — Docker Compose YAML issue).
+
+**Watch:** `test_compose_volumes.py` — 12 pre-existing failures related to airgap compose YAML; not caused by this branch.
+
 ## 2026-05-26 — fix: translation read-path + 6-bug sweep + TOCTOU race
 
 Status: Done — main, commits 263171c + e0c74fb + ab3e3ac

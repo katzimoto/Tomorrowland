@@ -141,9 +141,17 @@ class EmlExtractor:
                 if not isinstance(data, (bytes, bytearray)) or not data:
                     continue
                 fname = filename or "attachment"
-                declared_ctype = part.get_content_type() or ""
+                declared_ctype = part.get_content_type()  # never None with policy.default
                 guessed = mimetypes.guess_type(fname)[0] or "application/octet-stream"
-                mime = declared_ctype or guessed
+                # email.policy.default returns the RFC 2045 default "text/plain"
+                # when no Content-Type header is present.  Prefer the filename-
+                # derived MIME type when the declared value is just that default,
+                # so a PDF named "report.pdf" without an explicit Content-Type
+                # header is typed as "application/pdf" rather than "text/plain".
+                if declared_ctype == "text/plain" and "Content-Type" not in part:
+                    mime = guessed
+                else:
+                    mime = declared_ctype
                 result.append(AttachmentData(filename=fname, mime_type=mime, data=bytes(data)))
             return result
         except Exception:

@@ -451,11 +451,11 @@ def run_enrich_loop(
 
             try:
                 ran = run_enrich_once(job_repo, worker, worker_id=worker_id, metrics=metrics)
-            except Exception:
+            except Exception as exc:
                 logger.exception(
                     "unhandled enrich loop error: worker_id=%s error_type=%s",
                     worker_id,
-                    type(Exception).__name__,
+                    type(exc).__name__,
                 )
                 time.sleep(poll_interval)
                 continue

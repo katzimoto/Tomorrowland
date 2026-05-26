@@ -5,18 +5,27 @@ from __future__ import annotations
 from html.parser import HTMLParser
 from pathlib import Path
 
+_SKIP_TAGS = {"script", "style", "nav", "footer"}
+
 
 class _HTMLTextParser(HTMLParser):
-    """Collect visible text from HTML, dropping tags and scripts."""
+    """Collect visible text from HTML, dropping tags and scripts.
+
+    Uses a depth counter per skip-tag family so nested skip elements
+    (e.g. ``<nav><style>…</style>more nav text</nav>``) are handled
+    correctly: the first matching open-tag increments the counter and
+    text stays suppressed until the matching close-tag brings the counter
+    back to zero.
+    """
 
     def __init__(self) -> None:
         super().__init__()
         self._texts: list[str] = []
-        self._skip = False
+        self._skip_depth: int = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag in {"script", "style", "nav", "footer"}:
-            self._skip = True
+        if tag in _SKIP_TAGS:
+            self._skip_depth += 1
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         # Self-closing tags like <script src="..." /> do not toggle skip state
@@ -24,11 +33,11 @@ class _HTMLTextParser(HTMLParser):
         pass
 
     def handle_endtag(self, tag: str) -> None:
-        if tag in {"script", "style", "nav", "footer"}:
-            self._skip = False
+        if tag in _SKIP_TAGS and self._skip_depth > 0:
+            self._skip_depth -= 1
 
     def handle_data(self, data: str) -> None:
-        if not self._skip:
+        if self._skip_depth == 0:
             stripped = data.strip()
             if stripped:
                 self._texts.append(stripped)
@@ -41,11 +50,27 @@ class HtmlExtractor:
     """Extract visible text from HTML files."""
 
     def extract(self, path: Path) -> str:
-        """Return visible text with tags, scripts, and styles stripped."""
+        """Return visible text with tags, scripts, and styles stripped.
+
+        Tries UTF-8 first, then falls back to latin-1 so that legacy
+        ISO-8859-1 / Windows-1252 HTML files are not silently dropped.
+        """
+        raw: str | None = None
         try:
             raw = path.read_text(encoding="utf-8")
-            parser = _HTMLTextParser()
-            parser.feed(raw)
-            return parser.result()
-        except (OSError, UnicodeDecodeError):
+        except UnicodeDecodeError:
+            pass
+        except OSError:
             return ""
+
+        if raw is None:
+            # Fallback: latin-1 never raises a decode error and covers the
+            # Windows-1252 / ISO-8859-1 range used by most legacy HTML pages.
+            try:
+                raw = path.read_text(encoding="latin-1")
+            except OSError:
+                return ""
+
+        parser = _HTMLTextParser()
+        parser.feed(raw)
+        return parser.result()
