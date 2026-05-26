@@ -2,6 +2,23 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-26 — feat: design system update — search + document UI
+
+Status: Done — commit c62094d on feat/design-system-update (pushed, PR ready)
+Source: Tomorrowland Design System.zip + Claude Code session
+
+Changed files (all pass tsc + vite build, zero errors):
+- `frontend/src/features/search/ResultRow.tsx` — source label moved to left column as `<Badge variant="source">`; tags, overflow count, version, translation quality all use `<Badge>` instead of dot-separated inline spans
+- `frontend/src/features/search/ResultRow.module.css` — left column is column-direction to stack mime icon + source badge; snippet expands to 2 lines; meta row uses gap tokens; preview button always visible; highlight marks use oklch amber tint
+- `frontend/src/features/search/SearchPage.module.css` — active mode button gets `box-shadow`; keyboard help bar gains `border-bottom`, bg token, `font-size-meta`
+- `frontend/src/features/documents/InsightPane.module.css` — section headings get `text-transform: uppercase; letter-spacing: 0.04em`
+- `frontend/src/features/documents/DocumentPage.module.css` — insight column `min-width: 360px → 300px` per spec
+
+Design system zip coverage: all 52 zip files now match project. One valid exception: InsightPane.module.css retains `.dotList` / `.dotList .item` / `.dotList .sep` classes used by InsightPane.tsx that the zip snapshot predates.
+
+Known follow-up:
+- `.left` column is `width: 36px` with a `white-space: nowrap` source badge — long source labels (e.g. "Confluence") will visually overflow. Widening to `fit-content` or adding `overflow: hidden` is a safe follow-up if it causes layout collisions in practice.
+
 ## 2026-05-25 — fix: translation no-op + download JSON
 
 Status: Done — committed to main
