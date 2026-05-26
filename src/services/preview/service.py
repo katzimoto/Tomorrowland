@@ -159,6 +159,12 @@ class PreviewService:
         translation.  Falls back to ``document_payloads.translated_text``
         for documents processed before version records existed.
         Returns ``None`` when no translation is found.
+
+        In all three lookup paths, versions / payloads whose
+        ``translated_text`` equals the original ``content_text`` are
+        skipped — they represent no-op translations (document already in the
+        target language or LibreTranslate returned the input unchanged) and
+        would otherwise show original-language text in the translation view.
         """
         if translation_version_id is not None:
             version_row = (
@@ -166,7 +172,14 @@ class PreviewService:
                     sa.text("""
                         SELECT dv.translated_text, dv.document_id
                         FROM document_translation_versions dv
-                        WHERE dv.id = :id AND dv.status = 'available'
+                        LEFT JOIN document_payloads dp
+                               ON dp.document_id = dv.document_id
+                        WHERE dv.id = :id
+                          AND dv.status = 'available'
+                          AND (
+                            dp.content_text IS NULL
+                            OR dv.translated_text IS DISTINCT FROM dp.content_text
+                          )
                         """),
                     {"id": db_uuid(translation_version_id)},
                 )
@@ -183,10 +196,17 @@ class PreviewService:
         latest_row = (
             self._connection.execute(
                 sa.text("""
-                    SELECT translated_text
-                    FROM document_translation_versions
-                    WHERE document_id = :document_id AND status = 'available'
-                    ORDER BY version_number DESC
+                    SELECT dtv.translated_text
+                    FROM document_translation_versions dtv
+                    LEFT JOIN document_payloads dp
+                           ON dp.document_id = dtv.document_id
+                    WHERE dtv.document_id = :document_id
+                      AND dtv.status = 'available'
+                      AND (
+                        dp.content_text IS NULL
+                        OR dtv.translated_text IS DISTINCT FROM dp.content_text
+                      )
+                    ORDER BY dtv.version_number DESC
                     LIMIT 1
                     """),
                 {"document_id": db_uuid(document_id)},
@@ -203,6 +223,10 @@ class PreviewService:
                     SELECT translated_text
                     FROM document_payloads
                     WHERE document_id = :document_id
+                      AND (
+                        content_text IS NULL
+                        OR translated_text IS DISTINCT FROM content_text
+                      )
                     """),
                 {"document_id": db_uuid(document_id)},
             )

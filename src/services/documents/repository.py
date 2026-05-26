@@ -442,12 +442,27 @@ class TranslationVersionRepository:
         return dict(row)
 
     def list_versions(self, document_id: UUID) -> list[dict[str, Any]]:
-        """List all translation versions for a document, newest first."""
+        """List translation versions for a document, newest first.
+
+        Available versions whose ``translated_text`` is identical to the
+        document's ``content_text`` are excluded — they represent no-op
+        translations (document already in the target language or LibreTranslate
+        returned the input unchanged) and should not be surfaced in the UI.
+        Non-available versions (pending / running / failed) are always returned
+        so the frontend can display in-progress or error states.
+        """
         rows = self._connection.execute(
             sa.text("""
-                SELECT * FROM document_translation_versions
-                WHERE document_id = :document_id
-                ORDER BY version_number DESC
+                SELECT dtv.*
+                FROM document_translation_versions dtv
+                LEFT JOIN document_payloads dp ON dp.document_id = dtv.document_id
+                WHERE dtv.document_id = :document_id
+                  AND (
+                    dtv.status != 'available'
+                    OR dp.content_text IS NULL
+                    OR dtv.translated_text IS DISTINCT FROM dp.content_text
+                  )
+                ORDER BY dtv.version_number DESC
                 """),
             {"document_id": db_uuid(document_id)},
         ).mappings()
