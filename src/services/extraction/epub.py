@@ -5,7 +5,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-_TAG_RE = re.compile(r"<[^>]+>")
+# re.DOTALL so tags spanning multiple lines (e.g. attributes on separate lines)
+# are fully stripped rather than leaving tag fragments in the extracted text.
+_TAG_RE = re.compile(r"<[^>]+>", re.DOTALL)
 _WHITESPACE_RE = re.compile(r"\s+")
 
 
