@@ -10,6 +10,7 @@ import {
 } from "@/api/chat";
 import { useToast } from "@/components/primitives/ToastContext";
 import { useT } from "@/i18n/index";
+import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { MessageList } from "./MessageList";
