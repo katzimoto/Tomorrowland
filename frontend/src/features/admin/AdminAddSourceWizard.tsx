@@ -48,7 +48,7 @@ export function AdminAddSourceWizard() {
     config: {}, enabled: true, groups: [],
   });
 
-  const { data: connectorTypes = [] } = useQuery({
+  const { data: connectorTypes = [], isLoading: connectorTypesLoading } = useQuery({
     queryKey: ["connector-types"],
     queryFn: adminApi.connectorTypes,
   });
@@ -100,7 +100,7 @@ export function AdminAddSourceWizard() {
     setState((s) => ({ ...s, [key]: value }));
   }
 
-  if (!connectorTypes.length) {
+  if (connectorTypesLoading) {
     return <div className={styles.page}><p>Loading connector types...</p></div>;
   }
 

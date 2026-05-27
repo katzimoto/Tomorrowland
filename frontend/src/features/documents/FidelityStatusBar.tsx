@@ -1,3 +1,4 @@
+import { useToast } from "@/components/primitives/ToastContext";
 import type { ViewMode } from "./ViewModeSwitcher";
 import styles from "./FidelityStatusBar.module.css";
 
@@ -62,6 +63,7 @@ export function FidelityStatusBar({
   downloadUrl,
 }: FidelityStatusBarProps) {
   const { dot, text, includesDownload } = getStatus(activeMode, translationQuality);
+  const { show: showToast } = useToast();
 
   return (
     <div className={styles.bar}>
@@ -82,13 +84,19 @@ export function FidelityStatusBar({
                 const token = sessionStorage.getItem("tomorrowland_token");
                 const url = downloadUrl;
                 fetch(url, { headers: { Authorization: `Bearer ${token || ""}` } })
-                  .then((r) => r.blob())
+                  .then((r) => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.blob();
+                  })
                   .then((blob) => {
                     const a = document.createElement("a");
                     a.href = URL.createObjectURL(blob);
                     a.download = blob.type === "application/json" ? "download.bin" : (url.split("/").pop() || "download");
                     a.click();
                     URL.revokeObjectURL(a.href);
+                  })
+                  .catch(() => {
+                    showToast("error", "Download failed. Please try again.");
                   });
               }}
             >

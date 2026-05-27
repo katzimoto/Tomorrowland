@@ -276,21 +276,21 @@ function AnnotationsTab({ docId }: { docId: string }) {
   const qc = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["doc-annotations", docId],
+    queryKey: ["annotations", docId],
     staleTime: 2 * 60_000,
     queryFn: () => listAnnotations(docId),
   });
 
   const invalidate = () =>
-    void qc.invalidateQueries({ queryKey: ["doc-annotations", docId] });
+    void qc.invalidateQueries({ queryKey: ["annotations", docId] });
 
   const addMut = useMutation({
     mutationFn: (body: string) =>
       createAnnotation(docId, { body, shared: !isPrivate, position: null }),
     onMutate: async (body) => {
-      await qc.cancelQueries({ queryKey: ["doc-annotations", docId] });
+      await qc.cancelQueries({ queryKey: ["annotations", docId] });
       const previous = qc.getQueryData<Annotation[]>([
-        "doc-annotations",
+        "annotations",
         docId,
       ]);
       const optimistic: Annotation = {
@@ -306,7 +306,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
         can_modify: true,
       };
       qc.setQueryData<Annotation[]>(
-        ["doc-annotations", docId],
+        ["annotations", docId],
         (current) => [...(current ?? []), optimistic]
       );
       setNewText("");
@@ -314,7 +314,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
     },
     onError: (_error, _body, context) => {
       if (context?.previous)
-        qc.setQueryData(["doc-annotations", docId], context.previous);
+        qc.setQueryData(["annotations", docId], context.previous);
       showToast("error", t.insight.annotationAddError);
     },
     onSettled: invalidate,
@@ -323,13 +323,13 @@ function AnnotationsTab({ docId }: { docId: string }) {
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteAnnotation(id),
     onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: ["doc-annotations", docId] });
+      await qc.cancelQueries({ queryKey: ["annotations", docId] });
       const previous = qc.getQueryData<Annotation[]>([
-        "doc-annotations",
+        "annotations",
         docId,
       ]);
       qc.setQueryData<Annotation[]>(
-        ["doc-annotations", docId],
+        ["annotations", docId],
         (current) => (current ?? []).filter(
           (annotation) => annotation.id !== id
         )
@@ -338,7 +338,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
     },
     onError: (_error, _id, context) => {
       if (context?.previous)
-        qc.setQueryData(["doc-annotations", docId], context.previous);
+        qc.setQueryData(["annotations", docId], context.previous);
       showToast("error", t.insight.annotationDeleteError);
     },
     onSettled: invalidate,
@@ -391,6 +391,12 @@ function AnnotationsTab({ docId }: { docId: string }) {
           className={styles.inlineInput}
           value={newText}
           onChange={(e) => setNewText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && newText.trim() && !addMut.isPending) {
+              e.preventDefault();
+              addMut.mutate(newText.trim());
+            }
+          }}
           placeholder={t.insight.annotationAddPlaceholder}
           aria-label={t.insight.annotationNewLabel}
         />

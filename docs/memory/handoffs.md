@@ -2,6 +2,23 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-27 — fix(frontend): 5 UX bugs across documents, chat, admin, and annotations
+
+Status: Done — pushed to main
+Source: Claude Code session
+
+**Bugs fixed (4 files):**
+
+1. **`FidelityStatusBar.tsx` — silent download failure** — "download original" button had no `.catch()`; added `r.ok` check and `showToast("error", …)` on failure.
+2. **`InsightPane.tsx` (AnnotationsTab) — no Enter-to-submit** — annotation input lacked `onKeyDown`; inconsistent with `CommentComposer`/`AnnotationEditor`. Added Enter handler guarded by non-empty + not-pending.
+3. **`AdminAddSourceWizard.tsx` — empty array treated as loading** — `!connectorTypes.length` was the loading gate; a system with zero connectors would show "Loading…" forever. Changed to `isLoading: connectorTypesLoading` from `useQuery`.
+4. **`ChatWindow.tsx` — no retry on session load error** — error state rendered `EmptyState` with no recovery action. Added `variant="secondary"` Button that invalidates the query (uses `t.chat.retry`).
+5. **`InsightPane.tsx` cache key mismatch (`["doc-annotations"]` vs `["annotations"]`)** — AnnotationsTab used a different key than `AnnotationList`/`AnnotationEditor`; mutations on one never invalidated the other (up to 2 min stale). Standardized all InsightPane keys to `["annotations", docId]`.
+
+**Verification:** `tsc --noEmit` — 0 errors.
+
+---
+
 ## 2026-05-27 — fix(extraction): generic Office extraction — commit 023f9e0
 
 Status: Done — pushed to main

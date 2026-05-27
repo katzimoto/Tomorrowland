@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getChatSession,
   sendChatMessageStream,
@@ -38,6 +38,7 @@ export function ChatWindow({
   const [isSending, setIsSending] = useState(false);
   const seededForSession = useRef<string | null>(null);
 
+  const qc = useQueryClient();
   const { data: sessionData, isLoading, isError } = useQuery({
     queryKey: ["chat-session", session.id],
     queryFn: () => getChatSession(session.id),
@@ -153,7 +154,19 @@ export function ChatWindow({
   if (isError) {
     return (
       <div className={styles.window}>
-        <EmptyState title={t.chat.loadSessionError} />
+        <EmptyState
+          title={t.chat.loadSessionError}
+          action={
+            <Button
+              variant="secondary"
+              onClick={() =>
+                void qc.invalidateQueries({ queryKey: ["chat-session", session.id] })
+              }
+            >
+              {t.chat.retry}
+            </Button>
+          }
+        />
       </div>
     );
   }
