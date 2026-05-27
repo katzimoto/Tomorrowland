@@ -24,6 +24,11 @@ class OllamaClient:
         self._base_url = base_url.rstrip("/")
         self._model = model
 
+    @property
+    def model(self) -> str:
+        """The default model name used when no override is provided."""
+        return self._model
+
     def generate(self, prompt: str, model: str | None = None) -> str:
         """Send a generate request to Ollama and return the response text.
 
@@ -92,7 +97,6 @@ class OllamaClient:
 
         metrics = current_metrics()
         start = time.perf_counter()
-        tokens = 0
         try:
             with httpx.stream("POST", url, json=payload, timeout=DEFAULT_TIMEOUT) as response:
                 response.raise_for_status()
@@ -103,7 +107,6 @@ class OllamaClient:
                     data = json.loads(line)
                     token = data.get("response", "")
                     if token:
-                        tokens += 1
                         yield token
         except Exception:
             if metrics is not None:

@@ -171,15 +171,16 @@ def test_worker_failure_does_not_block(
         assert summary["error_type"] is not None
 
 
-def test_worker_stops_on_first_failure(
+def test_worker_task_failures_are_swallowed(
     migrated_engine: Engine,
     mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
+    """Partial task failure must not raise — all tasks are best-effort."""
     document_id = uuid4()
     content = "Some content"
 
-    # Summary succeeds, entities fail
+    # Summary succeeds (degraded — plain text, not JSON), entities fail
     ollama_client.generate = MagicMock(side_effect=["A summary", RuntimeError("Ollama failed")])
 
     with migrated_engine.begin() as connection:
@@ -189,13 +190,17 @@ def test_worker_stops_on_first_failure(
             ollama_client=ollama_client,
             es_client=mock_es,
         )
+        # Must not raise even when entity extraction (and auto-tag) fail
         worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
         repo = IntelligenceRepository(connection)
         summary = repo.get_summary(document_id)
         assert summary is not None
+        # No entities because the extraction task failed silently
         entities = repo.get_entities(document_id)
         assert len(entities) == 0
 
-    assert ollama_client.generate.call_count == 2
+    # summarize + extract_entities + auto_tag each call generate once;
+    # key_points uses rule-based only (no config_source) → 3 total calls
+    assert ollama_client.generate.call_count == 3

@@ -106,14 +106,13 @@ class IntelligenceWorker:
         concurrently via a thread pool. Each task is independent — they
         share the same *content* but not each other's outputs.
 
-        On any failure, the exception propagates so the caller can retry
-        or dead-letter the pipeline job.
+        Failures in individual tasks are logged and swallowed so that LLM
+        enrichment never blocks ingestion.  The pipeline job always succeeds
+        from this method's perspective.
         """
         tasks = self._enabled_tasks()
         if not tasks:
             return
-
-        errors: list[Exception] = []
 
         def _run(task: str) -> None:
             metrics = current_metrics()
@@ -132,7 +131,7 @@ class IntelligenceWorker:
                     metrics.intelligence_task_duration_seconds.labels(task).observe(
                         time.perf_counter() - start
                     )
-            except Exception as exc:
+            except Exception:
                 if metrics is not None:
                     metrics.intelligence_tasks_total.labels(task, "failure").inc()
                     metrics.intelligence_task_duration_seconds.labels(task).observe(
@@ -144,15 +143,11 @@ class IntelligenceWorker:
                     document_id,
                     get_correlation_id(),
                 )
-                errors.append(exc)
 
         with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
             futures = [pool.submit(_run, task) for task in tasks]
             for future in as_completed(futures):
                 future.result()
-
-        if errors:
-            raise errors[0]
 
     def _enabled_tasks(self) -> list[str]:
         """Return list of enabled task names from system_config."""
@@ -184,7 +179,7 @@ class IntelligenceWorker:
         If the LLM call fails entirely, safe failure metadata is persisted.
         """
         stripped = content.strip()
-        model = self._ollama._model
+        model = self._ollama.model
         input_chars = len(stripped)
         text_hash = content_hash(stripped)
 
@@ -217,9 +212,7 @@ class IntelligenceWorker:
                         "llm.summarization_prompt", chunk, SUMMARY_CHUNK_CHARS
                     )
                     # Map phase: use utility model (cheap, repeated)
-                    chunk_raw = self._ollama.generate(
-                        chunk_prompt, model=self._utility_model
-                    )
+                    chunk_raw = self._ollama.generate(chunk_prompt, model=self._utility_model)
                     parsed = normalize_summary_output(chunk_raw)
                     return parsed["summary"] or chunk
 
@@ -283,49 +276,73 @@ class IntelligenceWorker:
             )
 
     def _extract_entities(self, document_id: UUID, content: str) -> None:
-        """Extract entities and store them with document links."""
-        prompt = self._build_prompt("llm.entity_extraction_prompt", content, MAX_ENTITY_CHARS)
-        result = self._ollama.generate(prompt)
-        entities = self._ollama.parse_json_array(result)
+        """Extract entities and store them with document links.
 
-        for item in entities:
-            if not isinstance(item, dict):
-                continue
-            name = str(item.get("name", "")).strip()
-            entity_type = str(item.get("type", "")).strip().lower()
-            if not name or entity_type not in (
-                "person",
-                "organization",
-                "location",
-                "date",
-            ):
-                continue
+        Failures are logged and swallowed so that a transient Ollama or DB
+        error never blocks ingestion.
+        """
+        try:
+            prompt = self._build_prompt("llm.entity_extraction_prompt", content, MAX_ENTITY_CHARS)
+            result = self._ollama.generate(prompt)
+            entities = self._ollama.parse_json_array(result)
 
-            entity_id = self._repo.upsert_entity(name, entity_type)
-            self._repo.link_document_entity(document_id, entity_id)
+            for item in entities:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name", "")).strip()
+                entity_type = str(item.get("type", "")).strip().lower()
+                if not name or entity_type not in (
+                    "person",
+                    "organization",
+                    "location",
+                    "date",
+                ):
+                    continue
 
-        # Update ES with entity names
-        entity_names = [
-            str(e.get("name", "")) for e in entities if isinstance(e, dict) and e.get("name")
-        ]
-        self._update_es_field(document_id, "entities", entity_names)
-        logger.info(
-            "Extracted %d entities for document_id=%s",
-            len(entities),
-            document_id,
-        )
+                entity_id = self._repo.upsert_entity(name, entity_type)
+                self._repo.link_document_entity(document_id, entity_id)
+
+            # Update ES with entity names
+            entity_names = [
+                str(e.get("name", "")) for e in entities if isinstance(e, dict) and e.get("name")
+            ]
+            self._update_es_field(document_id, "entities", entity_names)
+            logger.info(
+                "Extracted %d entities for document_id=%s",
+                len(entities),
+                document_id,
+            )
+        except Exception:
+            logger.warning(
+                "Entity extraction failed for document_id=%s correlation=%s",
+                document_id,
+                get_correlation_id(),
+                exc_info=True,
+            )
 
     def _auto_tag(self, document_id: UUID, content: str) -> None:
-        """Generate tags and replace existing tags for the document."""
-        prompt = self._build_prompt("llm.auto_tag_prompt", content, MAX_TAG_CHARS)
-        # Utility model: cheap, repeated tagging task
-        result = self._ollama.generate(prompt, model=self._utility_model)
-        parsed = self._ollama.parse_json_array(result)
+        """Generate tags and replace existing tags for the document.
 
-        tags = [str(t).strip() for t in parsed if isinstance(t, str) and str(t).strip()]
-        self._repo.replace_tags(document_id, tags)
-        self._update_es_field(document_id, "tags", tags)
-        logger.info("Tagged document_id=%s with %d tags", document_id, len(tags))
+        Failures are logged and swallowed so that a transient Ollama or DB
+        error never blocks ingestion.
+        """
+        try:
+            prompt = self._build_prompt("llm.auto_tag_prompt", content, MAX_TAG_CHARS)
+            # Utility model: cheap, repeated tagging task
+            result = self._ollama.generate(prompt, model=self._utility_model)
+            parsed = self._ollama.parse_json_array(result)
+
+            tags = [str(t).strip() for t in parsed if isinstance(t, str) and str(t).strip()]
+            self._repo.replace_tags(document_id, tags)
+            self._update_es_field(document_id, "tags", tags)
+            logger.info("Tagged document_id=%s with %d tags", document_id, len(tags))
+        except Exception:
+            logger.warning(
+                "Auto-tag failed for document_id=%s correlation=%s",
+                document_id,
+                get_correlation_id(),
+                exc_info=True,
+            )
 
     def _extract_key_points(self, document_id: UUID, content: str) -> None:
         """Extract a short ordered list of key bullet points for the document.

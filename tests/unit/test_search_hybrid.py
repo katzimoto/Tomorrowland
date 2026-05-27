@@ -37,20 +37,6 @@ def test_merge_vector_only() -> None:
     assert merged[0].score == pytest.approx(0.63)  # 0.9 * 0.7
 
 
-def test_merge_deduplicates_by_doc_id() -> None:
-    bm25 = [SearchResult(document_id="doc-1", score=1.0)]
-    vector = [SearchResult(document_id="doc-1", score=0.9)]
-
-    merged = merge_results(
-        bm25_results=bm25, vector_results=vector, vector_weight=0.5, bm25_weight=0.5
-    )
-
-    assert len(merged) == 1
-    assert merged[0].document_id == "doc-1"
-    # Score should be combined: 1.0 * 0.5 + 0.9 * 0.5 = 0.95
-    assert merged[0].score == pytest.approx(0.95)
-
-
 def test_merge_combines_scores_correctly() -> None:
     bm25 = [
         SearchResult(document_id="doc-1", score=2.0),
@@ -131,3 +117,73 @@ def test_merge_different_docs_no_overlap() -> None:
 
     assert len(merged) == 2
     assert {r.document_id for r in merged} == {"doc-1", "doc-2"}
+
+
+def test_merge_preserves_multiple_chunks_per_document() -> None:
+    """Chunks from the same document must NOT be collapsed — dedup by chunk_id."""
+    vector = [
+        SearchResult(
+            document_id="doc-1",
+            score=0.9,
+            chunk_text="chunk A",
+            metadata={"chunk_id": "doc-1-orig-0"},
+        ),
+        SearchResult(
+            document_id="doc-1",
+            score=0.8,
+            chunk_text="chunk B",
+            metadata={"chunk_id": "doc-1-orig-1"},
+        ),
+    ]
+
+    merged = merge_results(
+        bm25_results=[], vector_results=vector, vector_weight=1.0, bm25_weight=0.0
+    )
+
+    assert len(merged) == 2, "Both chunks must survive — dedup is by chunk_id, not document_id"
+    chunk_texts = {r.chunk_text for r in merged}
+    assert chunk_texts == {"chunk A", "chunk B"}
+
+
+def test_merge_deduplicates_same_chunk_from_bm25_and_vector() -> None:
+    """The same chunk_id in both sources must be merged into a single result."""
+    bm25 = [
+        SearchResult(
+            document_id="doc-1",
+            score=1.0,
+            chunk_text="bm25 text",
+            metadata={"chunk_id": "doc-1-orig-0"},
+        )
+    ]
+    vector = [
+        SearchResult(
+            document_id="doc-1",
+            score=0.8,
+            chunk_text="vector text",
+            metadata={"chunk_id": "doc-1-orig-0"},
+        )
+    ]
+
+    merged = merge_results(
+        bm25_results=bm25, vector_results=vector, vector_weight=0.5, bm25_weight=0.5
+    )
+
+    assert len(merged) == 1
+    assert merged[0].score == pytest.approx(1.0 * 0.5 + 0.8 * 0.5)
+    # BM25 fields take precedence
+    assert merged[0].chunk_text == "bm25 text"
+
+
+def test_merge_deduplicates_by_doc_id() -> None:
+    """Results with no chunk_id still dedup by document_id (backward compat)."""
+    bm25 = [SearchResult(document_id="doc-1", score=1.0)]
+    vector = [SearchResult(document_id="doc-1", score=0.9)]
+
+    merged = merge_results(
+        bm25_results=bm25, vector_results=vector, vector_weight=0.5, bm25_weight=0.5
+    )
+
+    assert len(merged) == 1
+    assert merged[0].document_id == "doc-1"
+    # Score should be combined: 1.0 * 0.5 + 0.9 * 0.5 = 0.95
+    assert merged[0].score == pytest.approx(0.95)

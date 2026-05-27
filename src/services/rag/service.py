@@ -157,7 +157,7 @@ class RagService:
                     "I could not find any relevant information in the documents you have access to."
                 ),
                 citations=[],
-                model=self._ollama._model,
+                model=self._ollama.model,
             )
 
         # 2. Rerank (when a reranker is configured)
@@ -180,7 +180,7 @@ class RagService:
                 time.perf_counter() - phase_start
             )
 
-        # 4. Generate answer
+        # 5. Generate answer
         prompt = self._build_prompt(question, context)
         phase_start = time.perf_counter()
         try:
@@ -229,7 +229,7 @@ class RagService:
             question=question,
             answer=answer_text,
             citations=citations,
-            model=self._ollama._model,
+            model=self._ollama.model,
         )
 
     def answer_stream(
@@ -271,7 +271,7 @@ class RagService:
                 {
                     "message_id": None,
                     "citations": [],
-                    "model": self._ollama._model,
+                    "model": self._ollama.model,
                     "latency_ms": int((time.perf_counter() - request_start) * 1000),
                 },
             )
@@ -324,7 +324,7 @@ class RagService:
                 "message_id": None,
                 "answer": answer_text,
                 "citations": citations,
-                "model": self._ollama._model,
+                "model": self._ollama.model,
                 "latency_ms": int((time.perf_counter() - request_start) * 1000),
             },
         )
@@ -376,11 +376,14 @@ class RagService:
             )
 
         if self._meili is not None:
-            bm25_results = self._meili.search_rag(
-                text=question,
-                group_ids=group_ids,
-                allow_all=allow_all,
-                limit=CANDIDATE_LIMIT,
+            bm25_results = self._apply_scope_to_bm25(
+                self._meili.search_rag(
+                    text=question,
+                    group_ids=group_ids,
+                    allow_all=allow_all,
+                    limit=CANDIDATE_LIMIT,
+                ),
+                scope,
             )
             results = merge_results(
                 bm25_results=bm25_results,
@@ -390,11 +393,14 @@ class RagService:
             )
 
             if self._enable_metadata_search:
-                meta_results = self._meili.search_rag_metadata(
-                    text=question,
-                    group_ids=group_ids,
-                    allow_all=allow_all,
-                    limit=CANDIDATE_LIMIT,
+                meta_results = self._apply_scope_to_bm25(
+                    self._meili.search_rag_metadata(
+                        text=question,
+                        group_ids=group_ids,
+                        allow_all=allow_all,
+                        limit=CANDIDATE_LIMIT,
+                    ),
+                    scope,
                 )
                 results = merge_results(
                     bm25_results=meta_results,
@@ -404,11 +410,14 @@ class RagService:
                 )
 
             if self._enable_translated_text:
-                trans_results = self._meili.search_rag_translated(
-                    text=question,
-                    group_ids=group_ids,
-                    allow_all=allow_all,
-                    limit=CANDIDATE_LIMIT,
+                trans_results = self._apply_scope_to_bm25(
+                    self._meili.search_rag_translated(
+                        text=question,
+                        group_ids=group_ids,
+                        allow_all=allow_all,
+                        limit=CANDIDATE_LIMIT,
+                    ),
+                    scope,
                 )
                 results = merge_results(
                     bm25_results=trans_results,
@@ -452,6 +461,34 @@ class RagService:
             }
             for r in unique_results
         ]
+
+    @staticmethod
+    def _apply_scope_to_bm25(
+        results: list[Any],
+        scope: ChatScope | None,
+    ) -> list[Any]:
+        """Filter BM25 results to respect document-id-based chat scopes.
+
+        Qdrant results are already filtered via ``build_qdrant_filter`` /
+        ``search_filtered``.  Meilisearch only supports group-level ACL, so
+        document- and search-result-scoped queries need this post-filter to
+        avoid returning out-of-scope chunks in hybrid mode.
+
+        ``source`` scope filtering requires ``source_id`` in Meilisearch
+        payloads; that field is not indexed today so source-scoped BM25 is
+        returned unfiltered (Qdrant still enforces it on the vector side).
+        """
+        if scope is None:
+            return results
+        st = scope.scope_type
+        if st == "single_document":
+            allowed = {scope.scope_ids[0]} if scope.scope_ids else set()
+            return [r for r in results if r.document_id in allowed]
+        if st in ("selected_documents", "current_search_results"):
+            allowed = set(scope.scope_ids)
+            return [r for r in results if r.document_id in allowed]
+        # all_accessible_documents / source / folder: no document-id filter here
+        return results
 
     def _assemble_context(self, chunks: list[dict[str, Any]]) -> str:
         """Build a context string from retrieved chunks, bounded by word count.
