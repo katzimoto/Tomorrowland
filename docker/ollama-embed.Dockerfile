@@ -1,6 +1,6 @@
 FROM ollama/ollama:latest
 
-ARG EMBEDDING_MODEL=nomic-embed-text
+ARG EMBEDDING_MODEL=qwen3-embedding:8b
 
 RUN /bin/ollama serve & \
     pid=$! && \

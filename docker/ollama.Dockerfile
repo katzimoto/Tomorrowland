@@ -1,7 +1,7 @@
 FROM ollama/ollama:latest
 
-ARG OLLAMA_MODEL=mistral
-ARG EMBEDDING_MODEL=nomic-embed-text
+ARG OLLAMA_MODEL=qwen3.5:35b-a3b
+ARG EMBEDDING_MODEL=qwen3-embedding:8b
 
 RUN /bin/ollama serve & \
     pid=$! && \

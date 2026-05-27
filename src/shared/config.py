@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,14 +28,18 @@ class Settings(BaseSettings):
     libretranslate_url: str = "http://libretranslate:5000"
 
     ollama_url: str = "http://ollama-llm:11434"
-    ollama_model: str = "mistral"
+    ollama_model: str = "qwen3.5:35b-a3b"
     # Optional smaller model for cheap repeated tasks (query rewrite, auto-tag,
     # key-points augmentation, chunk-level summary map). Falls back to
     # ollama_model when empty.
-    ollama_utility_model: str = ""
+    ollama_utility_model: str = "qwen3:14b"
     # Optional dedicated model for cross-encoder reranking. Falls back to
     # effective_utility_model (and then ollama_model) when empty.
-    ollama_reranker_model: str = ""
+    # Also readable as RERANK_MODEL (future dedicated reranking pipeline).
+    ollama_reranker_model: str = Field(
+        default="",
+        validation_alias=AliasChoices("rerank_model", "ollama_reranker_model"),
+    )
 
     @property
     def effective_utility_model(self) -> str:
@@ -82,9 +86,17 @@ class Settings(BaseSettings):
     ingest_mode: Literal["hybrid", "watch", "poll"] = "hybrid"
 
     embedding_provider: str = ""
-    embedding_model: str = "nomic-embed-text"
+    # Also readable as OLLAMA_EMBED_MODEL.
+    embedding_model: str = Field(
+        default="qwen3-embedding:8b",
+        validation_alias=AliasChoices("ollama_embed_model", "embedding_model"),
+    )
     embedding_url: str = ""
-    embedding_dimension: int = 768
+    # Also readable as EMBEDDING_DIM.
+    embedding_dimension: int = Field(
+        default=4096,
+        validation_alias=AliasChoices("embedding_dim", "embedding_dimension"),
+    )
     embedding_max_tokens: int = 1024
     embedding_timeout: float = 180.0
     # Short timeout used specifically during the search request path so that a
