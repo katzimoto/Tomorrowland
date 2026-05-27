@@ -150,6 +150,7 @@ def preview(
             tags=preview_tags,
             entities_summary=entities_summary,
             relationships=relationships,
+            has_file=doc_row.path is not None if doc_row else False,
         )
 
 
@@ -648,13 +649,33 @@ def download(
             )
 
         if doc.path is None:
-            request.app.state.metrics.download_requests_total.labels("failure").inc()
-            raise HTTPException(
-                status_code=404,
-                detail=(
-                    "This document has no stored file (e.g. inline text or API content). "
-                    "Switch to translation view to download the translated text."
-                ),
+            # Text-only document (e.g. NiFi inline) — serve extracted text as .txt.
+            row = connection.execute(
+                sa.text("SELECT content_text FROM document_payloads WHERE document_id = :id"),
+                {"id": db_uuid(document_id)},
+            ).first()
+            text_content: str | None = row[0] if row else None
+            if not text_content:
+                request.app.state.metrics.download_requests_total.labels("failure").inc()
+                raise HTTPException(
+                    status_code=404,
+                    detail=(
+                        "No file or extracted text is available for this document yet. "
+                        "Wait for the ingestion pipeline to complete."
+                    ),
+                )
+            safe_name = Path(doc.title).stem if doc.title else str(document_id)[:8]
+            filename = f"{safe_name}.txt"
+            content_bytes = text_content.encode("utf-8")
+            request.app.state.metrics.download_requests_total.labels("success").inc()
+            return StreamingResponse(
+                iter([content_bytes]),
+                media_type="text/plain; charset=utf-8",
+                headers={
+                    "Content-Disposition": _content_disposition("attachment", filename),
+                    "Content-Length": str(len(content_bytes)),
+                    "X-Content-Type-Options": "nosniff",
+                },
             )
 
     files_root = request.app.state.settings.files_root.resolve()
@@ -666,10 +687,7 @@ def download(
         request.app.state.metrics.download_requests_total.labels("failure").inc()
         raise HTTPException(
             status_code=404,
-            detail=(
-                "Source file was cleaned up after ingestion (e.g. SMB temp file). "
-                "Switch to translation view to download the translated text."
-            ),
+            detail="The original file is no longer available on this server.",
         )
     request.app.state.metrics.download_requests_total.labels("success").inc()
 

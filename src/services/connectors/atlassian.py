@@ -14,6 +14,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
+from uuid import uuid4
 
 from services.connectors.base import ConnectorDocument, ConnectorField
 
@@ -103,8 +104,18 @@ class _AtlassianConnectorBase:
             raise ValueError("Atlassian API returned a non-object JSON payload")
         return parsed
 
-    def _download_attachment(self, download_url: str, filename: str) -> _DownloadedAttachment:
-        """Download an attachment to a temp file and return its path and SHA256."""
+    def _download_attachment(
+        self,
+        download_url: str,
+        filename: str,
+        *,
+        storage_root: Path | None = None,
+    ) -> _DownloadedAttachment:
+        """Download an attachment and return its local path and SHA256.
+
+        When *storage_root* is provided the file is written directly there,
+        bypassing the system temp directory entirely.
+        """
         url = (
             download_url
             if download_url.startswith(("http://", "https://"))
@@ -123,6 +134,11 @@ class _AtlassianConnectorBase:
             raise ValueError(f"Atlassian attachment download failed: {exc.reason}") from exc
 
         digest = hashlib.sha256(data).hexdigest()
+        if storage_root is not None:
+            storage_root.mkdir(parents=True, exist_ok=True)
+            dest = storage_root / f"{uuid4()}{suffix}"
+            dest.write_bytes(data)
+            return _DownloadedAttachment(path=str(dest), sha256=digest)
         with tempfile.NamedTemporaryFile(
             prefix="tomorrowland-atlassian-", suffix=suffix, delete=False
         ) as tmp:
@@ -191,7 +207,7 @@ class ConfluenceConnector(_AtlassianConnectorBase):
             ),
         ]
 
-    def fetch_documents(self) -> Iterator[ConnectorDocument]:
+    def fetch_documents(self, *, storage_root: Path | None = None) -> Iterator[ConnectorDocument]:
         """Yield updated Confluence pages and their attachments."""
         self.validate()
         for page in self._fetch_pages():
@@ -210,7 +226,9 @@ class ConfluenceConnector(_AtlassianConnectorBase):
                 metadata={"atlassian_type": "confluence_page", "page_id": page_id},
                 text_content=text,
             )
-            yield from self._fetch_attachments(page_id=page_id, page_title=title)
+            yield from self._fetch_attachments(
+                page_id=page_id, page_title=title, storage_root=storage_root
+            )
 
     def _fetch_pages(self) -> Iterator[dict[str, Any]]:
         cql_parts = ["type=page"]
@@ -240,7 +258,13 @@ class ConfluenceConnector(_AtlassianConnectorBase):
                 break
             start += _DEFAULT_LIMIT
 
-    def _fetch_attachments(self, *, page_id: str, page_title: str) -> Iterator[ConnectorDocument]:
+    def _fetch_attachments(
+        self,
+        *,
+        page_id: str,
+        page_title: str,
+        storage_root: Path | None = None,
+    ) -> Iterator[ConnectorDocument]:
         start = 0
         while True:
             payload = self._request_json(
@@ -255,7 +279,9 @@ class ConfluenceConnector(_AtlassianConnectorBase):
                 download_link = links.get("download") if isinstance(links, dict) else None
                 if not isinstance(download_link, str) or not download_link:
                     continue
-                downloaded = self._download_attachment(download_link, title)
+                downloaded = self._download_attachment(
+                    download_link, title, storage_root=storage_root
+                )
                 metadata = attachment.get("metadata", {})
                 media_type = "application/octet-stream"
                 if isinstance(metadata, dict) and isinstance(metadata.get("mediaType"), str):
@@ -298,7 +324,7 @@ class JiraConnector(_AtlassianConnectorBase):
             ),
         ]
 
-    def fetch_documents(self) -> Iterator[ConnectorDocument]:
+    def fetch_documents(self, *, storage_root: Path | None = None) -> Iterator[ConnectorDocument]:
         """Yield updated Jira issues and their attachments."""
         self.validate()
         for issue in self._fetch_issues():
@@ -315,7 +341,9 @@ class JiraConnector(_AtlassianConnectorBase):
                 metadata={"atlassian_type": "jira_issue", "issue_key": key},
                 text_content=text,
             )
-            yield from self._fetch_attachments(issue_key=key, fields=fields)
+            yield from self._fetch_attachments(
+                issue_key=key, fields=fields, storage_root=storage_root
+            )
 
     def _fetch_issues(self) -> Iterator[dict[str, Any]]:
         start_at = 0
@@ -368,7 +396,11 @@ class JiraConnector(_AtlassianConnectorBase):
         return "\n\n".join(chunk for chunk in chunks if chunk)
 
     def _fetch_attachments(
-        self, *, issue_key: str, fields: dict[str, Any]
+        self,
+        *,
+        issue_key: str,
+        fields: dict[str, Any],
+        storage_root: Path | None = None,
     ) -> Iterator[ConnectorDocument]:
         attachments = fields.get("attachment", [])
         if not isinstance(attachments, list):
@@ -381,7 +413,7 @@ class JiraConnector(_AtlassianConnectorBase):
             content_url = attachment.get("content")
             if not isinstance(content_url, str) or not content_url:
                 continue
-            downloaded = self._download_attachment(content_url, filename)
+            downloaded = self._download_attachment(content_url, filename, storage_root=storage_root)
             mime_type = str(attachment.get("mimeType") or "application/octet-stream")
             yield ConnectorDocument(
                 external_id=f"jira:{issue_key}:att:{attachment_id}",

@@ -335,7 +335,13 @@ def test_confluence_connector_fetches_pages_and_attachments() -> None:
                 ]
             }
 
-        def _download_attachment(self, download_url: str, filename: str) -> _DownloadedAttachment:
+        def _download_attachment(
+            self,
+            download_url: str,
+            filename: str,
+            *,
+            storage_root: Path | None = None,
+        ) -> _DownloadedAttachment:
             assert download_url == "/download/att-1"
             assert filename == "plan.txt"
             return _DownloadedAttachment(path="/tmp/plan.txt", sha256="b" * 64)
@@ -384,7 +390,13 @@ def test_jira_connector_fetches_issues_and_attachments() -> None:
                 ],
             }
 
-        def _download_attachment(self, download_url: str, filename: str) -> _DownloadedAttachment:
+        def _download_attachment(
+            self,
+            download_url: str,
+            filename: str,
+            *,
+            storage_root: Path | None = None,
+        ) -> _DownloadedAttachment:
             assert download_url.endswith("/error.log")
             assert filename == "error.log"
             return _DownloadedAttachment(path="/tmp/error.log", sha256="c" * 64)
@@ -531,7 +543,7 @@ def test_confluence_connector_paginates_pages() -> None:
             return {"results": [{"id": "50", "title": "Page 50"}]}
 
         def _fetch_attachments(
-            self, *, page_id: str, page_title: str
+            self, *, page_id: str, page_title: str, storage_root: Path | None = None
         ) -> Iterator[ConnectorDocument]:
             assert page_id
             assert page_title
@@ -543,3 +555,121 @@ def test_confluence_connector_paginates_pages() -> None:
 
     assert len(docs) == 51
     assert connector.starts == [0, 50]
+
+
+# ── storage_root direct-write tests ──────────────────────────────────────────
+
+
+def test_atlassian_download_attachment_writes_to_storage_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """When storage_root is provided, attachment bytes are written there directly."""
+    from typing import Any
+
+    import services.connectors.atlassian as atlassian
+    from services.connectors.atlassian import ConfluenceConnector
+
+    class FakeResponse:
+        def __enter__(self) -> FakeResponse:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b"file-content"
+
+    def fake_urlopen(request: Any, timeout: int) -> FakeResponse:
+        return FakeResponse()
+
+    monkeypatch.setattr(atlassian, "urlopen", fake_urlopen)
+    connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "pat"})
+
+    storage = tmp_path / "originals"
+    downloaded = connector._download_attachment(
+        "/download/report.pdf", "report.pdf", storage_root=storage
+    )
+
+    # File must land inside storage_root (dir is created on demand)
+    assert Path(downloaded.path).parent == storage
+    assert Path(downloaded.path).read_bytes() == b"file-content"
+    assert downloaded.sha256 == "2239ce4df9ee8db012834642ec801b55ba2c92b28bdd11f4d73d9c55d39f3b0a"
+
+
+def test_confluence_fetch_documents_passes_storage_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """fetch_documents(storage_root=...) must forward the root to _fetch_attachments."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    received_roots: list[Path | None] = []
+
+    class StubConnector(ConfluenceConnector):
+        def _request_json(self, path: str, **_: object) -> dict[str, object]:
+            if "search" in path:
+                return {
+                    "results": [
+                        {
+                            "id": "1",
+                            "title": "A Page",
+                            "body": {"storage": {"value": "<p>text</p>"}},
+                        }
+                    ]
+                }
+            return {"results": []}
+
+        def _fetch_attachments(
+            self, *, page_id: str, page_title: str, storage_root: Path | None = None
+        ) -> Iterator[ConnectorDocument]:
+            received_roots.append(storage_root)
+            return iter(())
+
+    storage = tmp_path / "originals"
+    list(
+        StubConnector({"base_url": "https://wiki.local", "api_token": "t"}).fetch_documents(
+            storage_root=storage
+        )
+    )
+
+    assert received_roots == [storage]
+
+
+def test_jira_fetch_documents_passes_storage_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """fetch_documents(storage_root=...) must forward the root to _fetch_attachments."""
+    from services.connectors.atlassian import JiraConnector
+
+    received_roots: list[Path | None] = []
+
+    class StubConnector(JiraConnector):
+        def _request_json(self, path: str, **_: object) -> dict[str, object]:
+            return {
+                "total": 1,
+                "issues": [
+                    {
+                        "key": "X-1",
+                        "fields": {
+                            "summary": "Test issue",
+                            "description": None,
+                            "comment": {},
+                            "attachment": [],
+                        },
+                    }
+                ],
+            }
+
+        def _fetch_attachments(
+            self, *, issue_key: str, fields: dict, storage_root: Path | None = None
+        ) -> Iterator[ConnectorDocument]:
+            received_roots.append(storage_root)
+            return iter(())
+
+    storage = tmp_path / "originals"
+    list(
+        StubConnector({"base_url": "https://jira.local", "api_token": "t"}).fetch_documents(
+            storage_root=storage
+        )
+    )
+
+    assert received_roots == [storage]

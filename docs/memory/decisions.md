@@ -2,6 +2,24 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-05-27 — Original file storage: move-before-create + connector direct-write
+
+Status: Active
+Source: Claude Code session; src/services/pipeline/original_store.py
+
+Decision:
+- All connector-fetched files (except audio/*, video/*) are persisted to `files_root/originals/` before the `documents` DB row is created, so `doc.path` always points to a permanent file.
+- `move_to_originals(path, mime_type, files_root)` uses `shutil.move()` — O(1) rename on same FS, copy+delete cross-device; idempotent for files already inside `files_root`.
+- `ConnectorDocument.fetch_documents()` Protocol accepts `storage_root: Path | None = None`. When provided, connectors write directly to `storage_root`, bypassing tempfiles. Scheduler and sync-now pass `storage_root=files_root / "originals"`. Tier 1 `move_to_originals` still runs as safety net (returns `None` if already inside `files_root`).
+- Download route: when `doc.path is None`, falls back to serving `document_payloads.content_text` as a `.txt` file instead of 404.
+- Frontend `has_file: bool` on `PreviewResponse` drives download button label ("Download" vs "Download text").
+
+Impact:
+- SMB/Atlassian files no longer deleted after extraction (old `_maybe_delete_connector_temp()` in worker still runs but finds the file inside `files_root` → no-op).
+- Folder connector path is already persistent — `storage_root` ignored.
+- NiFi is event-driven — `storage_root` ignored; inline text docs have no persistent file.
+- Audio and video MIME types are explicitly skipped (too large, no useful extraction).
+
 ## 2026-05-25 — Extraction: MIME detection uses python-magic + mimetypes fallback
 
 Status: Active

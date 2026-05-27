@@ -155,7 +155,7 @@ class NiFiConnector:
         if self._staging_root is not None and not self._staging_root.is_dir():
             raise ValueError("NiFi staging_root is not a directory")
 
-    def fetch_documents(self) -> Iterator[ConnectorDocument]:
+    def fetch_documents(self, *, storage_root: Path | None = None) -> Iterator[ConnectorDocument]:
         """NiFi ingestion is event-driven; bulk polling is intentionally unsupported."""
         return iter(())
 

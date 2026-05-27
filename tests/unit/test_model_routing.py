@@ -13,17 +13,14 @@ Proves:
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
-
-import pytest
 
 from services.chat.message_service import rewrite_query
 from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.worker import IntelligenceWorker
 from services.rag.reranker import CrossEncoderReranker
 from shared.config import Settings
-
 
 # ---------------------------------------------------------------------------
 # Settings: effective model resolution

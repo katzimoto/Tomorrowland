@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
 
 
@@ -52,6 +53,18 @@ class SourceConnector(Protocol):
         """Raise ValueError if the connector is misconfigured."""
         ...
 
-    def fetch_documents(self) -> Iterator[ConnectorDocument]:
-        """Yield all documents available from this source."""
+    def fetch_documents(
+        self,
+        *,
+        storage_root: Path | None = None,
+    ) -> Iterator[ConnectorDocument]:
+        """Yield all documents available from this source.
+
+        When *storage_root* is provided, file-downloading connectors (SMB,
+        Atlassian) write binary files directly to that directory instead of a
+        system temp file.  This eliminates the tmpdir round-trip and reduces
+        I/O to a single write per file.  Connectors that already produce
+        persistent paths (Folder) or text-only content (NiFi inline) ignore
+        this parameter.
+        """
         ...

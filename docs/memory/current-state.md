@@ -2,6 +2,38 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-27 — feat: original file storage + Download Original (Tier 1 + Tier 2)
+
+Status: Done — implemented on main, not yet committed/pushed
+Source: Claude Code session
+
+Two-tier implementation for persisting connector-downloaded files and exposing a "Download Original" button in the UI:
+
+**Tier 1 — move-before-create (scheduler + sync-now)**
+- New module: `src/services/pipeline/original_store.py` — `move_to_originals(path, mime_type, files_root)`.
+  Skips audio/video, skips files already inside `files_root`, renames (O(1) on same FS, copy+delete cross-device).
+- Scheduler (`_sync_source`) and sync-now route now call `move_to_originals()` before `doc_repo.create()`.
+  `doc.path` in DB always points to a persistent `files_root/originals/{uuid}{ext}` file.
+
+**Tier 2 — direct-write connectors (no tmp intermediary)**
+- `ConnectorDocument.fetch_documents()` Protocol gains `storage_root: Path | None = None`.
+  When provided, connectors write files directly to `storage_root` (skipping tempfile entirely).
+- Updated: SMB, Atlassian (Confluence/Jira), Folder (no-op — already persistent), NiFi (event-driven, no files).
+- Scheduler + sync-now pass `originals_root = files_root / "originals"` as `storage_root`.
+  Tier 1 move_to_originals still runs as a safety net (idempotent for files already inside files_root).
+
+**Frontend**
+- `PreviewResponse` + `DocumentPreview` TS interface gain `has_file: bool`.
+- `DocumentToolbar` download button label: "Download" when `has_file`, "Download text" when text-only.
+- Text-only fallback: download route returns `content_text` from `document_payloads` as `.txt` instead of 404.
+- i18n: `downloadText` added to EN + HE.
+
+**Verification:** ruff clean, mypy strict clean, tsc clean, 48/48 connector + original_store tests pass.
+
+Next action: git commit and push.
+
+---
+
 ## 2026-05-26 — fix/office-extraction-empty-text — 3-bug sweep merged (PR #521)
 
 Status: Done — merged to main

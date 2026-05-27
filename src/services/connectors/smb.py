@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path, PurePosixPath
 from typing import Any
+from uuid import uuid4
 
 import smbclient  # type: ignore
 
@@ -106,8 +107,12 @@ class SmbConnector:
         if self._recursive is None:
             raise ValueError("SMB connector recursive must be 'true' or 'false'")
 
-    def fetch_documents(self) -> Iterator[ConnectorDocument]:
-        """Yield SMB files as downloaded local temporary documents."""
+    def fetch_documents(self, *, storage_root: Path | None = None) -> Iterator[ConnectorDocument]:
+        """Yield SMB files written directly to *storage_root* when provided.
+
+        When *storage_root* is ``None`` the connector falls back to writing
+        each file to a system temporary file (original behaviour).
+        """
         self.validate()
         try:
             smbclient.register_session(
@@ -129,7 +134,7 @@ class SmbConnector:
                     and remote_file.size > self._max_file_size_bytes
                 ):
                     continue
-                yield self._download(remote_file)
+                yield self._download(remote_file, storage_root=storage_root)
         finally:
             with suppress(Exception):
                 smbclient.close_session(self._server)
@@ -182,22 +187,34 @@ class SmbConnector:
             return False
         return not any(_glob_matches(remote_path, name, pattern) for pattern in self._exclude_globs)
 
-    def _download(self, remote_file: _RemoteFile) -> ConnectorDocument:
+    def _download(
+        self, remote_file: _RemoteFile, *, storage_root: Path | None = None
+    ) -> ConnectorDocument:
         title = PurePosixPath(remote_file.remote_path).name
         suffix = PurePosixPath(title).suffix
         digest = hashlib.sha256()
         try:
-            with (
-                smbclient.open_file(remote_file.unc_path, mode="rb") as source,
-                tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as target,
-            ):
-                while True:
-                    chunk = source.read(_CHUNK_SIZE)
-                    if not chunk:
-                        break
-                    digest.update(chunk)
-                    target.write(chunk)
-                local_path = target.name
+            with smbclient.open_file(remote_file.unc_path, mode="rb") as source:
+                if storage_root is not None:
+                    storage_root.mkdir(parents=True, exist_ok=True)
+                    dest = storage_root / f"{uuid4()}{suffix}"
+                    with dest.open("wb") as target:
+                        while True:
+                            chunk = source.read(_CHUNK_SIZE)
+                            if not chunk:
+                                break
+                            digest.update(chunk)
+                            target.write(chunk)
+                    local_path = str(dest)
+                else:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as target:
+                        while True:
+                            chunk = source.read(_CHUNK_SIZE)
+                            if not chunk:
+                                break
+                            digest.update(chunk)
+                            target.write(chunk)
+                        local_path = target.name
         except Exception as exc:
             raise self._sanitised_error("download file", exc) from exc
 

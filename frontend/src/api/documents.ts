@@ -32,6 +32,9 @@ export interface DocumentPreview {
   tags?: string[];
   entities_summary?: { name: string; type: string; frequency?: number }[] | null;
   relationships?: DocumentRelationship[] | null;
+  /** True when the server has a stored original file (binary or otherwise).
+   *  False for text-only documents — download falls back to extracted text. */
+  has_file?: boolean | null;
 }
 
 export interface DocumentVersion {

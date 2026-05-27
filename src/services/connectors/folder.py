@@ -38,7 +38,8 @@ class FolderConnector:
         if not self._folder.is_dir():
             raise ValueError(f"Source path is not a directory: {self._folder}")
 
-    def fetch_documents(self) -> Iterator[ConnectorDocument]:
+    def fetch_documents(self, *, storage_root: Path | None = None) -> Iterator[ConnectorDocument]:
+        # storage_root is ignored — folder files already reside at persistent paths.
         for file_path in self._folder.rglob("*"):
             if not file_path.is_file():
                 continue

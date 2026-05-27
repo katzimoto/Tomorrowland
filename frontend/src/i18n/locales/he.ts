@@ -91,6 +91,7 @@ export const he: Translations = {
     untitled: "מסמך ללא שם",
     requestTranslation: "בקש תרגום",
     download: "הורדה",
+    downloadText: "הורד טקסט",
     downloadTranslation: "הורד תרגום",
     downloadError: "ההורדה נכשלה. ייתכן שהקובץ אינו זמין עוד.",
   },

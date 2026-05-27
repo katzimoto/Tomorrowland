@@ -183,7 +183,9 @@ export function DocumentToolbar({
             <Download size={14} />
             {activeMode === "translation"
               ? t.document.downloadTranslation
-              : t.document.download}
+              : preview.has_file
+                ? t.document.download
+                : t.document.downloadText}
           </Button>
         </div>
       </header>

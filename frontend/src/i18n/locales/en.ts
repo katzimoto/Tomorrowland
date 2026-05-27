@@ -89,6 +89,7 @@ export interface Translations {
     untitled: string;
     requestTranslation: string;
     download: string;
+    downloadText: string;
     downloadTranslation: string;
     downloadError: string;
   };
@@ -420,6 +421,7 @@ export const en: Translations = {
     untitled: "Untitled document",
     requestTranslation: "Request translation",
     download: "Download",
+    downloadText: "Download text",
     downloadTranslation: "Download translated",
     downloadError: "Download failed. The file may no longer be available.",
   },

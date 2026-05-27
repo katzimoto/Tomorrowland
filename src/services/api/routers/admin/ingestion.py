@@ -7,8 +7,6 @@ from uuid import UUID, uuid4
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-logger = logging.getLogger(__name__)
-
 from services.api._helpers import _record_source_sync_state, _sanitize_source_error
 from services.api.main import current_user
 from services.auth.models import TokenPayload
@@ -17,8 +15,11 @@ from services.documents.models import DocumentSource
 from services.documents.repository import DocumentRepository
 from services.permissions.enforcer import require_admin
 from services.pipeline.jobs import PipelineJobRepository
+from services.pipeline.original_store import move_to_originals
 from shared.db import db_uuid
 from shared.metrics import safe_label_value
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["admin"])
 
@@ -114,8 +115,9 @@ def sync_now(
         pending_rabbit: list[dict[str, Any]] = []
         source_language = source_row.get("source_language")
         connector_type = str(source_row["type"])
+        originals_root = request.app.state.settings.files_root / "originals"
         try:
-            documents = connector.fetch_documents()
+            documents = connector.fetch_documents(storage_root=originals_root)
         except NotImplementedError as exc:
             detail = _sanitize_source_error(str(exc), source_row)
             _record_source_sync_state(
@@ -140,12 +142,19 @@ def sync_now(
             ).inc()
 
             try:
+                stored_path = item.path
+                moved = move_to_originals(
+                    item.path, item.mime_type, request.app.state.settings.files_root
+                )
+                if moved is not None:
+                    stored_path = moved
+
                 doc = doc_repo.create(
                     source_id=source_id,
                     external_id=item.external_id,
                     source=cast("DocumentSource", source_row["type"]),
                     mime_type=item.mime_type,
-                    path=item.path,
+                    path=stored_path,
                     title=item.title,
                     source_language=item.source_language or source_language,
                     sha256=item.sha256,

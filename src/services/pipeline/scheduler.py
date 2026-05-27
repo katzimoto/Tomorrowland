@@ -10,6 +10,7 @@ import logging
 import os
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -21,6 +22,7 @@ from services.connectors.factory import build_connector
 from services.documents.models import DocumentSource
 from services.documents.repository import DocumentRepository
 from services.pipeline.jobs import PipelineJobRepository
+from services.pipeline.original_store import move_to_originals
 from shared.config import Settings
 from shared.db import db_uuid
 
@@ -142,6 +144,7 @@ def _sync_source(
     connection: sa.Connection,
     source_row: sa.RowMapping,
     source_id: UUID,
+    files_root: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Run a single source sync, mirroring sync-now logic.
 
@@ -194,8 +197,9 @@ def _sync_source(
         )
         return pending_rabbit
 
+    originals_root = (files_root / "originals") if files_root is not None else None
     try:
-        documents = connector.fetch_documents()
+        documents = connector.fetch_documents(storage_root=originals_root)
     except NotImplementedError as exc:
         _record_source_sync_state(
             connection,
@@ -229,12 +233,20 @@ def _sync_source(
         for item in documents:
             discovered += 1
             try:
+                # Move temp-file connector downloads into persistent storage
+                # before creating the DB record so doc.path survives extraction.
+                stored_path = item.path
+                if files_root is not None:
+                    moved = move_to_originals(item.path, item.mime_type, files_root)
+                    if moved is not None:
+                        stored_path = moved
+
                 doc = doc_repo.create(
                     source_id=source_id,
                     external_id=item.external_id,
                     source=cast("DocumentSource", source_row["type"]),
                     mime_type=item.mime_type,
-                    path=item.path,
+                    path=stored_path,
                     title=item.title,
                     source_language=item.source_language or source_language,
                     sha256=item.sha256,
@@ -357,7 +369,12 @@ def _run_scheduled_syncs(engine: Engine, settings: Settings | None = None) -> in
         pending: list[dict[str, Any]] = []
         try:
             with engine.begin() as conn:
-                pending = _sync_source(conn, row, _id)
+                pending = _sync_source(
+                    conn,
+                    row,
+                    _id,
+                    files_root=settings.files_root if settings is not None else None,
+                )
             synced += 1
         except Exception:
             logger.exception("scheduled sync failed source_id=%s", source_id_str)

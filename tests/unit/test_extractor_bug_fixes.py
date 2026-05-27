@@ -5,12 +5,8 @@ Each test is named after the bug it prevents regressing.
 
 from __future__ import annotations
 
-import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-from xml.etree import ElementTree as ET
-
-import pytest
 
 from services.extraction.docx import DocxExtractor
 from services.extraction.html import HtmlExtractor
@@ -154,8 +150,6 @@ def test_xml_extractor_returns_empty_for_malformed(tmp_path: Path) -> None:
 def test_docx_merged_cells_not_duplicated(tmp_path: Path) -> None:
     """Merged cells must appear exactly once in extracted text."""
     from docx import Document
-    from docx.oxml.ns import qn
-    from docx.oxml import OxmlElement
 
     doc = Document()
     table = doc.add_table(rows=1, cols=3)
@@ -204,8 +198,9 @@ def test_msg_extractor_closes_message_after_extract() -> None:
 
 def test_msg_extractor_closes_message_on_exception() -> None:
     """close() must be called even when body extraction raises mid-way."""
-    from services.extraction.msg_extractor import MsgExtractor
     from unittest.mock import PropertyMock
+
+    from services.extraction.msg_extractor import MsgExtractor
 
     mock_msg = MagicMock()
     mock_msg.subject = "Test"
@@ -345,8 +340,6 @@ def test_translation_worker_empty_content_text_skips_gracefully() -> None:
 
 def test_slow_worker_enrich_loop_logs_actual_exception_type(tmp_path: Path) -> None:
     """run_enrich_loop must log the real exception class, not always 'type'."""
-    import logging
-    from unittest.mock import call
 
     from services.pipeline.slow_worker import run_enrich_loop
 
@@ -384,8 +377,8 @@ def test_slow_worker_enrich_loop_logs_actual_exception_type(tmp_path: Path) -> N
 
 def test_epub_extractor_strips_multiline_tags(tmp_path: Path) -> None:
     """HTML tags spanning multiple lines must be fully removed, not left as fragments."""
-    import types
     import sys
+    import types
 
     multiline_html = (
         b"<div\n  class=\"chapter\"\n  id=\"ch1\">\n"
