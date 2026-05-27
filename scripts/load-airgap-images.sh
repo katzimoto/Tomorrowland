@@ -91,8 +91,18 @@ elif resolve_split_parts; then
     log "Validating split image part checksums with $(basename "$parts_checksum")"
     (cd "$split_parts_dir" && sha256sum -c "$(basename "$parts_checksum")")
   else
-    log "WARNING: no tomorrowland-images-*.tar.parts.sha256 file found next to split image parts"
+    fail "tomorrowland-images-*.tar.parts.sha256 not found beside split image parts; cannot verify integrity before loading"
   fi
+
+  # Verify parts are contiguous before streaming to docker load.
+  expected_index=0
+  for part in "${split_parts[@]}"; do
+    suffix="${part##*.tar.part-}"
+    expected_suffix="$(printf '%03d' "$expected_index")"
+    [[ "$suffix" == "$expected_suffix" ]] || fail "split image parts are not contiguous: expected suffix $expected_suffix but found $suffix in $part"
+    expected_index=$((expected_index + 1))
+  done
+  log "Split image parts are contiguous (${#split_parts[@]} part(s))"
 
   log "Loading Docker images from ${#split_parts[@]} split image part(s)"
   for part in "${split_parts[@]}"; do

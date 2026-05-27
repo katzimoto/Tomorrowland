@@ -193,6 +193,7 @@ export const he: Translations = {
     untitledDocument: "מסמך ללא כותרת",
     scopeSwitchLabel: "שנה היקף",
     askAboutSelected: "שאל על הנבחרים",
+    retry: "נסה שוב",
     starterHeading: "נסה לשאול",
   },
   notifications: {

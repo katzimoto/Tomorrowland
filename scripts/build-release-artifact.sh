@@ -248,7 +248,8 @@ $(for image in "${all_images[@]:1}"; do printf ',\n    "%s"' "$image"; done)
       "elasticsearch_data": "TOMORROWLAND_ELASTICSEARCH_VOLUME",
       "qdrant_data": "TOMORROWLAND_QDRANT_VOLUME",
       "libretranslate_data": "TOMORROWLAND_LIBRETRANSLATE_VOLUME",
-      "ollama_data": "TOMORROWLAND_OLLAMA_VOLUME"
+      "ollama_data": "TOMORROWLAND_OLLAMA_VOLUME",
+      "rabbitmq_data": "TOMORROWLAND_RABBITMQ_VOLUME"
     },
     "paths": ["TOMORROWLAND_FOLDER_SOURCE_HOST_PATH"]
   },

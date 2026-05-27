@@ -19,6 +19,8 @@ TIMEOUT="${VALIDATE_TIMEOUT:-15}"
 log()  { printf '[validate-translation] %s\n' "$*"; }
 fail() { printf '[validate-translation] ERROR: %s\n' "$*" >&2; exit 1; }
 
+command -v python3 >/dev/null 2>&1 || fail "python3 is required"
+
 # ---------------------------------------------------------------------------
 # 1. Check /languages endpoint
 # ---------------------------------------------------------------------------
@@ -35,7 +37,13 @@ log "/languages endpoint is reachable"
 required_codes=(en ar fr ru es zh ko th he)
 
 for code in "${required_codes[@]}"; do
-  if ! printf '%s' "$languages_json" | grep -qF "\"code\":\"${code}\""; then
+  if ! printf '%s' "$languages_json" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+codes = {entry.get('code', '') for entry in data if isinstance(entry, dict)}
+code = sys.argv[1]
+sys.exit(0 if code in codes else 1)
+" "$code"; then
     fail "Required language code '${code}' not found in /languages response"
   fi
   log "Language code present: ${code}"
