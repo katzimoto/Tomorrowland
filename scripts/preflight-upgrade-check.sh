@@ -189,7 +189,6 @@ if [[ -n "$artifact_dir" && -d "$artifact_dir" ]]; then
   required_artifact_files=(
     "docker-compose.airgap.yml"
     ".env.airgap.example"
-    "images/tomorrowland-images.tar"
     "scripts/load-airgap-images.sh"
     "scripts/validate-airgap-artifact.sh"
     "scripts/load-ollama-model-bundle.sh"
@@ -204,6 +203,15 @@ if [[ -n "$artifact_dir" && -d "$artifact_dir" ]]; then
       fail_msg "artifact missing required file: $file"
     fi
   done
+  # Image bundle is either embedded (images/tomorrowland-images.tar) or split
+  # (parts beside the artifact + images/README-images.txt). Split is the default.
+  if [[ -f "${artifact_dir}/images/tomorrowland-images.tar" ]]; then
+    pass "artifact contains images/tomorrowland-images.tar (embedded bundle)"
+  elif [[ -f "${artifact_dir}/images/README-images.txt" ]]; then
+    pass "artifact contains images/README-images.txt (split bundle)"
+  else
+    fail_msg "artifact missing image bundle: expected images/tomorrowland-images.tar (embedded) or images/README-images.txt (split)"
+  fi
 
   if [[ -f "${artifact_dir}/checksums.txt" ]]; then
     if (cd "$artifact_dir" && sha256sum -c checksums.txt >/tmp/tomorrowland-checksums.$$ 2>/tmp/tomorrowland-checksums-err.$$); then
@@ -258,6 +266,10 @@ if [[ -n "$artifact_dir" && -d "$artifact_dir" ]]; then
           fi
         done < "$tmp_dir/images.txt"
         [[ "$bundled_missing" -eq 0 ]] || fail_msg "one or more artifact images are missing"
+      elif [[ -f "${artifact_dir}/images/README-images.txt" ]]; then
+        # Split-mode release: image parts are beside the artifact, not inside it.
+        # Full bundle integrity is verified by validate-airgap-artifact.sh --load-images.
+        warn "split image bundle detected; skipping per-image manifest check — run validate-airgap-artifact.sh for full validation"
       else
         fail_msg "image bundle is missing or does not contain Docker manifest.json"
       fi

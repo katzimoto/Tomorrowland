@@ -136,6 +136,9 @@ validate_model_bundle() {
 
   local bundle_tmp
   bundle_tmp="$(mktemp -d)"
+  # Ensure bundle_tmp is cleaned up even if a fail() call exits early.
+  # shellcheck disable=SC2064
+  trap "rm -rf '$bundle_tmp'" RETURN
   tar -xzf "$bundle_path" -C "$bundle_tmp"
   mapfile -t bundle_roots < <(find "$bundle_tmp" -mindepth 1 -maxdepth 1 -type d | sort)
   [[ "${#bundle_roots[@]}" -eq 1 ]] || fail "model bundle must contain exactly one top-level directory"
@@ -182,7 +185,6 @@ if missing or missing_license:
         print(f"missing or invalid model manifest field: {key}", file=sys.stderr)
     sys.exit(1)
 PY_VALIDATE_MODEL_MANIFEST
-  rm -rf "$bundle_tmp"
   log "Ollama model bundle validation passed: $bundle_path"
 }
 

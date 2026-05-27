@@ -110,8 +110,9 @@ for file in "${compose_files[@]}"; do
   compose_cmd+=(-f "$file")
 done
 
-log "stopping application services without removing volumes"
-"${compose_cmd[@]}" stop api frontend migrate kafka elasticsearch qdrant libretranslate ollama || true
+log "stopping all application services without removing volumes"
+# Stop every service so no open postgres connections race with pg_restore --clean.
+"${compose_cmd[@]}" stop || true
 log "starting PostgreSQL only for database restore"
 "${compose_cmd[@]}" up -d postgres
 

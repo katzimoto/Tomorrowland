@@ -64,7 +64,14 @@ def main() -> None:
             missing_required.append(pair)
         else:
             print(f"Installing {pair[0]}->{pair[1]} ...")
-            pkg.install()
+            try:
+                pkg.install()
+            except Exception as exc:  # pragma: no cover
+                print(
+                    f"ERROR: failed to install {pair[0]}->{pair[1]}: {exc}",
+                    file=sys.stderr,
+                )
+                missing_required.append(pair)
 
     if missing_required:
         print(

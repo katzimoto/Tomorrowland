@@ -135,12 +135,15 @@ cp "$artifact_dir/docker-compose.airgap.yml" docker-compose.airgap.yml
 compose_cmd=(docker compose --env-file .env -f docker-compose.airgap.yml)
 
 log "verifying expected image tags are loaded locally"
-"${compose_cmd[@]}" config --images > /tmp/tomorrowland-upgrade-images.$$
+_upgrade_images_tmp="$(mktemp)"
+trap 'rm -f "$_upgrade_images_tmp"' EXIT
+"${compose_cmd[@]}" config --images > "$_upgrade_images_tmp"
 while IFS= read -r image; do
   [[ -n "$image" ]] || continue
   docker image inspect "$image" >/dev/null || fail "required image is not loaded locally: $image"
-done < /tmp/tomorrowland-upgrade-images.$$
-rm -f /tmp/tomorrowland-upgrade-images.$$
+done < "$_upgrade_images_tmp"
+rm -f "$_upgrade_images_tmp"
+trap - EXIT
 
 log "stopping services safely without removing volumes"
 "${compose_cmd[@]}" stop
