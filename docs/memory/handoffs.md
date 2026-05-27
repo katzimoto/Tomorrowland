@@ -2,6 +2,30 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-27 — fix(extraction): generic Office extraction — commit 023f9e0
+
+Status: Done — pushed to main
+Source: Claude Code session
+
+**Root cause (4 bugs):**
+
+1. **XLS never extracted** — `application/vnd.ms-excel` had no extractor; fell to GenericExtractor which returns `""` for OLE binary files.
+2. **DOCX/XLSX/PPTX with wrong stored MIME** — `application/zip` routed to ZipExtractor (returns XML file-listing, not text); `application/octet-stream` routed to GenericExtractor (returns `""`).
+3. **Office MIME variants unregistered** — `.docm`, `.dotx`, `.pptm`, `.potx`, `.xltx`, `.xltm`, and `application/msword`-mislabeled DOCX all fell to GenericExtractor.
+4. **Settings not wired in 3 workers** — `parse_worker`, `slow_worker`, `vector_worker` created `ExtractorRegistry()` without `enable_ocr`/`enable_legacy_office` from Settings.
+
+**Fix:**
+- `xls.py` — new `XlsExtractor` using `xlrd` (pure Python); registered for `application/vnd.ms-excel`. `xlrd>=2.0` in pyproject.toml.
+- `mime_detector.py` — new `sniff_office_mime(path)`: reads ZIP contents (stdlib) to identify DOCX/XLSX/PPTX/ODF; detects OLE magic bytes for legacy. Used as last-resort in `detect()`.
+- `registry.py` — sniff-and-retry in `extract()` for `application/zip` and `application/octet-stream` (always) and any MIME when result is empty. New aliases for all Office MIME variants.
+- `parse_worker`, `slow_worker`, `vector_worker` — pass settings flags to `ExtractorRegistry`.
+
+**Remaining limit:** `.doc` / `.ppt` (binary OLE) still need `ENABLE_LEGACY_OFFICE=true` + LibreOffice. No pure-Python library covers these.
+
+**Tests:** 51 tests pass; 20 new (16 sniffing + 4 XLS). Ruff + mypy --strict clean.
+
+---
+
 ## 2026-05-26 — fix/office-extraction-empty-text — 3-bug sweep (PR #521)
 
 Status: Done — merged to main
