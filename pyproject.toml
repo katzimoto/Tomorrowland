@@ -20,6 +20,7 @@ dependencies = [
   "PyJWT>=2.8",
   "python-docx>=1.1",
   "python-pptx>=1.0",
+  "xlrd>=2.0",
   "qdrant-client>=1.10,<1.12",
   "smbprotocol>=1.16,<2",
   "sqlalchemy>=2.0",
@@ -88,7 +89,7 @@ mypy_path = "src"
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["bcrypt", "openpyxl", "openpyxl.*", "pika", "pika.*", "testcontainers", "testcontainers.*"]
+module = ["bcrypt", "openpyxl", "openpyxl.*", "pika", "pika.*", "testcontainers", "testcontainers.*", "xlrd", "xlrd.*"]
 ignore_missing_imports = true
 
 [dependency-groups]

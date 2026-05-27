@@ -86,6 +86,13 @@ def main() -> None:
     doc_repo = DocumentRepository(connection)
     publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
     consumer = ParseConsumer(
-        rabbit=rabbit, job_repo=job_repo, doc_repo=doc_repo, publisher=publisher
+        rabbit=rabbit,
+        job_repo=job_repo,
+        doc_repo=doc_repo,
+        publisher=publisher,
+        extractor=ExtractorRegistry(
+            enable_ocr=settings.enable_ocr,
+            enable_legacy_office=settings.enable_legacy_office,
+        ),
     )
     consumer.run()

@@ -498,7 +498,10 @@ if __name__ == "__main__":
 
         worker = SlowWorker(
             document_repository=doc_repo,
-            extractor_registry=None,
+            extractor_registry=ExtractorRegistry(
+                enable_ocr=settings.enable_ocr,
+                enable_legacy_office=settings.enable_legacy_office,
+            ),
             translator=translator,
             encoder=encoder,
             es_client=es_client,

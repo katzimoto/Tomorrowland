@@ -12,6 +12,7 @@ from services.extraction.epub import EpubExtractor
 from services.extraction.generic import GenericExtractor
 from services.extraction.html import HtmlExtractor
 from services.extraction.json_extractor import JsonExtractor
+from services.extraction.mime_detector import sniff_office_mime
 from services.extraction.msg_extractor import MsgExtractor
 from services.extraction.odt import OdtExtractor
 from services.extraction.opendocument import OdpExtractor, OdsExtractor
@@ -20,6 +21,7 @@ from services.extraction.plain import PlainExtractor
 from services.extraction.pptx_extractor import PptxExtractor
 from services.extraction.rtf import RtfExtractor
 from services.extraction.tar_extractor import TarExtractor
+from services.extraction.xls import XlsExtractor
 from services.extraction.xlsx import XlsxExtractor
 from services.extraction.xml_extractor import XmlExtractor
 from services.extraction.zip_extractor import ZipExtractor
@@ -52,6 +54,20 @@ _ALIASES: dict[str, str] = {
     # XLSX — libmagic may return the generic zip type for xlsx/xlsm files
     "application/vnd.ms-excel.sheet.macroEnabled.12": _XLSX_MIME,
     "application/vnd.ms-excel.sheet.binary.macroEnabled.12": _XLSX_MIME,
+    # DOCX variants: macro-enabled (.docm) and template (.dotx / .dotm) share
+    # the same ZIP+word/ structure and are handled by DocxExtractor.
+    "application/vnd.ms-word.document.macroEnabled.12": _DOCX_MIME,
+    "application/vnd.ms-word.template.macroEnabled.12": _DOCX_MIME,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.template": _DOCX_MIME,
+    # Some APIs / connectors mislabel DOCX as the legacy binary Word type.
+    "application/msword": _DOCX_MIME,
+    # PPTX variants: macro-enabled (.pptm) and template (.potx / .potm)
+    "application/vnd.ms-powerpoint.presentation.macroEnabled.12": _PPTX_MIME,
+    "application/vnd.ms-powerpoint.template.macroEnabled.12": _PPTX_MIME,
+    "application/vnd.openxmlformats-officedocument.presentationml.template": _PPTX_MIME,
+    # XLSX template (.xltx / .xltm)
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.template": _XLSX_MIME,
+    "application/vnd.ms-excel.template.macroEnabled.12": _XLSX_MIME,
     # Markdown / reStructuredText / log files → plain
     "text/x-markdown": "text/plain",
     # Python stdlib mimetypes maps .rst to text/prs.fallenstein.rst; libmagic uses text/x-rst
@@ -107,6 +123,8 @@ class ExtractorRegistry:
             _DOCX_MIME: DocxExtractor(),
             _PPTX_MIME: PptxExtractor(),
             _XLSX_MIME: XlsxExtractor(),
+            # Microsoft Office legacy binary (xlrd — pure Python, no system deps)
+            "application/vnd.ms-excel": XlsExtractor(),
             # OpenDocument
             _ODT_MIME: OdtExtractor(),
             _ODS_MIME: OdsExtractor(),
@@ -182,6 +200,14 @@ class ExtractorRegistry:
         when no specific extractor is registered, so unrecognised file types
         still produce a best-effort text result rather than silently returning
         an empty string.
+
+        **Sniff-and-retry**: when the first extraction attempt returns an empty
+        string (e.g. because the stored MIME type is ``application/zip`` or
+        ``application/octet-stream`` for a file that is actually a DOCX/XLSX/
+        PPTX), the file's raw content is inspected via
+        :func:`~services.extraction.mime_detector.sniff_office_mime` and
+        extraction is retried with the more specific type.  This transparently
+        recovers documents that were ingested before MIME detection was improved.
         """
         extractor = self.get(mime_type)
         if extractor is None:
@@ -192,6 +218,40 @@ class ExtractorRegistry:
             )
             extractor = self._fallback
         result = extractor.extract(path)
+
+        # Sniff-and-retry strategy:
+        # * For generic MIME types (application/zip, application/octet-stream) we
+        #   ALWAYS try content sniffing — the stored type may be a mislabel, and
+        #   ZipExtractor on a DOCX would return an XML-file listing, not doc text.
+        # * For any other MIME type we only retry when extraction returned nothing.
+        _always_sniff: frozenset[str] = frozenset(
+            {"application/zip", "application/octet-stream"}
+        )
+        should_sniff = (mime_type in _always_sniff or not result) and path.exists()
+        if should_sniff:
+            sniffed = sniff_office_mime(path)
+            if sniffed and sniffed != mime_type:
+                # OLE compound document: application/x-ole-storage is aliased to
+                # MsgExtractor in _ALIASES, so bypass get() and use XlsExtractor
+                # directly (xlrd handles .xls OLE natively; fails fast on .doc/.ppt).
+                if sniffed == "application/x-ole-storage":
+                    retry_extractor: Extractor | None = self._extractors.get(
+                        "application/vnd.ms-excel"
+                    )
+                else:
+                    retry_extractor = self.get(sniffed)
+                if retry_extractor is not None:
+                    retry_result = retry_extractor.extract(path)
+                    if retry_result:
+                        logger.debug(
+                            "extraction recovered via content sniffing "
+                            "original_mime=%s sniffed=%s path=%s",
+                            mime_type,
+                            sniffed,
+                            path,
+                        )
+                        result = retry_result
+
         if not result:
             logger.debug(
                 "extraction returned empty mime_type=%s path=%s exists=%s",

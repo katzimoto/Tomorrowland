@@ -2,6 +2,44 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-27 — fix(extraction): office file extraction — 3 bugs fixed
+
+Status: Done — uncommitted on main
+Source: Claude Code session
+
+3 bugs fixed in office file extraction:
+
+1. **`.xls` (Excel 97-2003) never extracted** — `application/vnd.ms-excel` had no extractor; fell to `GenericExtractor` which returns `""` for binary files. Fixed: new `XlsExtractor` (`src/services/extraction/xls.py`) using `xlrd` (pure Python, no system deps), registered unconditionally. `xlrd>=2.0` added to `pyproject.toml`.
+2. **`parse_worker`, `slow_worker`, `vector_worker` ignored `ENABLE_LEGACY_OFFICE` / `ENABLE_OCR` env vars** — all three `main()` functions created `ExtractorRegistry()` without settings flags. Fixed: all three now pass `enable_ocr=settings.enable_ocr, enable_legacy_office=settings.enable_legacy_office`.
+3. **`sample.xls` test fixture** created; 4 new tests in `tests/unit/test_extraction_xls.py`.
+
+Note: `.doc`/`.ppt` (Word/PowerPoint 97-2003 binary) still require `ENABLE_LEGACY_OFFICE=true` + LibreOffice in PATH. Modern `.docx`/`.xlsx`/`.pptx` work without any extra config.
+
+Verification: ruff OK, mypy --strict OK (5 files), 36/36 related tests pass.
+
+---
+
+## 2026-05-27 — fix(ai): 7-bug sweep — RAG, hybrid search, intelligence worker, chat
+
+Status: Done — commit 9e437a3 on main
+Source: Claude Code session (codebase analysis)
+
+7 correctness bugs fixed across the AI integration layer:
+
+1. **hybrid.py `merge_results`** — was deduplicating by `document_id`, collapsing all chunks of a multi-chunk document into one result. Now deduplicates by `metadata[chunk_id]`, falling back to `document_id` for doc-level BM25 results. 3 new tests.
+2. **rag/service.py `_retrieve_chunks`** — BM25 (Meilisearch) search ignored chat scope (`single_document`, `selected_documents`); out-of-scope chunks reached the context window in hybrid mode. New `_apply_scope_to_bm25()` post-filters each BM25 result list before `merge_results()`.
+3. **intelligence/worker.py** — `_extract_entities` / `_auto_tag` propagated exceptions through `_run`, causing `process_document` to raise and kill the pipeline job — contradicting "never block ingestion." Both now have the same try/except+log pattern as `_summarize`. `_run` no longer accumulates an `errors` list.
+4. **ollama_client.py `generate_stream`** — dead `tokens` counter incremented but never emitted as a metric. Removed.
+5. **OllamaClient._model** — 4 call sites accessed private `_model` attribute. Added public `model` property; all call sites updated.
+6. **rag/service.py** — duplicate `# 4.` step comment; generation is now `# 5.`.
+7. **chat.py `create_message_stream`** — `stream_settings` alias pointed to same object as `settings`, mixed in RagService constructor. Removed alias.
+
+Verification: ruff OK, mypy --strict OK (5 files), 839/839 non-infrastructure unit tests pass.
+
+Watch: `source`-scope BM25 filtering still not applied (Meilisearch payloads don't index `source_id`). Qdrant enforces it on vector side. Low risk.
+
+---
+
 ## 2026-05-27 — feat: original file storage + Download Original (Tier 1 + Tier 2)
 
 Status: Done — implemented on main, not yet committed/pushed

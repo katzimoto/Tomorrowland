@@ -373,7 +373,10 @@ if __name__ == "__main__":
         encoder = build_encoder(settings)
         qdrant = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
         doc_repo = DocumentRepository(conn)
-        extractor = ExtractorRegistry()
+        extractor = ExtractorRegistry(
+            enable_ocr=settings.enable_ocr,
+            enable_legacy_office=settings.enable_legacy_office,
+        )
 
         run_vector_loop(
             job_repo,
