@@ -1,7 +1,7 @@
 FROM ollama/ollama:latest
 
-ARG OLLAMA_MODEL=mistral
-ARG OLLAMA_UTILITY_MODEL=
+ARG OLLAMA_MODEL=qwen3.5:35b-a3b
+ARG OLLAMA_UTILITY_MODEL=qwen3:14b
 ARG OLLAMA_RERANKER_MODEL=
 
 RUN /bin/ollama serve & \
