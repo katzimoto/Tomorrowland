@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from services.extraction.base import ExtractionResult
+
 # re.DOTALL so tags spanning multiple lines (e.g. attributes on separate lines)
 # are fully stripped rather than leaving tag fragments in the extracted text.
 _TAG_RE = re.compile(r"<[^>]+>", re.DOTALL)
@@ -24,18 +26,18 @@ class EpubExtractor:
     file is unreadable.
     """
 
-    def extract(self, path: Path) -> str:
+    def extract(self, path: Path) -> ExtractionResult:
         """Return concatenated plain text from all spine items."""
         try:
             import ebooklib  # type: ignore[import-not-found]
             from ebooklib import epub
         except ImportError:
-            return ""
+            return ExtractionResult(text="")
 
         try:
             book = epub.read_epub(str(path), options={"ignore_ncx": True})
         except Exception:
-            return ""
+            return ExtractionResult(text="")
 
         parts: list[str] = []
         for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
@@ -47,4 +49,4 @@ class EpubExtractor:
             except Exception:
                 continue
 
-        return "\n".join(parts)
+        return ExtractionResult(text="\n".join(parts))

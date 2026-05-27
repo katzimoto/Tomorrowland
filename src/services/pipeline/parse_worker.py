@@ -51,7 +51,7 @@ class ParseConsumer(BaseConsumer):
         payload = self._job_repo.get_payload(document_id)
         content_text = (payload.get("content_text", "") if payload else None) or ""
         if not content_text and doc.path:
-            content_text = self._extractor.extract(Path(doc.path), doc.mime_type)
+            content_text = self._extractor.extract(Path(doc.path), doc.mime_type).text
 
         self._job_repo.update_content_text(document_id, content_text)
         self._job_repo.mark_running_stage(job_id, "parsed")

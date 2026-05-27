@@ -16,6 +16,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from services.extraction.base import ExtractionResult
+
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDS = 30
@@ -24,7 +26,7 @@ _TIMEOUT_SECONDS = 30
 class LegacyOfficeExtractor:
     """Convert legacy Office files to plain text via LibreOffice headless."""
 
-    def extract(self, path: Path) -> str:
+    def extract(self, path: Path) -> ExtractionResult:
         """Return plain text by converting *path* with LibreOffice.
 
         Writes the converted ``.txt`` file to a temporary directory and reads
@@ -47,17 +49,17 @@ class LegacyOfficeExtractor:
                 )
             except FileNotFoundError:
                 logger.debug("soffice not found in PATH; legacy Office extraction unavailable")
-                return ""
+                return ExtractionResult(text="")
             except subprocess.TimeoutExpired:
                 logger.warning(
                     "LibreOffice conversion timed out after %ds path=%s",
                     _TIMEOUT_SECONDS,
                     path,
                 )
-                return ""
+                return ExtractionResult(text="")
             except Exception:
                 logger.debug("LibreOffice conversion failed for path=%s", path, exc_info=True)
-                return ""
+                return ExtractionResult(text="")
 
             if result.returncode != 0:
                 logger.debug(
@@ -66,15 +68,17 @@ class LegacyOfficeExtractor:
                     path,
                     result.stderr[:200],
                 )
-                return ""
+                return ExtractionResult(text="")
 
             # LibreOffice names the output file after the input stem.
             out_path = Path(tmpdir) / (path.stem + ".txt")
             if not out_path.exists():
                 logger.debug("soffice produced no output for path=%s", path)
-                return ""
+                return ExtractionResult(text="")
 
             try:
-                return out_path.read_text(encoding="utf-8", errors="replace")
+                return ExtractionResult(
+                    text=out_path.read_text(encoding="utf-8", errors="replace")
+                )
             except OSError:
-                return ""
+                return ExtractionResult(text="")

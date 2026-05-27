@@ -111,7 +111,7 @@ class SlowWorker:
             self._version_repo.update_version_status(version_id, "running")
 
             # 1. Extract
-            text = self._extractor.extract(Path(doc.path), doc.mime_type)
+            text = self._extractor.extract(Path(doc.path), doc.mime_type).text
 
             # 2. Translate
             translated = self._translator.translate(text, source_lang=doc.source_language)
@@ -157,7 +157,7 @@ class SlowWorker:
     def _run_legacy(self, doc: Any) -> None:
         """Legacy non-versioned enrichment path."""
         # 1. Extract
-        text = self._extractor.extract(Path(doc.path), doc.mime_type)
+        text = self._extractor.extract(Path(doc.path), doc.mime_type).text
 
         # 2. Translate
         translated = self._translator.translate(text, source_lang=doc.source_language)

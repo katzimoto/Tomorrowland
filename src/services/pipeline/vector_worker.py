@@ -85,7 +85,7 @@ def run_vector_once(
         if not content_text and doc.path:
             from pathlib import Path
 
-            content_text = extractor.extract(Path(doc.path), doc.mime_type)
+            content_text = extractor.extract(Path(doc.path), doc.mime_type).text
 
         translated_text = (payload.get("translated_text", "") if payload else None) or ""
 

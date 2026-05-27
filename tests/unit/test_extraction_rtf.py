@@ -15,15 +15,15 @@ def test_rtf_extractor_reads_text() -> None:
         r"\f0\fs24 Hello RTF\par test document for extraction}"
     )
     path.write_text(rtf, encoding="utf-8")
-    text = extractor.extract(path)
+    result = extractor.extract(path)
     path.unlink()
 
-    assert "Hello RTF" in text
-    assert "test document for extraction" in text
+    assert "Hello RTF" in result.text
+    assert "test document for extraction" in result.text
 
 
 def test_rtf_extractor_returns_empty_for_missing_file() -> None:
     extractor = RtfExtractor()
-    text = extractor.extract(FIXTURES / "nonexistent.rtf")
+    result = extractor.extract(FIXTURES / "nonexistent.rtf")
 
-    assert text == ""
+    assert result.text == ""

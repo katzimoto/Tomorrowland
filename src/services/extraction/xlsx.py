@@ -8,11 +8,13 @@ from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
+from services.extraction.base import ExtractionResult
+
 
 class XlsxExtractor:
     """Extract text from Excel .xlsx files using openpyxl."""
 
-    def extract(self, path: Path) -> str:
+    def extract(self, path: Path) -> ExtractionResult:
         """Return concatenated text from all cells.
 
         Uses ``data_only=True`` so formula cells yield their last computed
@@ -30,11 +32,11 @@ class XlsxExtractor:
                     for cell in row:
                         if cell.value is not None:
                             texts.append(str(cell.value))
-            return "\n".join(texts)
+            return ExtractionResult(text="\n".join(texts))
         except (OSError, KeyError, ValueError, InvalidFileException, zipfile.BadZipFile):
-            return ""
+            return ExtractionResult(text="")
         except Exception:  # noqa: BLE001
-            return ""
+            return ExtractionResult(text="")
         finally:
             if wb is not None:
                 try:

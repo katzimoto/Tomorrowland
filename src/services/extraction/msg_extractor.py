@@ -9,24 +9,33 @@ from pathlib import Path
 
 import extract_msg
 
-from services.extraction.base import AttachmentData
+from services.extraction.base import AttachmentData, ExtractionResult
 
 
 class MsgExtractor:
-    """Extract text from Outlook .msg files using extract-msg."""
+    """Extract text from Outlook .msg files using extract-msg.
 
-    def extract(self, path: Path) -> str:
-        """Return subject, sender, body, and attachment metadata.
+    The message is opened once: body text, attachment metadata for search
+    indexing, and the raw attachment bytes are all collected in a single
+    pass so the pipeline can create child documents without re-opening the
+    file.
+    """
+
+    def extract(self, path: Path) -> ExtractionResult:
+        """Return subject, sender, body, attachment metadata, and attachment bytes.
 
         Best-effort extractor that:
         - Safely reads common header fields.
         - Includes plain text and converts HTML bodies to text.
         - Lists attachments with name, content type, and size.
+
+        ``ExtractionResult.attachments`` contains the raw bytes of each
+        attachment so the pipeline can create child documents.
         """
         try:
             msg = extract_msg.Message(str(path))  # type: ignore[no-untyped-call]
         except Exception:
-            return ""
+            return ExtractionResult(text="")
         try:
 
             def _safe_str(val: object | None) -> str:
@@ -75,7 +84,9 @@ class MsgExtractor:
                 parser.feed(html_text)
                 body_parts.append(parser.get_text())
 
-            attachments: list[str] = []
+            # Single pass over attachments: collect metadata for text + raw bytes for pipeline
+            attachment_lines: list[str] = []
+            attachments: list[AttachmentData] = []
             for att in getattr(msg, "attachments", []) or []:
                 name = (
                     getattr(att, "longFilename", None)
@@ -84,78 +95,59 @@ class MsgExtractor:
                     or getattr(att, "name", None)
                     or "(unknown)"
                 )
-                # Try common places for raw bytes
                 raw = (
                     getattr(att, "data", None)
                     or getattr(att, "data_obj", None)
                     or getattr(att, "payload", None)
                 )
-                size = 0
-                try:
-                    if isinstance(raw, (bytes, bytearray)):
-                        size = len(raw)
-                    elif raw is not None and hasattr(raw, "read"):
-                        pos = raw.tell()
-                        raw.seek(0, 2)
-                        size = raw.tell()
-                        raw.seek(pos)
-                except Exception:
-                    size = 0
                 ctype = (
                     getattr(att, "content_type", None)
                     or getattr(att, "mime_type", None)
                     or "application/octet-stream"
                 )
-                attachments.append(f"{name} ({ctype}, {size} bytes)")
+                size = 0
+                if isinstance(raw, (bytes, bytearray)):
+                    size = len(raw)
+                elif raw is not None and hasattr(raw, "read"):
+                    try:
+                        pos = raw.tell()
+                        raw.seek(0, 2)
+                        size = raw.tell()
+                        raw.seek(pos)
+                    except Exception:
+                        size = 0
+                attachment_lines.append(f"{name} ({ctype}, {size} bytes)")
+
+                # Collect raw bytes for child-document creation
+                if isinstance(raw, (bytes, bytearray)) and raw:
+                    fname = (
+                        getattr(att, "longFilename", None)
+                        or getattr(att, "filename", None)
+                        or getattr(att, "shortFilename", None)
+                        or getattr(att, "name", None)
+                        or "attachment"
+                    )
+                    resolved_ctype = (
+                        getattr(att, "content_type", None)
+                        or getattr(att, "mime_type", None)
+                        or mimetypes.guess_type(fname)[0]
+                        or "application/octet-stream"
+                    )
+                    attachments.append(
+                        AttachmentData(filename=fname, mime_type=resolved_ctype, data=bytes(raw))
+                    )
 
             sections: list[str] = []
             if headers:
                 sections.append("Headers:\n" + "\n".join(headers))
             if body_parts:
                 sections.append("Body:\n" + "\n\n".join(body_parts))
-            if attachments:
-                sections.append("Attachments:\n" + "\n".join(attachments))
+            if attachment_lines:
+                sections.append("Attachments:\n" + "\n".join(attachment_lines))
 
-            return "\n\n".join(sections)
+            return ExtractionResult(text="\n\n".join(sections), attachments=attachments)
         except Exception:
-            return ""
-        finally:
-            with suppress(Exception):
-                msg.close()
-
-    def extract_attachments(self, path: Path) -> list[AttachmentData]:
-        """Return raw bytes for each attachment in the MSG file."""
-        try:
-            msg = extract_msg.Message(str(path))  # type: ignore[no-untyped-call]
-        except Exception:
-            return []
-        try:
-            result: list[AttachmentData] = []
-            for att in getattr(msg, "attachments", []) or []:
-                fname = (
-                    getattr(att, "longFilename", None)
-                    or getattr(att, "filename", None)
-                    or getattr(att, "shortFilename", None)
-                    or getattr(att, "name", None)
-                    or "attachment"
-                )
-                raw = (
-                    getattr(att, "data", None)
-                    or getattr(att, "data_obj", None)
-                    or getattr(att, "payload", None)
-                )
-                if not isinstance(raw, (bytes, bytearray)) or not raw:
-                    continue
-                ctype = (
-                    getattr(att, "content_type", None)
-                    or getattr(att, "mime_type", None)
-                    or mimetypes.guess_type(fname)[0]
-                    or "application/octet-stream"
-                )
-                result.append(AttachmentData(filename=fname, mime_type=ctype, data=bytes(raw)))
-            return result
-        except Exception:
-            return []
+            return ExtractionResult(text="")
         finally:
             with suppress(Exception):
                 msg.close()

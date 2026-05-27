@@ -11,15 +11,15 @@ def test_json_extractor_reads_raw_json() -> None:
     extractor = JsonExtractor()
     path = FIXTURES / "sample.json"
     path.write_text('{"key": "Hello JSON", "value": "test document"}', encoding="utf-8")
-    text = extractor.extract(path)
+    result = extractor.extract(path)
     path.unlink()
 
-    assert "Hello JSON" in text
-    assert "test document" in text
+    assert "Hello JSON" in result.text
+    assert "test document" in result.text
 
 
 def test_json_extractor_returns_empty_for_missing_file() -> None:
     extractor = JsonExtractor()
-    text = extractor.extract(FIXTURES / "nonexistent.json")
+    result = extractor.extract(FIXTURES / "nonexistent.json")
 
-    assert text == ""
+    assert result.text == ""

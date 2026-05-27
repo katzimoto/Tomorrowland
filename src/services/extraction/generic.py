@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from services.extraction.base import ExtractionResult
+
 
 class GenericExtractor:
     """Extract text from any file that has no specific extractor registered.
@@ -15,24 +17,24 @@ class GenericExtractor:
     so those files produce an empty string rather than mojibake.
     """
 
-    def extract(self, path: Path) -> str:
-        """Return decoded text, or ``""`` if the file looks binary."""
+    def extract(self, path: Path) -> ExtractionResult:
+        """Return decoded text, or ``ExtractionResult(text="")`` if the file looks binary."""
         try:
-            return path.read_text(encoding="utf-8")
+            return ExtractionResult(text=path.read_text(encoding="utf-8"))
         except UnicodeDecodeError:
             pass
         except OSError:
-            return ""
+            return ExtractionResult(text="")
 
         try:
             from charset_normalizer import from_path  # type: ignore[import-not-found]
 
             result = from_path(path).best()
             if result is not None:
-                return str(result)
+                return ExtractionResult(text=str(result))
         except Exception:
             pass
 
         # Do NOT fall back to latin-1 here — that would decode any binary
         # file and return garbage to the indexing pipeline.
-        return ""
+        return ExtractionResult(text="")

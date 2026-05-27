@@ -13,29 +13,31 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from services.extraction.base import ExtractionResult
+
 logger = logging.getLogger(__name__)
 
 
 class OcrExtractor:
     """Extract text from raster images via Tesseract OCR."""
 
-    def extract(self, path: Path) -> str:
+    def extract(self, path: Path) -> ExtractionResult:
         """Return OCR'd text from an image file.
 
-        Returns an empty string when Tesseract or Pillow are unavailable or
-        when the file cannot be opened.
+        Returns an empty ExtractionResult when Tesseract or Pillow are
+        unavailable or when the file cannot be opened.
         """
         try:
             import pytesseract  # type: ignore[import-not-found]
             from PIL import Image  # type: ignore[import-untyped]
         except ImportError:
             logger.debug("pytesseract / Pillow not installed; OCR unavailable")
-            return ""
+            return ExtractionResult(text="")
 
         try:
             image = Image.open(path)
             result: str = pytesseract.image_to_string(image)
-            return result.strip()
+            return ExtractionResult(text=result.strip())
         except Exception:
             logger.debug("OCR failed for path=%s", path, exc_info=True)
-            return ""
+            return ExtractionResult(text="")

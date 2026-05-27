@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from services.extraction.base import ExtractionResult
 from services.extraction.registry import ExtractorRegistry
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
@@ -26,9 +27,9 @@ def test_registry_returns_none_for_unknown_mime_type() -> None:
 
 def test_registry_extracts_text_for_known_mime_type() -> None:
     registry = ExtractorRegistry()
-    text = registry.extract(FIXTURES / "sample.txt", "text/plain")
+    result = registry.extract(FIXTURES / "sample.txt", "text/plain")
 
-    assert "Hello TXT World" in text
+    assert "Hello TXT World" in result.text
 
 
 def test_registry_generic_fallback_extracts_text_for_unknown_mime_type(tmp_path: Path) -> None:
@@ -37,9 +38,9 @@ def test_registry_generic_fallback_extracts_text_for_unknown_mime_type(tmp_path:
     p.write_text("hello from an unrecognised file type", encoding="utf-8")
 
     registry = ExtractorRegistry()
-    text = registry.extract(p, "application/x-totally-unknown")
+    result = registry.extract(p, "application/x-totally-unknown")
 
-    assert "hello from an unrecognised file type" in text
+    assert "hello from an unrecognised file type" in result.text
 
 
 def test_registry_generic_fallback_returns_empty_for_binary_content(tmp_path: Path) -> None:
@@ -50,20 +51,20 @@ def test_registry_generic_fallback_returns_empty_for_binary_content(tmp_path: Pa
     p.write_bytes(binary_data)
 
     registry = ExtractorRegistry()
-    text = registry.extract(p, "application/x-totally-unknown")
+    result = registry.extract(p, "application/x-totally-unknown")
 
-    assert text == ""
+    assert result.text == ""
 
 
 def test_registry_allows_custom_extractor_registration() -> None:
     class FakeExtractor:
-        def extract(self, path: Path) -> str:
-            return "fake"
+        def extract(self, path: Path) -> ExtractionResult:
+            return ExtractionResult(text="fake")
 
     registry = ExtractorRegistry()
     registry.register("fake/type", FakeExtractor())
 
-    assert registry.extract(FIXTURES / "sample.txt", "fake/type") == "fake"
+    assert registry.extract(FIXTURES / "sample.txt", "fake/type").text == "fake"
 
 
 # ---------------------------------------------------------------------------
@@ -133,8 +134,11 @@ def test_registry_returns_none_for_octet_stream() -> None:
 
 
 def test_registry_legacy_office_not_registered_by_default() -> None:
+    # application/msword is aliased to DocxExtractor (handles mislabelled DOCX files).
+    # The legacy Office extractor (LibreOffice subprocess) is NOT active by default;
+    # check via a MIME type that is only handled when enable_legacy_office=True.
     registry = ExtractorRegistry()
-    assert registry.get("application/msword") is None
+    assert registry.get("application/vnd.ms-powerpoint") is None
 
 
 def test_registry_ocr_not_registered_by_default() -> None:

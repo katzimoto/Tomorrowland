@@ -14,12 +14,12 @@ def test_html_extractor_strips_tags_and_returns_text() -> None:
         "<html><body><h1>Hello HTML</h1><p>test document for extraction</p></body></html>",
         encoding="utf-8",
     )
-    text = extractor.extract(path)
+    result = extractor.extract(path)
     path.unlink()
 
-    assert "Hello HTML" in text
-    assert "test document for extraction" in text
-    assert "<html>" not in text
+    assert "Hello HTML" in result.text
+    assert "test document for extraction" in result.text
+    assert "<html>" not in result.text
 
 
 def test_html_extractor_skips_script_and_style() -> None:
@@ -29,15 +29,15 @@ def test_html_extractor_skips_script_and_style() -> None:
         "<html><script>alert('x')</script><body><p>visible</p></body></html>",
         encoding="utf-8",
     )
-    text = extractor.extract(path)
+    result = extractor.extract(path)
     path.unlink()
 
-    assert "visible" in text
-    assert "alert" not in text
+    assert "visible" in result.text
+    assert "alert" not in result.text
 
 
 def test_html_extractor_returns_empty_for_missing_file() -> None:
     extractor = HtmlExtractor()
-    text = extractor.extract(FIXTURES / "nonexistent.html")
+    result = extractor.extract(FIXTURES / "nonexistent.html")
 
-    assert text == ""
+    assert result.text == ""

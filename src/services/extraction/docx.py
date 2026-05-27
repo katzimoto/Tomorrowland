@@ -8,11 +8,13 @@ from pathlib import Path
 from docx import Document
 from docx.opc.exceptions import PackageNotFoundError
 
+from services.extraction.base import ExtractionResult
+
 
 class DocxExtractor:
     """Extract text from Word .docx files using python-docx."""
 
-    def extract(self, path: Path) -> str:
+    def extract(self, path: Path) -> ExtractionResult:
         """Return concatenated text from all paragraphs and tables.
 
         python-docx yields merged cells once per spanned column, so a cell
@@ -36,6 +38,6 @@ class DocxExtractor:
                         seen_tc.add(tc_id)
                         if cell.text:
                             texts.append(cell.text)
-            return "\n".join(texts)
+            return ExtractionResult(text="\n".join(texts))
         except (OSError, KeyError, ValueError, zipfile.BadZipFile, PackageNotFoundError):
-            return ""
+            return ExtractionResult(text="")

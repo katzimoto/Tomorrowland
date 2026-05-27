@@ -32,21 +32,21 @@ def _write_odf(path: Path, content: str) -> None:
 def test_ods_extractor_reads_text() -> None:
     path = FIXTURES / "sample.ods"
     _write_odf(path, "Sheet cell value")
-    text = OdsExtractor().extract(path)
+    result = OdsExtractor().extract(path)
     path.unlink()
-    assert "Sheet cell value" in text
+    assert "Sheet cell value" in result.text
 
 
 def test_ods_extractor_missing_file_returns_empty() -> None:
-    assert OdsExtractor().extract(FIXTURES / "nonexistent.ods") == ""
+    assert OdsExtractor().extract(FIXTURES / "nonexistent.ods").text == ""
 
 
 def test_ods_extractor_invalid_zip_returns_empty() -> None:
     path = FIXTURES / "bad.ods"
     path.write_text("not a zip", encoding="utf-8")
-    text = OdsExtractor().extract(path)
+    result = OdsExtractor().extract(path)
     path.unlink()
-    assert text == ""
+    assert result.text == ""
 
 
 # ---------------------------------------------------------------------------
@@ -57,10 +57,10 @@ def test_ods_extractor_invalid_zip_returns_empty() -> None:
 def test_odp_extractor_reads_text() -> None:
     path = FIXTURES / "sample.odp"
     _write_odf(path, "Slide title text")
-    text = OdpExtractor().extract(path)
+    result = OdpExtractor().extract(path)
     path.unlink()
-    assert "Slide title text" in text
+    assert "Slide title text" in result.text
 
 
 def test_odp_extractor_missing_file_returns_empty() -> None:
-    assert OdpExtractor().extract(FIXTURES / "nonexistent.odp") == ""
+    assert OdpExtractor().extract(FIXTURES / "nonexistent.odp").text == ""

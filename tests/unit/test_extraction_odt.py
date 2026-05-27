@@ -23,25 +23,25 @@ def test_odt_extractor_reads_text_from_odt() -> None:
             "<text:p>test document for extraction</text:p>"
             "</office:document-content>",
         )
-    text = extractor.extract(path)
+    result = extractor.extract(path)
     path.unlink()
 
-    assert "Hello ODT" in text
-    assert "test document for extraction" in text
+    assert "Hello ODT" in result.text
+    assert "test document for extraction" in result.text
 
 
 def test_odt_extractor_returns_empty_for_missing_file() -> None:
     extractor = OdtExtractor()
-    text = extractor.extract(FIXTURES / "nonexistent.odt")
+    result = extractor.extract(FIXTURES / "nonexistent.odt")
 
-    assert text == ""
+    assert result.text == ""
 
 
 def test_odt_extractor_returns_empty_for_invalid_zip() -> None:
     extractor = OdtExtractor()
     path = FIXTURES / "not_an_odt.odt"
     path.write_text("this is not a zip file", encoding="utf-8")
-    text = extractor.extract(path)
+    result = extractor.extract(path)
     path.unlink()
 
-    assert text == ""
+    assert result.text == ""

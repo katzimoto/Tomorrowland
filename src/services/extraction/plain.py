@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from services.extraction.base import ExtractionResult
+
 
 class PlainExtractor:
     """Extract text from plain-text files (.txt, .md, .csv, etc.).
@@ -13,14 +15,14 @@ class PlainExtractor:
     non-UTF-8 documents are still readable rather than silently empty.
     """
 
-    def extract(self, path: Path) -> str:
+    def extract(self, path: Path) -> ExtractionResult:
         """Read the file, trying multiple encodings."""
         try:
-            return path.read_text(encoding="utf-8")
+            return ExtractionResult(text=path.read_text(encoding="utf-8"))
         except UnicodeDecodeError:
             pass
         except OSError:
-            return ""
+            return ExtractionResult(text="")
 
         # Second pass: detect encoding via charset-normalizer.
         try:
@@ -28,12 +30,12 @@ class PlainExtractor:
 
             result = from_path(path).best()
             if result is not None:
-                return str(result)
+                return ExtractionResult(text=str(result))
         except Exception:
             pass
 
         # Final fallback: latin-1 never raises on binary input.
         try:
-            return path.read_text(encoding="latin-1")
+            return ExtractionResult(text=path.read_text(encoding="latin-1"))
         except OSError:
-            return ""
+            return ExtractionResult(text="")

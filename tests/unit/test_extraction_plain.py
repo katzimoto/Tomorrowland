@@ -9,23 +9,23 @@ FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 def test_plain_extractor_reads_txt_file() -> None:
     extractor = PlainExtractor()
-    text = extractor.extract(FIXTURES / "sample.txt")
+    result = extractor.extract(FIXTURES / "sample.txt")
 
-    assert "Hello TXT World" in text
-    assert "test document for extraction" in text
+    assert "Hello TXT World" in result.text
+    assert "test document for extraction" in result.text
 
 
 def test_plain_extractor_reads_md_file() -> None:
     extractor = PlainExtractor()
     path = FIXTURES / "sample.txt"
     # Plain extractor works on any text/* mime by reading raw bytes
-    text = extractor.extract(path)
+    result = extractor.extract(path)
 
-    assert len(text) > 0
+    assert len(result.text) > 0
 
 
 def test_plain_extractor_returns_empty_for_missing_file() -> None:
     extractor = PlainExtractor()
-    text = extractor.extract(FIXTURES / "nonexistent.txt")
+    result = extractor.extract(FIXTURES / "nonexistent.txt")
 
-    assert text == ""
+    assert result.text == ""

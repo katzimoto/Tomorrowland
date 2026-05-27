@@ -14,7 +14,7 @@ from uuid import UUID
 from services.alerts.service import AlertMatcher
 from services.chunking.splitter import chunk_text
 from services.documents.repository import DocumentRelationshipRepository, DocumentRepository
-from services.extraction.base import AttachmentData
+from services.extraction.base import AttachmentData, ExtractionResult
 from services.extraction.language import LanguageDetector
 from services.extraction.registry import ExtractorRegistry
 from services.intelligence.worker import IntelligenceWorker
@@ -150,10 +150,12 @@ class PipelineWorker:
         # 1. Extract — use pre-extracted text when available (API sources),
         #    otherwise read from the local file path (folder sources).
         start = time.perf_counter()
+        _extraction_result: ExtractionResult | None = None
         if pre_extracted_text is not None:
             text = pre_extracted_text
         elif doc.path is not None:
-            text = self._extractor.extract(Path(doc.path), doc.mime_type)
+            _extraction_result = self._extractor.extract(Path(doc.path), doc.mime_type)
+            text = _extraction_result.text
             # Release connector-owned temp files (SMB downloads, Atlassian
             # attachment downloads) immediately after text is extracted.
             # Folder and NiFi staged files live outside the system temp dir
@@ -403,22 +405,21 @@ class PipelineWorker:
         self._doc_repo.update_indexed(document_id, "indexed", translation_quality)
 
         # 8. Process email/archive attachments as child documents (best-effort).
+        #     Attachments are already extracted into _extraction_result by the
+        #     extractor itself — the pipeline is fully agnostic to file type here.
         #     _seen tracks SHA-256 hashes of content already processed in this
         #     call chain to break circular references (e.g. ZIP-A → ZIP-B → ZIP-A).
-        if doc.path is not None:
-            extractor = self._extractor.get(doc.mime_type)
-            if extractor is not None and hasattr(extractor, "extract_attachments"):
-                try:
-                    attachments: list[AttachmentData] = extractor.extract_attachments(
-                        Path(doc.path)
-                    )
-                    self._process_attachments(document_id, doc, attachments, _seen or frozenset())
-                except Exception:
-                    logger.exception(
-                        "Attachment extraction failed for document_id=%s correlation=%s",
-                        document_id,
-                        get_correlation_id(),
-                    )
+        if _extraction_result is not None and _extraction_result.attachments:
+            try:
+                self._process_attachments(
+                    document_id, doc, _extraction_result.attachments, _seen or frozenset()
+                )
+            except Exception:
+                logger.exception(
+                    "Attachment processing failed for document_id=%s correlation=%s",
+                    document_id,
+                    get_correlation_id(),
+                )
 
         return ProcessResult(
             extracted_text=text,

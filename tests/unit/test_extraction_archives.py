@@ -16,28 +16,28 @@ def test_zip_extractor_lists_filenames() -> None:
     with zipfile.ZipFile(path, "w") as zf:
         zf.writestr("file1.txt", "content1")
         zf.writestr("folder/file2.txt", "content2")
-    text = extractor.extract(path)
+    result = extractor.extract(path)
     path.unlink()
 
-    assert "file1.txt" in text
-    assert "folder/file2.txt" in text
+    assert "file1.txt" in result.text
+    assert "folder/file2.txt" in result.text
 
 
 def test_zip_extractor_returns_empty_for_missing_file() -> None:
     extractor = ZipExtractor()
-    text = extractor.extract(FIXTURES / "nonexistent.zip")
+    result = extractor.extract(FIXTURES / "nonexistent.zip")
 
-    assert text == ""
+    assert result.text == ""
 
 
 def test_zip_extractor_returns_empty_for_corrupted_zip() -> None:
     extractor = ZipExtractor()
     path = FIXTURES / "corrupted.zip"
     path.write_text("this is not a zip", encoding="utf-8")
-    text = extractor.extract(path)
+    result = extractor.extract(path)
     path.unlink()
 
-    assert text == ""
+    assert result.text == ""
 
 
 def test_tar_extractor_lists_filenames() -> None:
@@ -50,17 +50,17 @@ def test_tar_extractor_lists_filenames() -> None:
         info = tarfile.TarInfo(name="file1.txt")
         info.size = len(data)
         tf.addfile(info, io.BytesIO(data))
-    text = extractor.extract(path)
+    result = extractor.extract(path)
     path.unlink()
 
-    assert "file1.txt" in text
+    assert "file1.txt" in result.text
 
 
 def test_tar_extractor_returns_empty_for_missing_file() -> None:
     extractor = TarExtractor()
-    text = extractor.extract(FIXTURES / "nonexistent.tar")
+    result = extractor.extract(FIXTURES / "nonexistent.tar")
 
-    assert text == ""
+    assert result.text == ""
 
 
 def test_zip_extractor_traversal_path_listed_safely() -> None:
@@ -70,11 +70,11 @@ def test_zip_extractor_traversal_path_listed_safely() -> None:
     with zipfile.ZipFile(path, "w") as zf:
         zf.writestr("../../etc/passwd", "root:x:0:0:")
         zf.writestr("safe/file.txt", "content")
-    text = extractor.extract(path)
+    result = extractor.extract(path)
     path.unlink()
 
-    assert "../../etc/passwd" in text
-    assert "safe/file.txt" in text
+    assert "../../etc/passwd" in result.text
+    assert "safe/file.txt" in result.text
 
 
 def test_tar_extractor_traversal_path_listed_safely() -> None:
@@ -91,8 +91,8 @@ def test_tar_extractor_traversal_path_listed_safely() -> None:
         info2 = tarfile.TarInfo(name="safe/file.txt")
         info2.size = len(data)
         tf.addfile(info2, io.BytesIO(data))
-    text = extractor.extract(path)
+    result = extractor.extract(path)
     path.unlink()
 
-    assert "../../etc/passwd" in text
-    assert "safe/file.txt" in text
+    assert "../../etc/passwd" in result.text
+    assert "safe/file.txt" in result.text

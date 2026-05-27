@@ -299,7 +299,7 @@ class PreviewService:
             return self._archive_snippet(path)
 
         # Extract text using registry
-        text = self._extractor.extract(path, mime_type)
+        text = self._extractor.extract(path, mime_type).text
 
         # HTML: sanitize
         if mime_type in {"text/html", "application/xhtml+xml"}:

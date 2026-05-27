@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from services.documents.models import DocumentRow
+from services.extraction.base import AttachmentData, ExtractionResult
 from services.pipeline.worker import PipelineWorker, ProcessResult, _maybe_delete_connector_temp
 from services.search.meili_types import SearchChunkRecord
 
@@ -96,7 +97,7 @@ class _FakeDocumentRepository:
 
 
 class _FakeExtractor:
-    def extract(self, *_args: object, **_kwargs: object) -> str:
+    def extract(self, *_args: object, **_kwargs: object) -> ExtractionResult:
         raise AssertionError("pre_extracted_text should bypass extraction")
 
     def get(self, mime_type: str) -> object | None:
@@ -439,45 +440,34 @@ def test_process_document_raises_on_failure() -> None:
 # ---------------------------------------------------------------------------
 
 
-class _FakeAttachmentExtractor:
-    """Fake extractor that supports both extract() and extract_attachments()."""
-
-    def __init__(self, attachments: list[object]) -> None:
-        self._attachments = attachments
-
-    def extract(self, path: object) -> str:
-        return "attachment text content"
-
-    def extract_attachments(self, path: object) -> list[object]:
-        return self._attachments
-
-
 class _FakeExtractorRegistry:
-    """Fake registry that routes MIME types to concrete fakes."""
+    """Fake registry that returns ExtractionResult with optional attachments."""
 
     def __init__(
         self,
         *,
-        email_extractor: object | None = None,
-        attachment_extractor: object | None = None,
+        attachments: list[AttachmentData] | None = None,
+        text: str = "text content",
+        supported_mimes: set[str] | None = None,
     ) -> None:
-        self._email = email_extractor
-        self._attachment = attachment_extractor
+        self._attachments = attachments or []
+        self._text = text
+        self._supported_mimes: set[str] = supported_mimes or set()
 
-    def extract(self, path: object, mime_type: str) -> str:
-        if self._email is not None and mime_type == "message/rfc822":
-            return ""
-        return "text content"
+    def extract(self, path: object, mime_type: str) -> ExtractionResult:
+        # Only include attachments for the first (parent) call; child calls
+        # return text only so recursive processing terminates.
+        atts = self._attachments if self._attachments else []
+        result = ExtractionResult(text=self._text, attachments=atts)
+        # Clear after first call so child doc processing doesn't re-attach
+        self._attachments = []
+        return result
 
     def get(self, mime_type: str) -> object | None:
-        if mime_type == "message/rfc822":
-            return self._email
-        if mime_type == "text/plain":
-            return self._attachment
         return None
 
     def has_extractor(self, mime_type: str) -> bool:
-        return self.get(mime_type) is not None
+        return mime_type in self._supported_mimes
 
 
 class _FakeDocumentRepositoryWithCreate(_FakeDocumentRepository):
@@ -502,17 +492,18 @@ class _FakeDocumentRepositoryWithCreate(_FakeDocumentRepository):
 
 
 def test_worker_skips_attachment_when_mime_not_supported(tmp_path: Path) -> None:
-    from services.extraction.base import AttachmentData
-
     doc = _document()
     doc.mime_type = "message/rfc822"
     doc.path = str(tmp_path / "email.eml")
     (tmp_path / "email.eml").write_bytes(b"")
 
     att = AttachmentData(filename="image.png", mime_type="image/png", data=b"png_bytes")
-    email_extractor = _FakeAttachmentExtractor([att])
-    # image/png has no registered extractor → should be skipped
-    registry = _FakeExtractorRegistry(email_extractor=email_extractor, attachment_extractor=None)
+    # image/png is NOT in supported_mimes → _process_attachments skips it
+    registry = _FakeExtractorRegistry(
+        text="email body text",
+        attachments=[att],
+        supported_mimes=set(),  # nothing supported → all attachments skipped
+    )
 
     repo = _FakeDocumentRepositoryWithCreate(doc, [uuid4()])
     encoder = _FakeEncoder()
@@ -528,7 +519,7 @@ def test_worker_skips_attachment_when_mime_not_supported(tmp_path: Path) -> None
         qdrant_client=qdrant,  # type: ignore[arg-type]
     )
 
-    worker.process_document(doc.id, pre_extracted_text="email body text")
+    worker.process_document(doc.id)
 
     # No child documents created because image/png is not supported
     assert repo.created_children == []
@@ -539,7 +530,6 @@ def test_worker_creates_child_doc_for_supported_attachment(
     mock_rel_repo_cls: MagicMock, tmp_path: Path
 ) -> None:
     mock_rel_repo_cls.return_value = MagicMock()  # rel_repo.create_relationship is a no-op
-    from services.extraction.base import AttachmentData
 
     now = datetime.now(UTC)
     doc = _document()
@@ -548,11 +538,11 @@ def test_worker_creates_child_doc_for_supported_attachment(
     (tmp_path / "email.eml").write_bytes(b"")
 
     att = AttachmentData(filename="report.txt", mime_type="text/plain", data=b"report content")
-    email_extractor = _FakeAttachmentExtractor([att])
-    # text/plain IS supported → child doc should be created
+    # text/plain IS in supported_mimes → child doc should be created
     registry = _FakeExtractorRegistry(
-        email_extractor=email_extractor,
-        attachment_extractor=_FakeAttachmentExtractor([]),  # no nested attachments
+        text="email body text",
+        attachments=[att],
+        supported_mimes={"text/plain"},
     )
 
     child_doc = DocumentRow(
@@ -589,7 +579,7 @@ def test_worker_creates_child_doc_for_supported_attachment(
         qdrant_client=qdrant,  # type: ignore[arg-type]
     )
 
-    worker.process_document(doc.id, pre_extracted_text="email body text")
+    worker.process_document(doc.id)
 
     assert len(repo.created_children) == 1
     created = repo.created_children[0]

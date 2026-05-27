@@ -165,7 +165,7 @@ def trigger_alert_matching(
         if doc is None or doc.path is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        content = ExtractorRegistry().extract(Path(doc.path), doc.mime_type)
+        content = ExtractorRegistry().extract(Path(doc.path), doc.mime_type).text
         matcher = AlertMatcher(
             repository=AlertRepository(connection),
             encoder=build_encoder(request.app.state.settings),

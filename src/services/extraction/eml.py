@@ -10,20 +10,28 @@ from email.header import decode_header
 from html.parser import HTMLParser
 from pathlib import Path
 
-from services.extraction.base import AttachmentData
+from services.extraction.base import AttachmentData, ExtractionResult
 
 
 class EmlExtractor:
-    """Extract text from .eml files including headers and body."""
+    """Extract text from .eml files including headers and body.
 
-    def extract(self, path: Path) -> str:
+    A single walk over the parsed message collects body text, attachment
+    metadata for search indexing, and the raw attachment bytes so the pipeline
+    can create child documents — the message is parsed only once.
+    """
+
+    def extract(self, path: Path) -> ExtractionResult:
         """Return a best-effort extraction of headers, body text, and attachments.
 
         The extractor attempts to:
         - Decode all headers (RFC2047) and include them in the output.
-        - Extract `text/plain` parts and decode them.
-        - Extract `text/html` parts and convert them to plain text.
+        - Extract ``text/plain`` parts and decode them.
+        - Extract ``text/html`` parts and convert them to plain text.
         - List attachments with filename, content type, and size in bytes.
+
+        ``ExtractionResult.attachments`` contains the raw bytes of each
+        non-inline attachment so the pipeline can create child documents.
         """
         try:
             raw = path.read_bytes()
@@ -60,7 +68,8 @@ class EmlExtractor:
                 headers.append(f"{name}: {_decode_header(value)}")
 
             body_parts: list[str] = []
-            attachments: list[str] = []
+            attachment_lines: list[str] = []
+            attachments: list[AttachmentData] = []
 
             for part in msg.walk():
                 # Skip container/multipart nodes
@@ -70,25 +79,41 @@ class EmlExtractor:
                 ctype = part.get_content_type()
                 disposition = part.get_content_disposition()  # 'inline', 'attachment', or None
                 filename = part.get_filename()
+                raw_payload = part.get_payload(decode=True)
 
+                if filename or disposition == "attachment":
+                    if isinstance(raw_payload, (bytes, bytearray)) and raw_payload:
+                        fname = filename or "(unknown)"
+                        size = len(raw_payload)
+                        attachment_lines.append(f"{fname} ({ctype}, {size} bytes)")
+                        # Determine MIME type: prefer filename-derived type when
+                        # the declared value is the RFC 2045 default "text/plain"
+                        # and no explicit Content-Type header is present.
+                        guessed = mimetypes.guess_type(fname)[0] or "application/octet-stream"
+                        if ctype == "text/plain" and "Content-Type" not in part:
+                            mime = guessed
+                        else:
+                            mime = ctype
+                        actual_fname = filename or "attachment"
+                        attachments.append(
+                            AttachmentData(
+                                filename=actual_fname,
+                                mime_type=mime,
+                                data=bytes(raw_payload),
+                            )
+                        )
+                    continue
+
+                # Decode payload for body text
                 try:
                     payload = part.get_content()
                 except (MessageError, KeyError):
-                    # Fallback to raw payload decode
-                    raw_payload = part.get_payload(decode=True)
                     if isinstance(raw_payload, bytes):
                         payload = raw_payload.decode(
                             part.get_content_charset("utf-8"), errors="replace"
                         )
                     else:
                         payload = raw_payload or ""
-
-                if filename or disposition == "attachment":
-                    raw_bytes = part.get_payload(decode=True) or b""
-                    size = len(raw_bytes) if isinstance(raw_bytes, (bytes, bytearray)) else 0
-                    fname = filename or "(unknown)"
-                    attachments.append(f"{fname} ({ctype}, {size} bytes)")
-                    continue
 
                 if ctype == "text/plain":
                     if isinstance(payload, str):
@@ -114,45 +139,12 @@ class EmlExtractor:
                 sections.append("Headers:\n" + "\n".join(headers))
             if body_parts:
                 sections.append("Body:\n" + "\n\n".join(body_parts))
-            if attachments:
-                sections.append("Attachments:\n" + "\n".join(attachments))
+            if attachment_lines:
+                sections.append("Attachments:\n" + "\n".join(attachment_lines))
 
-            return "\n\n".join(sections)
+            return ExtractionResult(text="\n\n".join(sections), attachments=attachments)
         except (OSError, UnicodeDecodeError):
-            return ""
+            return ExtractionResult(text="")
         except Exception:
             # Be conservative: never raise during extraction
-            return ""
-
-    def extract_attachments(self, path: Path) -> list[AttachmentData]:
-        """Return raw bytes for each non-inline attachment in the EML file."""
-        try:
-            raw = path.read_bytes()
-            msg = email.message_from_bytes(raw, policy=policy.default)
-            result: list[AttachmentData] = []
-            for part in msg.walk():
-                if part.is_multipart():
-                    continue
-                filename = part.get_filename()
-                disposition = part.get_content_disposition()
-                if not (filename or disposition == "attachment"):
-                    continue
-                data = part.get_payload(decode=True)
-                if not isinstance(data, (bytes, bytearray)) or not data:
-                    continue
-                fname = filename or "attachment"
-                declared_ctype = part.get_content_type()  # never None with policy.default
-                guessed = mimetypes.guess_type(fname)[0] or "application/octet-stream"
-                # email.policy.default returns the RFC 2045 default "text/plain"
-                # when no Content-Type header is present.  Prefer the filename-
-                # derived MIME type when the declared value is just that default,
-                # so a PDF named "report.pdf" without an explicit Content-Type
-                # header is typed as "application/pdf" rather than "text/plain".
-                if declared_ctype == "text/plain" and "Content-Type" not in part:
-                    mime = guessed
-                else:
-                    mime = declared_ctype
-                result.append(AttachmentData(filename=fname, mime_type=mime, data=bytes(data)))
-            return result
-        except Exception:
-            return []
+            return ExtractionResult(text="")

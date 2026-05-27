@@ -9,16 +9,16 @@ FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 def test_xlsx_extractor_reads_text_from_xlsx() -> None:
     extractor = XlsxExtractor()
-    text = extractor.extract(FIXTURES / "sample.xlsx")
+    result = extractor.extract(FIXTURES / "sample.xlsx")
 
-    assert "Hello" in text
-    assert "Excel" in text
-    assert "World" in text
-    assert "test document for extraction" in text
+    assert "Hello" in result.text
+    assert "Excel" in result.text
+    assert "World" in result.text
+    assert "test document for extraction" in result.text
 
 
 def test_xlsx_extractor_returns_empty_for_missing_file() -> None:
     extractor = XlsxExtractor()
-    text = extractor.extract(FIXTURES / "nonexistent.xlsx")
+    result = extractor.extract(FIXTURES / "nonexistent.xlsx")
 
-    assert text == ""
+    assert result.text == ""

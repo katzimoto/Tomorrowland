@@ -35,19 +35,19 @@ def test_eml_extractor_reads_headers_and_body() -> None:
         "test document for extraction",
         encoding="utf-8",
     )
-    text = extractor.extract(path)
+    result = extractor.extract(path)
     path.unlink()
 
-    assert "Hello EML" in text
-    assert "sender@example.com" in text
-    assert "test document for extraction" in text
+    assert "Hello EML" in result.text
+    assert "sender@example.com" in result.text
+    assert "test document for extraction" in result.text
 
 
 def test_eml_extractor_returns_empty_for_missing_file() -> None:
     extractor = EmlExtractor()
-    text = extractor.extract(FIXTURES / "nonexistent.eml")
+    result = extractor.extract(FIXTURES / "nonexistent.eml")
 
-    assert text == ""
+    assert result.text == ""
 
 
 def test_eml_extract_attachments_returns_bytes(tmp_path: Path) -> None:
@@ -56,12 +56,12 @@ def test_eml_extract_attachments_returns_bytes(tmp_path: Path) -> None:
     eml_file.write_bytes(eml_bytes)
 
     extractor = EmlExtractor()
-    attachments = extractor.extract_attachments(eml_file)
+    result = extractor.extract(eml_file)
 
-    assert len(attachments) == 1
-    assert attachments[0].filename == "report.pdf"
-    assert attachments[0].data == b"PDF content here"
-    assert attachments[0].mime_type == "application/pdf"
+    assert len(result.attachments) == 1
+    assert result.attachments[0].filename == "report.pdf"
+    assert result.attachments[0].data == b"PDF content here"
+    assert result.attachments[0].mime_type == "application/pdf"
 
 
 def test_eml_extract_attachments_empty_for_no_attachments(tmp_path: Path) -> None:
@@ -71,9 +71,9 @@ def test_eml_extract_attachments_empty_for_no_attachments(tmp_path: Path) -> Non
         encoding="utf-8",
     )
     extractor = EmlExtractor()
-    assert extractor.extract_attachments(eml_file) == []
+    assert extractor.extract(eml_file).attachments == []
 
 
 def test_eml_extract_attachments_empty_for_missing_file(tmp_path: Path) -> None:
     extractor = EmlExtractor()
-    assert extractor.extract_attachments(tmp_path / "nonexistent.eml") == []
+    assert extractor.extract(tmp_path / "nonexistent.eml").attachments == []

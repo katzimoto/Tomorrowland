@@ -21,13 +21,13 @@ def test_epub_extractor_returns_empty_when_ebooklib_missing() -> None:
 
         importlib.reload(epub_mod)
         extractor = epub_mod.EpubExtractor()
-        assert extractor.extract(FIXTURES / "sample.epub") == ""
+        assert extractor.extract(FIXTURES / "sample.epub").text == ""
 
 
 def test_epub_extractor_returns_empty_for_missing_file() -> None:
     extractor = EpubExtractor()
     # ebooklib will raise when the file doesn't exist; extractor must return "".
-    assert extractor.extract(FIXTURES / "nonexistent.epub") == ""
+    assert extractor.extract(FIXTURES / "nonexistent.epub").text == ""
 
 
 def test_epub_extractor_strips_html_and_joins_spine() -> None:
@@ -47,7 +47,7 @@ def test_epub_extractor_strips_html_and_joins_spine() -> None:
 
     with patch.dict(sys.modules, {"ebooklib": fake_ebooklib, "ebooklib.epub": fake_epub_mod}):
         extractor = EpubExtractor()
-        text = extractor.extract(FIXTURES / "dummy.epub")
+        result = extractor.extract(FIXTURES / "dummy.epub")
 
-    assert "Hello EPUB" in text
-    assert "<p>" not in text
+    assert "Hello EPUB" in result.text
+    assert "<p>" not in result.text

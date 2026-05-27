@@ -5,6 +5,8 @@ from __future__ import annotations
 from html.parser import HTMLParser
 from pathlib import Path
 
+from services.extraction.base import ExtractionResult
+
 _SKIP_TAGS = {"script", "style", "nav", "footer"}
 
 
@@ -49,7 +51,7 @@ class _HTMLTextParser(HTMLParser):
 class HtmlExtractor:
     """Extract visible text from HTML files."""
 
-    def extract(self, path: Path) -> str:
+    def extract(self, path: Path) -> ExtractionResult:
         """Return visible text with tags, scripts, and styles stripped.
 
         Tries UTF-8 first, then falls back to latin-1 so that legacy
@@ -61,7 +63,7 @@ class HtmlExtractor:
         except UnicodeDecodeError:
             pass
         except OSError:
-            return ""
+            return ExtractionResult(text="")
 
         if raw is None:
             # Fallback: latin-1 never raises a decode error and covers the
@@ -69,8 +71,8 @@ class HtmlExtractor:
             try:
                 raw = path.read_text(encoding="latin-1")
             except OSError:
-                return ""
+                return ExtractionResult(text="")
 
         parser = _HTMLTextParser()
         parser.feed(raw)
-        return parser.result()
+        return ExtractionResult(text=parser.result())

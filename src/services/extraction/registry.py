@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from services.extraction.base import Extractor
+from services.extraction.base import ExtractionResult, Extractor
 from services.extraction.docx import DocxExtractor
 from services.extraction.eml import EmlExtractor
 from services.extraction.epub import EpubExtractor
@@ -193,16 +193,22 @@ class ExtractorRegistry:
         canonical = _ALIASES.get(mime_type, mime_type)
         return canonical.startswith("text/")
 
-    def extract(self, path: Path, mime_type: str) -> str:
-        """Extract text from *path* using the extractor for *mime_type*.
+    def extract(self, path: Path, mime_type: str) -> ExtractionResult:
+        """Extract content from *path* using the extractor for *mime_type*.
+
+        Returns an :class:`~services.extraction.base.ExtractionResult` whose
+        ``text`` field contains the plain text and whose ``attachments`` list
+        contains any child files (non-empty only for container formats such as
+        email and archives).  All downstream pipeline stages receive this
+        uniform envelope — they never need to know which extractor produced it.
 
         Falls back to :class:`~services.extraction.generic.GenericExtractor`
         when no specific extractor is registered, so unrecognised file types
         still produce a best-effort text result rather than silently returning
-        an empty string.
+        an empty result.
 
         **Sniff-and-retry**: when the first extraction attempt returns an empty
-        string (e.g. because the stored MIME type is ``application/zip`` or
+        text (e.g. because the stored MIME type is ``application/zip`` or
         ``application/octet-stream`` for a file that is actually a DOCX/XLSX/
         PPTX), the file's raw content is inspected via
         :func:`~services.extraction.mime_detector.sniff_office_mime` and
@@ -227,7 +233,7 @@ class ExtractorRegistry:
         _always_sniff: frozenset[str] = frozenset(
             {"application/zip", "application/octet-stream"}
         )
-        should_sniff = (mime_type in _always_sniff or not result) and path.exists()
+        should_sniff = (mime_type in _always_sniff or not result.text) and path.exists()
         if should_sniff:
             sniffed = sniff_office_mime(path)
             if sniffed and sniffed != mime_type:
@@ -242,7 +248,7 @@ class ExtractorRegistry:
                     retry_extractor = self.get(sniffed)
                 if retry_extractor is not None:
                     retry_result = retry_extractor.extract(path)
-                    if retry_result:
+                    if retry_result.text:
                         logger.debug(
                             "extraction recovered via content sniffing "
                             "original_mime=%s sniffed=%s path=%s",
@@ -252,7 +258,7 @@ class ExtractorRegistry:
                         )
                         result = retry_result
 
-        if not result:
+        if not result.text:
             logger.debug(
                 "extraction returned empty mime_type=%s path=%s exists=%s",
                 mime_type,

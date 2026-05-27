@@ -40,7 +40,7 @@ def trigger_intelligence(
             raise HTTPException(status_code=404, detail="Document not found")
 
         extractor = ExtractorRegistry()
-        text = extractor.extract(Path(doc.path), doc.mime_type)
+        text = extractor.extract(Path(doc.path), doc.mime_type).text
 
         try:
             intelligence_repo = IntelligenceRepository(connection)
@@ -85,7 +85,7 @@ def regenerate_summary(
             raise HTTPException(status_code=404, detail="Document not found")
 
         extractor = ExtractorRegistry()
-        text = extractor.extract(Path(doc.path), doc.mime_type)
+        text = extractor.extract(Path(doc.path), doc.mime_type).text
 
         try:
             intelligence_repo = IntelligenceRepository(connection)

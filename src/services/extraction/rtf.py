@@ -6,6 +6,8 @@ from pathlib import Path
 
 from striprtf.striprtf import rtf_to_text
 
+from services.extraction.base import ExtractionResult
+
 
 class RtfExtractor:
     """Extract text from RTF files using striprtf.
@@ -14,7 +16,7 @@ class RtfExtractor:
     latin-1 when UTF-8 fails (covers Windows-1252 / ISO-8859-1 content).
     """
 
-    def extract(self, path: Path) -> str:
+    def extract(self, path: Path) -> ExtractionResult:
         """Return plain text with RTF control words stripped."""
         raw: str | None = None
         try:
@@ -22,7 +24,7 @@ class RtfExtractor:
         except UnicodeDecodeError:
             pass
         except OSError:
-            return ""
+            return ExtractionResult(text="")
 
         if raw is None:
             # Fallback: latin-1 never raises; valid for any RTF where the
@@ -30,6 +32,6 @@ class RtfExtractor:
             try:
                 raw = path.read_text(encoding="latin-1")
             except OSError:
-                return ""
+                return ExtractionResult(text="")
 
-        return rtf_to_text(raw)  # type: ignore[no-untyped-call, no-any-return]
+        return ExtractionResult(text=rtf_to_text(raw))  # type: ignore[no-untyped-call]

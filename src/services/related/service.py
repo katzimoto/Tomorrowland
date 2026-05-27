@@ -69,7 +69,7 @@ class RelatedService:
         """Return related documents for a source document with reasons."""
         if doc.path is None:
             return []
-        query_text = self._extractor.extract(Path(doc.path), doc.mime_type)
+        query_text = self._extractor.extract(Path(doc.path), doc.mime_type).text
         if not query_text:
             return []
 

@@ -6,6 +6,8 @@ from pathlib import Path
 
 import xlrd
 
+from services.extraction.base import ExtractionResult
+
 
 class XlsExtractor:
     """Extract text from legacy Excel .xls files using xlrd.
@@ -15,7 +17,7 @@ class XlsExtractor:
     files.  No system libraries are required; xlrd is pure Python.
     """
 
-    def extract(self, path: Path) -> str:
+    def extract(self, path: Path) -> ExtractionResult:
         """Return concatenated cell values from all sheets.
 
         Integer-valued floats (e.g. 42.0) are formatted without the
@@ -36,6 +38,6 @@ class XlsExtractor:
                             texts.append(str(int(val)) if val == int(val) else str(val))
                         else:
                             texts.append(str(val))
-            return "\n".join(texts)
+            return ExtractionResult(text="\n".join(texts))
         except Exception:  # noqa: BLE001
-            return ""
+            return ExtractionResult(text="")

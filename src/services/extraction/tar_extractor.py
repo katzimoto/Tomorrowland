@@ -6,26 +6,25 @@ import mimetypes
 import tarfile
 from pathlib import Path
 
-from services.extraction.base import AttachmentData
+from services.extraction.base import AttachmentData, ExtractionResult
 
 
 class TarExtractor:
-    """Extract file listing from TAR archives."""
+    """Extract file listing and contents from TAR archives.
 
-    def extract(self, path: Path) -> str:
-        """Return a newline-separated list of filenames inside the archive."""
-        try:
-            with tarfile.open(path, "r:*") as tf:
-                return "\n".join(m.name for m in tf.getmembers())
-        except (OSError, tarfile.TarError):
-            return ""
+    A single pass over the archive collects both the member names (for search
+    indexing) and the raw file bytes (so the pipeline can create child
+    documents).  The archive is opened only once.
+    """
 
-    def extract_attachments(self, path: Path) -> list[AttachmentData]:
-        """Return every regular file inside the TAR as an AttachmentData."""
+    def extract(self, path: Path) -> ExtractionResult:
+        """Return the archive file listing as text and each member as an attachment."""
+        names: list[str] = []
+        attachments: list[AttachmentData] = []
         try:
-            result: list[AttachmentData] = []
             with tarfile.open(path, "r:*") as tf:
                 for member in tf.getmembers():
+                    names.append(member.name)
                     if not member.isfile():
                         continue
                     f = tf.extractfile(member)
@@ -35,7 +34,11 @@ class TarExtractor:
                     if not data:
                         continue
                     mime = mimetypes.guess_type(member.name)[0] or "application/octet-stream"
-                    result.append(AttachmentData(filename=member.name, mime_type=mime, data=data))
-            return result
-        except Exception:
-            return []
+                    attachments.append(
+                        AttachmentData(filename=member.name, mime_type=mime, data=data)
+                    )
+        except (OSError, tarfile.TarError):
+            return ExtractionResult(text="")
+        except Exception:  # noqa: BLE001
+            return ExtractionResult(text="")
+        return ExtractionResult(text="\n".join(names), attachments=attachments)

@@ -40,11 +40,11 @@ def test_html_nested_skip_tags_suppressed(tmp_path: Path) -> None:
         "</body></html>",
         encoding="utf-8",
     )
-    text = HtmlExtractor().extract(p)
-    assert "visible" in text
-    assert "also visible" in text
-    assert "nav-leak-text" not in text
-    assert ".x{color:red}" not in text
+    result = HtmlExtractor().extract(p)
+    assert "visible" in result.text
+    assert "also visible" in result.text
+    assert "nav-leak-text" not in result.text
+    assert ".x{color:red}" not in result.text
 
 
 def test_html_deeply_nested_skip_not_leaked(tmp_path: Path) -> None:
@@ -57,11 +57,11 @@ def test_html_deeply_nested_skip_not_leaked(tmp_path: Path) -> None:
         "</body></html>",
         encoding="utf-8",
     )
-    text = HtmlExtractor().extract(p)
-    assert "content" in text
-    assert "alert" not in text
-    assert "inner-nav" not in text
-    assert "outer-nav" not in text
+    result = HtmlExtractor().extract(p)
+    assert "content" in result.text
+    assert "alert" not in result.text
+    assert "inner-nav" not in result.text
+    assert "outer-nav" not in result.text
 
 
 # ---------------------------------------------------------------------------
@@ -76,9 +76,9 @@ def test_html_extractor_latin1_file_not_empty(tmp_path: Path) -> None:
     p.write_bytes(
         b"<html><body><p>caf\xe9</p></body></html>"
     )
-    text = HtmlExtractor().extract(p)
-    assert text != ""
-    assert "caf" in text  # at minimum the ASCII part must be present
+    result = HtmlExtractor().extract(p)
+    assert result.text != ""
+    assert "caf" in result.text  # at minimum the ASCII part must be present
 
 
 # ---------------------------------------------------------------------------
@@ -95,10 +95,10 @@ def test_rtf_extractor_latin1_file_not_empty(tmp_path: Path) -> None:
         rb"\f0\fs24 Hello\x96World}"
     )
     p.write_bytes(rtf)
-    text = RtfExtractor().extract(p)
+    result = RtfExtractor().extract(p)
     # Must not be empty — at least the ASCII portions are preserved.
-    assert text != ""
-    assert "Hello" in text
+    assert result.text != ""
+    assert "Hello" in result.text
 
 
 # ---------------------------------------------------------------------------
@@ -114,13 +114,13 @@ def test_xml_extractor_strips_tags(tmp_path: Path) -> None:
         "<root><section><title>Hello XML</title><body>world</body></section></root>",
         encoding="utf-8",
     )
-    text = XmlExtractor().extract(p)
-    assert "Hello XML" in text
-    assert "world" in text
+    result = XmlExtractor().extract(p)
+    assert "Hello XML" in result.text
+    assert "world" in result.text
     # Tags must be absent
-    assert "<root>" not in text
-    assert "<title>" not in text
-    assert "<section>" not in text
+    assert "<root>" not in result.text
+    assert "<title>" not in result.text
+    assert "<section>" not in result.text
 
 
 def test_xml_extractor_handles_iso8859_encoding(tmp_path: Path) -> None:
@@ -131,15 +131,15 @@ def test_xml_extractor_handles_iso8859_encoding(tmp_path: Path) -> None:
         "<root><item>caf\xe9</item></root>"
     )
     p.write_bytes(content.encode("iso-8859-1"))
-    text = XmlExtractor().extract(p)
-    assert text != ""
-    assert "caf" in text
+    result = XmlExtractor().extract(p)
+    assert result.text != ""
+    assert "caf" in result.text
 
 
 def test_xml_extractor_returns_empty_for_malformed(tmp_path: Path) -> None:
     p = tmp_path / "bad.xml"
     p.write_text("<unclosed>", encoding="utf-8")
-    assert XmlExtractor().extract(p) == ""
+    assert XmlExtractor().extract(p).text == ""
 
 
 # ---------------------------------------------------------------------------
@@ -164,11 +164,11 @@ def test_docx_merged_cells_not_duplicated(tmp_path: Path) -> None:
     p = tmp_path / "merged.docx"
     doc.save(str(p))
 
-    text = DocxExtractor().extract(p)
+    result = DocxExtractor().extract(p)
     # "MergedAB" must appear exactly once.
-    assert text.count("MergedAB") == 1
+    assert result.text.count("MergedAB") == 1
     # "CellC" must still be present.
-    assert "CellC" in text
+    assert "CellC" in result.text
 
 
 # ---------------------------------------------------------------------------
@@ -216,23 +216,36 @@ def test_msg_extractor_closes_message_on_exception() -> None:
     ):
         result = MsgExtractor().extract(FIXTURES / "sample.msg")
 
-    # Should not raise; extractor returns "" on any exception.
-    assert result == ""
+    # Should not raise; extractor returns ExtractionResult(text="") on any exception.
+    assert result.text == ""
     mock_msg.close.assert_called_once()
 
 
-def test_msg_extract_attachments_closes_message() -> None:
-    """extract_attachments() must close the Message handle."""
+def test_msg_extractor_returns_attachments_via_extract() -> None:
+    """Attachment bytes must be available via extract().attachments."""
     from services.extraction.msg_extractor import MsgExtractor
 
+    mock_att = MagicMock()
+    mock_att.longFilename = "report.pdf"
+    mock_att.data = b"PDF content"
+    mock_att.content_type = "application/pdf"
+
     mock_msg = MagicMock()
-    mock_msg.attachments = []
+    mock_msg.subject = "Test"
+    mock_msg.body = "body text"
+    mock_msg.to = ""
+    mock_msg.sender = ""
+    mock_msg.date = None
+    mock_msg.attachments = [mock_att]
 
     with patch(
         "services.extraction.msg_extractor.extract_msg.Message", return_value=mock_msg
     ):
-        MsgExtractor().extract_attachments(FIXTURES / "sample.msg")
+        result = MsgExtractor().extract(FIXTURES / "sample.msg")
 
+    assert len(result.attachments) == 1
+    assert result.attachments[0].filename == "report.pdf"
+    assert result.attachments[0].mime_type == "application/pdf"
     mock_msg.close.assert_called_once()
 
 
@@ -254,7 +267,7 @@ def test_xlsx_workbook_closed_on_exception(tmp_path: Path) -> None:
         p.write_bytes(b"fake")
         result = XlsxExtractor().extract(p)
 
-    assert result == ""
+    assert result.text == ""
     mock_wb.close.assert_called_once()
 
 
@@ -401,13 +414,13 @@ def test_epub_extractor_strips_multiline_tags(tmp_path: Path) -> None:
     from services.extraction.epub import EpubExtractor
 
     with patch.dict(sys.modules, {"ebooklib": fake_ebooklib, "ebooklib.epub": fake_epub_mod}):
-        text = EpubExtractor().extract(tmp_path / "dummy.epub")
+        result = EpubExtractor().extract(tmp_path / "dummy.epub")
 
-    assert "Hello EPUB multiline" in text
+    assert "Hello EPUB multiline" in result.text
     # No tag fragment should remain
-    assert "<div" not in text
-    assert 'class="chapter"' not in text
-    assert "id=" not in text
+    assert "<div" not in result.text
+    assert 'class="chapter"' not in result.text
+    assert "id=" not in result.text
 
 
 # ---------------------------------------------------------------------------
@@ -417,32 +430,11 @@ def test_epub_extractor_strips_multiline_tags(tmp_path: Path) -> None:
 
 def test_eml_extract_attachments_prefers_filename_mime_over_default(tmp_path: Path) -> None:
     """Attachment without explicit Content-Type should use filename-guessed MIME."""
-    import email as email_lib
-    from email import policy as email_policy
-
-    # Build a minimal multipart EML with a PDF attachment that has no
-    # explicit Content-Type header (so the email library defaults to
-    # text/plain).  The extractor must detect "application/pdf" from the
-    # filename instead.
-    msg = email_lib.message.MIMEPart(policy=email_policy.default)
-    msg["From"] = "sender@example.com"
-    msg["To"] = "recipient@example.com"
-    msg["Subject"] = "No content-type attachment"
-    msg["MIME-Version"] = "1.0"
-    msg["Content-Type"] = "multipart/mixed"
-
-    # Build attachment part without Content-Type
-    att_part = email_lib.message.MIMEPart(policy=email_policy.default)
-    # Intentionally do NOT set Content-Type (defaults to text/plain)
-    att_part["Content-Disposition"] = 'attachment; filename="report.pdf"'
-    att_part.set_payload(b"PDF binary content", charset=None)
-
     from services.extraction.eml import EmlExtractor
 
-    # Write the EML file and call extract_attachments
+    # Simulate using the extractor with a patched email parse result
     eml_path = tmp_path / "test.eml"
 
-    # Simulate using the extractor with a patched email parse result
     with patch("services.extraction.eml.email.message_from_bytes") as mock_parse:
         mock_msg = MagicMock()
         mock_att = MagicMock()
@@ -460,8 +452,9 @@ def test_eml_extract_attachments_prefers_filename_mime_over_default(tmp_path: Pa
         mock_parse.return_value = mock_msg
 
         eml_path.write_bytes(b"dummy")
-        attachments = EmlExtractor().extract_attachments(eml_path)
+        result = EmlExtractor().extract(eml_path)
 
+    attachments = result.attachments
     assert len(attachments) == 1
     # Must use filename-guessed type, not the default "text/plain"
     assert attachments[0].mime_type == "application/pdf"

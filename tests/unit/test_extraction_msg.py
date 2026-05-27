@@ -19,18 +19,18 @@ def test_msg_extractor_reads_subject_and_body() -> None:
     mock_msg.attachments = []
 
     with patch("services.extraction.msg_extractor.extract_msg.Message", return_value=mock_msg):
-        text = extractor.extract(FIXTURES / "sample.msg")
+        result = extractor.extract(FIXTURES / "sample.msg")
 
-    assert "Hello MSG" in text
-    assert "test document for extraction" in text
-    assert "sender@example.com" in text
+    assert "Hello MSG" in result.text
+    assert "test document for extraction" in result.text
+    assert "sender@example.com" in result.text
 
 
 def test_msg_extractor_returns_empty_for_missing_file() -> None:
     extractor = MsgExtractor()
-    text = extractor.extract(FIXTURES / "nonexistent.msg")
+    result = extractor.extract(FIXTURES / "nonexistent.msg")
 
-    assert text == ""
+    assert result.text == ""
 
 
 def test_msg_extractor_includes_attachment_names() -> None:
@@ -56,9 +56,9 @@ def test_msg_extractor_includes_attachment_names() -> None:
     mock_msg.attachments = [mock_att]
 
     with patch("services.extraction.msg_extractor.extract_msg.Message", return_value=mock_msg):
-        text = extractor.extract(FIXTURES / "sample.msg")
+        result = extractor.extract(FIXTURES / "sample.msg")
 
-    assert "report.pdf" in text
+    assert "report.pdf" in result.text
 
 
 def test_msg_extract_attachments_returns_bytes() -> None:
@@ -83,12 +83,12 @@ def test_msg_extract_attachments_returns_bytes() -> None:
     mock_msg.attachments = [mock_att]
 
     with patch("services.extraction.msg_extractor.extract_msg.Message", return_value=mock_msg):
-        attachments = extractor.extract_attachments(FIXTURES / "sample.msg")
+        result = extractor.extract(FIXTURES / "sample.msg")
 
-    assert len(attachments) == 1
-    assert attachments[0].filename == "report.pdf"
-    assert attachments[0].data == b"PDF bytes"
-    assert attachments[0].mime_type == "application/pdf"
+    assert len(result.attachments) == 1
+    assert result.attachments[0].filename == "report.pdf"
+    assert result.attachments[0].data == b"PDF bytes"
+    assert result.attachments[0].mime_type == "application/pdf"
 
 
 def test_msg_extract_attachments_skips_empty_data() -> None:
@@ -113,11 +113,12 @@ def test_msg_extract_attachments_skips_empty_data() -> None:
     mock_msg.attachments = [mock_att]
 
     with patch("services.extraction.msg_extractor.extract_msg.Message", return_value=mock_msg):
-        attachments = extractor.extract_attachments(FIXTURES / "sample.msg")
+        result = extractor.extract(FIXTURES / "sample.msg")
 
-    assert attachments == []
+    assert result.attachments == []
 
 
 def test_msg_extract_attachments_empty_for_missing_file() -> None:
     extractor = MsgExtractor()
-    assert extractor.extract_attachments(FIXTURES / "nonexistent.msg") == []
+    result = extractor.extract(FIXTURES / "nonexistent.msg")
+    assert result.attachments == []

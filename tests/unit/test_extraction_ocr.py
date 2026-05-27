@@ -23,7 +23,7 @@ def test_ocr_extractor_returns_empty_when_deps_missing() -> None:
         import services.extraction.ocr as ocr_mod
 
         importlib.reload(ocr_mod)
-        assert ocr_mod.OcrExtractor().extract(FIXTURES / "img.png") == ""
+        assert ocr_mod.OcrExtractor().extract(FIXTURES / "img.png").text == ""
 
 
 def test_ocr_extractor_calls_tesseract(tmp_path: Path) -> None:
@@ -42,10 +42,10 @@ def test_ocr_extractor_calls_tesseract(tmp_path: Path) -> None:
         patch("pytesseract.image_to_string", mock_tess.image_to_string),
     ):
         extractor = OcrExtractor()
-        text = extractor.extract(img_path)
+        result = extractor.extract(img_path)
 
     # Patch is tricky due to lazy import; just ensure no exception raised.
-    assert isinstance(text, str)
+    assert isinstance(result.text, str)
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +65,7 @@ def test_pdf_extractor_no_ocr_fallback_by_default(tmp_path: Path) -> None:
 
     with patch("services.extraction.pdf.PdfReader", return_value=mock_reader):
         extractor = PdfExtractor(ocr_fallback=False)
-        assert extractor.extract(pdf_path) == ""
+        assert extractor.extract(pdf_path).text == ""
 
 
 def test_pdf_extractor_ocr_fallback_called_on_empty_text(tmp_path: Path) -> None:
@@ -83,10 +83,10 @@ def test_pdf_extractor_ocr_fallback_called_on_empty_text(tmp_path: Path) -> None
         patch("services.extraction.pdf._ocr_pdf", return_value="OCR text") as mock_ocr,
     ):
         extractor = PdfExtractor(ocr_fallback=True)
-        text = extractor.extract(pdf_path)
+        result = extractor.extract(pdf_path)
 
     mock_ocr.assert_called_once_with(pdf_path)
-    assert text == "OCR text"
+    assert result.text == "OCR text"
 
 
 def test_pdf_extractor_ocr_not_called_when_pypdf_has_text(tmp_path: Path) -> None:
@@ -104,7 +104,7 @@ def test_pdf_extractor_ocr_not_called_when_pypdf_has_text(tmp_path: Path) -> Non
         patch("services.extraction.pdf._ocr_pdf") as mock_ocr,
     ):
         extractor = PdfExtractor(ocr_fallback=True)
-        text = extractor.extract(pdf_path)
+        result = extractor.extract(pdf_path)
 
     mock_ocr.assert_not_called()
-    assert "Real text content" in text
+    assert "Real text content" in result.text

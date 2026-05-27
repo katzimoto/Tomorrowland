@@ -221,9 +221,9 @@ def test_registry_extracts_docx_stored_as_zip(tmp_path: Path) -> None:
     from services.extraction.registry import ExtractorRegistry
 
     reg = ExtractorRegistry()
-    text = reg.extract(FIXTURES / "sample.docx", "application/zip")
-    assert text.strip(), "should recover text via sniff-and-retry"
-    assert "Hello" in text or "DOCX" in text or "extraction" in text
+    result = reg.extract(FIXTURES / "sample.docx", "application/zip")
+    assert result.text.strip(), "should recover text via sniff-and-retry"
+    assert "Hello" in result.text or "DOCX" in result.text or "extraction" in result.text
 
 
 def test_registry_extracts_docx_stored_as_octet_stream(tmp_path: Path) -> None:
@@ -231,16 +231,16 @@ def test_registry_extracts_docx_stored_as_octet_stream(tmp_path: Path) -> None:
     from services.extraction.registry import ExtractorRegistry
 
     reg = ExtractorRegistry()
-    text = reg.extract(FIXTURES / "sample.docx", "application/octet-stream")
-    assert text.strip(), "should recover text via sniff-and-retry"
+    result = reg.extract(FIXTURES / "sample.docx", "application/octet-stream")
+    assert result.text.strip(), "should recover text via sniff-and-retry"
 
 
 def test_registry_extracts_xlsx_stored_as_octet_stream() -> None:
     from services.extraction.registry import ExtractorRegistry
 
     reg = ExtractorRegistry()
-    text = reg.extract(FIXTURES / "sample.xlsx", "application/octet-stream")
-    assert text.strip(), "should recover xlsx via sniff-and-retry"
+    result = reg.extract(FIXTURES / "sample.xlsx", "application/octet-stream")
+    assert result.text.strip(), "should recover xlsx via sniff-and-retry"
 
 
 def test_registry_extracts_xls_stored_as_octet_stream() -> None:
@@ -248,5 +248,5 @@ def test_registry_extracts_xls_stored_as_octet_stream() -> None:
     from services.extraction.registry import ExtractorRegistry
 
     reg = ExtractorRegistry()
-    text = reg.extract(FIXTURES / "sample.xls", "application/octet-stream")
-    assert text.strip(), "should recover xls via OLE sniff-and-retry"
+    result = reg.extract(FIXTURES / "sample.xls", "application/octet-stream")
+    assert result.text.strip(), "should recover xls via OLE sniff-and-retry"

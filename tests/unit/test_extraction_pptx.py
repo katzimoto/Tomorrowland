@@ -11,17 +11,17 @@ FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 def test_pptx_extractor_reads_text_from_pptx() -> None:
     extractor = PptxExtractor()
-    text = extractor.extract(FIXTURES / "sample.pptx")
+    result = extractor.extract(FIXTURES / "sample.pptx")
 
-    assert "Hello PPTX World" in text
-    assert "test document for extraction" in text
+    assert "Hello PPTX World" in result.text
+    assert "test document for extraction" in result.text
 
 
 def test_pptx_extractor_returns_empty_for_missing_file() -> None:
     extractor = PptxExtractor()
-    text = extractor.extract(FIXTURES / "nonexistent.pptx")
+    result = extractor.extract(FIXTURES / "nonexistent.pptx")
 
-    assert text == ""
+    assert result.text == ""
 
 
 def test_pptx_extractor_returns_empty_for_bad_zip(tmp_path: Path) -> None:
@@ -32,7 +32,7 @@ def test_pptx_extractor_returns_empty_for_bad_zip(tmp_path: Path) -> None:
         "services.extraction.pptx_extractor.Presentation", side_effect=zipfile.BadZipFile("bad zip")
     ):
         result = PptxExtractor().extract(p)
-    assert result == ""
+    assert result.text == ""
 
 
 def test_pptx_extractor_returns_empty_for_value_error(tmp_path: Path) -> None:
@@ -43,4 +43,4 @@ def test_pptx_extractor_returns_empty_for_value_error(tmp_path: Path) -> None:
         "services.extraction.pptx_extractor.Presentation", side_effect=ValueError("invalid file")
     ):
         result = PptxExtractor().extract(p)
-    assert result == ""
+    assert result.text == ""

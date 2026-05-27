@@ -14,6 +14,8 @@ from pathlib import Path
 from pypdf import PdfReader
 from pypdf.errors import PdfStreamError
 
+from services.extraction.base import ExtractionResult
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,21 +50,21 @@ class PdfExtractor:
     def __init__(self, ocr_fallback: bool = False) -> None:
         self._ocr_fallback = ocr_fallback
 
-    def extract(self, path: Path) -> str:
+    def extract(self, path: Path) -> ExtractionResult:
         """Return concatenated text from all pages."""
         try:
             reader = PdfReader(str(path))
             pages = [page.extract_text() or "" for page in reader.pages]
             text = "\n".join(pages)
         except (OSError, ValueError, PdfStreamError):
-            return ""
+            return ExtractionResult(text="")
 
         if text.strip():
-            return text
+            return ExtractionResult(text=text)
 
         # Empty result on a non-empty PDF → likely scanned; try OCR if enabled.
         if self._ocr_fallback and reader.pages:
             logger.debug("pypdf returned empty text; attempting OCR for path=%s", path)
-            return _ocr_pdf(path)
+            return ExtractionResult(text=_ocr_pdf(path))
 
-        return text
+        return ExtractionResult(text=text)

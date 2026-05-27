@@ -18,7 +18,7 @@ def test_legacy_office_returns_empty_when_soffice_missing(tmp_path: Path) -> Non
         "subprocess.run",
         side_effect=FileNotFoundError("soffice not found"),
     ):
-        assert LegacyOfficeExtractor().extract(doc) == ""
+        assert LegacyOfficeExtractor().extract(doc).text == ""
 
 
 def test_legacy_office_returns_empty_on_timeout(tmp_path: Path) -> None:
@@ -28,7 +28,7 @@ def test_legacy_office_returns_empty_on_timeout(tmp_path: Path) -> None:
         "subprocess.run",
         side_effect=subprocess.TimeoutExpired(cmd="soffice", timeout=30),
     ):
-        assert LegacyOfficeExtractor().extract(doc) == ""
+        assert LegacyOfficeExtractor().extract(doc).text == ""
 
 
 def test_legacy_office_returns_empty_on_nonzero_exit(tmp_path: Path) -> None:
@@ -39,7 +39,7 @@ def test_legacy_office_returns_empty_on_nonzero_exit(tmp_path: Path) -> None:
         args=["soffice"], returncode=1, stdout=b"", stderr=b"error"
     )
     with patch("subprocess.run", return_value=mock_result):
-        assert LegacyOfficeExtractor().extract(doc) == ""
+        assert LegacyOfficeExtractor().extract(doc).text == ""
 
 
 def test_legacy_office_reads_converted_txt(tmp_path: Path) -> None:
@@ -53,6 +53,6 @@ def test_legacy_office_reads_converted_txt(tmp_path: Path) -> None:
         return subprocess.CompletedProcess(args=cmd, returncode=0, stdout=b"", stderr=b"")
 
     with patch("subprocess.run", side_effect=fake_run):
-        text = LegacyOfficeExtractor().extract(doc)
+        result = LegacyOfficeExtractor().extract(doc)
 
-    assert text == "Converted text content"
+    assert result.text == "Converted text content"

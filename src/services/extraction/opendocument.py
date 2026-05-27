@@ -11,6 +11,8 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from services.extraction.base import ExtractionResult
+
 
 def _extract_odf_text(path: Path) -> str:
     """Return joined paragraph text from an ODF zip archive."""
@@ -34,14 +36,14 @@ def _extract_odf_text(path: Path) -> str:
 class OdsExtractor:
     """Extract text from ODS (OpenDocument Spreadsheet) files."""
 
-    def extract(self, path: Path) -> str:
+    def extract(self, path: Path) -> ExtractionResult:
         """Return text from all paragraph nodes inside content.xml."""
-        return _extract_odf_text(path)
+        return ExtractionResult(text=_extract_odf_text(path))
 
 
 class OdpExtractor:
     """Extract text from ODP (OpenDocument Presentation) files."""
 
-    def extract(self, path: Path) -> str:
+    def extract(self, path: Path) -> ExtractionResult:
         """Return text from all paragraph nodes inside content.xml."""
-        return _extract_odf_text(path)
+        return ExtractionResult(text=_extract_odf_text(path))
