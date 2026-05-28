@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-28
+
 ### Changed
 - Issue #133: Replaced the "N" letter mark with a new dark cyberpunk bicycle logo. The new asset (`frontend/public/tomorrowland-logo-cyber-bike.svg`) features a neon cyan bicycle on a deep navy background with scanline and HUD-bracket accents. Updated the nav rail, login page, and favicon to use the new logo. Added a reusable `TomorrowlandLogo` component at `frontend/src/components/brand/TomorrowlandLogo.tsx`.
 - Documentation now reflects that Confluence and Jira Server/Data Center polling
