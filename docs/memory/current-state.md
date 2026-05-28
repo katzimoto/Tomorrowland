@@ -2,6 +2,18 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-28 — feat(extraction): Magika ML MIME detection — merged PR #524
+
+Status: Done — ffe2265 on main
+Source: PR #524
+
+Google Magika (`magika>=1.0`) added as Layer 1 in `MimeDetector.detect()`.
+Threshold 0.80: DOCX/XLSX/PPTX/PDF/EPUB pass; EML/plain text/OLE fall through to python-magic.
+Lazy ONNX singleton; `magika` now a core dependency (not optional).
+47 tests pass. No follow-up work required.
+
+---
+
 ## 2026-05-27 — fix(extraction): office file extraction — 3 bugs fixed
 
 Status: Done — uncommitted on main

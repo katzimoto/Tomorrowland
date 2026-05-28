@@ -20,20 +20,31 @@ Impact:
 - NiFi is event-driven — `storage_root` ignored; inline text docs have no persistent file.
 - Audio and video MIME types are explicitly skipped (too large, no useful extraction).
 
-## 2026-05-25 — Extraction: MIME detection uses python-magic + mimetypes fallback
+## 2026-05-28 — Extraction: MIME detection is three-layer (Magika → python-magic → mimetypes)
 
 Status: Active
-Source: commit 0ec5226; src/services/extraction/mime_detector.py
+Source: PR #524 (ffe2265); src/services/extraction/mime_detector.py
 
 Decision:
-- `MimeDetector.detect()` tries `python-magic` (content-sniffing via libmagic) first.
-- Falls back to `mimetypes.guess_type(filename)` when magic returns `application/octet-stream` or is not installed.
-- Module-level `detect_mime_type()` convenience wrapper used by connectors.
-- `application/octet-stream` is **no longer registered** in `ExtractorRegistry` — previously it silently returned binary bytes as UTF-8 text. Unknown MIME types now return `""`.
+- `MimeDetector.detect()` resolution order:
+  1. **Magika** (`magika>=1.0`, core dep) — ML-based, score ≥ 0.80 required. Correctly identifies DOCX/XLSX/PPTX without ZIP inspection. Score 0.80 threshold passes DOCX/XLSX/PPTX/PDF/EPUB (≥0.90); falls through for EML (0.53), plain text (0.49), bare OLE bytes (0.18).
+  2. **python-magic** — libmagic content sniff; degrades gracefully if not installed.
+  3. **mimetypes.guess_type** + `sniff_office_mime` (stdlib ZIP/OLE) — extension-based fallback.
+- Generic-type guard applies to both Magika and python-magic: if the result is `text/plain`, `application/zip`, or `application/octet-stream` and the extension provides a more specific type, the extension wins (e.g. `.eml` → `message/rfc822`).
+- Magika singleton is lazy — ONNX model loads on first `identify_path()` call, not at worker startup.
+- `_MAGIKA_AVAILABLE` flag preserves full graceful degradation if `magika` package is ever removed.
+- Module-level `detect_mime_type()` convenience wrapper used by connectors (unchanged).
+- `application/octet-stream` is **not registered** in `ExtractorRegistry` — unknown MIME types return `""`.
 
 Impact:
-- Extensionless or misnamed files get content-sniffed correctly.
-- Connectors (folder, SMB) call `detect_mime_type()` not `mimetypes.guess_type()`.
+- Extensionless DOCX/XLSX/PPTX now identified in a single ML call instead of requiring ZIP inspection.
+- EPUB no longer confused with plain ZIP by libmagic.
+- Tests that exercise python-magic or mimetypes layers must patch `_MAGIKA_AVAILABLE=False` for isolation.
+
+## 2026-05-25 — Extraction: MIME detection uses python-magic + mimetypes fallback
+
+Status: Superseded by 2026-05-28 entry
+Source: commit 0ec5226; src/services/extraction/mime_detector.py
 
 ## 2026-05-25 — Extraction: OCR and Legacy Office are feature-flagged off by default
 
