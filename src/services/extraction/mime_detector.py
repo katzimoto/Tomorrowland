@@ -1,15 +1,22 @@
 """MIME type detection for ingested files.
 
-Uses content-sniffing via ``python-magic`` when available, falling back to
-the stdlib ``mimetypes`` module (extension-based) so the system degrades
-gracefully when libmagic is not installed.
+Uses a three-layer content-sniffing strategy so that the system degrades
+gracefully when optional libraries are not installed:
 
-A second content-sniffing layer (``sniff_office_mime``) uses only the stdlib
-``zipfile`` module to identify ZIP-based Office Open XML formats (DOCX, XLSX,
-PPTX, ODF) and detects OLE Compound Document magic bytes for legacy Office
-formats (.doc, .xls, .ppt) — no external libraries required.  This ensures
-correct MIME detection even when files lack extensions and python-magic is
-unavailable.
+1. **Magika** — Google's ML-based file type detector (``magika`` package,
+   included in core dependencies).  Results above
+   :data:`_MAGIKA_SCORE_THRESHOLD` (0.80) are used directly; lower-confidence
+   results fall through to the next layer.  Magika correctly identifies Office
+   Open XML formats (DOCX, XLSX, PPTX) without needing to inspect the ZIP
+   container, making it the most reliable layer for ambiguous files.
+
+2. **python-magic** — ``libmagic`` content sniffing.  Handles common binary
+   formats quickly but may return generic types (``text/plain``,
+   ``application/zip``) for formats it cannot fully identify.
+
+3. **mimetypes + sniff_office_mime** — stdlib-only fallback.  Extension-based
+   guessing supplemented by raw ZIP/OLE byte inspection so that Office files
+   with no extension are still identified correctly.
 """
 
 from __future__ import annotations
@@ -18,6 +25,7 @@ import logging
 import mimetypes
 import zipfile
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +35,34 @@ try:
     _MAGIC_AVAILABLE = True
 except ImportError:  # pragma: no cover
     _MAGIC_AVAILABLE = False
+
+try:
+    from magika import Magika as _MagikaClass
+
+    _MAGIKA_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _MAGIKA_AVAILABLE = False
+
+# Minimum Magika confidence score required to accept the ML detection result.
+# Below this threshold the fallback chain (python-magic → mimetypes →
+# sniff_office_mime) takes over.  0.80 lets through DOCX/XLSX/PPTX/PDF/EPUB
+# (all score ≥ 0.90 on typical files) while skipping low-confidence results
+# for plain text and email formats where extension-based detection is more
+# reliable.
+_MAGIKA_SCORE_THRESHOLD: float = 0.80
+
+# Lazy singleton — Magika loads an ONNX neural-network model on first use;
+# instantiating it at import time would slow every worker startup.
+_magika_singleton: Any = None
+
+
+def _get_magika() -> Any:
+    """Return the module-level Magika singleton, creating it on first call."""
+    global _magika_singleton
+    if _magika_singleton is None:
+        _magika_singleton = _MagikaClass()  # noqa: F821  # unbound when magika not installed
+    return _magika_singleton
+
 
 # Supplement stdlib mimetypes with types it does not know about.
 # This ensures the extension-based fallback path works for these formats
@@ -40,7 +76,7 @@ mimetypes.add_type("application/toml", ".toml")
 # --- Office Open XML magic bytes ----------------------------------------
 
 _ZIP_MAGIC = b"PK\x03\x04"
-_OLE_MAGIC = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"
+_OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
 # Canonical MIME constants (duplicated from registry to avoid circular imports)
 _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -130,20 +166,41 @@ class MimeDetector:
         """Return the MIME type for *path*.
 
         Resolution order:
-        1. ``python-magic`` content-sniffing (if libmagic is installed).
+        1. **Magika** ML-based detection (if ``magika`` is installed and the
+           confidence score is ≥ :data:`_MAGIKA_SCORE_THRESHOLD`).  When the
+           result is a generic type (e.g. ``text/plain``) and the extension-
+           based guess is more specific, the extension wins.
+        2. **python-magic** content-sniffing (if libmagic is installed).
            If the sniffed type is generic (e.g. ``text/plain``), the
            extension-based guess is preferred when it is more specific.
            If the sniffed type is ``application/zip`` and no extension is
            available, falls through to Office content sniffing.
-        2. ``mimetypes.guess_type`` on *filename* (or *path.name*).
-        3. ``sniff_office_mime`` — stdlib-only ZIP/OLE inspection.
-        4. Fallback: ``"application/octet-stream"``.
+        3. ``mimetypes.guess_type`` on *filename* (or *path.name*).
+        4. ``sniff_office_mime`` — stdlib-only ZIP/OLE inspection.
+        5. Fallback: ``"application/octet-stream"``.
         """
         name = filename or path.name
 
         # Always compute the extension-based guess so we can fall back to it.
         guessed, _ = mimetypes.guess_type(name)
 
+        # --- Layer 1: Magika (ML-based, highest accuracy) -------------------
+        if _MAGIKA_AVAILABLE:
+            try:
+                result = _get_magika().identify_path(path)
+                if result.score >= _MAGIKA_SCORE_THRESHOLD:
+                    magika_mime: str = result.output.mime_type
+                    if magika_mime:
+                        # Prefer a specific extension-based type over a generic
+                        # Magika result (e.g. message/rfc822 over text/plain for
+                        # .eml files).
+                        if magika_mime in self._GENERIC_TYPES and guessed:
+                            return guessed
+                        return magika_mime
+            except Exception:
+                logger.debug("magika failed for path=%s; falling back", path)
+
+        # --- Layer 2: python-magic ------------------------------------------
         if _MAGIC_AVAILABLE:
             try:
                 detected: str = _magic.from_file(str(path), mime=True)
