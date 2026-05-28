@@ -2,6 +2,49 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-28 — refactor(pipeline): enforce extraction boundary — only parse/worker may call .extract()
+
+Status: Done — pushed to main
+Source: Claude Code session
+
+**Goal:** No worker or service outside the designated extraction stage may call `ExtractorRegistry.extract()` directly. All non-extractor callers must read pre-extracted text from `document_payloads`.
+
+**Changes (7 files):**
+- `pipeline/vector_worker.py`: removed `extractor` param from `run_vector_once`/`run_vector_loop`; removed fallback extraction block; removed `ExtractorRegistry` import.
+- `pipeline/slow_worker.py`: removed `extractor_registry` constructor param and `self._extractor`; `process_document`/`_run`/`_run_versioned`/`_run_legacy` now accept `content_text: str = ""`; `run_enrich_once` fetches payload and passes `content_text` down.
+- `related/service.py`: replaced `extractor_registry` constructor param with `job_repo: PipelineJobRepository`; `related_documents` reads `content_text` from payload.
+- `api/routers/documents.py`: both `RelatedService(...)` calls pass `job_repo=PipelineJobRepository(connection)`.
+- `api/routers/alerts.py`: admin re-match endpoint reads payload instead of calling extractor.
+- `api/routers/admin/intelligence.py`: both trigger + summary-regenerate endpoints read payload.
+- `tests/unit/test_slow_worker.py`: `_FakeEnrichRepo` gains `get_payload()`; assertion updated.
+
+**Intentional exception:** `preview/service.py:302` — last-resort fallback after payload check fails, guarded by file-exists check, intentional for pre-pipeline uploads.
+
+**Verification:** 8/8 slow-worker unit tests pass; zero `.extract()` calls outside `extraction/`, `pipeline/worker.py`, `pipeline/parse_worker.py`.
+
+---
+
+## 2026-05-27 — feat(extraction): uniform ExtractionResult envelope — commit 5e46f1f
+
+Status: Done — pushed to main
+Source: Claude Code session
+
+**Goal:** Pipeline workers fully agnostic to file type — no `hasattr(extractor, "extract_attachments")` branch anywhere.
+
+**Changes:**
+- `base.py`: `ExtractionResult(text: str, attachments: list[AttachmentData] = [])` dataclass; `Extractor` protocol returns `ExtractionResult`.
+- `__init__.py`: exports `ExtractionResult`.
+- Container extractors (eml, msg_extractor, zip_extractor, tar_extractor): single-pass extraction — body text + attachment bytes in one file-open block; public `extract_attachments()` method removed.
+- 16 non-container extractors: `return ExtractionResult(text=...)`.
+- `registry.py`: `extract() -> ExtractionResult`; sniff-and-retry checks `result.text`.
+- `pipeline/worker.py`: unpacks `result.text` + `result.attachments`; `hasattr` branch gone; `_extraction_result: ExtractionResult | None = None` guards attachment path (None when `pre_extracted_text` bypasses file extraction).
+- `pipeline/parse_worker.py`, `slow_worker.py`, `vector_worker.py`, `related/service.py`, `preview/service.py`, `alerts.py`, `intelligence.py`: `.text` suffix added.
+- All 25 extraction + pipeline unit test files updated to `.text` assertions.
+
+**Verification:** 204 unit tests pass; mypy 0 new errors (8 pre-existing import-untyped warnings in unchanged files).
+
+---
+
 ## 2026-05-27 — fix(frontend): 5 UX bugs across documents, chat, admin, and annotations
 
 Status: Done — pushed to main

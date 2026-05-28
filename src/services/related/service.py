@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 from services.documents.models import DocumentRow
-from services.extraction.registry import ExtractorRegistry
+from services.pipeline.jobs import PipelineJobRepository
 from services.related.repository import RelatedRepository
 from services.search.encoder import TextEncoder
 from services.search.hybrid import SearchResult
@@ -52,12 +51,12 @@ class RelatedService:
         repository: RelatedRepository,
         qdrant_client: QdrantSearchClient,
         encoder: TextEncoder,
-        extractor_registry: ExtractorRegistry | None = None,
+        job_repo: PipelineJobRepository,
     ) -> None:
         self._repository = repository
         self._qdrant = qdrant_client
         self._encoder = encoder
-        self._extractor = extractor_registry or ExtractorRegistry()
+        self._job_repo = job_repo
 
     def related_documents(
         self,
@@ -67,9 +66,8 @@ class RelatedService:
         allow_all: bool = False,
     ) -> list[dict[str, Any]]:
         """Return related documents for a source document with reasons."""
-        if doc.path is None:
-            return []
-        query_text = self._extractor.extract(Path(doc.path), doc.mime_type).text
+        payload = self._job_repo.get_payload(doc.id)
+        query_text = (payload.get("content_text", "") if payload else None) or ""
         if not query_text:
             return []
 

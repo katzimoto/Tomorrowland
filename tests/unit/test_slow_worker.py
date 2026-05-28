@@ -32,14 +32,18 @@ def _make_enrich_job(
 
 
 class _FakeEnrichRepo:
-    def __init__(self, claimed_job: dict | None = None) -> None:
+    def __init__(self, claimed_job: dict | None = None, content_text: str = "") -> None:
         self.claimed_job = claimed_job
+        self.content_text = content_text
         self.succeeded: object = None
         self.retried: tuple | None = None
         self.dead_lettered: tuple | None = None
 
     def claim_next(self, worker_id: str, job_types: list[str] | None = None) -> dict | None:
         return self.claimed_job
+
+    def get_payload(self, document_id: object) -> dict | None:
+        return {"content_text": self.content_text} if self.content_text else {}
 
     def mark_running_stage(self, job_id: object, stage: str) -> None:
         pass
@@ -66,7 +70,7 @@ class TestRunEnrichOnce:
         assert repo.succeeded is job["id"]
         assert repo.retried is None
         assert repo.dead_lettered is None
-        worker.process_document.assert_called_once_with(job["document_id"])
+        worker.process_document.assert_called_once_with(job["document_id"], content_text="")
 
     def test_no_job_available_returns_false(self) -> None:
         repo = _FakeEnrichRepo(claimed_job=None)

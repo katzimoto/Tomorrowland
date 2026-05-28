@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -19,8 +18,8 @@ from services.api.main import current_user
 from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
 from services.documents.repository import DocumentRepository
-from services.extraction.registry import ExtractorRegistry
 from services.permissions.enforcer import require_admin
+from services.pipeline.jobs import PipelineJobRepository
 from services.search.factory import build_encoder
 from shared.db import to_uuid
 
@@ -165,7 +164,8 @@ def trigger_alert_matching(
         if doc is None or doc.path is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        content = ExtractorRegistry().extract(Path(doc.path), doc.mime_type).text
+        payload = PipelineJobRepository(connection).get_payload(document_id)
+        content = (payload.get("content_text", "") if payload else None) or ""
         matcher = AlertMatcher(
             repository=AlertRepository(connection),
             encoder=build_encoder(request.app.state.settings),

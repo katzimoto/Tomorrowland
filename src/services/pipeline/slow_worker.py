@@ -14,7 +14,6 @@ from services.documents.repository import (
     DocumentRepository,
     TranslationVersionRepository,
 )
-from services.extraction.registry import ExtractorRegistry
 from services.intelligence.worker import IntelligenceWorker
 from services.pipeline.jobs import PipelineJobRepository
 from services.search.elastic import ElasticsearchSearchClient
@@ -37,7 +36,6 @@ class SlowWorker:
     def __init__(
         self,
         document_repository: DocumentRepository,
-        extractor_registry: ExtractorRegistry | None,
         translator: LibreTranslateClient,
         encoder: TextEncoder,
         es_client: ElasticsearchSearchClient,
@@ -48,7 +46,6 @@ class SlowWorker:
         alert_matcher: AlertMatcher | None = None,
     ) -> None:
         self._doc_repo = document_repository
-        self._extractor = extractor_registry or ExtractorRegistry()
         self._translator = translator
         self._encoder = encoder
         self._es = es_client
@@ -58,8 +55,14 @@ class SlowWorker:
         self._version_repo = version_repository
         self._alert_matcher = alert_matcher
 
-    def process_document(self, document_id: UUID) -> None:
+    def process_document(self, document_id: UUID, content_text: str = "") -> None:
         """Run the enrichment pipeline for a single document.
+
+        Args:
+            document_id: Document to enrich.
+            content_text: Pre-extracted text from the parse stage payload.
+                Must be supplied by the caller; this worker does not call the
+                extractor directly.
 
         On success the document translation_quality is set to ``"high"`` and
         status to ``"indexed"``. On any unhandled exception the version status
@@ -67,7 +70,7 @@ class SlowWorker:
         best-effort).
         """
         try:
-            self._run(document_id)
+            self._run(document_id, content_text=content_text)
         except Exception:
             logger.exception(
                 "Slow worker failed for document_id=%s correlation=%s",
@@ -80,28 +83,26 @@ class SlowWorker:
             if self._version_repo is None:
                 self._doc_repo.update_status(document_id, "failed")
 
-    def _run(self, document_id: UUID) -> None:
+    def _run(self, document_id: UUID, content_text: str = "") -> None:
         doc = self._doc_repo.get_by_id(document_id)
         if doc is None:
             raise ValueError(f"Document {document_id} not found")
-        if doc.path is None:
-            raise ValueError(f"Document {document_id} has no path")
 
         # If version repository is available, process pending versions
         if self._version_repo is not None:
-            self._run_versioned(doc)
+            self._run_versioned(doc, content_text=content_text)
             return
 
         # Legacy path: process document directly
-        self._run_legacy(doc)
+        self._run_legacy(doc, content_text=content_text)
 
-    def _run_versioned(self, doc: Any) -> None:
+    def _run_versioned(self, doc: Any, content_text: str = "") -> None:
         """Process the oldest pending version for a document."""
         assert self._version_repo is not None
         pending = self._version_repo.get_pending_versions(doc.id)
         if not pending:
             # Fallback to legacy behavior if no pending versions exist
-            self._run_legacy(doc)
+            self._run_legacy(doc, content_text=content_text)
             return
 
         version = pending[0]
@@ -110,8 +111,8 @@ class SlowWorker:
         try:
             self._version_repo.update_version_status(version_id, "running")
 
-            # 1. Extract
-            text = self._extractor.extract(Path(doc.path), doc.mime_type).text
+            # 1. Use pre-extracted text from the parse stage payload
+            text = content_text
 
             # 2. Translate
             translated = self._translator.translate(text, source_lang=doc.source_language)
@@ -154,10 +155,10 @@ class SlowWorker:
             )
             raise
 
-    def _run_legacy(self, doc: Any) -> None:
+    def _run_legacy(self, doc: Any, content_text: str = "") -> None:
         """Legacy non-versioned enrichment path."""
-        # 1. Extract
-        text = self._extractor.extract(Path(doc.path), doc.mime_type).text
+        # 1. Use pre-extracted text from the parse stage payload
+        text = content_text
 
         # 2. Translate
         translated = self._translator.translate(text, source_lang=doc.source_language)
@@ -357,9 +358,14 @@ def run_enrich_once(
 
     job_repo.mark_running_stage(job_id, "enrich")
 
+    # Load pre-extracted text from the parse stage payload so the slow worker
+    # does not need to call the extractor directly.
+    payload = job_repo.get_payload(document_id)
+    content_text = (payload.get("content_text", "") if payload else None) or ""
+
     start = time.monotonic()
     try:
-        worker.process_document(document_id)
+        worker.process_document(document_id, content_text=content_text)
     except Exception as exc:
         elapsed = time.monotonic() - start
         error_type = type(exc).__name__
@@ -498,10 +504,6 @@ if __name__ == "__main__":
 
         worker = SlowWorker(
             document_repository=doc_repo,
-            extractor_registry=ExtractorRegistry(
-                enable_ocr=settings.enable_ocr,
-                enable_legacy_office=settings.enable_legacy_office,
-            ),
             translator=translator,
             encoder=encoder,
             es_client=es_client,

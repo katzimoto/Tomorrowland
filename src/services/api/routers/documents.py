@@ -542,6 +542,7 @@ def related_documents(
             repository=RelatedRepository(connection),
             qdrant_client=qdrant_client,
             encoder=encoder,
+            job_repo=PipelineJobRepository(connection),
         )
         try:
             related = service.related_documents(
@@ -589,6 +590,7 @@ def expertise(
             repository=RelatedRepository(connection),
             qdrant_client=qdrant_client,
             encoder=encoder,
+            job_repo=PipelineJobRepository(connection),
         )
         try:
             return service.expertise(topic=topic, group_ids=group_ids, allow_all=user.is_admin)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -12,11 +11,11 @@ from services.api._helpers import _fmt_dt
 from services.api.main import current_user
 from services.auth.models import TokenPayload
 from services.documents.repository import DocumentRepository
-from services.extraction.registry import ExtractorRegistry
 from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.repository import IntelligenceRepository
 from services.intelligence.worker import IntelligenceWorker
 from services.permissions.enforcer import require_admin
+from services.pipeline.jobs import PipelineJobRepository
 from services.search.elastic import ElasticsearchSearchClient
 from shared.correlation import get_correlation_id
 from shared.db import to_uuid
@@ -39,8 +38,8 @@ def trigger_intelligence(
         if doc is None or doc.path is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        extractor = ExtractorRegistry()
-        text = extractor.extract(Path(doc.path), doc.mime_type).text
+        payload = PipelineJobRepository(connection).get_payload(document_id)
+        text = (payload.get("content_text", "") if payload else None) or ""
 
         try:
             intelligence_repo = IntelligenceRepository(connection)
@@ -84,8 +83,8 @@ def regenerate_summary(
         if doc is None or doc.path is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        extractor = ExtractorRegistry()
-        text = extractor.extract(Path(doc.path), doc.mime_type).text
+        payload = PipelineJobRepository(connection).get_payload(document_id)
+        text = (payload.get("content_text", "") if payload else None) or ""
 
         try:
             intelligence_repo = IntelligenceRepository(connection)

@@ -14,7 +14,6 @@ from uuid import UUID
 
 from services.chunking.splitter import chunk_text
 from services.documents.repository import DocumentRepository
-from services.extraction.registry import ExtractorRegistry
 from services.pipeline.jobs import PipelineJobRepository
 from services.search.encoder import TextEncoder as _TProto
 from services.search.qdrant import QdrantSearchClient
@@ -32,7 +31,6 @@ def run_vector_once(
     encoder: _TProto,
     qdrant: QdrantSearchClient,
     doc_repo: DocumentRepository,
-    extractor: ExtractorRegistry,
     worker_id: str = "vector-worker",
     metrics: MetricsRegistry | None = None,
     embedding_max_tokens: int | None = None,
@@ -44,7 +42,6 @@ def run_vector_once(
         encoder: Text encoder (Ollama or test).
         qdrant: Qdrant client.
         doc_repo: Document repository for source group IDs.
-        extractor: Extractor registry for file content.
         worker_id: Identifier for lock tracking.
         metrics: Optional metrics registry; pass ``None`` to disable instrumentation.
         embedding_max_tokens: Maximum estimated tokens per chunk before encoding.
@@ -79,13 +76,10 @@ def run_vector_once(
 
         allowed_group_ids = [str(gid) for gid in doc_repo.source_group_ids(source_id)]
 
-        # Load payload texts for chunking
+        # Load payload texts for chunking — content_text must come from the
+        # parse stage; this worker does not call the extractor directly.
         payload = job_repo.get_payload(document_id)
         content_text = (payload.get("content_text", "") if payload else None) or ""
-        if not content_text and doc.path:
-            from pathlib import Path
-
-            content_text = extractor.extract(Path(doc.path), doc.mime_type).text
 
         translated_text = (payload.get("translated_text", "") if payload else None) or ""
 
@@ -276,7 +270,6 @@ def run_vector_loop(
     encoder: _TProto,
     qdrant: QdrantSearchClient,
     doc_repo: DocumentRepository,
-    extractor: ExtractorRegistry,
     conn: Connection,
     worker_id: str = "vector-worker",
     poll_interval: float = 1.0,
@@ -328,7 +321,6 @@ def run_vector_loop(
                     encoder,
                     qdrant,
                     doc_repo,
-                    extractor,
                     worker_id=worker_id,
                     metrics=metrics,
                     embedding_max_tokens=embedding_max_tokens,
@@ -373,17 +365,12 @@ if __name__ == "__main__":
         encoder = build_encoder(settings)
         qdrant = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
         doc_repo = DocumentRepository(conn)
-        extractor = ExtractorRegistry(
-            enable_ocr=settings.enable_ocr,
-            enable_legacy_office=settings.enable_legacy_office,
-        )
 
         run_vector_loop(
             job_repo,
             encoder,
             qdrant,
             doc_repo,
-            extractor,
             conn,
             embedding_max_tokens=settings.embedding_max_tokens,
         )
