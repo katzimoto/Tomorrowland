@@ -2,6 +2,33 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-28 — dist: v0.2.0 air-gapped release artifact created
+
+Status: Active — files written, not yet tarred or CI-built
+Source: Claude Code session
+
+`dist/tomorrowland-release-v0.2.0/` created from rc3 baseline with these changes:
+- `release-manifest.json`: version `v0.2.0`, commit `16ff0ab`, image tags `v0.2.0`, `ollama_data` split into `ollama_llm_data` + `ollama_embed_data`, new `ollama_model_bundles` section for all 3 bundles.
+- `docker-compose.airgap.yml`: single `ollama` → `ollama-llm` (port 11434) + `ollama-embed` (port 11435); `EMBEDDING_PROVIDER` defaults to `ollama`; `api` depends_on both.
+- `.env.airgap.example`: version stamped, `EMBEDDING_PROVIDER=ollama` set, RC3 comments removed.
+- `README-airgap.txt`: all 3 bundles listed with sizes and target containers.
+- `docs/air-gapped-deployment.md`: mistral → qwen3.5:35b-a3b throughout; 3-bundle table; per-container load commands; port 11435 for embedding validation; updated Qdrant collection example (`documents_v4096`).
+- `docs/air-gapped-upgrade.md` + `docs/production-compose.md`: same model/volume updates.
+- `scripts/validate-ollama-model.sh`: default `mistral` → `qwen3.5:35b-a3b`.
+- `scripts/load-ollama-model-bundle.sh`: usage updated for `--compose-service` flag.
+- `checksums.txt`: regenerated for all changed files.
+
+Three v0.2.0 bundle metadata dirs created:
+- `dist/tomorrowland-ollama-bundle-qwen3.5-35b-a3b-v0.2.0/` — model-manifest.json + README (target: `ollama-llm`)
+- `dist/tomorrowland-ollama-bundle-qwen3-14b-v0.2.0/` — model-manifest.json + README (target: `ollama-llm`)
+- `dist/tomorrowland-ollama-bundle-qwen3-embedding-8b-v0.2.0/` — model-manifest.json + README (target: `ollama-embed`)
+
+Remaining build-time step: CI must rebuild `images/tomorrowland-images.tar` with `v0.2.0` image tags, then `sha256sum images/tomorrowland-images.tar >> checksums.txt`, then produce `tomorrowland-release-v0.2.0.tar.gz` and split image parts.
+
+Key architectural decision: `ollama-llm` and `ollama-embed` are now separate Compose services with separate volumes (`ollama_llm_data`, `ollama_embed_data`). Operators upgrading from rc3 must re-load model weights into both containers.
+
+---
+
 ## 2026-05-28 — feat(extraction): Magika ML MIME detection — merged PR #524
 
 Status: Done — ffe2265 on main

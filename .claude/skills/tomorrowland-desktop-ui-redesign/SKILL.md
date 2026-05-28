@@ -5,6 +5,12 @@ description: Use when redesigning or implementing Tomorrowland frontend UI/UX. E
 
 # Tomorrowland Desktop UI/UX Redesign Skill
 
+## Scope
+
+This skill covers full-scale frontend redesign: design tokens, app shell restructuring, visual identity, phase-by-phase implementation, and desktop product experience.
+
+For targeted UX polish (loading/empty/error states, label clarity, component-level improvements) without structural redesign, `frontend-uiux-guardian` is lighter and sufficient.
+
 ## Role
 
 Act as a senior product designer, frontend engineer, and UX implementer for Tomorrowland.

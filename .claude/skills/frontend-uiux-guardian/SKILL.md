@@ -10,6 +10,12 @@ metadata:
 
 # Frontend UI/UX Guardian
 
+## Scope
+
+This skill covers targeted UI/UX improvements: loading states, empty states, label clarity, component-level polish, and visual consistency — without structural redesign.
+
+For full-scale redesign involving design system foundations, visual identity overhaul, or phase-by-phase restructuring, use `tomorrowland-desktop-ui-redesign` instead.
+
 ## Core rule
 
 Improve the interface without changing the product contract. Preserve existing functionality, API usage, permissions, navigation, and data flow unless the mission explicitly says otherwise.

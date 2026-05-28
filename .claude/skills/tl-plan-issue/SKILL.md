@@ -77,11 +77,11 @@ One concrete outcome sentence.
 3. ...
 
 ### Verification
-- `ruff check --fix src/ tests/`
-- `mypy src --strict`
-- `pytest tests/unit/test_<area>.py -q`
-- `pytest tests/integration/test_<area>.py -q`
-- (frontend) `npm run typecheck`, `npx vitest run src/features/<area>/`
+- `uv run ruff check --fix src/ tests/`
+- `uv run mypy src --strict`
+- `uv run pytest tests/unit/test_<area>.py -q`
+- `uv run pytest tests/integration/test_<area>.py -q`
+- (frontend, run from `frontend/`) `npm run typecheck`, `npx vitest run src/features/<area>/`
 
 ### Risks
 - ...

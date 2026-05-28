@@ -10,9 +10,9 @@ Invoke this when asked to review another agent's pull request.
 3. Verify the changes match the issue acceptance criteria.
 4. Run targeted checks for the touched area:
    ```bash
-   ruff check src/ tests/ migrations/
-   mypy src --strict
-   pytest tests/unit/test_<area>.py -q
+   uv run ruff check src/ tests/ migrations/
+   uv run mypy src --strict
+   uv run pytest tests/unit/test_<area>.py -q
    ```
 5. Check for common mistakes:
    - Hardcoded secrets or default credentials

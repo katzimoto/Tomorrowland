@@ -24,19 +24,23 @@ For non-trivial work, prefer this order:
 4. `CLAUDE.md` for Claude Code tasks
 5. The relevant GitHub Issue body when present
 6. One relevant `docs/context/<area>.md` file when needed
-7. Source and test files found with `rg`
-8. `CHANGELOG.md` before assuming a feature is absent
+7. `graphify query "<question>"` for targeted code discovery when `graphify-out/` exists
+8. Source and test files found with `rg`
+9. `CHANGELOG.md` before assuming a feature is absent
 
 ## Architecture map
 
-- Frontend: React UI for workspace, document, import, search, translation, and preview flows.
-- API: FastAPI service for auth, document access, search, translation, and collaboration.
-- Persistence: PostgreSQL with migrations and repository-style data access.
-- Search: keyword/full-text search over document text, metadata, and translated variants.
-- Vector store: Qdrant for embedding-backed retrieval where enabled.
-- Workers: extraction, indexing, translation, sync, and artifact jobs.
-- Local model runtime: optional Ollama integration.
-- Observability: Docker logs, health checks, and Grafana.
+- Frontend: React 19 + TypeScript + Vite UI (TanStack Router, TanStack Query v5) for workspace, document, import, search, translation, chat, and preview flows.
+- API: FastAPI service organized in `src/services/api/routers/` by domain (auth, documents, search, translation, chat, intelligence, annotations, alerts, etc.).
+- Persistence: PostgreSQL with Alembic migrations; repository-style data access; SQLite used for integration tests via `migrated_engine` fixture.
+- Search: Meilisearch for full-text / BM25 keyword search over document text, metadata, and translated variants.
+- Vector store: Qdrant for embedding-backed vector retrieval; hybrid search merges Qdrant + Meilisearch results, deduplicating by `chunk_id`.
+- Extraction pipeline: multi-phase MIME detection (Magika ML layer-1, python-magic fallback), text extraction, charset detection, language detection, OCR, and attachment handling. `ExtractionResult` is the uniform envelope.
+- Workers: parse worker, slow worker, vector worker (extraction, indexing, translation), intelligence worker (summarize, entity extraction, auto-tag), sync, and artifact jobs.
+- Document chat / RAG: session-based chat using hybrid retrieval (Qdrant + Meilisearch), Ollama generation, streaming citations, scope enforcement (`single_document`, `selected_documents`, `workspace`).
+- Intelligence worker: async per-document summarization, entity extraction, and auto-tagging — failures are logged and swallowed, never propagate to block ingestion.
+- Local model runtime: Ollama integration for LLM inference (`ollama-llm`) and embeddings (`ollama-embed`), separate Compose services since v0.2.0.
+- Observability: Docker logs, health checks, Grafana (optional monitoring profile).
 
 ## Working rules
 

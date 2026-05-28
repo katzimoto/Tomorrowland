@@ -118,11 +118,11 @@ except ValueError as exc:
 Run in this order and fix each before moving on:
 
 ```bash
-ruff check --fix src/ tests/
-ruff format src/ tests/
-mypy src --strict
-pytest tests/unit/test_<area>.py -q --no-cov
-pytest tests/integration/test_<area>.py -q --no-cov
+uv run ruff check --fix src/ tests/
+uv run ruff format src/ tests/
+uv run mypy src --strict
+uv run pytest tests/unit/test_<area>.py -q --no-cov
+uv run pytest tests/integration/test_<area>.py -q --no-cov
 ```
 
 The 90% coverage floor applies to the full suite only. `--no-cov` skips the check for targeted runs — that's expected and not a problem.

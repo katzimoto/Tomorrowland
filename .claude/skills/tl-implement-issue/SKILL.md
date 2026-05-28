@@ -66,20 +66,24 @@ Follow `safe-implementation` discipline:
 
 For new tests: write the test first if the issue is a bug (failing test proves the bug), or alongside the implementation for features.
 
+After implementing:
+- If the change is user-visible, update `CHANGELOG.md`.
+- If `graphify-out/` exists, run `graphify update .` to keep the knowledge graph current (AST-only, no API cost).
+
 ## Step 5: Verify (run in this order, fix before continuing)
 
-Backend:
+Backend (all commands use `uv run`):
 ```bash
-ruff check --fix src/ tests/ migrations/
-ruff format src/ tests/ migrations/
-mypy src --strict
-pytest tests/unit/test_<area>.py -q
-pytest tests/integration/test_<area>.py -q
+uv run ruff check --fix src/ tests/ migrations/
+uv run ruff format src/ tests/ migrations/
+uv run mypy src --strict
+uv run pytest tests/unit/test_<area>.py -q
+uv run pytest tests/integration/test_<area>.py -q
 ```
 
-Frontend (when changed):
+Frontend (when changed; run from `frontend/`):
 ```bash
-npm run typecheck    # tsc --noEmit
+npm run typecheck
 npx vitest run src/features/<area>/   # or the relevant test file
 ```
 

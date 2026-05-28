@@ -2,6 +2,50 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-28 — dist: v0.2.0 air-gapped release artifact
+
+Status: Active — files ready; CI build required before distributing
+Source: Claude Code session
+
+**Goal:** Produce a deployment-ready `dist/tomorrowland-release-v0.2.0/` replacing `v1.0-rc3` with correct version, new models (qwen3.5:35b-a3b, qwen3:14b, qwen3-embedding:8b), and split-Ollama compose.
+
+**Changed files in `dist/tomorrowland-release-v0.2.0/`:**
+- `release-manifest.json` — v0.2.0, 16ff0ab, v0.2.0 image tags, 3-bundle section, split ollama volumes
+- `docker-compose.airgap.yml` — ollama → ollama-llm + ollama-embed; EMBEDDING_PROVIDER=ollama default
+- `.env.airgap.example` — version stamp, EMBEDDING_PROVIDER=ollama
+- `README-airgap.txt` — all 3 bundles, correct containers and sizes
+- `docs/air-gapped-deployment.md` — full mistral → qwen3.5:35b-a3b sweep; 3-bundle table; port 11435 for embed validation
+- `docs/air-gapped-upgrade.md` — 3-bundle upgrade path; per-container validation commands; ollama_llm/embed volume names
+- `docs/production-compose.md` — volume table split; pull commands per container
+- `scripts/validate-ollama-model.sh` — default model → qwen3.5:35b-a3b
+- `scripts/load-ollama-model-bundle.sh` — usage updated for --compose-service
+- `checksums.txt` — regenerated
+
+**New bundle metadata dirs:**
+- `dist/tomorrowland-ollama-bundle-qwen3.5-35b-a3b-v0.2.0/` (model-manifest.json + README)
+- `dist/tomorrowland-ollama-bundle-qwen3-14b-v0.2.0/` (model-manifest.json + README)
+- `dist/tomorrowland-ollama-bundle-qwen3-embedding-8b-v0.2.0/` (model-manifest.json + README)
+
+**Verification:** Zero stale `mistral`/`v1.0-rc3`/`ollama_data`/`nomic-embed-text`/`mxbai-embed-large` strings in any text file in the release directory. 138 occurrences of correct v0.2.0/qwen3/ollama-llm/ollama-embed strings confirmed.
+
+**Remaining (CI/build-time):**
+1. Build and tag Docker images as `tomorrowland/backend:v0.2.0`, `frontend:v0.2.0`, `libretranslate:v0.2.0`.
+2. Re-bundle `images/tomorrowland-images.tar` containing the v0.2.0-tagged images.
+3. `sha256sum images/tomorrowland-images.tar >> dist/tomorrowland-release-v0.2.0/checksums.txt`
+4. `tar czf dist/tomorrowland-release-v0.2.0.tar.gz -C dist tomorrowland-release-v0.2.0/`
+5. `sha256sum dist/tomorrowland-release-v0.2.0.tar.gz > dist/tomorrowland-release-v0.2.0.tar.gz.sha256`
+6. Split image tar into 1900m parts: `split -b 1900m images.tar tomorrowland-images-v0.2.0.tar.part-`
+7. Bundle each model dir into its `.tar.gz` and compute `.sha256`.
+
+**Operator note — upgrading from rc3:**
+- `ollama` service is now two services (`ollama-llm` + `ollama-embed`). Volumes renamed: `ollama_data` → `ollama_llm_data` + `ollama_embed_data`. Models must be re-loaded into both containers after upgrade.
+- `EMBEDDING_PROVIDER=ollama` is now the default in `.env.airgap.example` (was empty).
+
+**Next agent prompt:**
+> Run the CI build pipeline for v0.2.0: build and tag Docker images, bundle images/tomorrowland-images.tar, update checksums.txt with the image tar hash, produce the platform archive and split parts, and bundle each of the 3 model directories into their .tar.gz files with .sha256 companions.
+
+---
+
 ## 2026-05-28 — refactor(pipeline): enforce extraction boundary — only parse/worker may call .extract()
 
 Status: Done — pushed to main

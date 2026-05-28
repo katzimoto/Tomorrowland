@@ -55,9 +55,19 @@ Check startup bootstrap, collection creation logic, embedding dimension, worker 
 
 Check model name, local availability, pull/load state, endpoint URL, timeout, and fallback handling.
 
-### Search or Meilisearch/Elasticsearch issue
+### Meilisearch / full-text search issue
 
 Check index name, document schema, metadata mapping, translated text fields, reindex path, and stale worker jobs.
+
+### AI, RAG, or intelligence worker error
+
+Check:
+- `src/services/rag/service.py` — retrieval scope (`single_document`, `selected_documents`, `workspace`), hybrid search merge (deduplicates by `chunk_id`, not `document_id`), context budget
+- `src/services/intelligence/worker.py` — summarize, entity extraction, auto-tag; failures must be logged and swallowed, not propagated (they must not block the ingestion pipeline)
+- `src/services/rag/ollama_client.py` — model name (`model` property, not `_model`), timeout, streaming endpoint
+- Chat session — TanStack Query seed-once pattern; check if `seededForSession` ref guard is resetting correctly on session change
+- Qdrant payload fields — `chunk_id`, `document_id`, `group_id`, `source_id`, `title`, `source_language`
+- Scope enforcement — BM25 applies post-filter via `_apply_scope_to_bm25()`; Qdrant enforces at query time via `must` filter
 
 ### Translation missing in frontend
 

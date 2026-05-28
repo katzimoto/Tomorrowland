@@ -10,18 +10,18 @@ Invoke this after planning is complete and you have claimed the issue.
 4. Add or update tests to prove the change.
 5. Run checks in order:
    ```bash
-   ruff check --fix src/ tests/ migrations/
-   ruff format src/ tests/ migrations/
-   mypy src --strict
-   pytest tests/unit/test_<area>.py -q
-   pytest tests/integration/test_<area>.py -q
+   uv run ruff check --fix src/ tests/ migrations/
+   uv run ruff format src/ tests/ migrations/
+   uv run mypy src --strict
+   uv run pytest tests/unit/test_<area>.py -q
+   uv run pytest tests/integration/test_<area>.py -q
    ```
-6. If frontend is touched:
+6. If frontend is touched (run from `frontend/`):
    ```bash
-   npm --prefix frontend run lint
-   npm --prefix frontend run typecheck
-   npm --prefix frontend run test
-   npm --prefix frontend run build
+   npm run lint
+   npm run typecheck
+   npm run test
+   npm run build
    ```
 7. Update `CHANGELOG.md` if the change is user-visible.
 8. Commit with a concise message focused on the "why".
