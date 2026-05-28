@@ -30,6 +30,7 @@ dependencies = [
   "charset-normalizer>=3.0",
   "ebooklib>=0.18",
   "langdetect>=1.0.9",
+  "magika>=1.0",
   "python-magic>=0.4",
 ]
 
@@ -90,6 +91,10 @@ files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
 module = ["bcrypt", "openpyxl", "openpyxl.*", "pika", "pika.*", "testcontainers", "testcontainers.*", "xlrd", "xlrd.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["magika", "magika.*"]
 ignore_missing_imports = true
 
 [dependency-groups]
