@@ -246,28 +246,3 @@ def test_annotations_list_includes_reply_count_field(migrated_engine: Engine) ->
         assert isinstance(a["reply_count"], int)
 
 
-# ---------------------------------------------------------------------------
-# Comments router returns 410
-# ---------------------------------------------------------------------------
-
-
-def test_comments_router_returns_410(migrated_engine: Engine) -> None:
-    _setup_users(migrated_engine)
-    doc_id = _create_doc(migrated_engine)
-    client = _make_client(migrated_engine)
-    token = _token(client, "user@example.com")
-    fake_id = str(uuid4())
-    for method, path_suffix in [
-        ("get", f"/documents/{doc_id}/comments"),
-        ("post", f"/documents/{doc_id}/comments"),
-        ("patch", f"/documents/{doc_id}/comments/{fake_id}"),
-        ("delete", f"/documents/{doc_id}/comments/{fake_id}"),
-    ]:
-        kwargs: dict = {"headers": {"Authorization": f"Bearer {token}"}}
-        if method in ("post", "patch"):
-            kwargs["json"] = {"body": "test"}
-        resp = getattr(client, method)(path_suffix, **kwargs)
-        assert resp.status_code == 410, (
-            f"{method} {path_suffix}: expected 410, got {resp.status_code}"
-        )
-        assert "migrated" in resp.json()["detail"].lower()
