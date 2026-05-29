@@ -165,7 +165,6 @@ class TestSetupEnvScript:
         assert result.returncode == 0
         env = _parse_env(out.read_text())
         for key in [
-            "FEATURE_DOCUMENT_COMMENTS",
             "FEATURE_RAG_QA",
             "FEATURE_SUMMARIZATION",
             "FEATURE_ENTITY_EXTRACTION",

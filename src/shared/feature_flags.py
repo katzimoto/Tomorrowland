@@ -7,7 +7,6 @@ JsonValue = bool | int | float | str
 
 SYSTEM_CONFIG_DEFAULTS: Final[MappingProxyType[str, JsonValue]] = MappingProxyType(
     {
-        "feature.document_comments": True,
         "feature.rag_qa": True,
         "feature.summarization": True,
         "feature.entity_extraction": True,
@@ -50,7 +49,6 @@ ENV_FEATURE_TO_CONFIG_KEY: Final[MappingProxyType[str, str]] = MappingProxyType(
         "FEATURE_DOCUMENT_CHAT_METADATA_SEARCH": "feature.document_chat_metadata_search",
         "FEATURE_DOCUMENT_CHAT_TRANSLATED_TEXT": "feature.document_chat_translated_text",
         "FEATURE_DOCUMENT_CHAT_STREAMING": "feature.document_chat_streaming",
-        "FEATURE_DOCUMENT_COMMENTS": "feature.document_comments",
         "FEATURE_RAG_QA": "feature.rag_qa",
         "FEATURE_SUMMARIZATION": "feature.summarization",
         "FEATURE_ENTITY_EXTRACTION": "feature.entity_extraction",

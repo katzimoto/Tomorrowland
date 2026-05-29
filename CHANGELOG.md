@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+- Issue #545 (S1): Legacy comments API router and dead `FEATURE_DOCUMENT_COMMENTS` feature flag. All comments endpoints previously returned HTTP 410; callers must use the annotations API instead.
+
 ### Fixed
 - Issue #551: ACL audit HIGH findings regression tests. Added integration tests covering H1 (admin search bypass — ES receives `is_admin=True`, Qdrant receives `allow_all=True`), H2 (expertise admin bypass — `allow_all=True` forwarded to Qdrant), H3 (orphaned Qdrant vectors silently dropped from search results), H4 (subscription user-discovery leak — outsider excluded when no group overlap with requester), and H5 (related-docs transitive group expansion — child-group users reach parent-group sources via `get_effective_group_ids`). Also fixed two existing `RelatedService` test instantiations missing the required `job_repo` argument.
 
