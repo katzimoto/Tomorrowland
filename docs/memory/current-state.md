@@ -4,7 +4,7 @@ Canonical shared memory for active project state. Keep this file compact and fac
 
 ## 2026-05-29 — feat(smoke): document-flow smoke test foundation — issue #541
 
-Status: Active — branch `issue-541-smoke-document-flow`, not yet PR'd
+Status: PR #554 open — branch `issue-541-smoke-document-flow`
 Source: issue #541, OpenCode session
 
 `scripts/dev/smoke_document_flow.sh` implements 10-stage smoke test:

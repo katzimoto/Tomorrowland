@@ -48,6 +48,7 @@ HAS_FAILURE=0
 AUTH_TOKEN=""
 FIRST_DOC_ID=""
 SOURCE_ID=""
+CURL_JSON_HTTP_CODE=0
 
 # ---------------------------------------------------------------------------
 # Help
@@ -251,8 +252,9 @@ expect_health_json() {
   return 0
 }
 
-# Authenticated JSON API call.  Stores response body in TMP_RESP and
-# returns the HTTP status code.
+# Authenticated JSON API call.  Writes the response body to stdout and sets
+# the global CURL_JSON_HTTP_CODE to the HTTP status code.  Always returns 0
+# so that bash `return` truncation (mod 256) cannot misclassify 5xx responses.
 curl_json() {
   local method="$1"
   local url="$2"
@@ -273,9 +275,9 @@ curl_json() {
       "$url")"
   fi
 
+  CURL_JSON_HTTP_CODE="$http_code"
   cat "$tmp_file"
   rm -f "$tmp_file"
-  return "$(( http_code ))"
 }
 
 json_get() {
@@ -397,7 +399,7 @@ doc_ingest() {
   log_info "Triggering sync for source ${SOURCE_ID}"
   local response
   response="$(curl_json POST "${API_URL}/admin/ingestion/${SOURCE_ID}/sync-now")"
-  local http_code=$?
+  local http_code="$CURL_JSON_HTTP_CODE"
 
   if (( http_code < 200 || http_code >= 300 )); then
     echo "Sync returned HTTP ${http_code}" >&2
@@ -442,7 +444,7 @@ doc_search() {
   log_info "Searching for '${SMOKE_QUERY}'"
   local response
   response="$(curl_json POST "${API_URL}/search" "$body")"
-  local http_code=$?
+  local http_code="$CURL_JSON_HTTP_CODE"
 
   if (( http_code < 200 || http_code >= 300 )); then
     echo "Search returned HTTP ${http_code}" >&2
@@ -478,7 +480,7 @@ doc_preview() {
   log_info "Fetching preview for ${FIRST_DOC_ID}"
   local response
   response="$(curl_json GET "${API_URL}/preview/${FIRST_DOC_ID}")"
-  local http_code=$?
+  local http_code="$CURL_JSON_HTTP_CODE"
 
   if (( http_code < 200 || http_code >= 300 )); then
     echo "Preview returned HTTP ${http_code}" >&2
@@ -508,7 +510,7 @@ doc_text() {
   log_info "Fetching full text for ${FIRST_DOC_ID}"
   local response
   response="$(curl_json GET "${API_URL}/documents/${FIRST_DOC_ID}/text")"
-  local http_code=$?
+  local http_code="$CURL_JSON_HTTP_CODE"
 
   if (( http_code < 200 || http_code >= 300 )); then
     echo "Document text returned HTTP ${http_code}" >&2

@@ -68,7 +68,7 @@ SMOKE_ADMIN_EMAIL=admin@example.com SMOKE_ADMIN_PASSWORD=your-password \
   bash scripts/dev/smoke_document_flow.sh
 ```
 
-Example output with all five stages:
+Example output with credentials (auth, ingest, search, preview, download stages active):
 
 ```
 ==> Starting document-flow smoke test (mode=local)
@@ -104,14 +104,16 @@ Example output with all five stages:
 
 ## What this covers
 
-- API availability (`GET /health`)
-- Frontend availability (`GET /health`)
 - Dependency presence (curl, python3)
-- Authentication flow (`POST /auth/login`)
-- Authenticated search access (`POST /search`)
-- Document preview (`GET /preview/{id}`)
-- Document download (`GET /download/{id}`)
+- API availability (`GET /health`)
+- Frontend availability (`GET /health`, skipped when `FRONTEND_URL` unset)
+- Fixture bootstrap via Docker (`services.ops.smoke_bootstrap`, skipped when Docker absent)
+- Authentication flow (`POST /auth/login`, skipped when credentials unset)
+- Document ingestion (`POST /admin/ingestion/{id}/sync-now`, skipped when no source or token)
+- Authenticated search access (`POST /search`, skipped when unauthenticated)
+- Document preview (`GET /preview/{id}`, skipped when no document ID available)
+- Document text (`GET /documents/{id}/text`, skipped when no document ID available)
+- Document download (`GET /download/{id}`, skipped when no document ID available)
 
-Preview and download stages gracefully skip when no documents exist.
-Future slices of issue #541 will add document ingestion and
-fixture setup.
+Data-dependent stages skip gracefully when their prerequisites are absent.
+Issue #547 will wire this script into a GitHub Actions e2e workflow.
