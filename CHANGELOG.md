@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Issue #527: Pre-benchmark fixture corpus and extraction/citation/failure-mode assertion improvements. Added fixture files (`sample-with-headings.docx`, `sample-multisheet.xlsx`, `wrong-extension.docx` as misnamed PPTX, `corrupt.pdf`, `encrypted.pdf`). New unit tests in `tests/unit/test_extraction_fixture_corpus.py` cover DOCX heading/table content, PPTX slide titles, XLSX multi-sheet values, EML body+attachment children, MSG subject/sender, scanned-PDF OCR fallback path, corrupt/encrypted/wrong-extension failure modes, and `has_extractor` boundary. New integration test in `tests/integration/test_chunk_index_pipeline.py` verifies every Qdrant point payload carries a non-null integer `chunk_index` after a full pipeline run. Fixed `PdfExtractor` to catch `FileNotDecryptedError` so encrypted PDFs return empty text instead of crashing.
 - Issue #526: Markdown-structured Office extraction for improved RAG chunking, enabled by default. Native converters for DOCX (headings, lists, tables), PPTX (slide titles, bullets), and XLSX (sheet headings, cell tables) replace flat plain-text extraction for those MIME types. Each converter falls back to the original extractor on empty output or error. Disable with `ENABLE_MARKITDOWN=false`. Implemented natively with python-docx, python-pptx, and openpyxl — no new dependencies required.
 
 ## [0.2.0] - 2026-05-28
