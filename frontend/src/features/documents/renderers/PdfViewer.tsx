@@ -39,7 +39,7 @@ export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMa
   const downloadUrl = `/api/download/${docId}`;
 
   const pdfLoadTimer = useRef<string | null>(null);
-  const appliedInitialPageRef = useRef<number | undefined>();
+  const appliedInitialPageRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (!pdfLoadTimer.current) {
       pdfLoadTimer.current = `pdf-load-${Date.now()}`;

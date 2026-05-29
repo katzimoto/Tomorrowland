@@ -11,7 +11,6 @@ import {
 import {
   adminApi,
   type IngestionStatusJob,
-  type DocumentTraceResponse,
 } from "@/api/admin";
 import { Button } from "@/components/primitives/Button";
 import { Badge } from "@/components/primitives/Badge";
@@ -52,10 +51,8 @@ function truncateError(msg: string | null, max = 80) {
 
 function TracePanel({
   documentId,
-  onClose,
 }: {
   documentId: string;
-  onClose: () => void;
 }) {
   const qc = useQueryClient();
   const { show: showToast } = useToast();
@@ -392,7 +389,6 @@ export function AdminIngestionPage() {
                           <div className={styles.detailPanel}>
                             <TracePanel
                               documentId={job.document_id}
-                              onClose={() => setExpandedDocId(null)}
                             />
                           </div>
                         </td>
