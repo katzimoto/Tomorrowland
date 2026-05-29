@@ -193,6 +193,13 @@ export interface Translations {
     askAboutSelected: string;
     retry: string;
     starterHeading: string;
+    openDocument: string;
+    evidenceClose: string;
+    evidenceLoading: string;
+    evidenceNotFound: string;
+    evidenceForbidden: string;
+    evidenceNoPreview: string;
+    evidenceOpenFullPage: string;
   };
   notifications: {
     title: string;
@@ -526,6 +533,13 @@ export const en: Translations = {
     askAboutSelected: "Ask about selected",
     retry: "Retry",
     starterHeading: "Try asking",
+    openDocument: "Open document",
+    evidenceClose: "Close",
+    evidenceLoading: "Loading preview…",
+    evidenceNotFound: "Document not found.",
+    evidenceForbidden: "Access denied.",
+    evidenceNoPreview: "No preview available.",
+    evidenceOpenFullPage: "Open in full page",
   },
   notifications: {
     title: "Notifications",

@@ -5,9 +5,10 @@ import { useT } from "@/i18n/index";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createChatSession, type ChatSession, type ChatScopeType } from "@/api/chat";
+import { createChatSession, type ChatSession, type ChatScopeType, type DocumentChatCitation } from "@/api/chat";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatWindow } from "./ChatWindow";
+import { EvidencePanel } from "./EvidencePanel";
 import styles from "./ChatPage.module.css";
 
 const VALID_SCOPE_TYPES = new Set<ChatScopeType>([
@@ -43,6 +44,7 @@ export function ChatPage() {
   const { scope: urlScope, ids: urlIds } = parseScopeFromSearch(routeSearch);
 
   const [selectedSession, setSelectedSession] = useState<ChatSession | null>(null);
+  const [selectedCitation, setSelectedCitation] = useState<DocumentChatCitation | null>(null);
   const scopeSessionCreated = useRef(false);
 
   const createMutation = useMutation({
@@ -67,6 +69,11 @@ export function ChatPage() {
     createMutation.mutate({ scope_type: urlScope, scope_ids: urlIds });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Clear selected citation when switching sessions
+  useEffect(() => {
+    setSelectedCitation(null);
+  }, [selectedSession?.id]);
 
   function handleScopeChange(scopeType: ChatScopeType, scopeIds: string[]) {
     createMutation.mutate({ scope_type: scopeType, scope_ids: scopeIds });
@@ -97,12 +104,13 @@ export function ChatPage() {
           onSessionCreated={setSelectedSession}
           onSessionDeleted={handleSessionDeleted}
         />
-        <main className={styles.main}>
+        <main className={selectedCitation ? styles.mainNarrow : styles.main}>
           {selectedSession ? (
             <ChatWindow
               session={selectedSession}
               onRequestNewScope={handleScopeChange}
               isCreatingScope={createMutation.isPending}
+              onOpenCitation={setSelectedCitation}
             />
           ) : (
             <div className={styles.emptyWrapper}>
@@ -122,6 +130,12 @@ export function ChatPage() {
             </div>
           )}
         </main>
+        {selectedCitation && (
+          <EvidencePanel
+            citation={selectedCitation}
+            onClose={() => setSelectedCitation(null)}
+          />
+        )}
       </div>
     </div>
   );

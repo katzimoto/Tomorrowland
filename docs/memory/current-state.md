@@ -2,6 +2,35 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-29 — feat(chat): side-by-side source preview — issue #536
+
+Status: Done — implemented, tests pass, typecheck clean
+Source: issue #536, OpenCode session
+
+Citation click-to-highlight implemented: clicking a chat citation opens an evidence
+panel beside the chat that loads the document preview, passes the excerpt as
+searchQuery for in-document highlighting, and navigates to the cited page in PDFs.
+
+Key changes:
+- `PdfViewer` / `PreviewPane`: new `initialPage` prop passthrough for PDF page nav
+- `ChatCitationCard` → `ChatCitationList` → `MessageBubble` → `MessageList` →
+  `ChatWindow`: `onOpenCitation` callback threaded through the component chain
+- `EvidencePanel`: fetches preview via existing API, shows 403/404/generic error
+  states, excerpt banner, mobile drawer fallback on narrow viewports
+- `PreviewWithHighlight`: thin wrapper setting `searchQuery` to citation excerpt
+  and `initialPage` for PDF navigation
+- `ChatPage`: `selectedCitation` state drives split layout (main + panel)
+- URL query param sync deferred — component state only
+- Existing "Open document" full-page/new-tab link preserved as secondary action
+
+Verification: 55 chat tests, 16 PdfViewer tests pass; `tsc --noEmit` clean.
+5 pre-existing failures in DocumentToolbar/FidelityStatusBar/DocumentPage
+(download link role mismatch) — unrelated to this work.
+
+Next action: Consider URL query param sync for shareable citation views.
+
+---
+
 ## 2026-05-29 — feat(search): source-scoped BM25 filtering — issue #552
 
 Status: Done — PR #555 merged to main

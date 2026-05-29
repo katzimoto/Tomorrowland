@@ -23,9 +23,10 @@ interface PdfViewerProps {
   searchQuery?: string;
   activeSearchIndex?: number;
   onMatchCountChange?: (count: number) => void;
+  initialPage?: number;
 }
 
-export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMatchCountChange }: PdfViewerProps) {
+export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMatchCountChange, initialPage }: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState(0);
@@ -115,6 +116,13 @@ export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMa
     void extractText();
     return () => { cancelled = true; };
   }, [pdfDoc]);
+
+  // Navigate to initialPage when the document loads
+  useEffect(() => {
+    if (!pdfDoc || !initialPage) return;
+    const target = Math.max(1, Math.min(initialPage, numPages));
+    if (target !== pageNum) startTransition(() => setPageNum(target));
+  }, [pdfDoc, initialPage, numPages, pageNum]);
 
   // Compute per-page match counts for active-index navigation
   const perPageMatchCounts = useMemo(() => {

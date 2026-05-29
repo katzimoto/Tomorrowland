@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
   - Frontend `QACitation` type includes optional `page_number` and `section_heading`.
   - Unit tests cover PDF/PPTX/DOCX location segments, chunk-location resolution, Qdrant payload round-trip, and RAG citation assembly.
   - **Operators:** Existing documents already indexed in Qdrant will return `null` for location fields until re-parsed and re-indexed. Schedule a reindex pass after deploy to populate location metadata on existing documents.
+- Issue #536: Side-by-side source preview with citation click-to-highlight. Clicking a chat citation opens an evidence panel beside the chat that loads the document preview, navigates to the cited page (PDF), and highlights the excerpt via search matching. Includes `EvidencePanel` (loading/403/404/missing-location states, mobile drawer fallback), `PreviewWithHighlight` wrapper, and `initialPage` passthrough to PdfViewer. Existing "Open document" full-page/new-tab behavior preserved. URL query param sync deferred (component state only).
 - Issue #552: Source-scoped RAG/hybrid BM25 retrieval now enforces source identity via `metadata.source_id` in Meilisearch payloads. Meilisearch settings version bumped to 2 — operators must run Meilisearch backfill/reindex after deploy.
   - Added `source_id` field to `ChunkMetadata` Pydantic model.
   - Added `metadata.source_id` to Meilisearch filterable and displayed attributes.

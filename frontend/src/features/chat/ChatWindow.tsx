@@ -7,6 +7,7 @@ import {
   type ChatSession,
   type ChatScopeType,
   type ChatStreamPhase,
+  type DocumentChatCitation,
 } from "@/api/chat";
 import { useToast } from "@/components/primitives/ToastContext";
 import { useT } from "@/i18n/index";
@@ -24,12 +25,14 @@ interface ChatWindowProps {
   session: ChatSession;
   onRequestNewScope?: (scopeType: ChatScopeType, scopeIds: string[]) => void;
   isCreatingScope?: boolean;
+  onOpenCitation?: (citation: DocumentChatCitation) => void;
 }
 
 export function ChatWindow({
   session,
   onRequestNewScope,
   isCreatingScope = false,
+  onOpenCitation,
 }: ChatWindowProps) {
   const t = useT();
   const { show: showToast } = useToast();
@@ -196,7 +199,7 @@ export function ChatWindow({
           disabled={isSending}
         />
       ) : (
-        <MessageList messages={messages} busy={!!streamPhase} />
+        <MessageList messages={messages} busy={!!streamPhase} onOpenCitation={onOpenCitation} />
       )}
       <ChatInput
         value={input}

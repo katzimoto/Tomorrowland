@@ -5,9 +5,10 @@ import styles from "./ChatCitationList.module.css";
 
 interface ChatCitationListProps {
   citations: DocumentChatCitation[];
+  onOpenCitation?: (citation: DocumentChatCitation) => void;
 }
 
-export function ChatCitationList({ citations }: ChatCitationListProps) {
+export function ChatCitationList({ citations, onOpenCitation }: ChatCitationListProps) {
   const t = useT();
   if (!citations.length) return null;
 
@@ -20,6 +21,7 @@ export function ChatCitationList({ citations }: ChatCitationListProps) {
             key={c.citation_id ?? `${c.document_id}-${c.chunk_index ?? idx}`}
             citation={c}
             index={idx}
+            onOpenCitation={onOpenCitation}
           />
         ))}
       </ul>
