@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -338,7 +339,8 @@ class PipelineJobRepository:
         row = (
             self._connection.execute(
                 sa.text("""
-                SELECT document_id, content_text, content_path, content_sha256, translated_text
+                SELECT document_id, content_text, content_path, content_sha256,
+                       translated_text, extraction_metadata
                 FROM document_payloads
                 WHERE document_id = :document_id
             """),
@@ -347,16 +349,35 @@ class PipelineJobRepository:
             .mappings()
             .first()
         )
-        return (
+        if row is None:
+            return None
+        metadata_raw = row["extraction_metadata"]
+        return {
+            "document_id": to_uuid(row["document_id"]),
+            "content_text": row["content_text"],
+            "content_path": row["content_path"],
+            "content_sha256": row["content_sha256"],
+            "translated_text": row["translated_text"],
+            "extraction_metadata": json.loads(metadata_raw) if metadata_raw else None,
+        }
+
+    def update_extraction_metadata(self, document_id: UUID, metadata: list[dict[str, Any]]) -> None:
+        """Persist extraction location metadata (page_number, section_heading) as JSON."""
+        now = datetime.now(UTC)
+        self._connection.execute(
+            sa.text("""
+                INSERT INTO document_payloads
+                    (document_id, extraction_metadata, created_at, updated_at)
+                VALUES (:document_id, :metadata, :now, :now)
+                ON CONFLICT (document_id) DO UPDATE SET
+                    extraction_metadata = EXCLUDED.extraction_metadata,
+                    updated_at = :now
+            """),
             {
-                "document_id": to_uuid(row["document_id"]),
-                "content_text": row["content_text"],
-                "content_path": row["content_path"],
-                "content_sha256": row["content_sha256"],
-                "translated_text": row["translated_text"],
-            }
-            if row
-            else None
+                "document_id": db_uuid(document_id),
+                "metadata": json.dumps(metadata),
+                "now": now,
+            },
         )
 
     def update_content_text(self, document_id: UUID, content_text: str) -> None:

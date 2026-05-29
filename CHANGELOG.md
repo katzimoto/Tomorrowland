@@ -8,6 +8,15 @@ All notable changes to this project will be documented in this file.
 - Issue #551: ACL audit HIGH findings regression tests. Added integration tests covering H1 (admin search bypass — ES receives `is_admin=True`, Qdrant receives `allow_all=True`), H2 (expertise admin bypass — `allow_all=True` forwarded to Qdrant), H3 (orphaned Qdrant vectors silently dropped from search results), H4 (subscription user-discovery leak — outsider excluded when no group overlap with requester), and H5 (related-docs transitive group expansion — child-group users reach parent-group sources via `get_effective_group_ids`). Also fixed two existing `RelatedService` test instantiations missing the required `job_repo` argument.
 
 ### Added
+- Issue #530: Exact-location citation grounding — `page_number` and `section_heading` now flow from extraction through RAG citations.
+  - Added `LocationSegment` dataclass with `start_char`/`end_char`/`page_number`/`section_heading` to extraction envelope.
+  - PDF extractor emits `page_number` per page; PPTX extractor emits `page_number` per slide; DOCX extractor emits `section_heading` from heading styles.
+  - Added `extraction_metadata` JSON column to `document_payloads` table (migration `y9z0a1b2c3d4`).
+  - Parse worker persists location segments; vector worker reads them and maps chunks back to location via `resolve_chunk_locations()`.
+  - Qdrant upsert stores `page_number` and `section_heading` payload fields.
+  - Frontend `QACitation` type includes optional `page_number` and `section_heading`.
+  - Unit tests cover PDF/PPTX/DOCX location segments, chunk-location resolution, Qdrant payload round-trip, and RAG citation assembly.
+  - **Operators:** Existing documents already indexed in Qdrant will return `null` for location fields until re-parsed and re-indexed. Schedule a reindex pass after deploy to populate location metadata on existing documents.
 - Issue #552: Source-scoped RAG/hybrid BM25 retrieval now enforces source identity via `metadata.source_id` in Meilisearch payloads. Meilisearch settings version bumped to 2 — operators must run Meilisearch backfill/reindex after deploy.
   - Added `source_id` field to `ChunkMetadata` Pydantic model.
   - Added `metadata.source_id` to Meilisearch filterable and displayed attributes.

@@ -12,7 +12,7 @@ import time
 from typing import Any
 from uuid import UUID
 
-from services.chunking.splitter import chunk_text
+from services.chunking.splitter import chunk_text, resolve_chunk_locations
 from services.documents.repository import DocumentRepository
 from services.pipeline.jobs import PipelineJobRepository
 from services.search.encoder import TextEncoder as _TProto
@@ -91,6 +91,8 @@ def run_vector_once(
             *,
             lang: str | None,
             suffix: str,
+            page_number: int | None = None,
+            section_heading: str | None = None,
         ) -> dict[str, Any]:
             entry: dict[str, Any] = {
                 "chunk_id": f"{document_id}-{suffix}-{idx}",
@@ -105,28 +107,40 @@ def run_vector_once(
                 entry["title"] = doc.title
             if lang:
                 entry["language"] = lang
+            if page_number is not None:
+                entry["page_number"] = page_number
+            if section_heading is not None:
+                entry["section_heading"] = section_heading
             return entry
 
         qdrant_chunks: list[dict[str, Any]] = []
+
+        # Resolve location metadata from extraction payload
+        extraction_metadata: list[dict[str, Any]] = (payload or {}).get("extraction_metadata") or []
 
         # Collect all chunk texts first
         chunk_texts: list[str] = []
         chunk_meta: list[dict[str, Any]] = []
 
         # Original language chunks
-        for idx, chunk_text_content in enumerate(
+        orig_chunks = list(
             chunk_text(
                 content_text,
                 language=doc.source_language,
                 max_tokens=embedding_max_tokens,
             )
-        ):
+        )
+        orig_locations = resolve_chunk_locations(content_text, orig_chunks, extraction_metadata)
+        for idx, chunk_text_content in enumerate(orig_chunks):
+            loc = orig_locations[idx] if idx < len(orig_locations) else {}
             chunk_texts.append(chunk_text_content)
             chunk_meta.append(
                 {
                     "lang": doc.source_language,
                     "suffix": "orig",
                     "idx": idx,
+                    "page_number": loc.get("page_number"),
+                    "section_heading": loc.get("section_heading"),
                 }
             )
 
@@ -145,6 +159,8 @@ def run_vector_once(
                         "lang": doc.target_language,
                         "suffix": "tr",
                         "idx": idx,
+                        "page_number": None,
+                        "section_heading": None,
                     }
                 )
 
@@ -160,6 +176,8 @@ def run_vector_once(
                     meta["idx"],
                     lang=meta["lang"],
                     suffix=meta["suffix"],
+                    page_number=meta.get("page_number"),
+                    section_heading=meta.get("section_heading"),
                 )
             )
 

@@ -171,3 +171,79 @@ def test_split_sentences_language_fallback() -> None:
     result = _split_sentences(text, language="fr")
 
     assert result == ["Sentence one.", "Sentence two.", "trailing"]
+
+
+# ---------------------------------------------------------------------------
+# resolve_chunk_locations — mapping chunks back to page/section metadata
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_chunk_locations_empty() -> None:
+    from services.chunking.splitter import resolve_chunk_locations
+
+    assert resolve_chunk_locations("", [], []) == []
+    assert resolve_chunk_locations("text", ["text"], []) == [{}]
+
+
+def test_resolve_chunk_locations_single_segment() -> None:
+    from services.chunking.splitter import resolve_chunk_locations
+
+    text = "Page one content. More on page one."
+    chunks = ["Page one content.", "More on page one."]
+    segments = [
+        {"start_char": 0, "end_char": 36, "page_number": 1},
+    ]
+    result = resolve_chunk_locations(text, chunks, segments)
+
+    assert len(result) == 2
+    assert result[0].get("page_number") == 1
+    assert result[1].get("page_number") == 1
+
+
+def test_resolve_chunk_locations_multi_page() -> None:
+    from services.chunking.splitter import resolve_chunk_locations
+
+    text = "Page one content. Page two content. Page three content."
+    chunks = ["Page one content.", "Page two content.", "Page three content."]
+    segments = [
+        {"start_char": 0, "end_char": 18, "page_number": 1},
+        {"start_char": 19, "end_char": 38, "page_number": 2},
+        {"start_char": 39, "end_char": 58, "page_number": 3},
+    ]
+    result = resolve_chunk_locations(text, chunks, segments)
+
+    assert len(result) == 3
+    assert result[0].get("page_number") == 1
+    assert result[1].get("page_number") == 2
+    assert result[2].get("page_number") == 3
+
+
+def test_resolve_chunk_locations_section_heading() -> None:
+    from services.chunking.splitter import resolve_chunk_locations
+
+    text = "Intro. Chapter 1. Content under chapter 1."
+    chunks = ["Intro.", "Chapter 1.", "Content under chapter 1."]
+    segments = [
+        {"start_char": 0, "end_char": 6, "section_heading": "Chapter 1"},
+        {"start_char": 7, "end_char": 18, "section_heading": "Chapter 1"},
+        {"start_char": 19, "end_char": 43, "section_heading": "Chapter 1"},
+    ]
+    result = resolve_chunk_locations(text, chunks, segments)
+
+    assert result[0].get("section_heading") == "Chapter 1"
+    assert result[1].get("section_heading") == "Chapter 1"
+    assert result[2].get("section_heading") == "Chapter 1"
+
+
+def test_resolve_chunk_locations_no_match() -> None:
+    from services.chunking.splitter import resolve_chunk_locations
+
+    text = "Unrelated text."
+    chunks = ["Unrelated text."]
+    segments = [
+        {"start_char": 100, "end_char": 200, "page_number": 5},
+    ]
+    result = resolve_chunk_locations(text, chunks, segments)
+
+    assert len(result) == 1
+    assert result[0] == {}

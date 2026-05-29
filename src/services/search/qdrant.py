@@ -108,6 +108,10 @@ class QdrantSearchClient:
                 payload["content_en"] = chunk["content_en"]
             if "content_he" in chunk:
                 payload["content_he"] = chunk["content_he"]
+            if "page_number" in chunk:
+                payload["page_number"] = chunk["page_number"]
+            if "section_heading" in chunk:
+                payload["section_heading"] = chunk["section_heading"]
             # Qdrant point IDs must be valid UUIDs or unsigned integers.
             # chunk_id is a human-readable string (e.g. "<uuid>-orig-0") that
             # is not itself a valid UUID, so derive a stable UUID5 from it.
