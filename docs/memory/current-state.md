@@ -74,7 +74,10 @@ Key design choices:
 - New `docs/development/local-demo.md` documents the smoke workflow
 
 Verified against real Docker Compose stack: 10/10 stages pass in 6s.
-Issue #547 should consume this script in GitHub Actions e2e workflow.
+Issue #547 consumed this script in GitHub Actions `Smoke` workflow
+(`.github/workflows/smoke.yml`): `document-flow` job starts the Compose stack
+and runs with `SMOKE_MODE=ci`. Separate `playwright` job runs Playwright E2E
+tests with mock backend. Both jobs upload result artifacts.
 
 ---
 

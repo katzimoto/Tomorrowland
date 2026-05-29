@@ -1,0 +1,156 @@
+name: Smoke
+
+on:
+  pull_request:
+    paths:
+      - "frontend/tests/e2e/**"
+      - "frontend/playwright.config.*"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "src/**"
+      - "scripts/dev/smoke_document_flow.sh"
+      - "docker-compose.yml"
+      - "docker/**"
+      - ".github/workflows/smoke.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/tests/e2e/**"
+      - "frontend/playwright.config.*"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "src/**"
+      - "scripts/dev/smoke_document_flow.sh"
+      - "docker-compose.yml"
+      - "docker/**"
+      - ".github/workflows/smoke.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  playwright:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: npm run test:e2e:ci
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+  document-flow:
+    name: Document-flow smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      COMPOSE_PROJECT_NAME: tomorrowland_smoke_${{ github.run_id }}_${{ github.run_attempt }}
+      API_PORT: 8000
+      FRONTEND_PORT: 8080
+      POSTGRES_PASSWORD: changeme
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      JWT_SECRET: ci-smoke-jwt-secret-not-for-production
+      EMBEDDING_PROVIDER: ""
+      RABBITMQ_ENABLED: "false"
+      SMOKE_MODE: ci
+      SMOKE_ADMIN_EMAIL: admin@example.com
+      SMOKE_ADMIN_PASSWORD: changeme
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start Compose services
+        run: |
+          docker compose up --build --detach \
+            postgres kafka elasticsearch qdrant meilisearch \
+            migrate api frontend
+
+      - name: Wait for API and frontend
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 300))
+          echo "Waiting for API at http://localhost:8000/health ..."
+          until curl -sfS -o /dev/null http://localhost:8000/health 2>/dev/null; do
+            if (( SECONDS >= deadline )); then
+              echo "Timed out waiting for API" >&2
+              docker compose ps >&2
+              docker compose logs --no-color --tail=50 api >&2
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "API is healthy"
+
+          echo "Waiting for frontend at http://localhost:8080/health ..."
+          deadline=$((SECONDS + 120))
+          until curl -sfS -o /dev/null http://localhost:8080/health 2>/dev/null; do
+            if (( SECONDS >= deadline )); then
+              echo "Timed out waiting for frontend" >&2
+              docker compose ps >&2
+              docker compose logs --no-color --tail=50 frontend >&2
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "Frontend is healthy"
+
+      - name: Run document-flow smoke test
+        run: |
+          FRONTEND_URL=http://localhost:8080 \
+          bash scripts/dev/smoke_document_flow.sh
+
+      - name: Upload smoke result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-document-flow-result
+          path: tmp/smoke-document-flow-result.json
+          retention-days: 30
+
+      - name: Dump Compose diagnostics on failure
+        if: failure()
+        run: |
+          docker compose ps || true
+          docker compose logs --no-color --tail=100 migrate postgres elasticsearch api frontend || true
+          echo "--- Result file ---"
+          cat tmp/smoke-document-flow-result.json 2>/dev/null || echo "no result file"
+
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans

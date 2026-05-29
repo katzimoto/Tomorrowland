@@ -28,6 +28,22 @@ npm --prefix frontend run build
 npm --prefix frontend run test:e2e
 ```
 
+## Document-flow smoke test
+
+Run against a running Compose stack (see `local-demo.md`):
+
+```bash
+# Minimal check (no auth, no frontend URL)
+bash scripts/dev/smoke_document_flow.sh
+
+# Full CI-mode check with credentials
+SMOKE_MODE=ci FRONTEND_URL=http://localhost:8080 \
+  SMOKE_ADMIN_EMAIL=admin@example.com SMOKE_ADMIN_PASSWORD=changeme \
+  bash scripts/dev/smoke_document_flow.sh
+```
+
+Results are written to `tmp/smoke-document-flow-result.json`.
+
 ## Documentation checks
 
 For docs-only changes, run targeted searches requested by the issue or PR plus:
