@@ -72,8 +72,12 @@ function TracePanel({
 
   const requeueMutation = useMutation({
     mutationFn: () => adminApi.requeueDocument(documentId),
-    onSuccess: () => {
-      showToast("success", "Document requeued for processing.");
+    onSuccess: (result) => {
+      if (result.requeued === 0) {
+        showToast("warning", "No dead-letter jobs found for this document.");
+      } else {
+        showToast("success", `Requeued ${result.requeued} job(s) for processing.`);
+      }
       qc.invalidateQueries({ queryKey: ["document-trace", documentId] });
       qc.invalidateQueries({ queryKey: ["ingestion-status"] });
     },

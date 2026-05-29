@@ -273,4 +273,52 @@ describe("AdminIngestionPage", () => {
     await screen.findByText("No pipeline jobs");
     expect(screen.getAllByText("0").length).toBe(4);
   });
+
+  it("requeue button calls requeueDocument and shows success toast when jobs requeued", async () => {
+    const user = userEvent.setup();
+    render(<AdminIngestionPage />);
+    await screen.findByText("Test Document");
+
+    const expandBtn = screen.getAllByRole("button", { name: "Expand trace" })[0];
+    await user.click(expandBtn);
+    await screen.findByText("Pipeline trace — Test Document");
+
+    const requeueBtn = screen.getByRole("button", { name: /requeue document/i });
+    await user.click(requeueBtn);
+
+    expect(vi.mocked(adminApi.adminApi.requeueDocument)).toHaveBeenCalledWith("doc-1");
+    expect(await screen.findByText(/Requeued 1 job/i)).toBeInTheDocument();
+  });
+
+  it("requeue button shows warning toast when no dead-letter jobs exist", async () => {
+    vi.mocked(adminApi.adminApi.requeueDocument).mockResolvedValue({ requeued: 0 });
+    const user = userEvent.setup();
+    render(<AdminIngestionPage />);
+    await screen.findByText("Test Document");
+
+    const expandBtn = screen.getAllByRole("button", { name: "Expand trace" })[0];
+    await user.click(expandBtn);
+    await screen.findByText("Pipeline trace — Test Document");
+
+    await user.click(screen.getByRole("button", { name: /requeue document/i }));
+
+    expect(await screen.findByText(/No dead-letter jobs found/i)).toBeInTheDocument();
+  });
+
+  it("requeue button shows error toast when request fails", async () => {
+    vi.mocked(adminApi.adminApi.requeueDocument).mockRejectedValue(
+      new Error("Internal server error")
+    );
+    const user = userEvent.setup();
+    render(<AdminIngestionPage />);
+    await screen.findByText("Test Document");
+
+    const expandBtn = screen.getAllByRole("button", { name: "Expand trace" })[0];
+    await user.click(expandBtn);
+    await screen.findByText("Pipeline trace — Test Document");
+
+    await user.click(screen.getByRole("button", { name: /requeue document/i }));
+
+    expect(await screen.findByText("Internal server error")).toBeInTheDocument();
+  });
 });
