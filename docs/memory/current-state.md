@@ -2,6 +2,40 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-29 — feat(extraction): Markdown Office extraction — merged PR #533
+
+Status: Done — commit f6fbebb on main
+Source: PR #533, issue #526
+
+Native DOCX/PPTX/XLSX → Markdown converters added and enabled by default (`enable_markitdown=True`).
+Preserves headings, tables, slide titles, bullets, and sheet structure for improved RAG chunking.
+Each converter wraps the original extractor as fallback on empty output or error.
+No new dependencies — implemented with python-docx/python-pptx/openpyxl (already in deps).
+Disable with `ENABLE_MARKITDOWN=false`.
+
+Key constraint: markitdown 0.1.x requires `magika<0.7`, conflicting with `magika>=1.0` (core dep).
+Decision: implement natively rather than take the package dependency. See decisions.md.
+
+---
+
+## 2026-05-29 — roadmap: issues #526–#532 created from Onyx comparison (#525)
+
+Status: Active
+Source: Planning session, issue #525
+
+7 issues opened following Onyx reference architecture comparison planning:
+- #526 MarkItDown extraction — DONE (PR #533 merged)
+- #527 Pre-benchmark fixture corpus + assertions — status:next
+- #528 LLM generation provider abstraction (OpenAI-compatible) — status:next
+- #529 Ingestion pipeline debug status page (admin UI) — status:next
+- #530 Exact-location citation grounding (page/section) — status:deferred, blocked by #527
+- #531 Connector credential store — status:deferred
+- #532 Canonical metadata sidecar format — status:deferred
+
+Next recommended order: #527 (test foundation) → #528 and #529 in parallel → #530 after #527 closes.
+
+---
+
 ## 2026-05-28 — dist: v0.2.0 air-gapped release artifact created
 
 Status: Active — files written, not yet tarred or CI-built

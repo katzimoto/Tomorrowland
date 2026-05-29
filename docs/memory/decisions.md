@@ -2,6 +2,28 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-05-29 — Markdown Office extraction: native implementation, not markitdown package
+
+Status: Active
+Source: PR #533, issue #526
+
+Decision:
+- DOCX/PPTX/XLSX → Markdown converters implemented natively with python-docx, python-pptx, openpyxl.
+- Do not add `markitdown` as a direct dependency.
+
+Reason:
+- markitdown 0.1.x requires `magika>=0.6.1,<0.7`; this project requires `magika>=1.0` (core dep for MIME detection).
+- Installing both simultaneously downgrades magika and breaks `MimeDetector`.
+- The conflict cannot be resolved without either dropping markitdown or degrading MIME detection.
+
+Impact:
+- `src/services/extraction/markitdown_extractor.py` contains the native converters.
+- If markitdown ships a magika-1.0-compatible release, the internals can be swapped — the `MarkItDownExtractor` interface and `ENABLE_MARKITDOWN` flag are stable.
+- No new pyproject.toml deps; uv.lock gains magika 1.0.3 transitive deps (onnxruntime, flatbuffers).
+
+Next action:
+- Monitor markitdown releases for magika>=1.0 compatibility.
+
 ## 2026-05-27 — Original file storage: move-before-create + connector direct-write
 
 Status: Active
