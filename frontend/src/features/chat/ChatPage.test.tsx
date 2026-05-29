@@ -6,6 +6,10 @@ import * as chatApi from "@/api/chat";
 
 vi.mock("@/api/chat");
 
+vi.mock("./PreviewWithHighlight", () => ({
+  PreviewWithHighlight: () => <div data-testid="preview-with-highlight" />,
+}));
+
 const mockNavigate = vi.fn();
 let mockSearchParams: Record<string, unknown> = {};
 

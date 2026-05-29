@@ -71,6 +71,7 @@ interface PreviewPaneProps {
   searchQuery?: string;
   activeSearchIndex?: number;
   onMatchCountChange?: (count: number) => void;
+  initialPage?: number;
 }
 
 function downloadUrl(docId: string) {
@@ -86,6 +87,7 @@ export function PreviewPane({
   searchQuery = "",
   activeSearchIndex = 0,
   onMatchCountChange,
+  initialPage,
 }: PreviewPaneProps) {
   const mime = preview.mime_type;
   const text = preview.snippet;
@@ -271,6 +273,7 @@ export function PreviewPane({
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
+          initialPage={initialPage}
         />
       </div>
     );

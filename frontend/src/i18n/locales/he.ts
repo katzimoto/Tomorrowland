@@ -195,6 +195,13 @@ export const he: Translations = {
     askAboutSelected: "שאל על הנבחרים",
     retry: "נסה שוב",
     starterHeading: "נסה לשאול",
+    openDocument: "פתח מסמך",
+    evidenceClose: "סגור",
+    evidenceLoading: "טוען תצוגה מקדימה…",
+    evidenceNotFound: "המסמך לא נמצא.",
+    evidenceForbidden: "הגישה נדחתה.",
+    evidenceNoPreview: "אין תצוגה מקדימה.",
+    evidenceOpenFullPage: "פתח בעמוד מלא",
   },
   notifications: {
     title: "התראות",

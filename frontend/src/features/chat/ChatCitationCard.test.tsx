@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import { render } from "@/test/render";
 import { ChatCitationCard } from "./ChatCitationCard";
 import type { DocumentChatCitation } from "@/api/chat";
@@ -9,14 +9,18 @@ vi.mock("@tanstack/react-router", () => ({
     children,
     params,
     search,
+    onClick,
+    target,
   }: {
     children: React.ReactNode;
     params?: Record<string, string>;
     search?: Record<string, string | undefined>;
+    onClick?: (e: React.MouseEvent) => void;
+    target?: string;
   }) => {
     const docId = params?.docId ?? "";
     const href = `/doc/${docId}?page=${search?.page ?? ""}&chunk=${search?.chunk ?? ""}`;
-    return <a href={href}>{children}</a>;
+    return <a href={href} onClick={onClick} target={target}>{children}</a>;
   },
 }));
 
@@ -101,7 +105,7 @@ describe("ChatCitationCard", () => {
         />
       </ul>,
     );
-    const link = screen.getByRole("link", { name: "Open" });
+    const link = screen.getByRole("link", { name: "Open document" });
     expect(link).toBeInTheDocument();
     expect(link.getAttribute("href")).toContain("/doc/doc-1");
   });
@@ -116,5 +120,69 @@ describe("ChatCitationCard", () => {
       </ul>,
     );
     expect(screen.getByText(/Untitled/i)).toBeInTheDocument();
+  });
+
+  it("calls onOpenCitation when card is clicked", () => {
+    const onOpen = vi.fn();
+    const citation = makeCitation({ citation_id: "cit-click" });
+    render(
+      <ul>
+        <ChatCitationCard citation={citation} index={0} onOpenCitation={onOpen} />
+      </ul>,
+    );
+    const card = screen.getByRole("button");
+    fireEvent.click(card);
+    expect(onOpen).toHaveBeenCalledWith(citation);
+  });
+
+  it("calls onOpenCitation on Enter key", () => {
+    const onOpen = vi.fn();
+    const citation = makeCitation({ citation_id: "cit-keyboard" });
+    render(
+      <ul>
+        <ChatCitationCard citation={citation} index={0} onOpenCitation={onOpen} />
+      </ul>,
+    );
+    const card = screen.getByRole("button");
+    fireEvent.keyDown(card, { key: "Enter" });
+    expect(onOpen).toHaveBeenCalledWith(citation);
+  });
+
+  it("calls onOpenCitation on Space key", () => {
+    const onOpen = vi.fn();
+    const citation = makeCitation({ citation_id: "cit-space" });
+    render(
+      <ul>
+        <ChatCitationCard citation={citation} index={0} onOpenCitation={onOpen} />
+      </ul>,
+    );
+    const card = screen.getByRole("button");
+    fireEvent.keyDown(card, { key: " " });
+    expect(onOpen).toHaveBeenCalledWith(citation);
+  });
+
+  it("stops propagation on Open link click so card click is not triggered", () => {
+    const onOpen = vi.fn();
+    render(
+      <ul>
+        <ChatCitationCard
+          citation={makeCitation({ citation_id: "cit-stop" })}
+          index={0}
+          onOpenCitation={onOpen}
+        />
+      </ul>,
+    );
+    const link = screen.getByRole("link", { name: "Open document" });
+    fireEvent.click(link);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("does not have button role when onOpenCitation is not provided", () => {
+    render(
+      <ul>
+        <ChatCitationCard citation={makeCitation()} index={0} />
+      </ul>,
+    );
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });
