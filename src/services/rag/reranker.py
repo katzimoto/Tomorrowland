@@ -6,7 +6,7 @@ import logging
 import re
 from typing import Any, Protocol
 
-from services.intelligence.ollama_client import OllamaClient
+from services.intelligence.llm_provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class CrossEncoderReranker:
 
     def __init__(
         self,
-        ollama_client: OllamaClient,
+        ollama_client: LLMProvider,
         min_score: float = 3.0,
         top_n: int = 8,
         model: str | None = None,

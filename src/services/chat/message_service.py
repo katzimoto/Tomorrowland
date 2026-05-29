@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from services.chat.models import ChatMessage
-from services.intelligence.ollama_client import OllamaClient
+from services.intelligence.llm_provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def _build_history_text(messages: list[ChatMessage]) -> str:
 def rewrite_query(
     question: str,
     existing_messages: list[ChatMessage],
-    ollama_client: OllamaClient,
+    ollama_client: LLMProvider,
     model: str | None = None,
 ) -> str:
     """Rewrite *question* as a standalone search query using conversation history.

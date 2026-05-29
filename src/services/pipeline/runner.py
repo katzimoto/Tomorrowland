@@ -603,7 +603,7 @@ def run_loop(
 
 
 if __name__ == "__main__":
-    from services.intelligence.ollama_client import OllamaClient
+    from services.intelligence.factory import build_llm_provider
     from services.intelligence.repository import IntelligenceRepository
     from services.intelligence.worker import IntelligenceWorker
     from services.search.factory import build_encoder
@@ -629,10 +629,7 @@ if __name__ == "__main__":
         encoder = build_encoder(settings)
         qdrant_client = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
 
-        ollama_client = OllamaClient(
-            base_url=settings.ollama_url,
-            model=settings.ollama_model,
-        )
+        ollama_client = build_llm_provider(settings)
         intelligence_worker = IntelligenceWorker(
             repository=IntelligenceRepository(conn),
             ollama_client=ollama_client,

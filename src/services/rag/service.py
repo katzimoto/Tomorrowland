@@ -12,7 +12,7 @@ from sqlalchemy.engine import Connection
 
 from services.chat.models import ChatScope
 from services.documents.repository import DocumentRepository
-from services.intelligence.ollama_client import OllamaClient
+from services.intelligence.llm_provider import LLMProvider
 from services.search.encoder import TextEncoder
 from services.search.hybrid import merge_results
 from services.search.qdrant import QdrantSearchClient
@@ -65,7 +65,7 @@ class RagService:
         self,
         qdrant_client: QdrantSearchClient,
         encoder: TextEncoder,
-        ollama_client: OllamaClient,
+        ollama_client: LLMProvider,
         connection: Connection,
         system_prompt: str | None = None,
         max_chunks: int = 5,

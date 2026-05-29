@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 from uuid import UUID
 
-from services.intelligence.ollama_client import OllamaClient
+from services.intelligence.llm_provider import LLMProvider, parse_json_array
 from services.intelligence.repository import IntelligenceRepository
 from services.intelligence.summary_helpers import (
     MAX_SUMMARIZE_CHARS,
@@ -86,7 +86,7 @@ class IntelligenceWorker:
     def __init__(
         self,
         repository: IntelligenceRepository,
-        ollama_client: OllamaClient,
+        ollama_client: LLMProvider,
         es_client: ElasticsearchSearchClient,
         config_source: Any | None = None,
         utility_model: str | None = None,
@@ -284,7 +284,7 @@ class IntelligenceWorker:
         try:
             prompt = self._build_prompt("llm.entity_extraction_prompt", content, MAX_ENTITY_CHARS)
             result = self._ollama.generate(prompt)
-            entities = self._ollama.parse_json_array(result)
+            entities = parse_json_array(result)
 
             for item in entities:
                 if not isinstance(item, dict):
@@ -330,7 +330,7 @@ class IntelligenceWorker:
             prompt = self._build_prompt("llm.auto_tag_prompt", content, MAX_TAG_CHARS)
             # Utility model: cheap, repeated tagging task
             result = self._ollama.generate(prompt, model=self._utility_model)
-            parsed = self._ollama.parse_json_array(result)
+            parsed = parse_json_array(result)
 
             tags = [str(t).strip() for t in parsed if isinstance(t, str) and str(t).strip()]
             self._repo.replace_tags(document_id, tags)
@@ -365,7 +365,7 @@ class IntelligenceWorker:
                 response = self._ollama.generate(
                     f"{llm_prompt}\n\n{truncated}", model=self._utility_model
                 )
-                llm_points = self._ollama.parse_json_array(response)
+                llm_points = parse_json_array(response)
                 normalized = [
                     str(p).strip()[:MAX_KEY_POINT_LENGTH]
                     for p in llm_points

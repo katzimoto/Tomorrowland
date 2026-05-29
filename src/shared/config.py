@@ -51,6 +51,12 @@ class Settings(BaseSettings):
         """Model to use for reranking. Falls back through utility to main."""
         return self.ollama_reranker_model or self.effective_utility_model
 
+    # LLM generation provider — "ollama" (default) or "openai-compatible".
+    # LLM_BASE_URL overrides OLLAMA_URL when set; LLM_MODEL overrides OLLAMA_MODEL.
+    llm_provider: str = ""
+    llm_base_url: str = ""
+    llm_model: str = ""
+
     auth_provider: Literal["local", "ldap", "both"] = "both"
     ldap_url: str = "ldap://domain-controller:389"
     ldap_base_dn: str = "DC=company,DC=local"

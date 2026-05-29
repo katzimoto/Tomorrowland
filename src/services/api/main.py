@@ -15,7 +15,8 @@ from services.api.readiness import ReadinessChecker
 from services.auth.jwt import JwtService
 from services.auth.ldap import LdapAuthenticator
 from services.auth.models import TokenPayload
-from services.intelligence.ollama_client import OllamaClient
+from services.intelligence.factory import build_llm_provider
+from services.intelligence.llm_provider import LLMProvider
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.qdrant import QdrantSearchClient
@@ -51,7 +52,7 @@ def create_app(
     translator: LibreTranslateClient | None = None,
     es_client: ElasticsearchSearchClient | None = None,
     qdrant_client: QdrantSearchClient | None = None,
-    ollama_client: OllamaClient | None = None,
+    llm_provider: LLMProvider | None = None,
 ) -> FastAPI:
     """Create the API app with Phase 02 auth routes."""
     app = FastAPI(title="Tomorrowland API")
@@ -73,7 +74,7 @@ def create_app(
     app.state.translator = translator
     app.state.es_client = es_client
     app.state.qdrant_client = qdrant_client
-    app.state.ollama_client = ollama_client
+    app.state.llm_provider = llm_provider or build_llm_provider(app.state.settings)
 
     if app.state.settings.feature_meilisearch_search:
         import meilisearch

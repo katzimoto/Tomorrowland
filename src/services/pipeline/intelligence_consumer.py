@@ -47,7 +47,7 @@ def main() -> None:
 
     import sqlalchemy as sa
 
-    from services.intelligence.ollama_client import OllamaClient
+    from services.intelligence.factory import build_llm_provider
     from services.intelligence.repository import IntelligenceRepository
     from services.intelligence.worker import IntelligenceWorker
     from services.search.elastic import ElasticsearchSearchClient
@@ -60,14 +60,10 @@ def main() -> None:
     with engine.connect() as conn:
         rabbit = RabbitClient(settings.rabbitmq_url, enabled=True)
         job_repo = PipelineJobRepository(conn)
-        ollama = OllamaClient(
-            base_url=settings.ollama_url,
-            model=settings.ollama_model,
-        )
         es_client = ElasticsearchSearchClient(hosts=[settings.elastic_url])
         intelligence = IntelligenceWorker(
             repository=IntelligenceRepository(conn),
-            ollama_client=ollama,
+            ollama_client=build_llm_provider(settings),
             es_client=es_client,
             utility_model=settings.effective_utility_model,
         )

@@ -19,7 +19,6 @@ from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
 from services.chat import ChatMessage, ChatRepository, ChatSession, rewrite_query
 from services.chat.models import ChatMessageCreate, ChatScope, ChatSessionCreate, ChatSessionUpdate
-from services.intelligence.ollama_client import OllamaClient
 from services.rag.reranker import CrossEncoderReranker, NoOpReranker
 from services.rag.service import RagService
 from services.search.factory import build_encoder
@@ -293,10 +292,7 @@ def create_message(
         question = body.content
         rewritten_query: str | None = None
         settings = request.app.state.settings
-        rewrite_client = request.app.state.ollama_client or OllamaClient(
-            base_url=settings.ollama_url,
-            model=settings.ollama_model,
-        )
+        rewrite_client = request.app.state.llm_provider
         if settings.feature_document_chat_query_rewrite and prior_messages:
             rewritten_query = rewrite_query(
                 question,
@@ -324,10 +320,7 @@ def create_message(
             url=settings.qdrant_url,
             dimension=encoder.dimension,
         )
-        ollama_client = request.app.state.ollama_client or OllamaClient(
-            base_url=settings.ollama_url,
-            model=settings.ollama_model,
-        )
+        ollama_client = request.app.state.llm_provider
 
         prompt_row = (
             connection.execute(
@@ -501,10 +494,7 @@ def create_message_stream(
 
         question = body.content
         rewritten_query: str | None = None
-        rewrite_client = request.app.state.ollama_client or OllamaClient(
-            base_url=settings.ollama_url,
-            model=settings.ollama_model,
-        )
+        rewrite_client = request.app.state.llm_provider
         if settings.feature_document_chat_query_rewrite and prior_messages:
             rewritten_query = rewrite_query(
                 question,
@@ -530,10 +520,7 @@ def create_message_stream(
             url=settings.qdrant_url,
             dimension=encoder.dimension,
         )
-        ollama_client = request.app.state.ollama_client or OllamaClient(
-            base_url=settings.ollama_url,
-            model=settings.ollama_model,
-        )
+        ollama_client = request.app.state.llm_provider
 
         prompt_row = (
             connection.execute(

@@ -11,7 +11,6 @@ from services.api._helpers import _fmt_dt
 from services.api.main import current_user
 from services.auth.models import TokenPayload
 from services.documents.repository import DocumentRepository
-from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.repository import IntelligenceRepository
 from services.intelligence.worker import IntelligenceWorker
 from services.permissions.enforcer import require_admin
@@ -43,10 +42,7 @@ def trigger_intelligence(
 
         try:
             intelligence_repo = IntelligenceRepository(connection)
-            ollama_client = request.app.state.ollama_client or OllamaClient(
-                base_url=request.app.state.settings.ollama_url,
-                model=request.app.state.settings.ollama_model,
-            )
+            ollama_client = request.app.state.llm_provider
             es_client = request.app.state.es_client or ElasticsearchSearchClient(
                 hosts=[request.app.state.settings.elastic_url]
             )
@@ -88,10 +84,7 @@ def regenerate_summary(
 
         try:
             intelligence_repo = IntelligenceRepository(connection)
-            ollama_client = request.app.state.ollama_client or OllamaClient(
-                base_url=request.app.state.settings.ollama_url,
-                model=request.app.state.settings.ollama_model,
-            )
+            ollama_client = request.app.state.llm_provider
             es_client = request.app.state.es_client or ElasticsearchSearchClient(
                 hosts=[request.app.state.settings.elastic_url]
             )

@@ -31,6 +31,21 @@ Fixture corpus and assertion layer built as prerequisite for Onyx benchmark comp
 
 ---
 
+## 2026-05-29 — feat(intelligence): LLM provider abstraction — issue #528
+
+Status: Done — PR open, pending merge
+Source: issue #528, Claude Code session
+
+`LLMProvider` protocol + `OpenAICompatibleLLMProvider` + `build_llm_provider()` factory added.
+- `src/services/intelligence/llm_provider.py` — protocol, `OpenAICompatibleLLMProvider`, `parse_json_array()`
+- `src/services/intelligence/factory.py` — `build_llm_provider(settings)` reads `LLM_PROVIDER` / `LLM_BASE_URL` / `LLM_MODEL`
+- `src/shared/config.py` — 3 new fields (`llm_provider`, `llm_base_url`, `llm_model`)
+- `app.state.ollama_client` renamed to `app.state.llm_provider` (eagerly initialized, never None)
+- All 9 caller sites updated; `OllamaClient` default path unchanged
+- 18 unit tests pass; mypy strict clean
+
+---
+
 ## 2026-05-29 — roadmap: issues #526–#532 created from Onyx comparison (#525)
 
 Status: Active
@@ -39,13 +54,13 @@ Source: Planning session, issue #525
 7 issues opened following Onyx reference architecture comparison planning:
 - #526 MarkItDown extraction — DONE (PR #533 merged)
 - #527 Pre-benchmark fixture corpus + assertions — DONE (PR #535 merged)
-- #528 LLM generation provider abstraction (OpenAI-compatible) — status:next
+- #528 LLM generation provider abstraction (OpenAI-compatible) — DONE (PR open)
 - #529 Ingestion pipeline debug status page (admin UI) — status:next
 - #530 Exact-location citation grounding (page/section) — status:next (unblocked by #527)
 - #531 Connector credential store — status:deferred
 - #532 Canonical metadata sidecar format — status:deferred
 
-Next recommended order: #528 and #529 in parallel → #530 (citation grounding, now unblocked).
+Next recommended order: #529 → #530 (citation grounding).
 
 ---
 

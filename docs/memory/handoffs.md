@@ -2,6 +2,35 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-29 — feat(intelligence): LLM provider abstraction (#528)
+
+Status: Done — PR open
+Source: issue #528, Claude Code session
+
+**Goal:** Allow operators to use any OpenAI-compatible local inference server (LM Studio, llama.cpp, vLLM) instead of Ollama-only for LLM generation. Air-gapped first; no openai SDK.
+
+**Changed files:**
+- `src/services/intelligence/llm_provider.py` (new) — `LLMProvider` Protocol, `OpenAICompatibleLLMProvider`, standalone `parse_json_array()`
+- `src/services/intelligence/factory.py` (new) — `build_llm_provider(settings)`
+- `src/services/intelligence/__init__.py` — exports `LLMProvider`, `OpenAICompatibleLLMProvider`, `build_llm_provider`
+- `src/services/intelligence/worker.py` — `OllamaClient` → `LLMProvider` type; `parse_json_array` from module
+- `src/services/rag/reranker.py`, `rag/service.py`, `chat/message_service.py` — type hints updated
+- `src/services/api/main.py` — `ollama_client` param → `llm_provider`; `app.state.llm_provider` set from factory
+- `src/services/api/routers/chat.py`, `admin/intelligence.py` — use `app.state.llm_provider`
+- `src/services/pipeline/runner.py`, `slow_worker.py`, `intelligence_consumer.py` — use `build_llm_provider(settings)`
+- `src/shared/config.py` — `llm_provider`, `llm_base_url`, `llm_model` fields added
+- `.env.example` — `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL` commented block added
+- `tests/unit/test_llm_provider.py` (new) — 18 tests
+
+**Key constraint:** `generate_stream` is in the protocol; `OpenAICompatibleLLMProvider` raises `NotImplementedError` for streaming (OpenAI SSE format out of scope per issue). Streaming chat endpoint only works with `LLM_PROVIDER=ollama`.
+
+**Verification:** ruff clean, mypy strict clean (8 files), 18 new + 36 existing related unit tests pass.
+
+**Next agent prompt:**
+> Pick up issue #529 (ingestion pipeline debug status page) or #530 (citation grounding). Both are status:next and unblocked.
+
+---
+
 ## 2026-05-28 — dist: v0.2.0 air-gapped release artifact
 
 Status: Active — files ready; CI build required before distributing
