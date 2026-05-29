@@ -2,6 +2,39 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-29 — feat(admin): ingestion pipeline status API (#529 backend slice)
+
+Status: Active — PR #568 open, ready to merge
+Source: issue #529, PR #566 (closed), PR #568
+
+**Goal:** Admin-only endpoints for operator visibility into pipeline job status.
+
+**Routes:**
+- `GET /admin/ingestion/status` — list jobs with status/source_id/since/limit/offset filters + per-filter summary
+- `GET /admin/ingestion/status/{document_id}` — per-document trace ordered by created_at ASC; returns 404 when no jobs
+
+**Key design notes:**
+- `summary_by_status` is filter-scoped, not global totals — consumers expecting global breakdown should be aware
+- `limit` has no upper bound (consistent with `/admin/jobs`); hardening deferred
+- `last_error` returned raw via `_sanitize_error` from `jobs.py` (already truncated/sanitized upstream); safe
+- `pipeline_jobs.document_id` has `ON DELETE CASCADE` — "deleted document with surviving jobs" cannot occur in production PostgreSQL; the defensive queries are harmless but the scenario is impossible
+
+**Changed files:**
+- `src/services/pipeline/jobs.py` — `list_ingestion_status()`, `list_document_trace()`
+- `src/services/api/schemas.py` — `IngestionStatusJob`, `IngestionStatusResponse`, `DocumentTraceJob`, `DocumentTraceResponse`
+- `src/services/api/routers/admin/ingestion_status.py` (new)
+- `src/services/api/main.py` — router registration
+- `tests/unit/test_pipeline_jobs.py` — 7 new tests
+- `tests/integration/test_admin_ingestion_status.py` — 8 new tests
+- `CHANGELOG.md`
+
+**Review blocker resolved:** Original PR #566 targeted wrong base branch (`feat/536-side-by-side-preview` instead of `main`) and had two tests documenting a cascade-impossible scenario. Both fixed in commit 75db186; new PR #568 targets main.
+
+**Next agent prompt:**
+> PR #568 is ready to merge (#529 backend slice). After merge, pick up the frontend admin page (#529 frontend) or the next queued issue.
+
+---
+
 ## 2026-05-29 — fix(security): ACL regression tests — issue #551
 
 Status: Done — tests merged to main; issue open
