@@ -868,3 +868,224 @@ def test_mark_dead_letter_idempotent(engine: Engine) -> None:
             {"id": job_id.hex},
         ).scalar()
         assert status == "dead_letter"
+
+
+class TestListIngestionStatus:
+    """Unit tests for PipelineJobRepository.list_ingestion_status."""
+
+    def _seed_source(
+        self, conn: sa.Connection, source_id: object, name: str = "test-source"
+    ) -> None:
+        conn.execute(
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
+            {"id": source_id, "name": name, "type": "folder"},
+        )
+
+    def _seed_doc(
+        self,
+        conn: sa.Connection,
+        doc_id: object,
+        source_id: object,
+        title: str | None = "Test Doc",
+    ) -> None:
+        conn.execute(
+            sa.text(
+                "INSERT INTO documents (id, source_id, external_id, source, mime_type, title) "
+                "VALUES (:id, :source_id, :eid, :source, :mime, :title)"
+            ),
+            {
+                "id": doc_id,
+                "source_id": source_id,
+                "eid": doc_id,
+                "source": "folder",
+                "mime": "text/plain",
+                "title": title,
+            },
+        )
+
+    def _seed_job(
+        self,
+        conn: sa.Connection,
+        job_id: object,
+        doc_id: object,
+        source_id: object,
+        status: str = "pending",
+        job_type: str = "process_document",
+    ) -> None:
+        conn.execute(
+            sa.text("""
+                INSERT INTO pipeline_jobs
+                    (id, document_id, source_id, job_type, status)
+                VALUES (:id, :document_id, :source_id, :job_type, :status)
+            """),
+            {
+                "id": job_id,
+                "document_id": doc_id,
+                "source_id": source_id,
+                "job_type": job_type,
+                "status": status,
+            },
+        )
+
+    def test_list_all(self, engine: Engine) -> None:
+        with engine.begin() as conn:
+            src, doc, jid = uuid4(), uuid4(), uuid4()
+            self._seed_source(conn, src.hex)
+            self._seed_doc(conn, doc.hex, src.hex)
+            self._seed_job(conn, jid.hex, doc.hex, src.hex)
+            repo = PipelineJobRepository(conn)
+            rows, total, summary = repo.list_ingestion_status()
+        assert total == 1
+        assert len(rows) == 1
+        assert rows[0]["id"] == jid
+        assert rows[0]["document_title"] == "Test Doc"
+        assert rows[0]["source_name"] == "test-source"
+
+    def test_list_status_filter(self, engine: Engine) -> None:
+        with engine.begin() as conn:
+            src = uuid4()
+            self._seed_source(conn, src.hex)
+            doc_a, doc_b = uuid4(), uuid4()
+            self._seed_doc(conn, doc_a.hex, src.hex)
+            self._seed_doc(conn, doc_b.hex, src.hex)
+            self._seed_job(conn, uuid4().hex, doc_a.hex, src.hex, status="succeeded")
+            self._seed_job(conn, uuid4().hex, doc_b.hex, src.hex, status="pending")
+            repo = PipelineJobRepository(conn)
+            rows, total, summary = repo.list_ingestion_status(status="succeeded")
+        assert total == 1
+        assert len(rows) == 1
+        assert rows[0]["status"] == "succeeded"
+
+    def test_list_source_filter(self, engine: Engine) -> None:
+        with engine.begin() as conn:
+            src_a, src_b = uuid4(), uuid4()
+            self._seed_source(conn, src_a.hex, name="src-a")
+            self._seed_source(conn, src_b.hex, name="src-b")
+            doc_a, doc_b = uuid4(), uuid4()
+            self._seed_doc(conn, doc_a.hex, src_a.hex)
+            self._seed_doc(conn, doc_b.hex, src_b.hex)
+            self._seed_job(conn, uuid4().hex, doc_a.hex, src_a.hex)
+            self._seed_job(conn, uuid4().hex, doc_b.hex, src_b.hex)
+            repo = PipelineJobRepository(conn)
+            rows, total, summary = repo.list_ingestion_status(source_id=src_a)
+        assert total == 1
+        assert len(rows) == 1
+        assert str(rows[0]["source_id"]) == str(src_a)
+
+    def test_list_since_filter(self, engine: Engine) -> None:
+        with engine.begin() as conn:
+            src = uuid4()
+            self._seed_source(conn, src.hex)
+            doc = uuid4()
+            self._seed_doc(conn, doc.hex, src.hex)
+            self._seed_job(conn, uuid4().hex, doc.hex, src.hex)
+            repo = PipelineJobRepository(conn)
+            far_future = datetime.now(UTC).replace(year=2099)
+            rows, total, summary = repo.list_ingestion_status(since=far_future)
+        assert total == 0
+        assert len(rows) == 0
+
+    def test_list_summary_counts(self, engine: Engine) -> None:
+        with engine.begin() as conn:
+            src = uuid4()
+            self._seed_source(conn, src.hex)
+            doc_a, doc_b, doc_c = uuid4(), uuid4(), uuid4()
+            self._seed_doc(conn, doc_a.hex, src.hex)
+            self._seed_doc(conn, doc_b.hex, src.hex)
+            self._seed_doc(conn, doc_c.hex, src.hex)
+            self._seed_job(conn, uuid4().hex, doc_a.hex, src.hex, status="pending")
+            self._seed_job(conn, uuid4().hex, doc_b.hex, src.hex, status="running")
+            self._seed_job(conn, uuid4().hex, doc_c.hex, src.hex, status="dead_letter")
+            repo = PipelineJobRepository(conn)
+            _, _, summary = repo.list_ingestion_status()
+        assert summary.get("pending") == 1
+        assert summary.get("running") == 1
+        assert summary.get("dead_letter") == 1
+        assert summary.get("succeeded", 0) == 0
+
+
+class TestListDocumentTrace:
+    """Unit tests for PipelineJobRepository.list_document_trace."""
+
+    def test_trace_ordered_by_created_at(self, engine: Engine) -> None:
+        with engine.begin() as conn:
+            src, doc = uuid4(), uuid4()
+            conn.execute(
+                sa.text(
+                    "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
+                ),
+                {"id": src.hex, "name": "test", "type": "folder"},
+            )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO documents (id, source_id, external_id, source, mime_type, title) "
+                    "VALUES (:id, :source_id, :eid, :source, :mime, :title)"
+                ),
+                {
+                    "id": doc.hex,
+                    "source_id": src.hex,
+                    "eid": "ext1",
+                    "source": "folder",
+                    "mime": "text/plain",
+                    "title": "Test Doc",
+                },
+            )
+            # Insert jobs in reverse order to test ordering
+            from datetime import timedelta
+
+            now = datetime.now(UTC)
+            job_b_id = uuid4()
+            conn.execute(
+                sa.text("""
+                    INSERT INTO pipeline_jobs
+                        (id, document_id, source_id, job_type,
+                         status, created_at, updated_at)
+                    VALUES (:id, :document_id, :source_id, :job_type,
+                            :status, :created_at, :updated_at)
+                """),
+                {
+                    "id": job_b_id.hex,
+                    "document_id": doc.hex,
+                    "source_id": src.hex,
+                    "job_type": "process_document",
+                    "status": "succeeded",
+                    "created_at": now + timedelta(hours=2),
+                    "updated_at": now + timedelta(hours=2),
+                },
+            )
+            job_a_id = uuid4()
+            conn.execute(
+                sa.text("""
+                    INSERT INTO pipeline_jobs
+                        (id, document_id, source_id, job_type,
+                         status, created_at, updated_at)
+                    VALUES (:id, :document_id, :source_id, :job_type,
+                            :status, :created_at, :updated_at)
+                """),
+                {
+                    "id": job_a_id.hex,
+                    "document_id": doc.hex,
+                    "source_id": src.hex,
+                    "job_type": "parse_document",
+                    "status": "succeeded",
+                    "created_at": now + timedelta(hours=1),
+                    "updated_at": now + timedelta(hours=1),
+                },
+            )
+            repo = PipelineJobRepository(conn)
+            title, source_name, jobs = repo.list_document_trace(doc)
+        assert title is not None  # doc exists
+        assert len(jobs) == 2
+        # Ordered by created_at ASC
+        assert jobs[0]["id"] == job_a_id
+        assert jobs[1]["id"] == job_b_id
+
+    def test_trace_missing_document_returns_null_title(self, engine: Engine) -> None:
+        """Trace for a deleted document returns null title and empty jobs."""
+        with engine.begin() as conn:
+            doc = uuid4()
+            repo = PipelineJobRepository(conn)
+            title, source_name, jobs = repo.list_document_trace(doc)
+        assert title is None
+        assert source_name is None
+        assert len(jobs) == 0

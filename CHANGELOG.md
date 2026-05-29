@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 - Issue #551: ACL audit HIGH findings regression tests. Added integration tests covering H1 (admin search bypass — ES receives `is_admin=True`, Qdrant receives `allow_all=True`), H2 (expertise admin bypass — `allow_all=True` forwarded to Qdrant), H3 (orphaned Qdrant vectors silently dropped from search results), H4 (subscription user-discovery leak — outsider excluded when no group overlap with requester), and H5 (related-docs transitive group expansion — child-group users reach parent-group sources via `get_effective_group_ids`). Also fixed two existing `RelatedService` test instantiations missing the required `job_repo` argument.
 
 ### Added
+- Issue #529 (backend slice): Admin ingestion pipeline status API — `GET /admin/ingestion/status` lists pipeline jobs with status/source_id/since/limit/offset filters and per-status summary counts; `GET /admin/ingestion/status/{document_id}` returns per-document job traces ordered by creation time. Both endpoints admin-only, use LEFT JOIN so deleted/missing documents return null title/source without crashing.
 - Issue #530: Exact-location citation grounding — `page_number` and `section_heading` now flow from extraction through RAG citations.
   - Added `LocationSegment` dataclass with `start_char`/`end_char`/`page_number`/`section_heading` to extraction envelope.
   - PDF extractor emits `page_number` per page; PPTX extractor emits `page_number` per slide; DOCX extractor emits `section_heading` from heading styles.
