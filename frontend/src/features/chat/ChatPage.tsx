@@ -72,6 +72,7 @@ export function ChatPage() {
 
   // Clear selected citation when switching sessions
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedCitation(null);
   }, [selectedSession?.id]);
 

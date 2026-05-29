@@ -41,6 +41,7 @@ export function AdminEditSourcePage() {
 
   useEffect(() => {
     if (source) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setName(source.name);
       setSourceLanguage(source.source_language || "");
       setEnabled(source.enabled);
