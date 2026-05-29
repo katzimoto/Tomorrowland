@@ -4,30 +4,22 @@ Canonical shared memory for active project state. Keep this file compact and fac
 
 ## 2026-05-29 — feat(chat): side-by-side source preview — issue #536
 
-Status: Done — implemented, tests pass, typecheck clean
-Source: issue #536, OpenCode session
+Status: Done — PR #559 merged to main (squash commit a598fed)
+Source: issue #536, PR #559
 
-Citation click-to-highlight implemented: clicking a chat citation opens an evidence
+Citation click-to-highlight shipped: clicking a chat citation opens an evidence
 panel beside the chat that loads the document preview, passes the excerpt as
 searchQuery for in-document highlighting, and navigates to the cited page in PDFs.
 
-Key changes:
-- `PdfViewer` / `PreviewPane`: new `initialPage` prop passthrough for PDF page nav
-- `ChatCitationCard` → `ChatCitationList` → `MessageBubble` → `MessageList` →
-  `ChatWindow`: `onOpenCitation` callback threaded through the component chain
-- `EvidencePanel`: fetches preview via existing API, shows 403/404/generic error
-  states, excerpt banner, mobile drawer fallback on narrow viewports
-- `PreviewWithHighlight`: thin wrapper setting `searchQuery` to citation excerpt
-  and `initialPage` for PDF navigation
-- `ChatPage`: `selectedCitation` state drives split layout (main + panel)
-- URL query param sync deferred — component state only
-- Existing "Open document" full-page/new-tab link preserved as secondary action
+Key components: `EvidencePanel`, `PreviewWithHighlight`, `initialPage` prop on
+`PdfViewer`/`PreviewPane`, `onOpenCitation` callback chain through chat components,
+`selectedCitation` state on `ChatPage`, mobile fixed-overlay layout.
 
-Verification: 55 chat tests, 16 PdfViewer tests pass; `tsc --noEmit` clean.
-5 pre-existing failures in DocumentToolbar/FidelityStatusBar/DocumentPage
-(download link role mismatch) — unrelated to this work.
+Post-merge fix (same squash): `PdfViewer initialPage` ref guard — original
+effect had `pageNum` in deps, resetting navigation on every user page change.
+Fixed with `appliedInitialPageRef` so jump fires once per citation value.
 
-Next action: Consider URL query param sync for shareable citation views.
+Deferred: URL query param sync for shareable citation views (component state only).
 
 ---
 

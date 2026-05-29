@@ -39,6 +39,7 @@ export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMa
   const downloadUrl = `/api/download/${docId}`;
 
   const pdfLoadTimer = useRef<string | null>(null);
+  const appliedInitialPageRef = useRef<number | undefined>();
   useEffect(() => {
     if (!pdfLoadTimer.current) {
       pdfLoadTimer.current = `pdf-load-${Date.now()}`;
@@ -117,12 +118,14 @@ export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMa
     return () => { cancelled = true; };
   }, [pdfDoc]);
 
-  // Navigate to initialPage when the document loads
+  // Navigate to initialPage once per citation — apply on load, then leave navigation to the user
   useEffect(() => {
-    if (!pdfDoc || !initialPage) return;
+    if (!pdfDoc || !initialPage || numPages === 0) return;
+    if (appliedInitialPageRef.current === initialPage) return;
+    appliedInitialPageRef.current = initialPage;
     const target = Math.max(1, Math.min(initialPage, numPages));
-    if (target !== pageNum) startTransition(() => setPageNum(target));
-  }, [pdfDoc, initialPage, numPages, pageNum]);
+    startTransition(() => setPageNum(target));
+  }, [pdfDoc, initialPage, numPages]);
 
   // Compute per-page match counts for active-index navigation
   const perPageMatchCounts = useMemo(() => {
