@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     enable_ocr: bool = False
     # Requires LibreOffice (soffice) in PATH.
     enable_legacy_office: bool = False
+    # Use MarkItDown for DOCX/PPTX/XLSX → Markdown-structured extraction.
+    # Requires the markitdown package. Off by default until validated.
+    enable_markitdown: bool = False
     # Auto-detect source_language when not provided by the connector.
     enable_language_detection: bool = True
 

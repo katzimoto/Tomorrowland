@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Issue #526: Markdown-structured Office extraction for improved RAG chunking (`ENABLE_MARKITDOWN=true`). Native converters for DOCX (headings, lists, tables), PPTX (slide titles, bullets), and XLSX (sheet headings, cell tables) replace flat plain-text extraction for those MIME types. Each converter falls back to the original extractor on empty output or error. Implemented natively with python-docx, python-pptx, and openpyxl — no new dependencies required.
+
 ## [0.2.0] - 2026-05-28
 
 ### Changed

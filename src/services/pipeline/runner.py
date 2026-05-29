@@ -646,6 +646,7 @@ if __name__ == "__main__":
             extractor_registry=ExtractorRegistry(
                 enable_ocr=settings.enable_ocr,
                 enable_legacy_office=settings.enable_legacy_office,
+                enable_markitdown=settings.enable_markitdown,
             ),
             translator=translator,
             encoder=encoder,
