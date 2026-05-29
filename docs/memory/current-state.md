@@ -4,7 +4,7 @@ Canonical shared memory for active project state. Keep this file compact and fac
 
 ## 2026-05-29 — feat(search): source-scoped BM25 filtering — issue #552
 
-Status: Active — branch `issue-552-source-scope-bm25`, PR #555
+Status: Done — PR #555 merged to main
 Source: issue #552, OpenCode session
 
 `metadata.source_id` added to Meilisearch ChunkMetadata payloads and indexed as a filterable attribute. `search_rag`, `search_rag_metadata`, and `search_rag_translated` accept `source_ids` and apply `metadata.source_id IN [...]` at query time. `_apply_scope_to_bm25` post-filters stale records that lack a matching `source_id`. Settings version bumped to 2; operators must backfill/reindex after deploy.
