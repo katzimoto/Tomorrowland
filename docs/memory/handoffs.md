@@ -2,6 +2,26 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-29 — feat(admin): ingestion pipeline status UI (#529 frontend slice)
+
+Status: Done — PR #569 blocking items resolved; ready to merge
+Source: issue #529, PR #569, commit c068d6e
+
+**Goal:** Admin `/admin/ingestion` page with summary cards, filter bar, paginated job table, per-document trace expansion, and requeue action.
+
+**Review fixes applied (c068d6e):**
+- `onSuccess` now checks `result.requeued`: warning toast when 0 dead-letter jobs found, count-bearing success toast otherwise.
+- 3 new tests added for requeue: success path, requeued=0 warning, rejection error toast. 19 tests total, all passing.
+
+**Non-blocking residual notes (not blocking merge):**
+- `since` filter uses `type="date"` → sends `"YYYY-MM-DD"`; backend `datetime` param; Pydantic v2/speedate handles it (UTC midnight). Acceptable.
+- Requeue button always visible regardless of job status — harmless no-op when no dead-letter jobs with corrected toast.
+
+**Next agent prompt:**
+> PR #569 (#529 frontend slice) is reviewed and blocking items resolved. Merge it, then pick up the next queued issue.
+
+---
+
 ## 2026-05-29 — feat(admin): ingestion pipeline status API (#529 backend slice)
 
 Status: Active — PR #568 open, ready to merge
