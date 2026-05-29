@@ -25,8 +25,20 @@ Source: issue #547, PR #567, Claude Code review session
 
 **Watch:** Confirm `http://localhost:8080/health` exists as a real frontend endpoint — if missing, the health-wait loop burns the 35-minute budget on every run.
 
-**Next agent prompt:**
-> Pick up #529 frontend slice (admin ingestion status UI) or the next issue in AGENTS.md.
+---
+
+## 2026-05-29 — feat(admin): ingestion pipeline status UI (#529 frontend slice)
+
+Status: Done — PR #569 merged to main
+Source: issue #529, PR #569, commit c068d6e
+
+**Goal:** Admin `/admin/ingestion` page with summary cards, filter bar, paginated job table, per-document trace expansion, and requeue action.
+
+**Review fixes applied (c068d6e):**
+- `onSuccess` now checks `result.requeued`: warning toast when 0 dead-letter jobs found, count-bearing success toast otherwise.
+- 3 new tests added for requeue: success path, requeued=0 warning, rejection error toast. 19 tests total, all passing.
+
+**Issue #529 closed** — both backend (PR #568) and frontend (PR #569) slices merged.
 
 ---
 

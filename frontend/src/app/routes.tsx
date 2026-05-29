@@ -17,6 +17,7 @@ const LazyNotificationsPage   = lazy(() => import("@/features/notifications/Noti
 const LazyHistoryPage  = lazy(() => import("@/features/history/HistoryPage").then(m => ({ default: m.HistoryPage })));
 const LazyExpertisePage = lazy(() => import("@/features/expertise/ExpertisePage").then(m => ({ default: m.ExpertisePage })));
 const LazyAdminHubPage         = lazy(() => import("@/features/admin/AdminHubPage").then(m => ({ default: m.AdminHubPage })));
+const LazyAdminIngestionPage   = lazy(() => import("@/features/admin/AdminIngestionPage").then(m => ({ default: m.AdminIngestionPage })));
 const LazyAdminSourcesPage     = lazy(() => import("@/features/admin/AdminSourcesPage").then(m => ({ default: m.AdminSourcesPage })));
 const LazyAdminSourceDetailPage = lazy(() => import("@/features/admin/AdminSourceDetailPage").then(m => ({ default: m.AdminSourceDetailPage })));
 const LazyAdminAddSourceWizard  = lazy(() => import("@/features/admin/AdminAddSourceWizard").then(m => ({ default: m.AdminAddSourceWizard })));
@@ -39,6 +40,7 @@ const NotificationsPage     = LazyNotificationsPage;
 const HistoryPage           = LazyHistoryPage;
 const ExpertisePage         = LazyExpertisePage;
 const AdminHubPage          = LazyAdminHubPage;
+const AdminIngestionPage    = LazyAdminIngestionPage;
 const AdminSourcesPage      = LazyAdminSourcesPage;
 const AdminSourceDetailPage = LazyAdminSourceDetailPage;
 const AdminAddSourceWizard  = LazyAdminAddSourceWizard;
@@ -151,6 +153,12 @@ const adminRoute = createRoute({
   component: AdminHubPage,
 });
 
+const adminIngestionRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/ingestion",
+  component: AdminIngestionPage,
+});
+
 const adminSourcesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/admin/sources",
@@ -212,6 +220,7 @@ const routeTree = rootRoute.addChildren([
     historyRoute,
     expertiseRoute,
     adminRoute,
+    adminIngestionRoute,
     adminSourcesRoute,
     adminAddSourceRoute,
     adminSourceDetailRoute,

@@ -170,7 +170,69 @@ export const adminApi = {
     api.post(`/admin/groups/${groupId}/children`, { child_group_id: childGroupId }),
   removeChildGroup: (groupId: string, childGroupId: string) =>
     api.delete(`/admin/groups/${groupId}/children/${childGroupId}`),
+
+  // --- Ingestion pipeline status ---
+  getIngestionStatus: (params: {
+    status?: string;
+    source_id?: string;
+    since?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set("status", params.status);
+    if (params.source_id) qs.set("source_id", params.source_id);
+    if (params.since) qs.set("since", params.since);
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.offset !== undefined) qs.set("offset", String(params.offset));
+    const q = qs.toString();
+    return api.get<IngestionStatusResponse>(`/admin/ingestion/status${q ? `?${q}` : ""}`);
+  },
+
+  getDocumentTrace: (documentId: string) =>
+    api.get<DocumentTraceResponse>(`/admin/ingestion/status/${documentId}`),
 };
+
+export interface IngestionStatusJob {
+  id: string;
+  document_id: string;
+  source_id: string;
+  document_title: string | null;
+  source_name: string | null;
+  job_type: string;
+  status: string;
+  stage: string | null;
+  attempts: number;
+  max_attempts: number;
+  last_error: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface IngestionStatusResponse {
+  jobs: IngestionStatusJob[];
+  total: number;
+  summary: Record<string, number>;
+}
+
+export interface DocumentTraceJob {
+  id: string;
+  job_type: string;
+  status: string;
+  stage: string | null;
+  attempts: number;
+  max_attempts: number;
+  last_error: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface DocumentTraceResponse {
+  document_id: string;
+  document_title: string | null;
+  source_name: string | null;
+  jobs: DocumentTraceJob[];
+}
 
 export interface UserDetail {
   id: string;
