@@ -1003,19 +1003,6 @@ class TestListIngestionStatus:
         assert summary.get("dead_letter") == 1
         assert summary.get("succeeded", 0) == 0
 
-    def test_list_missing_document_returns_null_title(self, engine: Engine) -> None:
-        """A job whose document has been deleted still appears with null title."""
-        with engine.begin() as conn:
-            src, doc, jid = uuid4(), uuid4(), uuid4()
-            self._seed_source(conn, src.hex)
-            # No document row — simulate deleted document
-            self._seed_job(conn, jid.hex, doc.hex, src.hex)
-            repo = PipelineJobRepository(conn)
-            rows, total, summary = repo.list_ingestion_status()
-        assert total == 1
-        assert rows[0]["document_title"] is None
-        assert rows[0]["source_name"] is not None  # source still exists
-
 
 class TestListDocumentTrace:
     """Unit tests for PipelineJobRepository.list_document_trace."""

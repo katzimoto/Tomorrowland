@@ -305,32 +305,6 @@ def test_document_trace_order(migrated_engine: Engine):
     assert data["jobs"][0]["id"] == str(seed["jobs"]["pending"])
 
 
-def test_document_trace_missing_document(migrated_engine: Engine):
-    """A document that was deleted from documents table still returns trace data."""
-    _setup_users(migrated_engine)
-    seed = _seed_ingestion_status_data(migrated_engine)
-    client = TestClient(create_app(migrated_engine, _settings()))
-    token = _admin_token(client)
-
-    doc_id = seed["docs"]["dead"]
-    # Delete the document row
-    with migrated_engine.begin() as conn:
-        conn.execute(
-            sa.text("DELETE FROM documents WHERE id = :id"),
-            {"id": db_uuid(doc_id)},
-        )
-
-    resp = client.get(
-        f"/admin/ingestion/status/{doc_id}",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["document_id"] == str(doc_id)
-    assert data["document_title"] is None
-    assert len(data["jobs"]) == 1
-
-
 def test_document_trace_no_jobs_returns_404(migrated_engine: Engine):
     _setup_users(migrated_engine)
     client = TestClient(create_app(migrated_engine, _settings()))

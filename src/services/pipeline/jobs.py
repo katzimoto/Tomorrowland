@@ -483,7 +483,7 @@ class PipelineJobRepository:
         """List ingestion pipeline jobs with optional filters.
 
         Returns (rows, total_count, summary_by_status).
-        Uses LEFT JOIN so deleted/missing documents still produce a row.
+        summary_by_status reflects the same filters as the page query, not global totals.
         """
         filters: list[str] = []
         params: dict[str, Any] = {"limit": limit, "offset": offset}
@@ -562,11 +562,10 @@ class PipelineJobRepository:
         self,
         document_id: UUID,
     ) -> tuple[str | None, str | None, list[dict[str, Any]]]:
-        """List all pipeline jobs for a document ordered by created_at.
+        """List all pipeline jobs for a document ordered by created_at ASC.
 
         Returns (document_title, source_name, jobs).
-        Uses LEFT JOIN so deleted/missing documents still return a trace
-        without crashing.
+        Returns (None, None, []) when no jobs exist for the given document_id.
         """
         doc_row = (
             self._connection.execute(
