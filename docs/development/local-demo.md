@@ -116,4 +116,6 @@ Example output with credentials (auth, ingest, search, preview, download stages 
 - Document download (`GET /download/{id}`, skipped when no document ID available)
 
 Data-dependent stages skip gracefully when their prerequisites are absent.
-Issue #547 will wire this script into a GitHub Actions e2e workflow.
+Issue #547 wires this script into the GitHub Actions `Smoke` workflow
+(`.github/workflows/smoke.yml`), which runs it in `SMOKE_MODE=ci` on every
+relevant PR and push to main/feature branches.

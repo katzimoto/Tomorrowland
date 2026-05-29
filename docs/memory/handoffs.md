@@ -2,9 +2,34 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-29 — ci(e2e): PR-gated smoke workflows — issue #547, PR #567
+
+Status: Done — merged to main
+Source: issue #547, PR #567, Claude Code review session
+
+**Goal:** Wire #541's `smoke_document_flow.sh` into GitHub Actions and add Playwright E2E CI.
+
+**Changed files:**
+- `.github/workflows/smoke.yml` (new) — `playwright` + `document-flow` jobs; path-filtered triggers; Playwright browser cache; diagnostics cover migrate/postgres/elasticsearch; teardown `if: always()`
+- `frontend/package.json` — `test:e2e` + `test:e2e:ci` scripts added
+- `docs/development/testing.md` — local smoke commands documented
+- `docs/development/local-demo.md` — #547 placeholder replaced
+- `CHANGELOG.md` — Unreleased entry added
+
+**Review findings applied (commit 9a926f9):**
+- Missing `test:e2e:ci` script (acceptance-criteria gap) — added
+- Redundant step-level env vars — removed
+- Diagnostics expanded to include `migrate`, `postgres`, `elasticsearch`
+- Push trigger restricted to `main` only (was `feature/**`/`fix/**` too)
+- Playwright browser cache added (`actions/cache@v4` keyed on `package-lock.json`)
+
+**Watch:** Confirm `http://localhost:8080/health` exists as a real frontend endpoint — if missing, the health-wait loop burns the 35-minute budget on every run.
+
+---
+
 ## 2026-05-29 — feat(admin): ingestion pipeline status UI (#529 frontend slice)
 
-Status: Done — PR #569 blocking items resolved; ready to merge
+Status: Done — PR #569 merged to main
 Source: issue #529, PR #569, commit c068d6e
 
 **Goal:** Admin `/admin/ingestion` page with summary cards, filter bar, paginated job table, per-document trace expansion, and requeue action.
@@ -13,18 +38,13 @@ Source: issue #529, PR #569, commit c068d6e
 - `onSuccess` now checks `result.requeued`: warning toast when 0 dead-letter jobs found, count-bearing success toast otherwise.
 - 3 new tests added for requeue: success path, requeued=0 warning, rejection error toast. 19 tests total, all passing.
 
-**Non-blocking residual notes (not blocking merge):**
-- `since` filter uses `type="date"` → sends `"YYYY-MM-DD"`; backend `datetime` param; Pydantic v2/speedate handles it (UTC midnight). Acceptable.
-- Requeue button always visible regardless of job status — harmless no-op when no dead-letter jobs with corrected toast.
-
-**Next agent prompt:**
-> PR #569 (#529 frontend slice) is reviewed and blocking items resolved. Merge it, then pick up the next queued issue.
+**Issue #529 closed** — both backend (PR #568) and frontend (PR #569) slices merged.
 
 ---
 
 ## 2026-05-29 — feat(admin): ingestion pipeline status API (#529 backend slice)
 
-Status: Active — PR #568 open, ready to merge
+Status: Done — PR #568 merged to main (commit 7f78d5b)
 Source: issue #529, PR #566 (closed), PR #568
 
 **Goal:** Admin-only endpoints for operator visibility into pipeline job status.
@@ -51,7 +71,7 @@ Source: issue #529, PR #566 (closed), PR #568
 **Review blocker resolved:** Original PR #566 targeted wrong base branch (`feat/536-side-by-side-preview` instead of `main`) and had two tests documenting a cascade-impossible scenario. Both fixed in commit 75db186; new PR #568 targets main.
 
 **Next agent prompt:**
-> PR #568 is ready to merge (#529 backend slice). After merge, pick up the frontend admin page (#529 frontend) or the next queued issue.
+> #529 backend slice is on main. Pick up the frontend admin page for #529, or the next queued issue.
 
 ---
 

@@ -2,6 +2,40 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-29 — ci(e2e): PR-gated Playwright and document-flow smoke — issue #547
+
+Status: Done — PR #567 merged to main
+Source: issue #547, PR #567
+
+`.github/workflows/smoke.yml` adds two CI jobs triggered on `pull_request` (any path-matching PR) and `push` to `main`:
+
+- **playwright**: installs Chromium (cached by `package-lock.json` hash), runs `npm run test:e2e:ci` (`playwright test --project=1440x900`), uploads `playwright-report/` artifact (7-day). Tests use `page.route` mock backend — no live API required.
+- **document-flow**: starts Compose stack (postgres/kafka/ES/Qdrant/Meilisearch/migrate/api/frontend), waits for health, runs `SMOKE_MODE=ci scripts/dev/smoke_document_flow.sh`, uploads `tmp/smoke-document-flow-result.json` (30-day), tears down with `--volumes --remove-orphans`. ES capped at 512MB heap; `EMBEDDING_PROVIDER=""` disables embedding.
+
+Key constraints enforced: no Ollama model pulls, no external LLM API keys, `COMPOSE_PROJECT_NAME` scoped per run_id to prevent collisions, `permissions: contents: read` only.
+
+Review fixes applied (commit 9a926f9): added `test:e2e:ci` npm script (acceptance-criteria gap), removed redundant env vars in smoke step, expanded diagnostics to include `migrate`/`postgres`/`elasticsearch`, restricted push trigger to `main` only, added Playwright browser cache.
+
+---
+
+## 2026-05-29 — feat(admin): ingestion pipeline status API — issue #529 backend slice
+
+Status: Done — PR #568 merged to main (commit 7f78d5b)
+Source: issue #529, PR #568
+
+`GET /admin/ingestion/status` and `GET /admin/ingestion/status/{document_id}` added.
+Admin-only. Filters: status, source_id, since, limit, offset. Per-filter summary counts.
+Trace endpoint returns jobs ordered by `created_at ASC`; 404 when no jobs exist.
+
+Key constraints:
+- `summary_by_status` is filter-scoped, not global totals
+- `pipeline_jobs.document_id` has ON DELETE CASCADE — no "orphaned job" scenario in prod
+- `limit` has no upper bound (consistent with `/admin/jobs`); hardening deferred
+
+Frontend admin page (#529 frontend half) still deferred.
+
+---
+
 ## 2026-05-29 — feat(chat): side-by-side source preview — issue #536
 
 Status: Done — PR #559 merged to main (squash commit a598fed)
@@ -56,7 +90,10 @@ Key design choices:
 - New `docs/development/local-demo.md` documents the smoke workflow
 
 Verified against real Docker Compose stack: 10/10 stages pass in 6s.
-Issue #547 should consume this script in GitHub Actions e2e workflow.
+Issue #547 consumed this script in GitHub Actions `Smoke` workflow
+(`.github/workflows/smoke.yml`): `document-flow` job starts the Compose stack
+and runs with `SMOKE_MODE=ci`. Separate `playwright` job runs Playwright E2E
+tests with mock backend. Both jobs upload result artifacts.
 
 ---
 
@@ -156,7 +193,7 @@ Source: Planning session, issue #525
 - #526 MarkItDown extraction — DONE (PR #533 merged)
 - #527 Pre-benchmark fixture corpus + assertions — DONE (PR #535 merged)
 - #528 LLM generation provider abstraction (OpenAI-compatible) — DONE (PR #538 merged)
-- #529 Ingestion pipeline debug status page (admin UI) — status:next
+- #529 Ingestion pipeline debug status page (admin UI) — backend slice DONE (PR #568 merged); frontend page deferred
 - #530 Exact-location citation grounding (page/section) — DONE (PR #556 merged)
 - #531 Connector credential store — status:deferred
 - #532 Canonical metadata sidecar format — status:deferred
