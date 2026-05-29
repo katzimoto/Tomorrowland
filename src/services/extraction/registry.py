@@ -99,6 +99,7 @@ class ExtractorRegistry:
         *,
         enable_ocr: bool = False,
         enable_legacy_office: bool = False,
+        enable_markitdown: bool = False,
     ) -> None:
         pdf_extractor = PdfExtractor(ocr_fallback=enable_ocr)
 
@@ -146,6 +147,10 @@ class ExtractorRegistry:
         if enable_ocr:
             self._register_ocr()
 
+        # MarkItDown registered last so it wraps the already-resolved extractors.
+        if enable_markitdown:
+            self._register_markitdown()
+
         # Fallback used when no specific extractor is registered.
         # GenericExtractor tries UTF-8 then charset-normalizer but does NOT
         # fall back to latin-1, so true binary files still return "".
@@ -167,6 +172,29 @@ class ExtractorRegistry:
         extractor = OcrExtractor()
         for mime in ("image/png", "image/jpeg", "image/tiff", "image/bmp", "image/webp"):
             self._extractors[mime] = extractor
+
+    def _register_markitdown(self) -> None:
+        """Wrap OOXML extractors with Markdown converters for structured output.
+
+        The original extractor is kept as a fallback: if conversion returns
+        empty text, the original extractor is called instead.
+        """
+        from services.extraction.markitdown_extractor import (
+            MarkItDownExtractor,
+            _docx_to_markdown,
+            _pptx_to_markdown,
+            _xlsx_to_markdown,
+        )
+
+        for mime, convert_fn in [
+            (_DOCX_MIME, _docx_to_markdown),
+            (_PPTX_MIME, _pptx_to_markdown),
+            (_XLSX_MIME, _xlsx_to_markdown),
+        ]:
+            self._extractors[mime] = MarkItDownExtractor(
+                convert=convert_fn,
+                fallback=self._extractors[mime],
+            )
 
     def register(self, mime_type: str, extractor: Extractor) -> None:
         """Add or override an extractor for a MIME type."""
