@@ -153,3 +153,44 @@ class DlqItem(BaseModel):
     status: str
     created_at: str | None = None
     updated_at: str | None = None
+
+
+class IngestionStatusJob(BaseModel):
+    id: str
+    document_id: str
+    source_id: str
+    document_title: str | None = None
+    source_name: str | None = None
+    job_type: str
+    status: str
+    stage: str | None = None
+    attempts: int = 0
+    max_attempts: int = 5
+    last_error: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class IngestionStatusResponse(BaseModel):
+    jobs: list[IngestionStatusJob]
+    total: int
+    summary: dict[str, int]
+
+
+class DocumentTraceJob(BaseModel):
+    id: str
+    job_type: str
+    status: str
+    stage: str | None = None
+    attempts: int = 0
+    max_attempts: int = 5
+    last_error: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class DocumentTraceResponse(BaseModel):
+    document_id: str
+    document_title: str | None = None
+    source_name: str | None = None
+    jobs: list[DocumentTraceJob]

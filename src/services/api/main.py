@@ -148,6 +148,7 @@ def create_app(
     from services.api.routers.admin.config import router as admin_config_router
     from services.api.routers.admin.dlq import router as admin_dlq_router
     from services.api.routers.admin.ingestion import router as admin_ingestion_router
+    from services.api.routers.admin.ingestion_status import router as admin_ingestion_status_router
     from services.api.routers.admin.intelligence import router as admin_intelligence_router
     from services.api.routers.admin.jobs import router as admin_jobs_router
     from services.api.routers.admin.rabbit import router as admin_rabbit_router
@@ -172,6 +173,7 @@ def create_app(
     app.include_router(annotations_router)
     app.include_router(alerts_router)
     app.include_router(admin_ingestion_router)
+    app.include_router(admin_ingestion_status_router)
     app.include_router(admin_users_router)
     app.include_router(admin_sources_router)
     app.include_router(admin_config_router)
