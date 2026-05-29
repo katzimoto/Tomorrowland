@@ -4,8 +4,8 @@ Canonical shared memory for active project state. Keep this file compact and fac
 
 ## 2026-05-29 — feat(smoke): document-flow smoke test foundation — issue #541
 
-Status: PR #554 open — branch `issue-541-smoke-document-flow`
-Source: issue #541, OpenCode session
+Status: Done — PR #554 merged to main
+Source: issue #541, PR #554
 
 `scripts/dev/smoke_document_flow.sh` implements 10-stage smoke test:
 1. check_dependencies 2. api_health 3. frontend_health (skip if FRONTEND_URL unset)
