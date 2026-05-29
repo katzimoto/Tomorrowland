@@ -1243,6 +1243,30 @@ Verification:
 Open risks:
 - Frontend vitest now runnable locally on Node 22.
 
+## 2026-05-29 — feat(rag): exact-location citation grounding (#530)
+
+Status: Done — PR #556 merged to main, issue closed
+Source: issue #530, PR #556
+
+**Goal:** Flow `page_number` and `section_heading` from extraction through RAG citation pipeline.
+
+**Key files changed:**
+- `src/services/extraction/base.py` — `LocationSegment` dataclass
+- `src/services/extraction/pdf.py`, `pptx_extractor.py`, `docx.py` — per-page/section segments
+- `src/services/chunking/splitter.py` — `resolve_chunk_locations()`, `_find_chunk_positions()`
+- `migrations/versions/y9z0a1b2c3d4_*.py` — extraction_metadata TEXT column
+- `src/services/pipeline/parse_worker.py` — stores segments as JSON
+- `src/services/pipeline/worker.py`, `vector_worker.py` — propagate to Qdrant
+- `src/services/search/qdrant.py` — upsert writes page_number/section_heading
+- `frontend/src/api/qa.ts` — optional page_number/section_heading on QACitation
+
+**Verification:** ruff, mypy strict, 72 unit tests pass.
+
+**Next agent prompt:**
+> Pick up #529 (admin ingestion debug page). The nearest backlog issue is #531 (connector credential store). Current status: next in order.
+
+---
+
 ## 2026-05-20 — Agent skills and memory branch
 
 Status: Done

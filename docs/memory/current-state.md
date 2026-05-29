@@ -106,6 +106,26 @@ Source: issue #528, Claude Code session
 
 ---
 
+## 2026-05-29 — feat(rag): exact-location citation grounding — issue #530
+
+Status: Done — PR #556 merged to main
+Source: issue #530, PR #556
+
+`page_number` and `section_heading` now flow from extraction through RAG citations:
+- `LocationSegment` dataclass (`start_char`, `end_char`, `page_number`, `section_heading`) in extraction envelope
+- PDF emits `page_number` per page; PPTX per slide; DOCX emits `section_heading` from heading styles
+- `resolve_chunk_locations()` maps chunks back to original text positions via text search
+- Migration `y9z0a1b2c3d4`: extraction_metadata TEXT column on document_payloads
+- Qdrant upsert writes `page_number`/`section_heading` payload fields
+- Frontend `QACitation` type includes optional `page_number` and `section_heading`
+
+Key decisions:
+- Text-search chunk mapping avoids modifying chunker internals (see decisions.md)
+- Translated chunks carry no location metadata (sentence boundaries differ between languages)
+- Existing documents need reindex to populate location fields
+
+---
+
 ## 2026-05-29 — roadmap: issues #526–#532 created from Onyx comparison (#525)
 
 Status: Active
@@ -114,13 +134,13 @@ Source: Planning session, issue #525
 7 issues opened following Onyx reference architecture comparison planning:
 - #526 MarkItDown extraction — DONE (PR #533 merged)
 - #527 Pre-benchmark fixture corpus + assertions — DONE (PR #535 merged)
-- #528 LLM generation provider abstraction (OpenAI-compatible) — DONE (PR open)
+- #528 LLM generation provider abstraction (OpenAI-compatible) — DONE (PR #538 merged)
 - #529 Ingestion pipeline debug status page (admin UI) — status:next
-- #530 Exact-location citation grounding (page/section) — status:next (unblocked by #527)
+- #530 Exact-location citation grounding (page/section) — DONE (PR #556 merged)
 - #531 Connector credential store — status:deferred
 - #532 Canonical metadata sidecar format — status:deferred
 
-Next recommended order: #529 → #530 (citation grounding).
+Next recommended order: #529 → #531 → #532.
 
 ---
 

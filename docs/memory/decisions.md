@@ -463,6 +463,27 @@ Impact:
 - All 4 chat route handlers (`get_session`, `update_session`, `delete_session`, `create_message`) follow this pattern.
 - Apply the same pattern to any new route with a UUID path segment.
 
+## 2026-05-29 — Citation grounding: text-search chunk location mapping
+
+Status: Active
+Source: PR #556, issue #530
+
+Decision:
+- Chunk-to-location mapping uses `resolve_chunk_locations()` — searches for normalized chunk text within the original document text — rather than modifying the chunker to track source segment indices.
+- Location data is stored in a new `extraction_metadata` TEXT (JSON) column on `document_payloads`, separate from `content_text`.
+- Translated chunks carry no location metadata (sentence boundaries differ between languages).
+
+Reason:
+- `chunk_text()` operates on sentence-split tokens and joins with `" "`; modifying it to track per-chunk origin segments would change the chunking internals and risk breaking existing behavior.
+- `extraction_metadata` is a nullable additive column — existing rows are unaffected.
+- Translation preserves semantic meaning but not exact character offsets; location metadata would be misleading.
+
+Impact:
+- Cross-boundary chunks (spanning page/slide/paragraph breaks) silently degrade to `(0, 0)` with no location — `_find_chunk_positions` normalizes whitespace but searches in un-normalized original text (documented trade-off).
+- Existing documents need a reindex pass after deploy to populate location fields.
+
+---
+
 ## 2026-05-20 — Repo memory is the durable record
 
 Status: Active
