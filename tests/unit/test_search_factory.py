@@ -60,7 +60,7 @@ def test_factory_defaults_to_ollama_in_prod() -> None:
     encoder = build_encoder(settings)
 
     assert isinstance(encoder, OllamaEmbeddingEncoder)
-    assert encoder._model == "nomic-embed-text"
+    assert encoder._model == "qwen3-embedding:8b"
 
 
 def test_factory_builds_ollama_with_custom_model() -> None:

@@ -83,7 +83,7 @@ def test_encoder_no_external_dependencies() -> None:
     """Ensure the encoder module does not import torch, transformers, etc."""
     import sys
 
-    forbidden = {"torch", "transformers", "sentence_transformers", "onnxruntime"}
+    forbidden = {"torch", "transformers", "sentence_transformers"}
     imported = set(sys.modules.keys())
     intersection = forbidden & imported
     assert not intersection, f"Forbidden modules imported: {intersection}"

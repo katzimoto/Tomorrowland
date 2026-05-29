@@ -263,7 +263,6 @@ class TestVectorWorkerMetrics:
         encoder.encode.return_value = [0.1, 0.2]
 
         qdrant = MagicMock()
-        extractor = MagicMock()
 
         # Patch chunk_text to return one chunk so encode/upsert run
         import services.pipeline.vector_worker as vw_module
@@ -276,7 +275,6 @@ class TestVectorWorkerMetrics:
                 encoder,
                 qdrant,
                 doc_repo,
-                extractor,
                 worker_id="vw1",
                 metrics=metrics,
             )
@@ -304,11 +302,8 @@ class TestVectorWorkerMetrics:
 
         encoder = MagicMock()
         qdrant = MagicMock()
-        extractor = MagicMock()
 
-        run_vector_once(
-            repo, encoder, qdrant, doc_repo, extractor, worker_id="vw1", metrics=metrics
-        )
+        run_vector_once(repo, encoder, qdrant, doc_repo, worker_id="vw1", metrics=metrics)
 
         retried_val = metrics.pipeline_jobs_retried_total.labels(
             worker_type="vector", job_type="vector_index_document"
@@ -325,11 +320,8 @@ class TestVectorWorkerMetrics:
 
         encoder = MagicMock()
         qdrant = MagicMock()
-        extractor = MagicMock()
 
-        run_vector_once(
-            repo, encoder, qdrant, doc_repo, extractor, worker_id="vw1", metrics=metrics
-        )
+        run_vector_once(repo, encoder, qdrant, doc_repo, worker_id="vw1", metrics=metrics)
 
         dead_val = metrics.pipeline_jobs_dead_lettered_total.labels(
             worker_type="vector", job_type="vector_index_document"
@@ -349,7 +341,6 @@ class TestVectorWorkerMetrics:
         encoder = MagicMock()
         encoder.encode.return_value = [0.1]
         qdrant = MagicMock()
-        extractor = MagicMock()
 
         import services.pipeline.vector_worker as vw_module
 
@@ -361,7 +352,6 @@ class TestVectorWorkerMetrics:
                 encoder,
                 qdrant,
                 doc_repo,
-                extractor,
                 worker_id="vw1",
                 metrics=None,
             )

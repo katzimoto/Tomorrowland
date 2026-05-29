@@ -166,6 +166,7 @@ def test_expertise_returns_signal_details_end_to_end() -> None:
         repository=mock_repo,
         qdrant_client=mock_qdrant,
         encoder=mock_encoder,
+        job_repo=MagicMock(),
     )
 
     results = service.expertise(topic="budget", group_ids=["group-a"])

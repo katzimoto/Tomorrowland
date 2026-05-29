@@ -452,7 +452,6 @@ def test_slow_worker_processes_pending_high(
         doc_repo = DocumentRepository(connection)
         worker = SlowWorker(
             document_repository=doc_repo,
-            extractor_registry=None,  # use real registry for text files
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
             es_client=mock_es,
@@ -510,7 +509,6 @@ def test_slow_worker_failure_sets_failed(
         doc_repo = DocumentRepository(connection)
         worker = SlowWorker(
             document_repository=doc_repo,
-            extractor_registry=None,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
             es_client=mock_es,

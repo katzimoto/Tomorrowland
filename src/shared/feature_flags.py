@@ -16,6 +16,12 @@ SYSTEM_CONFIG_DEFAULTS: Final[MappingProxyType[str, JsonValue]] = MappingProxyTy
         "feature.expertise_map": True,
         "feature.related_docs": True,
         "feature.auto_tagging": True,
+        "feature.document_chat": True,
+        "feature.document_chat_metadata_search": True,
+        "feature.document_chat_query_rewrite": True,
+        "feature.document_chat_reranker": True,
+        "feature.document_chat_streaming": True,
+        "feature.document_chat_translated_text": True,
         "llm.model": "mistral",
         "llm.qa_system_prompt": (
             "You are a knowledge assistant. Answer based only on the context provided."
