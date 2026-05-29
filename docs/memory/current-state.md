@@ -18,6 +18,19 @@ Decision: implement natively rather than take the package dependency. See decisi
 
 ---
 
+## 2026-05-29 — test(extraction): pre-benchmark fixture corpus — merged PR #535
+
+Status: Done — PR #535 merged to main
+Source: PR #535, issue #527
+
+Fixture corpus and assertion layer built as prerequisite for Onyx benchmark comparison:
+- 5 fixture files added to `tests/fixtures/`: `sample-with-headings.docx`, `sample-multisheet.xlsx`, `wrong-extension.docx` (PPTX rename), `corrupt.pdf`, `encrypted.pdf`
+- 15 unit tests in `tests/unit/test_extraction_fixture_corpus.py` covering extraction shape, failure-modes, and `has_extractor` boundary
+- 1 integration test in `tests/integration/test_chunk_index_pipeline.py` verifying every Qdrant chunk payload has non-null integer `chunk_index`
+- `PdfExtractor` now catches `FileNotDecryptedError` so encrypted PDFs return empty text instead of crashing
+
+---
+
 ## 2026-05-29 — roadmap: issues #526–#532 created from Onyx comparison (#525)
 
 Status: Active
@@ -25,14 +38,14 @@ Source: Planning session, issue #525
 
 7 issues opened following Onyx reference architecture comparison planning:
 - #526 MarkItDown extraction — DONE (PR #533 merged)
-- #527 Pre-benchmark fixture corpus + assertions — status:next
+- #527 Pre-benchmark fixture corpus + assertions — DONE (PR #535 merged)
 - #528 LLM generation provider abstraction (OpenAI-compatible) — status:next
 - #529 Ingestion pipeline debug status page (admin UI) — status:next
-- #530 Exact-location citation grounding (page/section) — status:deferred, blocked by #527
+- #530 Exact-location citation grounding (page/section) — status:next (unblocked by #527)
 - #531 Connector credential store — status:deferred
 - #532 Canonical metadata sidecar format — status:deferred
 
-Next recommended order: #527 (test foundation) → #528 and #529 in parallel → #530 after #527 closes.
+Next recommended order: #528 and #529 in parallel → #530 (citation grounding, now unblocked).
 
 ---
 
