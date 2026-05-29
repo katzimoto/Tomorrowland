@@ -4,7 +4,7 @@ Shared record for concise cross-agent handoffs that remain useful after a chat o
 
 ## 2026-05-29 — feat(admin): ingestion pipeline status API (#529 backend slice)
 
-Status: Active — PR #568 open, ready to merge
+Status: Done — PR #568 merged to main (commit 7f78d5b)
 Source: issue #529, PR #566 (closed), PR #568
 
 **Goal:** Admin-only endpoints for operator visibility into pipeline job status.
@@ -31,7 +31,7 @@ Source: issue #529, PR #566 (closed), PR #568
 **Review blocker resolved:** Original PR #566 targeted wrong base branch (`feat/536-side-by-side-preview` instead of `main`) and had two tests documenting a cascade-impossible scenario. Both fixed in commit 75db186; new PR #568 targets main.
 
 **Next agent prompt:**
-> PR #568 is ready to merge (#529 backend slice). After merge, pick up the frontend admin page (#529 frontend) or the next queued issue.
+> #529 backend slice is on main. Pick up the frontend admin page for #529, or the next queued issue.
 
 ---
 

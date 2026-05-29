@@ -2,6 +2,24 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-29 — feat(admin): ingestion pipeline status API — issue #529 backend slice
+
+Status: Done — PR #568 merged to main (commit 7f78d5b)
+Source: issue #529, PR #568
+
+`GET /admin/ingestion/status` and `GET /admin/ingestion/status/{document_id}` added.
+Admin-only. Filters: status, source_id, since, limit, offset. Per-filter summary counts.
+Trace endpoint returns jobs ordered by `created_at ASC`; 404 when no jobs exist.
+
+Key constraints:
+- `summary_by_status` is filter-scoped, not global totals
+- `pipeline_jobs.document_id` has ON DELETE CASCADE — no "orphaned job" scenario in prod
+- `limit` has no upper bound (consistent with `/admin/jobs`); hardening deferred
+
+Frontend admin page (#529 frontend half) still deferred.
+
+---
+
 ## 2026-05-29 — feat(chat): side-by-side source preview — issue #536
 
 Status: Done — PR #559 merged to main (squash commit a598fed)
@@ -156,7 +174,7 @@ Source: Planning session, issue #525
 - #526 MarkItDown extraction — DONE (PR #533 merged)
 - #527 Pre-benchmark fixture corpus + assertions — DONE (PR #535 merged)
 - #528 LLM generation provider abstraction (OpenAI-compatible) — DONE (PR #538 merged)
-- #529 Ingestion pipeline debug status page (admin UI) — status:next
+- #529 Ingestion pipeline debug status page (admin UI) — backend slice DONE (PR #568 merged); frontend page deferred
 - #530 Exact-location citation grounding (page/section) — DONE (PR #556 merged)
 - #531 Connector credential store — status:deferred
 - #532 Canonical metadata sidecar format — status:deferred
