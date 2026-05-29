@@ -14,7 +14,7 @@ describe("FidelityStatusBar", () => {
     expect(screen.getByText(/Viewing original file/i)).toBeInTheDocument();
   });
 
-  it("does not show download link in original mode", () => {
+  it("does not show download button in original mode", () => {
     render(
       <FidelityStatusBar
         activeMode="original"
@@ -22,7 +22,7 @@ describe("FidelityStatusBar", () => {
         downloadUrl="/api/download/doc-1"
       />
     );
-    expect(screen.queryByRole("link", { name: /download original/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /download original/i })).not.toBeInTheDocument();
   });
 
   it("shows 'Viewing extracted text' in extracted mode", () => {
@@ -36,7 +36,7 @@ describe("FidelityStatusBar", () => {
     expect(screen.getByText(/Viewing extracted text/)).toBeInTheDocument();
   });
 
-  it("shows download link in extracted mode", () => {
+  it("shows download button in extracted mode", () => {
     render(
       <FidelityStatusBar
         activeMode="extracted"
@@ -44,8 +44,9 @@ describe("FidelityStatusBar", () => {
         downloadUrl="/api/download/doc-1"
       />
     );
-    const link = screen.getByRole("link", { name: /download original/i });
-    expect(link).toHaveAttribute("href", "/api/download/doc-1");
+    expect(
+      screen.getByRole("button", { name: /download original/i })
+    ).toBeInTheDocument();
   });
 
   it("shows 'Viewing high-quality translation' for translation+high", () => {
@@ -59,7 +60,7 @@ describe("FidelityStatusBar", () => {
     expect(screen.getByText(/Viewing high-quality translation/)).toBeInTheDocument();
   });
 
-  it("does not show download link for high-quality translation", () => {
+  it("does not show download button for high-quality translation", () => {
     render(
       <FidelityStatusBar
         activeMode="translation"
@@ -67,7 +68,7 @@ describe("FidelityStatusBar", () => {
         downloadUrl="/api/download/doc-1"
       />
     );
-    expect(screen.queryByRole("link", { name: /download original/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /download original/i })).not.toBeInTheDocument();
   });
 
   it("shows 'Viewing fast translation' for translation+fast", () => {
@@ -81,7 +82,7 @@ describe("FidelityStatusBar", () => {
     expect(screen.getByText(/Viewing fast translation/)).toBeInTheDocument();
   });
 
-  it("shows download link for fast translation", () => {
+  it("shows download button for fast translation", () => {
     render(
       <FidelityStatusBar
         activeMode="translation"
@@ -89,7 +90,9 @@ describe("FidelityStatusBar", () => {
         downloadUrl="/api/download/doc-1"
       />
     );
-    expect(screen.getByRole("link", { name: /download original/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /download original/i })
+    ).toBeInTheDocument();
   });
 
   it("dot has an accessible label (not colour alone)", () => {

@@ -48,7 +48,7 @@ describe("DocumentToolbar", () => {
     ).toBeInTheDocument();
   });
 
-  it("download link has aria-label", () => {
+  it("shows download button", () => {
     render(
       <DocumentToolbar
         preview={mockPreview}
@@ -61,8 +61,9 @@ describe("DocumentToolbar", () => {
         onModeChange={vi.fn()}
       />
     );
-    const link = screen.getByRole("link", { name: /download/i });
-    expect(link).toHaveAttribute("aria-label", "Download original file");
+    expect(
+      screen.getByRole("button", { name: /download text/i })
+    ).toBeInTheDocument();
   });
 
   it("shows back to search button", () => {
@@ -83,7 +84,7 @@ describe("DocumentToolbar", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows download link", () => {
+  it("shows download button with correct label", () => {
     render(
       <DocumentToolbar
         preview={mockPreview}
@@ -96,10 +97,9 @@ describe("DocumentToolbar", () => {
         onModeChange={vi.fn()}
       />
     );
-    expect(screen.getByRole("link", { name: /download/i })).toHaveAttribute(
-      "href",
-      "/api/download/doc-1"
-    );
+    expect(
+      screen.getByRole("button", { name: /download text/i })
+    ).toBeInTheDocument();
   });
 
   it("shows request translation button when quality is not high", () => {

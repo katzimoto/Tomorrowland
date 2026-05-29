@@ -96,11 +96,23 @@ describe("DocumentPage", () => {
     });
   });
 
-  it("shows download link with correct href", async () => {
+  it("shows download button when in extracted or translation mode", async () => {
+    vi.mocked(documentsApi.getTranslationVersions).mockResolvedValue([
+      {
+        version_id: "v1",
+        label: "Version 1",
+        version_number: 1,
+        quality: "fast",
+        status: "available",
+        target_language: "es",
+        requested_at: "2026-01-01T00:00:00Z",
+      },
+    ]);
     render(<DocumentPage />);
     await waitFor(() => {
-      const link = screen.getByRole("link", { name: /download/i });
-      expect(link).toHaveAttribute("href", "/api/download/doc-123");
+      expect(
+        screen.getByRole("button", { name: /download original/i })
+      ).toBeInTheDocument();
     });
   });
 
