@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ServerIcon, Users, UserCircle } from "lucide-react";
+import { ServerIcon, Users, UserCircle, Activity } from "lucide-react";
 import styles from "./AdminHubPage.module.css";
 
 export function AdminHubPage() {
@@ -35,6 +35,15 @@ export function AdminHubPage() {
           <Users size={32} className={styles.cardIcon} />
           <span className={styles.cardTitle}>Groups</span>
           <span className={styles.cardDesc}>Manage user groups, memberships, and hierarchy</span>
+        </button>
+        <button
+          type="button"
+          className={styles.card}
+          onClick={() => navigate({ to: "/admin/ingestion" })}
+        >
+          <Activity size={32} className={styles.cardIcon} />
+          <span className={styles.cardTitle}>Ingestion</span>
+          <span className={styles.cardDesc}>Monitor pipeline job status and per-document traces</span>
         </button>
       </div>
     </div>

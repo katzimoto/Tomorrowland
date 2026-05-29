@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Issue #529 (backend slice): Admin ingestion pipeline status API — `GET /admin/ingestion/status` lists pipeline jobs with status/source_id/since/limit/offset filters and per-status summary counts; `GET /admin/ingestion/status/{document_id}` returns per-document job traces ordered by creation time. Both endpoints admin-only, use LEFT JOIN so deleted/missing documents return null title/source without crashing.
+- Issue #529 (frontend slice): Admin ingestion pipeline status UI — new `/admin/ingestion` page with status summary cards (pending/running/completed/failed counts), filter bar (status, source_id, since), paginated jobs table, row expansion with per-document pipeline trace and requeue action. Linked from admin hub. Includes loading, empty, error, 404, and long-error-truncation states.
 - Issue #530: Exact-location citation grounding — `page_number` and `section_heading` now flow from extraction through RAG citations.
   - Added `LocationSegment` dataclass with `start_char`/`end_char`/`page_number`/`section_heading` to extraction envelope.
   - PDF extractor emits `page_number` per page; PPTX extractor emits `page_number` per slide; DOCX extractor emits `section_heading` from heading styles.

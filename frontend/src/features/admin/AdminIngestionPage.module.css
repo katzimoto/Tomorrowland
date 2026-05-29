@@ -1,0 +1,317 @@
+.page {
+  padding: var(--page-padding-desktop);
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
+.title {
+  font-size: var(--font-size-page-title);
+  line-height: var(--line-height-page-title);
+  font-weight: var(--font-weight-page-title);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Summary cards ── */
+.summaryRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+
+.summaryLabel {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.summaryValue {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  line-height: 1;
+}
+
+.summaryCardPending { border-left: 3px solid var(--color-warning); }
+.summaryCardRunning { border-left: 3px solid var(--color-primary); }
+.summaryCardCompleted { border-left: 3px solid var(--color-success); }
+.summaryCardFailed { border-left: 3px solid var(--color-danger); }
+
+/* ── Filter bar ── */
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+}
+
+.filterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.filterLabel {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-meta);
+  color: var(--color-text-secondary);
+}
+
+.filterSelect,
+.filterInput {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  font-family: inherit;
+  min-width: 160px;
+}
+
+.filterSelect:focus,
+.filterInput:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Table ── */
+.tableWrap {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-body);
+}
+
+.table th {
+  text-align: left;
+  padding: 10px 16px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-meta);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.table td {
+  padding: var(--row-padding-y) 16px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+  color: var(--color-text-primary);
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.nameCell {
+  font-weight: 500;
+}
+
+.expandCell {
+  width: 40px;
+  text-align: center;
+}
+
+.expandBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  transition: border-color 0.15s;
+}
+
+.expandBtn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.errorCell {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-danger);
+  font-size: var(--font-size-meta);
+}
+
+.dateCell {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/* ── Expanded row ── */
+.detailRow td {
+  padding: 0;
+}
+
+.detailPanel {
+  padding: var(--space-4) var(--space-4) var(--space-4) 60px;
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+}
+
+.detailHeader {
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-section-title);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-3);
+}
+
+.detailMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-3);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.detailJobs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.traceRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  background: var(--color-surface);
+  font-size: var(--font-size-body);
+}
+
+.traceRowMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.traceRowTitle {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.traceRowSub {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.traceError {
+  font-size: var(--font-size-meta);
+  color: var(--color-danger);
+  margin-top: 2px;
+  word-break: break-word;
+}
+
+.traceActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* ── Pagination ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.pageInfo {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+/* ── Error state ── */
+.errorBox {
+  padding: var(--space-4);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+  color: var(--color-danger);
+  font-size: var(--font-size-body);
+}
+
+/* ── Detail loading / error ── */
+.detailLoading {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  padding: var(--space-3) 0;
+}
+
+.detailEmpty {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  padding: var(--space-3) 0;
+}
+
+.detailError {
+  font-size: var(--font-size-meta);
+  color: var(--color-danger);
+  padding: var(--space-3) 0;
+}
+
+/* ── Retry feedback ── */
+.retrySuccess {
+  font-size: var(--font-size-meta);
+  color: var(--color-success);
+}
+
+.retryError {
+  font-size: var(--font-size-meta);
+  color: var(--color-danger);
+}
