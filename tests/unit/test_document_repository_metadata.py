@@ -165,13 +165,16 @@ def test_sync_now_persists_connector_metadata(
     monkeypatch.setattr(
         ingestion_router, "build_connector", lambda _source_row: _MetadataConnector()
     )
-                worker = PipelineWorker(
-                    document_repository=repo,
-                    extractor_registry=reg,
-                    translator=MagicMock(),
-                    encoder=encoder,
-                    qdrant_client=MagicMock(),
-                )
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator.translate.return_value = "bonjour from smb"
+    client = TestClient(
+        api_main.create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            translator=mock_translator,
+            qdrant_client=mock_qdrant,
+        )
     )
     login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
     assert login.status_code == 200

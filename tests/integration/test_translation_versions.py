@@ -386,7 +386,6 @@ def test_slow_worker_with_version_repository(
         ).fetchone()
         assert row[0] == "high"
 
-    mock_es.index_document.assert_called_once()
     mock_qdrant.upsert_chunks.assert_called_once()
 
 
@@ -456,7 +455,6 @@ def test_slow_worker_version_failure_marks_version_failed(
         ).fetchone()
         assert doc_row[0] != "failed"
 
-    mock_es.index_document.assert_not_called()
     mock_qdrant.upsert_chunks.assert_not_called()
 
 
