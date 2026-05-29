@@ -5,7 +5,7 @@ from typing import Any
 INDEX_NAME = "documents"
 SHADOW_INDEX_NAME = "documents_shadow"
 
-SETTINGS_VERSION = 1
+SETTINGS_VERSION = 2
 
 # ---------------------------------------------------------------------------
 # Searchable attributes
@@ -61,6 +61,7 @@ _FILTERABLE_ATTRIBUTES: list[str] = [
     "is_admin_only",
     "chunk_index",
     "metadata.source",
+    "metadata.source_id",
     "metadata.document_type",
     "metadata.mime_type",
     "metadata.file_extension",
@@ -231,6 +232,7 @@ _DISPLAYED_ATTRIBUTES: list[str] = [
     "section_path",
     "position",
     "metadata.source",
+    "metadata.source_id",
     "metadata.document_type",
     "metadata.mime_type",
     "metadata.file_name",

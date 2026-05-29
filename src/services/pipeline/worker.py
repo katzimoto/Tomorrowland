@@ -276,6 +276,7 @@ class PipelineWorker:
                         content=orig_chunk,
                         allowed_group_ids=allowed_group_ids,
                         metadata=ChunkMetadata(
+                            source_id=str(doc.source_id),
                             source=doc.source,
                             mime_type=doc.mime_type,
                             file_name=Path(doc.path).name if doc.path else None,
@@ -301,6 +302,7 @@ class PipelineWorker:
                             content=original_chunks[idx],
                             allowed_group_ids=allowed_group_ids,
                             metadata=ChunkMetadata(
+                                source_id=str(doc.source_id),
                                 source=doc.source,
                                 mime_type=doc.mime_type,
                                 file_name=Path(doc.path).name if doc.path else None,

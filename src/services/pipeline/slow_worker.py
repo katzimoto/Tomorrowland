@@ -133,9 +133,7 @@ class SlowWorker:
                     version_id,
                     reason,
                 )
-                self._version_repo.update_version_status(
-                    version_id, "failed", error_summary=reason
-                )
+                self._version_repo.update_version_status(version_id, "failed", error_summary=reason)
                 return
 
             # 4. Store translated text on version
@@ -212,6 +210,7 @@ class SlowWorker:
                         content=orig_chunk,
                         allowed_group_ids=allowed_group_ids,
                         metadata=ChunkMetadata(
+                            source_id=str(doc.source_id),
                             source=doc.source,
                             mime_type=doc.mime_type,
                             file_name=Path(doc.path).name if doc.path else None,
@@ -236,6 +235,7 @@ class SlowWorker:
                             content=original_chunks[idx],
                             allowed_group_ids=allowed_group_ids,
                             metadata=ChunkMetadata(
+                                source_id=str(doc.source_id),
                                 source=doc.source,
                                 mime_type=doc.mime_type,
                                 file_name=Path(doc.path).name if doc.path else None,

@@ -84,6 +84,20 @@ def test_metadata_text_excludes_sensitive_fields() -> None:
     assert text == "" or text.strip() == ""
 
 
+def test_chunk_metadata_source_id_is_optional() -> None:
+    meta = ChunkMetadata()
+    assert meta.source_id is None
+    meta = ChunkMetadata(source_id="src-abc-123")
+    assert meta.source_id == "src-abc-123"
+
+
+def test_chunk_metadata_source_id_dumped_in_model() -> None:
+    meta = ChunkMetadata(source_id="src-abc-123", source="upload")
+    dumped = meta.model_dump()
+    assert dumped["source_id"] == "src-abc-123"
+    assert dumped["source"] == "upload"
+
+
 def test_metadata_text_empty_for_blank_metadata() -> None:
     assert build_metadata_text(ChunkMetadata()) == ""
 

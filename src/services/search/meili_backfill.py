@@ -111,6 +111,7 @@ class BackfillService:
                 content=chunk_text_content,
                 allowed_group_ids=group_ids,
                 metadata=ChunkMetadata(
+                    source_id=str(doc_row["source_id"]) if doc_row.get("source_id") else None,
                     source=doc_row.get("source"),
                     mime_type=doc_row.get("mime_type"),
                     file_name=(Path(doc_row["path"]).name if doc_row.get("path") else None),

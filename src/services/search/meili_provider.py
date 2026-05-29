@@ -336,12 +336,16 @@ class MeilisearchSearchProvider:
         group_ids: list[str],
         allow_all: bool = False,
         limit: int = 20,
+        source_ids: list[str] | None = None,
     ) -> list[SearchResult]:
         """Search Meilisearch for RAG — no user object required.
 
         Uses ``build_permission_filter_for_ids`` directly so callers can pass
         pre-resolved effective group IDs. Returns ``SearchResult`` objects
         compatible with ``merge_results()``.
+
+        When *source_ids* is provided, only chunks whose ``metadata.source_id``
+        matches one of the given source IDs are returned.
         """
         from services.search.meili_acl import build_permission_filter_for_ids
 
@@ -353,6 +357,10 @@ class MeilisearchSearchProvider:
         }
         if filter_expr:
             params["filter"] = filter_expr
+        if source_ids:
+            quoted = ", ".join(f'"{s}"' for s in source_ids)
+            source_clause = f"metadata.source_id IN [{quoted}]"
+            params["filter"] = compose_filters(params.get("filter", ""), source_clause)
 
         raw = self._client.index(INDEX_NAME).search(text, params)
 
@@ -368,6 +376,7 @@ class MeilisearchSearchProvider:
                     "page_number": (hit.get("position") or {}).get("page_number"),
                     "section_heading": hit.get("heading"),
                     "source_language": (hit.get("metadata") or {}).get("language"),
+                    "source_id": (hit.get("metadata") or {}).get("source_id"),
                 },
             )
             for hit in raw.get("hits", [])
@@ -379,12 +388,16 @@ class MeilisearchSearchProvider:
         group_ids: list[str],
         allow_all: bool = False,
         limit: int = 20,
+        source_ids: list[str] | None = None,
     ) -> list[SearchResult]:
         """Search metadata fields (tags, entities, summary, document_type).
 
         Uses ``attributes_to_search_on`` to restrict the query to metadata
         fields. Requires Meilisearch 1.8+. Fused into the main result set
         with a lower weight than the full-text BM25 search.
+
+        When *source_ids* is provided, only chunks whose ``metadata.source_id``
+        matches one of the given source IDs are returned.
         """
         from services.search.meili_acl import build_permission_filter_for_ids
 
@@ -410,6 +423,10 @@ class MeilisearchSearchProvider:
         }
         if filter_expr:
             params["filter"] = filter_expr
+        if source_ids:
+            quoted = ", ".join(f'"{s}"' for s in source_ids)
+            source_clause = f"metadata.source_id IN [{quoted}]"
+            params["filter"] = compose_filters(params.get("filter", ""), source_clause)
 
         raw = self._client.index(INDEX_NAME).search(text, params)
 
@@ -425,6 +442,7 @@ class MeilisearchSearchProvider:
                     "page_number": (hit.get("position") or {}).get("page_number"),
                     "section_heading": hit.get("heading"),
                     "source_language": (hit.get("metadata") or {}).get("language"),
+                    "source_id": (hit.get("metadata") or {}).get("source_id"),
                 },
             )
             for hit in raw.get("hits", [])
@@ -436,11 +454,15 @@ class MeilisearchSearchProvider:
         group_ids: list[str],
         allow_all: bool = False,
         limit: int = 20,
+        source_ids: list[str] | None = None,
     ) -> list[SearchResult]:
         """Search translated text fields (content_en, content_he).
 
         Uses ``attributes_to_search_on`` to restrict the query to translated
         content fields. Fused into the main result set with a lower weight.
+
+        When *source_ids* is provided, only chunks whose ``metadata.source_id``
+        matches one of the given source IDs are returned.
         """
         from services.search.meili_acl import build_permission_filter_for_ids
 
@@ -458,6 +480,10 @@ class MeilisearchSearchProvider:
         }
         if filter_expr:
             params["filter"] = filter_expr
+        if source_ids:
+            quoted = ", ".join(f'"{s}"' for s in source_ids)
+            source_clause = f"metadata.source_id IN [{quoted}]"
+            params["filter"] = compose_filters(params.get("filter", ""), source_clause)
 
         raw = self._client.index(INDEX_NAME).search(text, params)
 
@@ -473,6 +499,7 @@ class MeilisearchSearchProvider:
                     "page_number": (hit.get("position") or {}).get("page_number"),
                     "section_heading": hit.get("heading"),
                     "source_language": (hit.get("metadata") or {}).get("language"),
+                    "source_id": (hit.get("metadata") or {}).get("source_id"),
                 },
             )
             for hit in raw.get("hits", [])
