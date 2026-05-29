@@ -2,6 +2,34 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-29 — feat(smoke): document-flow smoke test foundation — issue #541
+
+Status: PR #554 open — branch `issue-541-smoke-document-flow`
+Source: issue #541, OpenCode session
+
+`scripts/dev/smoke_document_flow.sh` implements 10-stage smoke test:
+1. check_dependencies 2. api_health 3. frontend_health (skip if FRONTEND_URL unset)
+4. doc_bootstrap (Docker-based fixture via `services.ops.smoke_bootstrap`, skip if Docker absent)
+5. auth_login (skip if SMOKE_ADMIN_EMAIL/PASSWORD unset)
+6. doc_ingest (POST /admin/ingestion/{source}/sync-now)
+7. doc_search (extracts first document_id)
+8. doc_preview (GET /preview/{id})
+9. doc_text (GET /documents/{id}/text)
+10. doc_download (GET /download/{id})
+
+Key design choices:
+- `SMOKE_MODE=ci` hard-fails on any stage, `SMOKE_MODE=local` collects all failures
+- All data-dependent stages gracefully skip when prerequisites absent
+- `SMOKE_DOCUMENT_ID` bypasses search-based doc discovery for preview/text/download
+- `SMOKE_TIMEOUT_SECONDS=8` default with `--connect-timeout 5` on curl probes
+- Machine-readable JSON result at `tmp/smoke-document-flow-result.json`
+- New `docs/development/local-demo.md` documents the smoke workflow
+
+Verified against real Docker Compose stack: 10/10 stages pass in 6s.
+Issue #547 should consume this script in GitHub Actions e2e workflow.
+
+---
+
 ## 2026-05-29 — feat(extraction): Markdown Office extraction — merged PR #533
 
 Status: Done — commit f6fbebb on main
