@@ -2,6 +2,26 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-05-29 — BM25 source-scope filtering: Meilisearch filter + post-filter fallback
+
+Status: Active
+Source: issue #552
+
+Decision:
+- Source-scoped RAG/hybrid retrieval enforces `source_id` on BM25 via a two-layer approach:
+  1. **Query-time filter**: `metadata.source_id IN [...]` is composed into the Meilisearch filter expression in `search_rag`, `search_rag_metadata`, and `search_rag_translated`.
+  2. **Post-filter fallback**: `_apply_scope_to_bm25` additionally filters out results whose `metadata.source_id` is not in the allowed set, handling stale index records that lack the field.
+
+Reason:
+- Qdrant already enforces source scope via `build_qdrant_filter`/`search_filtered`, but BM25/Meilisearch had no equivalent. Hybrid retrieval could merge out-of-source BM25 results into scoped context.
+- Meilisearch IN filter naturally excludes null/missing fields, so no special null handling is needed at query time.
+- Post-filter provides defense-in-depth for records indexed before `source_id` was populated.
+
+Impact:
+- All indexing sites (backfill, worker, slow_worker, index_worker) now populate `metadata.source_id`.
+- Settings version bumped to 2 — operators must run backfill/reindex after deploy.
+- If backfill is not run, source-scoped queries will return no BM25 results for those sources (fails closed).
+
 ## 2026-05-29 — Markdown Office extraction: native implementation, not markitdown package
 
 Status: Active

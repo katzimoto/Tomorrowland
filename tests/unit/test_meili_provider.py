@@ -12,6 +12,7 @@ from services.search.meili_types import (
     DocumentSearchQuery,
     SearchChunkRecord,
 )
+from services.search.models import SearchResult
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -313,3 +314,184 @@ def test_health_check_returns_ok_false_on_exception() -> None:
     result = provider.health_check()
     assert result["ok"] is False
     assert result["error"] is not None
+
+
+# ---------------------------------------------------------------------------
+# search_rag — source_ids filter
+# ---------------------------------------------------------------------------
+
+
+def _search_rag_hit(doc_id: str = "doc-1", source_id: str | None = None) -> dict:
+    meta: dict = {"language": "en"}
+    if source_id is not None:
+        meta["source_id"] = source_id
+    return {
+        "id": f"doc_{doc_id}_chunk_0000",
+        "document_id": doc_id,
+        "chunk_index": 0,
+        "title": "Title",
+        "content": "hello",
+        "heading": None,
+        "position": {"chunk_index": 0},
+        "metadata": meta,
+        "_rankingScore": 0.9,
+    }
+
+
+def test_search_rag_passes_source_ids_filter() -> None:
+    client, provider = _provider()
+    client.index.return_value.search.return_value = {
+        "hits": [
+            _search_rag_hit("doc-1", source_id="src-a"),
+            _search_rag_hit("doc-2", source_id="src-b"),
+        ],
+        "nbHits": 2,
+        "estimatedTotalHits": 2,
+        "processingTimeMs": 1,
+    }
+    provider.search_rag(
+        text="hello",
+        group_ids=["g1"],
+        source_ids=["src-a"],
+    )
+    call_args = client.index().search.call_args
+    params = call_args[0][1]
+    assert "filter" in params
+    assert 'metadata.source_id IN ["src-a"]' in params["filter"]
+
+
+def test_search_rag_source_ids_filter_does_not_replace_acl_filter() -> None:
+    """source_ids filter must be ANDed with ACL filter, not replace it."""
+    client, provider = _provider()
+    client.index.return_value.search.return_value = {
+        "hits": [],
+        "nbHits": 0,
+        "estimatedTotalHits": 0,
+        "processingTimeMs": 1,
+    }
+    provider.search_rag(
+        text="hello",
+        group_ids=["g1"],
+        source_ids=["src-a"],
+    )
+    params = client.index().search.call_args[0][1]
+    assert "allowed_group_ids" in params["filter"]
+    assert 'metadata.source_id IN ["src-a"]' in params["filter"]
+
+
+def test_search_rag_source_ids_maps_source_id_in_metadata() -> None:
+    client, provider = _provider()
+    client.index.return_value.search.return_value = {
+        "hits": [_search_rag_hit("doc-1", source_id="src-a")],
+        "nbHits": 1,
+        "estimatedTotalHits": 1,
+        "processingTimeMs": 1,
+    }
+    results = provider.search_rag(
+        text="hello",
+        group_ids=["g1"],
+        source_ids=["src-a"],
+    )
+    assert len(results) == 1
+    assert results[0].metadata.get("source_id") == "src-a"
+
+
+def test_search_rag_metadata_passes_source_ids_filter() -> None:
+    client, provider = _provider()
+    client.index.return_value.search.return_value = {
+        "hits": [_search_rag_hit("doc-1", source_id="src-a")],
+        "nbHits": 1,
+        "estimatedTotalHits": 1,
+        "processingTimeMs": 1,
+    }
+    provider.search_rag_metadata(
+        text="hello",
+        group_ids=["g1"],
+        source_ids=["src-a"],
+    )
+    call_args = client.index().search.call_args
+    assert 'metadata.source_id IN ["src-a"]' in call_args[0][1]["filter"]
+
+
+def test_search_rag_translated_passes_source_ids_filter() -> None:
+    client, provider = _provider()
+    client.index.return_value.search.return_value = {
+        "hits": [_search_rag_hit("doc-1", source_id="src-a")],
+        "nbHits": 1,
+        "estimatedTotalHits": 1,
+        "processingTimeMs": 1,
+    }
+    provider.search_rag_translated(
+        text="hello",
+        group_ids=["g1"],
+        source_ids=["src-a"],
+    )
+    call_args = client.index().search.call_args
+    assert 'metadata.source_id IN ["src-a"]' in call_args[0][1]["filter"]
+
+
+# ---------------------------------------------------------------------------
+# _apply_scope_to_bm25 — source scope post-filter
+# ---------------------------------------------------------------------------
+
+
+def test_apply_scope_to_bm25_source_included() -> None:
+    from services.rag.service import RagService
+
+    results = [
+        SearchResult(document_id="d1", score=0.9, metadata={"source_id": "src-a"}),
+        SearchResult(document_id="d2", score=0.8, metadata={"source_id": "src-b"}),
+        SearchResult(document_id="d3", score=0.7, metadata={"source_id": "src-a"}),
+    ]
+    from services.chat.models import ChatScope
+
+    scope = ChatScope(scope_type="source", scope_ids=["src-a"])
+    filtered = RagService._apply_scope_to_bm25(results, scope)
+    assert len(filtered) == 2
+    assert filtered[0].document_id == "d1"
+    assert filtered[1].document_id == "d3"
+
+
+def test_apply_scope_to_bm25_source_excludes_missing_source_id() -> None:
+    """Stale records without source_id must be excluded for source scope."""
+    from services.rag.service import RagService
+
+    results = [
+        SearchResult(document_id="d1", score=0.9, metadata={"source_id": "src-a"}),
+        SearchResult(document_id="d2", score=0.8, metadata={"source_id": None}),
+        SearchResult(document_id="d3", score=0.7, metadata={}),
+    ]
+    from services.chat.models import ChatScope
+
+    scope = ChatScope(scope_type="source", scope_ids=["src-a"])
+    filtered = RagService._apply_scope_to_bm25(results, scope)
+    assert len(filtered) == 1
+    assert filtered[0].document_id == "d1"
+
+
+def test_apply_scope_to_bm25_source_excludes_unmatched() -> None:
+    from services.rag.service import RagService
+
+    results = [
+        SearchResult(document_id="d1", score=0.9, metadata={"source_id": "src-a"}),
+    ]
+    from services.chat.models import ChatScope
+
+    scope = ChatScope(scope_type="source", scope_ids=["src-b"])
+    filtered = RagService._apply_scope_to_bm25(results, scope)
+    assert len(filtered) == 0
+
+
+def test_apply_scope_to_bm25_keeps_all_accessible_accessible() -> None:
+    """all_accessible_documents scope must not filter BM25 results."""
+    from services.rag.service import RagService
+
+    results = [
+        SearchResult(document_id="d1", score=0.9, metadata={}),
+        SearchResult(document_id="d2", score=0.8, metadata={}),
+    ]
+    from services.chat.models import ChatScope
+
+    scope = ChatScope(scope_type="all_accessible_documents", scope_ids=[])
+    filtered = RagService._apply_scope_to_bm25(results, scope)
+    assert len(filtered) == 2

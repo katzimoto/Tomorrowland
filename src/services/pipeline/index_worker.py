@@ -143,6 +143,7 @@ class IndexConsumer(BaseConsumer):
                     content=original_chunks[idx],
                     allowed_group_ids=allowed_group_ids,
                     metadata=ChunkMetadata(
+                        source_id=str(doc.source_id),
                         source=doc.source,
                         mime_type=doc.mime_type,
                         language=doc.source_language,
@@ -160,6 +161,7 @@ class IndexConsumer(BaseConsumer):
                     content=original_chunks[idx],
                     allowed_group_ids=allowed_group_ids,
                     metadata=ChunkMetadata(
+                        source_id=str(doc.source_id),
                         source=doc.source,
                         mime_type=doc.mime_type,
                         language=doc.source_language,

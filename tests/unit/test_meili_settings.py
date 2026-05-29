@@ -56,6 +56,14 @@ def test_is_admin_only_is_filterable() -> None:
     assert "is_admin_only" in INDEX_SETTINGS["filterableAttributes"]
 
 
+def test_metadata_source_id_is_filterable() -> None:
+    assert "metadata.source_id" in INDEX_SETTINGS["filterableAttributes"]
+
+
+def test_metadata_source_id_is_displayed() -> None:
+    assert "metadata.source_id" in INDEX_SETTINGS["displayedAttributes"]
+
+
 def test_metadata_checksum_not_filterable() -> None:
     assert "metadata.checksum" not in INDEX_SETTINGS["filterableAttributes"]
 

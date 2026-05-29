@@ -53,6 +53,7 @@ class ChunkPosition(BaseModel):
 
 class ChunkMetadata(BaseModel):
     # Source provenance — loosely typed to accommodate connector expansion
+    source_id: str | None = None
     source: str | None = None
     document_type: (
         Literal[

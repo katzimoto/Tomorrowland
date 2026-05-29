@@ -375,6 +375,8 @@ class RagService:
                 allow_all=allow_all,
             )
 
+        source_ids = scope.scope_ids if scope and scope.scope_type == "source" else None
+
         if self._meili is not None:
             bm25_results = self._apply_scope_to_bm25(
                 self._meili.search_rag(
@@ -382,6 +384,7 @@ class RagService:
                     group_ids=group_ids,
                     allow_all=allow_all,
                     limit=CANDIDATE_LIMIT,
+                    source_ids=source_ids,
                 ),
                 scope,
             )
@@ -399,6 +402,7 @@ class RagService:
                         group_ids=group_ids,
                         allow_all=allow_all,
                         limit=CANDIDATE_LIMIT,
+                        source_ids=source_ids,
                     ),
                     scope,
                 )
@@ -416,6 +420,7 @@ class RagService:
                         group_ids=group_ids,
                         allow_all=allow_all,
                         limit=CANDIDATE_LIMIT,
+                        source_ids=source_ids,
                     ),
                     scope,
                 )
@@ -467,16 +472,17 @@ class RagService:
         results: list[Any],
         scope: ChatScope | None,
     ) -> list[Any]:
-        """Filter BM25 results to respect document-id-based chat scopes.
+        """Filter BM25 results to respect document-id- and source-based scopes.
 
         Qdrant results are already filtered via ``build_qdrant_filter`` /
         ``search_filtered``.  Meilisearch only supports group-level ACL, so
         document- and search-result-scoped queries need this post-filter to
         avoid returning out-of-scope chunks in hybrid mode.
 
-        ``source`` scope filtering requires ``source_id`` in Meilisearch
-        payloads; that field is not indexed today so source-scoped BM25 is
-        returned unfiltered (Qdrant still enforces it on the vector side).
+        For ``source`` scope, Meilisearch applies a ``metadata.source_id``
+        filter at query time (see ``search_rag``). This post-filter serves as
+        a safety net for stale index records that lack ``source_id``: they are
+        excluded.
         """
         if scope is None:
             return results
@@ -487,7 +493,10 @@ class RagService:
         if st in ("selected_documents", "current_search_results"):
             allowed = set(scope.scope_ids)
             return [r for r in results if r.document_id in allowed]
-        # all_accessible_documents / source / folder: no document-id filter here
+        if st == "source":
+            allowed = set(scope.scope_ids)
+            return [r for r in results if (r.metadata or {}).get("source_id") in allowed]
+        # all_accessible_documents / folder: no document-id filter here
         return results
 
     def _assemble_context(self, chunks: list[dict[str, Any]]) -> str:
