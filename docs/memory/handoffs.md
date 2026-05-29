@@ -2,6 +2,34 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-29 — ci(e2e): PR-gated smoke workflows — issue #547, PR #567
+
+Status: Done — merged to main
+Source: issue #547, PR #567, Claude Code review session
+
+**Goal:** Wire #541's `smoke_document_flow.sh` into GitHub Actions and add Playwright E2E CI.
+
+**Changed files:**
+- `.github/workflows/smoke.yml` (new) — `playwright` + `document-flow` jobs; path-filtered triggers; Playwright browser cache; diagnostics cover migrate/postgres/elasticsearch; teardown `if: always()`
+- `frontend/package.json` — `test:e2e` + `test:e2e:ci` scripts added
+- `docs/development/testing.md` — local smoke commands documented
+- `docs/development/local-demo.md` — #547 placeholder replaced
+- `CHANGELOG.md` — Unreleased entry added
+
+**Review findings applied (commit 9a926f9):**
+- Missing `test:e2e:ci` script (acceptance-criteria gap) — added
+- Redundant step-level env vars — removed
+- Diagnostics expanded to include `migrate`, `postgres`, `elasticsearch`
+- Push trigger restricted to `main` only (was `feature/**`/`fix/**` too)
+- Playwright browser cache added (`actions/cache@v4` keyed on `package-lock.json`)
+
+**Watch:** Confirm `http://localhost:8080/health` exists as a real frontend endpoint — if missing, the health-wait loop burns the 35-minute budget on every run.
+
+**Next agent prompt:**
+> Pick up #529 frontend slice (admin ingestion status UI) or the next issue in AGENTS.md.
+
+---
+
 ## 2026-05-29 — feat(admin): ingestion pipeline status API (#529 backend slice)
 
 Status: Done — PR #568 merged to main (commit 7f78d5b)

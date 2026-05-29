@@ -2,6 +2,22 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-29 — ci(e2e): PR-gated Playwright and document-flow smoke — issue #547
+
+Status: Done — PR #567 merged to main
+Source: issue #547, PR #567
+
+`.github/workflows/smoke.yml` adds two CI jobs triggered on `pull_request` (any path-matching PR) and `push` to `main`:
+
+- **playwright**: installs Chromium (cached by `package-lock.json` hash), runs `npm run test:e2e:ci` (`playwright test --project=1440x900`), uploads `playwright-report/` artifact (7-day). Tests use `page.route` mock backend — no live API required.
+- **document-flow**: starts Compose stack (postgres/kafka/ES/Qdrant/Meilisearch/migrate/api/frontend), waits for health, runs `SMOKE_MODE=ci scripts/dev/smoke_document_flow.sh`, uploads `tmp/smoke-document-flow-result.json` (30-day), tears down with `--volumes --remove-orphans`. ES capped at 512MB heap; `EMBEDDING_PROVIDER=""` disables embedding.
+
+Key constraints enforced: no Ollama model pulls, no external LLM API keys, `COMPOSE_PROJECT_NAME` scoped per run_id to prevent collisions, `permissions: contents: read` only.
+
+Review fixes applied (commit 9a926f9): added `test:e2e:ci` npm script (acceptance-criteria gap), removed redundant env vars in smoke step, expanded diagnostics to include `migrate`/`postgres`/`elasticsearch`, restricted push trigger to `main` only, added Playwright browser cache.
+
+---
+
 ## 2026-05-29 — feat(admin): ingestion pipeline status API — issue #529 backend slice
 
 Status: Done — PR #568 merged to main (commit 7f78d5b)
