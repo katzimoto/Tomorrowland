@@ -345,3 +345,58 @@ def test_rag_answer_serialises_trace_to_dict() -> None:
     assert "candidates" in trace_dict
     assert "reranker_enabled" in trace_dict
     assert "total_latency_ms" in trace_dict
+
+
+# ---------------------------------------------------------------------------
+# answer_stream trace tests
+# ---------------------------------------------------------------------------
+
+
+def test_answer_stream_done_event_carries_trace() -> None:
+    """answer_stream done event must include a retrieval_trace dict."""
+    srv = _make_service(chunks=[_make_chunk()])
+    events = list(srv.answer_stream("test question", group_ids=["group-1"]))
+    done_events = [e for e in events if e[0] == "done"]
+    assert len(done_events) == 1
+    payload = done_events[0][1]
+    assert "retrieval_trace" in payload
+    trace = payload["retrieval_trace"]
+    assert isinstance(trace, dict)
+    assert "stages" in trace
+    assert "candidates" in trace
+    assert "reranker_enabled" in trace
+
+
+def test_answer_stream_trace_includes_rerank_stage() -> None:
+    """answer_stream trace must include rerank and final_context stages when reranker configured."""
+    reranker = MagicMock()
+    reranker.rerank.return_value = [
+        {
+            "document_id": _VALID_DOC_UUID,
+            "chunk_id": f"{_VALID_DOC_UUID}-0",
+            "chunk_index": 0,
+            "chunk_text": "reranked passage",
+            "score": 0.95,
+            "doc_title": "Test Document",
+            "source_id": "src-1",
+            "source_language": "en",
+        }
+    ]
+    srv = _make_service(chunks=[_make_chunk()], reranker=reranker)
+    events = list(srv.answer_stream("test question", group_ids=["group-1"]))
+    done_payload = next(e[1] for e in events if e[0] == "done")
+    stage_names = [s["stage"] for s in done_payload["retrieval_trace"]["stages"]]
+    assert "rerank" in stage_names
+    assert "final_context" in stage_names
+    assert done_payload["retrieval_trace"]["reranker_enabled"] is True
+
+
+def test_answer_stream_trace_no_results_path() -> None:
+    """answer_stream done event must include a trace even when no chunks are found."""
+    srv = _make_service(chunks=[])
+    events = list(srv.answer_stream("test question", group_ids=["group-1"]))
+    done_events = [e for e in events if e[0] == "done"]
+    assert len(done_events) == 1
+    trace = done_events[0][1]["retrieval_trace"]
+    assert trace["candidates"] == []
+    assert len(trace["stages"]) > 0

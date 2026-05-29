@@ -180,8 +180,9 @@ class RagService:
             stages.append(self._build_stage_trace("rerank", len(chunks), phase_start))
 
         # 3. Truncate to top_k (E6: candidate pool → final context size)
+        t_final = time.perf_counter()
         chunks = chunks[:effective_top_k]
-        stages.append(self._build_stage_trace("final_context", len(chunks), time.perf_counter()))
+        stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
 
         # 4. Assemble context
         phase_start = time.perf_counter()
@@ -295,8 +296,12 @@ class RagService:
 
         reranker_enabled = self._reranker is not None
         if self._reranker is not None:
+            phase_start = time.perf_counter()
             chunks = self._reranker.rerank(chunks, question)
+            stages.append(self._build_stage_trace("rerank", len(chunks), phase_start))
+        t_final = time.perf_counter()
         chunks = chunks[:effective_top_k]
+        stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
 
         if not chunks:
             trace = RetrievalTrace(
@@ -310,7 +315,7 @@ class RagService:
                 {
                     "message_id": None,
                     "citations": [],
-                    "retrieval_trace": trace.model_dump() if trace else None,
+                    "retrieval_trace": trace.model_dump(),
                     "model": self._ollama.model,
                     "latency_ms": int((time.perf_counter() - request_start) * 1000),
                 },
