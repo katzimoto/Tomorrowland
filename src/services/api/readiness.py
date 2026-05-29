@@ -18,7 +18,6 @@ OverallStatus = Literal["ok", "degraded", "down"]
 
 READINESS_DEPENDENCIES: tuple[str, ...] = (
     "postgres",
-    "elasticsearch",
     "qdrant",
     "libretranslate",
     "ollama",
@@ -91,7 +90,6 @@ class ReadinessChecker:
 
         dependencies = {
             "postgres": self._probe_postgres(),
-            "elasticsearch": self._probe_http(f"{self._settings.elastic_url.rstrip('/')}/"),
             "qdrant": self._probe_http(f"{self._settings.qdrant_url.rstrip('/')}/readyz"),
             "libretranslate": self._probe_http(
                 f"{self._settings.libretranslate_url.rstrip('/')}/languages"
@@ -135,7 +133,7 @@ class ReadinessChecker:
     def _overall_status(self, dependencies: dict[str, DependencyResult]) -> OverallStatus:
         if any(
             dependencies[name]["status"] == "down"
-            for name in ("postgres", "elasticsearch", "qdrant")
+            for name in ("postgres", "qdrant")
         ):
             return "down"
         optional_down = dependencies["libretranslate"]["status"] == "down" or (

@@ -12,7 +12,6 @@ from services.api.main import create_app
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.documents.repository import DocumentRepository
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.qdrant import QdrantSearchClient
 from shared.config import Settings
 from shared.db import db_uuid
@@ -440,7 +439,6 @@ def test_slow_worker_processes_pending_high(
         translation_quality="pending_high",
     )
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock()
     mock_translator.translate.return_value = "Translated hello world document content."
@@ -454,8 +452,7 @@ def test_slow_worker_processes_pending_high(
             document_repository=doc_repo,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
         )
         worker.process_document(UUID(document_id))
 
@@ -497,7 +494,6 @@ def test_slow_worker_failure_sets_failed(
         translation_quality="pending_high",
     )
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock()
     mock_translator.translate.side_effect = RuntimeError("Translation failed")
@@ -511,8 +507,7 @@ def test_slow_worker_failure_sets_failed(
             document_repository=doc_repo,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
         )
         worker.process_document(UUID(document_id))
 

@@ -15,7 +15,6 @@ from services.intelligence.repository import IntelligenceRepository
 from services.intelligence.worker import IntelligenceWorker
 from services.permissions.enforcer import require_admin
 from services.pipeline.jobs import PipelineJobRepository
-from services.search.elastic import ElasticsearchSearchClient
 from shared.correlation import get_correlation_id
 from shared.db import to_uuid
 
@@ -43,13 +42,9 @@ def trigger_intelligence(
         try:
             intelligence_repo = IntelligenceRepository(connection)
             ollama_client = request.app.state.llm_provider
-            es_client = request.app.state.es_client or ElasticsearchSearchClient(
-                hosts=[request.app.state.settings.elastic_url]
-            )
             worker = IntelligenceWorker(
                 repository=intelligence_repo,
                 ollama_client=ollama_client,
-                es_client=es_client,
                 utility_model=request.app.state.settings.effective_utility_model,
             )
             worker.process_document(document_id, text)
@@ -85,13 +80,9 @@ def regenerate_summary(
         try:
             intelligence_repo = IntelligenceRepository(connection)
             ollama_client = request.app.state.llm_provider
-            es_client = request.app.state.es_client or ElasticsearchSearchClient(
-                hosts=[request.app.state.settings.elastic_url]
-            )
             worker = IntelligenceWorker(
                 repository=intelligence_repo,
                 ollama_client=ollama_client,
-                es_client=es_client,
                 utility_model=request.app.state.settings.effective_utility_model,
             )
             worker._summarize(document_id, text)

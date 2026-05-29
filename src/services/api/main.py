@@ -17,7 +17,6 @@ from services.auth.ldap import LdapAuthenticator
 from services.auth.models import TokenPayload
 from services.intelligence.factory import build_llm_provider
 from services.intelligence.llm_provider import LLMProvider
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
@@ -50,7 +49,6 @@ def create_app(
     settings: Settings | None = None,
     ldap_authenticator: LdapAuthenticator | None = None,
     translator: LibreTranslateClient | None = None,
-    es_client: ElasticsearchSearchClient | None = None,
     qdrant_client: QdrantSearchClient | None = None,
     llm_provider: LLMProvider | None = None,
 ) -> FastAPI:
@@ -72,7 +70,6 @@ def create_app(
     )
     app.state.ldap_authenticator = ldap_authenticator
     app.state.translator = translator
-    app.state.es_client = es_client
     app.state.qdrant_client = qdrant_client
     app.state.llm_provider = llm_provider or build_llm_provider(app.state.settings)
 

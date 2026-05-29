@@ -18,7 +18,6 @@ from services.extraction.base import AttachmentData, ExtractionResult
 from services.extraction.language import LanguageDetector
 from services.extraction.registry import ExtractorRegistry
 from services.intelligence.worker import IntelligenceWorker
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.encoder import TextEncoder
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.meili_types import ChunkMetadata, SearchChunkRecord
@@ -65,7 +64,6 @@ class PipelineWorker:
         extractor_registry: ExtractorRegistry,
         translator: LibreTranslateClient,
         encoder: TextEncoder,
-        es_client: ElasticsearchSearchClient,
         qdrant_client: QdrantSearchClient,
         meili_provider: MeilisearchSearchProvider | None = None,
         intelligence_worker: IntelligenceWorker | None = None,
@@ -80,7 +78,6 @@ class PipelineWorker:
         self._extractor = extractor_registry
         self._translator = translator
         self._encoder = encoder
-        self._es = es_client
         self._qdrant = qdrant_client
         self._meili = meili_provider
         self._intelligence = intelligence_worker
@@ -235,32 +232,6 @@ class PipelineWorker:
             self._metrics.pipeline_chunks_total.labels("success").inc(
                 max(len(original_chunks), len(translated_chunks))
             )
-
-        # 4. Index full document in Elasticsearch. This is intentionally before
-        #    vector embedding so an Ollama/Qdrant outage does not prevent BM25
-        #    text search from receiving the document.
-        start = time.perf_counter()
-        self._es.index_document(
-            str(document_id),
-            {
-                "document_id": str(document_id),
-                "path": doc.path or "",
-                "filename": Path(doc.path).name if doc.path else doc.title or "",
-                "content_original": text,
-                "content_english": translated,
-                "title": doc.title or "",
-                "summary": "",
-                "tags": [],
-                "metadata": doc.metadata,
-                "allowed_group_ids": allowed_group_ids,
-            },
-        )
-
-        if self._metrics is not None:
-            self._metrics.search_backend_duration_seconds.labels("elasticsearch", "index").observe(
-                time.perf_counter() - start
-            )
-            self._metrics.search_index_documents.labels("elasticsearch").inc()
 
         # 5. Index chunks in Meilisearch when configured. Uses original text
         #    for content and translated text for content_en so queries in

@@ -16,7 +16,6 @@ from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.connectors.base import ConnectorDocument
 from services.documents.repository import DocumentRepository
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
@@ -166,18 +165,13 @@ def test_sync_now_persists_connector_metadata(
     monkeypatch.setattr(
         ingestion_router, "build_connector", lambda _source_row: _MetadataConnector()
     )
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
-    mock_translator.translate.return_value = "bonjour from smb"
-    client = TestClient(
-        api_main.create_app(
-            migrated_engine,
-            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
-            translator=mock_translator,
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
-        )
+                worker = PipelineWorker(
+                    document_repository=repo,
+                    extractor_registry=reg,
+                    translator=MagicMock(),
+                    encoder=encoder,
+                    qdrant_client=MagicMock(),
+                )
     )
     login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
     assert login.status_code == 200

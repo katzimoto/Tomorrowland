@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
 from services.api.main import create_app
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
@@ -43,7 +42,6 @@ def test_sync_now_publishes_to_rabbitmq(
         rabbitmq_url=rabbitmq_container,
         rabbitmq_enabled=True,
     )
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.return_value = "Bonjour le monde"
@@ -53,8 +51,7 @@ def test_sync_now_publishes_to_rabbitmq(
             migrated_engine,
             settings,
             translator=mock_translator,
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)
@@ -105,7 +102,6 @@ def test_sync_now_skips_rabbitmq_when_disabled(
         rabbitmq_url=rabbitmq_container,
         rabbitmq_enabled=False,
     )
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
 
@@ -114,8 +110,7 @@ def test_sync_now_skips_rabbitmq_when_disabled(
             migrated_engine,
             settings,
             translator=mock_translator,
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)

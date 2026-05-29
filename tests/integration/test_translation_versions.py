@@ -15,7 +15,6 @@ from services.documents.repository import (
     DocumentRepository,
     TranslationVersionRepository,
 )
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.qdrant import QdrantSearchClient
 from shared.config import Settings
 from shared.db import db_uuid
@@ -347,7 +346,6 @@ def test_slow_worker_with_version_repository(
         doc_repo = DocumentRepository(connection)
         doc_repo.update_translation_quality(UUID(document_id), "pending_high")
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock()
     mock_translator.translate.return_value = "Translated hello world document content."
@@ -362,8 +360,7 @@ def test_slow_worker_with_version_repository(
             document_repository=doc_repo,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
             version_repository=version_repo,
         )
         worker.process_document(UUID(document_id))
@@ -422,7 +419,6 @@ def test_slow_worker_version_failure_marks_version_failed(
         doc_repo = DocumentRepository(connection)
         doc_repo.update_translation_quality(UUID(document_id), "pending_high")
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock()
     mock_translator.translate.side_effect = RuntimeError("Translation failed")
@@ -437,8 +433,7 @@ def test_slow_worker_version_failure_marks_version_failed(
             document_repository=doc_repo,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
             version_repository=version_repo,
         )
         worker.process_document(UUID(document_id))
