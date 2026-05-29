@@ -2,6 +2,25 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-29 — feat(rag): retrieval trace foundation — issue #537
+
+Status: Done — PR #570 merged to main
+Source: issue #537, PR #570
+
+`RetrievalTrace`, `RetrievalStageTrace`, `RetrievalCandidateTrace` Pydantic models in `src/services/rag/trace_models.py`.
+`_retrieve_chunks` returns `(chunks, stages)` with per-stage timing and counts for vector, BM25, metadata, translated, merge/dedup, rerank, and final_context.
+`answer()` and `answer_stream()` both attach a `RetrievalTrace` to their output (field on `AnswerResponse`; `retrieval_trace` key in SSE `done` event).
+
+Key constraints:
+- Candidates carry only identifiers, scores, and allowed metadata — no raw chunk text, no prompts, no secrets
+- `RetrievalCandidateTrace` is frozen (immutable)
+- No persistence, no admin endpoint, no frontend UI — foundation only
+- `retrieval_trace` is optional (`None` default) on `AnswerResponse` — existing callers unaffected
+
+Deferred to future PRs: chat message persistence of trace, admin trace endpoint, frontend trace display (#538, #557).
+
+---
+
 ## 2026-05-29 — ci(e2e): PR-gated Playwright and document-flow smoke — issue #547
 
 Status: Done — PR #567 merged to main
