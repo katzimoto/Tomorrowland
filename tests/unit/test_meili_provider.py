@@ -360,6 +360,25 @@ def test_search_rag_passes_source_ids_filter() -> None:
     assert 'metadata.source_id IN ["src-a"]' in params["filter"]
 
 
+def test_search_rag_source_ids_filter_does_not_replace_acl_filter() -> None:
+    """source_ids filter must be ANDed with ACL filter, not replace it."""
+    client, provider = _provider()
+    client.index.return_value.search.return_value = {
+        "hits": [],
+        "nbHits": 0,
+        "estimatedTotalHits": 0,
+        "processingTimeMs": 1,
+    }
+    provider.search_rag(
+        text="hello",
+        group_ids=["g1"],
+        source_ids=["src-a"],
+    )
+    params = client.index().search.call_args[0][1]
+    assert "allowed_group_ids" in params["filter"]
+    assert 'metadata.source_id IN ["src-a"]' in params["filter"]
+
+
 def test_search_rag_source_ids_maps_source_id_in_metadata() -> None:
     client, provider = _provider()
     client.index.return_value.search.return_value = {
