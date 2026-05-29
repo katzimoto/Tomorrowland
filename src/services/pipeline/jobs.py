@@ -472,6 +472,154 @@ class PipelineJobRepository:
         ).fetchall()
         return {(row[0], row[1]): row[2] for row in rows}
 
+    def list_ingestion_status(
+        self,
+        status: str | None = None,
+        source_id: UUID | None = None,
+        since: datetime | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[dict[str, Any]], int, dict[str, int]]:
+        """List ingestion pipeline jobs with optional filters.
+
+        Returns (rows, total_count, summary_by_status).
+        Uses LEFT JOIN so deleted/missing documents still produce a row.
+        """
+        filters: list[str] = []
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+
+        if status:
+            filters.append("pj.status = :status")
+            params["status"] = status
+        if source_id:
+            filters.append("pj.source_id = :source_id")
+            params["source_id"] = db_uuid(source_id)
+        if since:
+            filters.append("pj.created_at >= :since")
+            params["since"] = since
+
+        where_clause = ("WHERE " + " AND ".join(filters)) if filters else ""
+
+        total = self._connection.execute(
+            sa.text(f"SELECT COUNT(*) FROM pipeline_jobs pj {where_clause}"),
+            {k: v for k, v in params.items() if k not in ("limit", "offset")},
+        ).scalar_one()
+
+        summary_rows = self._connection.execute(
+            sa.text(f"""
+                SELECT pj.status, COUNT(*) AS cnt
+                FROM pipeline_jobs pj {where_clause}
+                GROUP BY pj.status
+            """),
+            {k: v for k, v in params.items() if k not in ("limit", "offset")},
+        ).fetchall()
+        summary = {str(row[0]): int(row[1]) for row in summary_rows}
+
+        rows = (
+            self._connection.execute(
+                sa.text(f"""
+                    SELECT pj.id, pj.document_id, pj.source_id, pj.job_type,
+                           pj.status, pj.stage, pj.attempts, pj.max_attempts,
+                           pj.last_error, pj.created_at, pj.updated_at,
+                           d.title AS document_title,
+                           s.name AS source_name
+                    FROM pipeline_jobs pj
+                    LEFT JOIN documents d ON d.id = pj.document_id
+                    LEFT JOIN ingestion_sources s ON s.id = pj.source_id
+                    {where_clause}
+                    ORDER BY pj.created_at DESC
+                    LIMIT :limit OFFSET :offset
+                """),
+                params,
+            )
+            .mappings()
+            .all()
+        )
+
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            result.append(
+                {
+                    "id": to_uuid(row["id"]),
+                    "document_id": to_uuid(row["document_id"]),
+                    "source_id": to_uuid(row["source_id"]),
+                    "document_title": row["document_title"],
+                    "source_name": row["source_name"],
+                    "job_type": row["job_type"],
+                    "status": row["status"],
+                    "stage": row["stage"],
+                    "attempts": row["attempts"],
+                    "max_attempts": row["max_attempts"],
+                    "last_error": row["last_error"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+            )
+
+        return result, total, summary
+
+    def list_document_trace(
+        self,
+        document_id: UUID,
+    ) -> tuple[str | None, str | None, list[dict[str, Any]]]:
+        """List all pipeline jobs for a document ordered by created_at.
+
+        Returns (document_title, source_name, jobs).
+        Uses LEFT JOIN so deleted/missing documents still return a trace
+        without crashing.
+        """
+        doc_row = (
+            self._connection.execute(
+                sa.text("""
+                    SELECT d.title,
+                           s.name AS source_name
+                    FROM documents d
+                    LEFT JOIN ingestion_sources s ON s.id = d.source_id
+                    WHERE d.id = :document_id
+                """),
+                {"document_id": db_uuid(document_id)},
+            )
+            .mappings()
+            .first()
+        )
+
+        document_title = doc_row["title"] if doc_row else None
+        source_name = doc_row["source_name"] if doc_row else None
+
+        rows = (
+            self._connection.execute(
+                sa.text("""
+                    SELECT pj.id, pj.job_type, pj.status, pj.stage,
+                           pj.attempts, pj.max_attempts, pj.last_error,
+                           pj.created_at, pj.updated_at
+                    FROM pipeline_jobs pj
+                    WHERE pj.document_id = :document_id
+                    ORDER BY pj.created_at ASC
+                """),
+                {"document_id": db_uuid(document_id)},
+            )
+            .mappings()
+            .all()
+        )
+
+        jobs: list[dict[str, Any]] = []
+        for row in rows:
+            jobs.append(
+                {
+                    "id": to_uuid(row["id"]),
+                    "job_type": row["job_type"],
+                    "status": row["status"],
+                    "stage": row["stage"],
+                    "attempts": row["attempts"],
+                    "max_attempts": row["max_attempts"],
+                    "last_error": row["last_error"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+            )
+
+        return document_title, source_name, jobs
+
     def reap_stale_locks(self, max_age_seconds: int = 300) -> int:
         """Reset jobs stuck in ``running`` state past *max_age_seconds* to ``pending``.
 
