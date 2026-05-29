@@ -8,6 +8,13 @@ All notable changes to this project will be documented in this file.
 - Issue #551: ACL audit HIGH findings regression tests. Added integration tests covering H1 (admin search bypass — ES receives `is_admin=True`, Qdrant receives `allow_all=True`), H2 (expertise admin bypass — `allow_all=True` forwarded to Qdrant), H3 (orphaned Qdrant vectors silently dropped from search results), H4 (subscription user-discovery leak — outsider excluded when no group overlap with requester), and H5 (related-docs transitive group expansion — child-group users reach parent-group sources via `get_effective_group_ids`). Also fixed two existing `RelatedService` test instantiations missing the required `job_repo` argument.
 
 ### Added
+- Issue #537: Retrieval trace foundation — typed models and minimal non-invasive RAG instrumentation.
+  - New `RetrievalTrace`, `RetrievalStageTrace`, `RetrievalCandidateTrace` Pydantic models in `src/services/rag/trace_models.py`.
+  - `RagService._retrieve_chunks` now returns per-stage timing and candidate counts (vector, BM25, metadata, translated, merge, dedup/filter).
+  - `RagService.answer()` attaches a `RetrievalTrace` to `AnswerResponse` covering all stages, reranker status, final candidates, and total latency.
+  - `RagService.answer_stream()` includes `retrieval_trace` in the `done` SSE event.
+  - Trace candidates carry only identifiers, scores, and allowed metadata — no raw document text, no full prompts, no secrets.
+  - 18 unit tests covering trace serialisation, per-stage counts, reranker flag, metadata/translated stages, empty-result path, and privacy rules.
 - Issue #529 (backend slice): Admin ingestion pipeline status API — `GET /admin/ingestion/status` lists pipeline jobs with status/source_id/since/limit/offset filters and per-status summary counts; `GET /admin/ingestion/status/{document_id}` returns per-document job traces ordered by creation time. Both endpoints admin-only, use LEFT JOIN so deleted/missing documents return null title/source without crashing.
 - Issue #529 (frontend slice): Admin ingestion pipeline status UI — new `/admin/ingestion` page with status summary cards (pending/running/completed/failed counts), filter bar (status, source_id, since), paginated jobs table, row expansion with per-document pipeline trace and requeue action. Linked from admin hub. Includes loading, empty, error, 404, and long-error-truncation states.
 - Issue #530: Exact-location citation grounding — `page_number` and `section_heading` now flow from extraction through RAG citations.
