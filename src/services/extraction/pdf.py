@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 
 from pypdf import PdfReader
-from pypdf.errors import PdfStreamError
+from pypdf.errors import FileNotDecryptedError, PdfStreamError
 
 from services.extraction.base import ExtractionResult
 
@@ -56,7 +56,7 @@ class PdfExtractor:
             reader = PdfReader(str(path))
             pages = [page.extract_text() or "" for page in reader.pages]
             text = "\n".join(pages)
-        except (OSError, ValueError, PdfStreamError):
+        except (OSError, ValueError, PdfStreamError, FileNotDecryptedError):
             return ExtractionResult(text="")
 
         if text.strip():
