@@ -19,6 +19,7 @@ from services.search.qdrant import QdrantSearchClient
 from shared.metrics import current_metrics
 
 from .models import AnswerResponse, Citation
+from .trace_models import RetrievalCandidateTrace, RetrievalStageTrace, RetrievalTrace
 
 CANDIDATE_LIMIT = 40
 
@@ -131,7 +132,7 @@ class RagService:
         request_start = time.perf_counter()
         # 1. Retrieve relevant chunks
         phase_start = time.perf_counter()
-        chunks = self._retrieve_chunks(
+        chunks, stages = self._retrieve_chunks(
             question,
             group_ids,
             effective_top_k,
@@ -145,6 +146,12 @@ class RagService:
             )
 
         if not chunks:
+            trace = RetrievalTrace(
+                stages=stages,
+                candidates=[],
+                reranker_enabled=self._reranker is not None,
+                total_latency_ms=(time.perf_counter() - request_start) * 1000,
+            )
             if metrics is not None:
                 metrics.rag_requests_total.labels("success").inc()
                 metrics.rag_citations_count.observe(0)
@@ -157,10 +164,12 @@ class RagService:
                     "I could not find any relevant information in the documents you have access to."
                 ),
                 citations=[],
+                retrieval_trace=trace,
                 model=self._ollama.model,
             )
 
         # 2. Rerank (when a reranker is configured)
+        reranker_enabled = self._reranker is not None
         if self._reranker is not None:
             phase_start = time.perf_counter()
             chunks = self._reranker.rerank(chunks, question)
@@ -168,9 +177,11 @@ class RagService:
                 metrics.rag_duration_seconds.labels("rerank").observe(
                     time.perf_counter() - phase_start
                 )
+            stages.append(self._build_stage_trace("rerank", len(chunks), phase_start))
 
         # 3. Truncate to top_k (E6: candidate pool → final context size)
         chunks = chunks[:effective_top_k]
+        stages.append(self._build_stage_trace("final_context", len(chunks), time.perf_counter()))
 
         # 4. Assemble context
         phase_start = time.perf_counter()
@@ -219,6 +230,26 @@ class RagService:
                 )
             )
 
+        trace = RetrievalTrace(
+            stages=stages,
+            candidates=[
+                RetrievalCandidateTrace(
+                    document_id=c["document_id"],
+                    chunk_id=c.get("chunk_id"),
+                    chunk_index=c.get("chunk_index"),
+                    score=c["score"],
+                    source_id=c.get("source_id"),
+                    doc_title=c.get("doc_title"),
+                    page_number=c.get("page_number"),
+                    section_heading=c.get("section_heading"),
+                    language=c.get("source_language"),
+                )
+                for c in chunks
+            ],
+            reranker_enabled=reranker_enabled,
+            total_latency_ms=(time.perf_counter() - request_start) * 1000,
+        )
+
         if metrics is not None:
             metrics.rag_requests_total.labels("success").inc()
             metrics.rag_citations_count.observe(len(citations))
@@ -229,6 +260,7 @@ class RagService:
             question=question,
             answer=answer_text,
             citations=citations,
+            retrieval_trace=trace,
             model=self._ollama.model,
         )
 
@@ -252,7 +284,7 @@ class RagService:
         effective_top_k = top_k if top_k is not None else self._max_chunks
         request_start = time.perf_counter()
 
-        chunks = self._retrieve_chunks(
+        chunks, stages = self._retrieve_chunks(
             question,
             group_ids,
             effective_top_k,
@@ -261,16 +293,24 @@ class RagService:
             scope=scope,
         )
 
+        reranker_enabled = self._reranker is not None
         if self._reranker is not None:
             chunks = self._reranker.rerank(chunks, question)
         chunks = chunks[:effective_top_k]
 
         if not chunks:
+            trace = RetrievalTrace(
+                stages=stages,
+                candidates=[],
+                reranker_enabled=reranker_enabled,
+                total_latency_ms=(time.perf_counter() - request_start) * 1000,
+            )
             yield (
                 "done",
                 {
                     "message_id": None,
                     "citations": [],
+                    "retrieval_trace": trace.model_dump() if trace else None,
                     "model": self._ollama.model,
                     "latency_ms": int((time.perf_counter() - request_start) * 1000),
                 },
@@ -318,12 +358,33 @@ class RagService:
                 }
             )
 
+        trace = RetrievalTrace(
+            stages=stages,
+            candidates=[
+                RetrievalCandidateTrace(
+                    document_id=c["document_id"],
+                    chunk_id=c.get("chunk_id"),
+                    chunk_index=c.get("chunk_index"),
+                    score=c["score"],
+                    source_id=c.get("source_id"),
+                    doc_title=c.get("doc_title"),
+                    page_number=c.get("page_number"),
+                    section_heading=c.get("section_heading"),
+                    language=c.get("source_language"),
+                )
+                for c in chunks
+            ],
+            reranker_enabled=reranker_enabled,
+            total_latency_ms=(time.perf_counter() - request_start) * 1000,
+        )
+
         yield (
             "done",
             {
                 "message_id": None,
                 "answer": answer_text,
                 "citations": citations,
+                "retrieval_trace": trace.model_dump() if trace else None,
                 "model": self._ollama.model,
                 "latency_ms": int((time.perf_counter() - request_start) * 1000),
             },
@@ -337,8 +398,11 @@ class RagService:
         document_id: str | None = None,
         allow_all: bool = False,
         scope: ChatScope | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], list[RetrievalStageTrace]]:
         """Retrieve chunks from Qdrant (+ Meilisearch when available).
+
+        Returns ``(chunks, stages)`` where *stages* contains per-pipeline-stage
+        timing and candidate counts for instrumentation.
 
         Retrieves a candidate pool of up to ``CANDIDATE_LIMIT`` per source
         (vector + lexical). When a Meilisearch provider is configured, BM25
@@ -355,11 +419,14 @@ class RagService:
         When *scope* is None, the legacy ``document_id`` path is used (for /qa
         backward compatibility).
         """
+        stages: list[RetrievalStageTrace] = []
+        t0 = time.perf_counter()
+
         query_vector = self._encoder.encode(question)
 
         if scope is not None:
             if not group_ids and not allow_all:
-                return []
+                return [], stages
             qdrant_filter = build_qdrant_filter(scope, group_ids, allow_all)
             vector_results = self._qdrant.search_filtered(
                 vector=query_vector,
@@ -375,9 +442,12 @@ class RagService:
                 allow_all=allow_all,
             )
 
+        stages.append(self._build_stage_trace("vector", len(vector_results), t0))
+
         source_ids = scope.scope_ids if scope and scope.scope_type == "source" else None
 
         if self._meili is not None:
+            t1 = time.perf_counter()
             bm25_results = self._apply_scope_to_bm25(
                 self._meili.search_rag(
                     text=question,
@@ -388,14 +458,19 @@ class RagService:
                 ),
                 scope,
             )
+            stages.append(self._build_stage_trace("bm25", len(bm25_results), t1))
+
+            t2 = time.perf_counter()
             results = merge_results(
                 bm25_results=bm25_results,
                 vector_results=vector_results,
                 vector_weight=0.5,
                 bm25_weight=0.5,
             )
+            stages.append(self._build_stage_trace("merge_bm25_vector", len(results), t2))
 
             if self._enable_metadata_search:
+                t3 = time.perf_counter()
                 meta_results = self._apply_scope_to_bm25(
                     self._meili.search_rag_metadata(
                         text=question,
@@ -406,14 +481,19 @@ class RagService:
                     ),
                     scope,
                 )
+                stages.append(self._build_stage_trace("metadata", len(meta_results), t3))
+
+                t4 = time.perf_counter()
                 results = merge_results(
                     bm25_results=meta_results,
                     vector_results=results,
                     vector_weight=0.2,
                     bm25_weight=0.8,
                 )
+                stages.append(self._build_stage_trace("merge_metadata", len(results), t4))
 
             if self._enable_translated_text:
+                t5 = time.perf_counter()
                 trans_results = self._apply_scope_to_bm25(
                     self._meili.search_rag_translated(
                         text=question,
@@ -424,15 +504,20 @@ class RagService:
                     ),
                     scope,
                 )
+                stages.append(self._build_stage_trace("translated", len(trans_results), t5))
+
+                t6 = time.perf_counter()
                 results = merge_results(
                     bm25_results=trans_results,
                     vector_results=results,
                     vector_weight=0.2,
                     bm25_weight=0.8,
                 )
+                stages.append(self._build_stage_trace("merge_translated", len(results), t6))
         else:
             results = vector_results
 
+        t7 = time.perf_counter()
         seen_chunk_ids: set[str] = set()
         unique_results = []
         for r in results:
@@ -442,6 +527,7 @@ class RagService:
             if chunk_id not in seen_chunk_ids:
                 seen_chunk_ids.add(chunk_id)
                 unique_results.append(r)
+        stages.append(self._build_stage_trace("dedup_filter", len(unique_results), t7))
 
         # Look up doc titles once, keyed by document_id
         doc_repo = DocumentRepository(self._connection)
@@ -451,7 +537,7 @@ class RagService:
                 doc = doc_repo.get_by_id(UUID(r.document_id))
                 title_cache[r.document_id] = doc.title if doc else None
 
-        return [
+        chunks = [
             {
                 "document_id": r.document_id,
                 "chunk_id": (r.metadata or {}).get("chunk_id"),
@@ -466,6 +552,18 @@ class RagService:
             }
             for r in unique_results
         ]
+
+        return chunks, stages
+
+    @staticmethod
+    def _build_stage_trace(
+        stage: str, candidate_count: int, start_time: float
+    ) -> RetrievalStageTrace:
+        return RetrievalStageTrace(
+            stage=stage,
+            candidate_count=candidate_count,
+            timing_ms=(time.perf_counter() - start_time) * 1000,
+        )
 
     @staticmethod
     def _apply_scope_to_bm25(

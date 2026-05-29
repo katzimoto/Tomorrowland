@@ -6,6 +6,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from services.rag.trace_models import RetrievalTrace
+
 
 class Citation(BaseModel):
     """A citation backing an answer."""
@@ -37,4 +39,5 @@ class AnswerResponse(BaseModel):
     question: str
     answer: str
     citations: list[Citation]
+    retrieval_trace: RetrievalTrace | None = None
     model: str

@@ -3,6 +3,7 @@
 from services.rag.models import AnswerResponse, Citation, QuestionRequest
 from services.rag.reranker import NoOpReranker, Reranker
 from services.rag.service import RagService
+from services.rag.trace_models import RetrievalCandidateTrace, RetrievalStageTrace, RetrievalTrace
 
 __all__ = [
     "AnswerResponse",
@@ -11,4 +12,7 @@ __all__ = [
     "QuestionRequest",
     "Reranker",
     "RagService",
+    "RetrievalCandidateTrace",
+    "RetrievalStageTrace",
+    "RetrievalTrace",
 ]
