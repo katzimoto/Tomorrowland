@@ -734,6 +734,86 @@ def test_oversized_expertise_topic_returns_422(migrated_engine: Engine) -> None:
     assert resp.status_code == 422
 
 
+def test_search_admin_passes_allow_all_to_backends(
+    migrated_engine: Engine,
+) -> None:
+    """H1: admin bypass — ES receives is_admin=True and Qdrant receives allow_all=True."""
+    _setup_users(migrated_engine)
+    _, document_id = _create_source_with_doc(migrated_engine, "users", "Visible Doc")
+
+    mock_es = MagicMock(spec=ElasticsearchSearchClient)
+    mock_es.search.return_value = [
+        SearchResult(document_id=document_id, score=1.0, title="Visible Doc")
+    ]
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = []
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            es_client=mock_es,
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _admin_token(client)
+
+    resp = client.post(
+        "/search",
+        json={"query": "visible", "page": 1, "page_size": 10},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 200
+    assert mock_es.search.called
+    es_kwargs = mock_es.search.call_args.kwargs
+    assert es_kwargs.get("is_admin") is True
+    assert mock_qdrant.search.called
+    qdrant_kwargs = mock_qdrant.search.call_args.kwargs
+    assert qdrant_kwargs.get("allow_all") is True
+
+
+def test_search_drops_orphaned_qdrant_vector(
+    migrated_engine: Engine,
+) -> None:
+    """H3: orphaned Qdrant vector (doc deleted from DB) must not appear in search results."""
+    _setup_users(migrated_engine)
+    _, real_doc_id = _create_source_with_doc(migrated_engine, "users", "Real Doc")
+    orphaned_id = str(uuid4())
+
+    mock_es = MagicMock(spec=ElasticsearchSearchClient)
+    mock_es.search.return_value = [
+        SearchResult(document_id=real_doc_id, score=1.0, title="Real Doc"),
+    ]
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = [
+        SearchResult(document_id=real_doc_id, score=0.9, chunk_text="real chunk"),
+        SearchResult(document_id=orphaned_id, score=0.95, chunk_text="secret orphaned chunk"),
+    ]
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            es_client=mock_es,
+            qdrant_client=mock_qdrant,
+        )
+    )
+    token = _user_token(client)
+
+    resp = client.post(
+        "/search",
+        json={"query": "test", "page": 1, "page_size": 10},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    returned_ids = [r["document_id"] for r in data["results"]]
+    assert orphaned_id not in returned_ids
+    assert real_doc_id in returned_ids
+
+
 def test_excessive_limit_on_comments_returns_422(migrated_engine: Engine) -> None:
     _setup_users(migrated_engine)
     _create_source_with_doc(migrated_engine, "users")

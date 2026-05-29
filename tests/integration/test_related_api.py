@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
 from services.api.main import create_app
 from services.auth.models import UserIdentity
+from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.documents.models import DocumentRow
 from services.documents.repository import DocumentRepository
+from services.pipeline.jobs import PipelineJobRepository
 from services.related.repository import RelatedRepository
 from services.related.service import RelatedService
 from services.search.encoder import DeterministicTestEncoder
@@ -136,10 +139,13 @@ def test_related_documents_filters_dedupes_excludes_source_and_respects_limit(
             SearchResult(document_id=str(inaccessible_id), score=0.95),
             SearchResult(document_id=str(second_id), score=0.5),
         ]
+        mock_job_repo = MagicMock(spec=PipelineJobRepository)
+        mock_job_repo.get_payload.return_value = {"content_text": "procurement risk source"}
         service = RelatedService(
             repository=RelatedRepository(connection),
             qdrant_client=mock_qdrant,
             encoder=DeterministicTestEncoder(),
+            job_repo=mock_job_repo,
         )
         related = service.related_documents(
             doc=source_doc,
@@ -246,6 +252,7 @@ def test_expertise_ranks_weighted_signals_and_hides_private_evidence(
             repository=RelatedRepository(connection),
             qdrant_client=mock_qdrant,
             encoder=DeterministicTestEncoder(),
+            job_repo=MagicMock(spec=PipelineJobRepository),
         )
         results = service.expertise(
             topic="procurement",
@@ -296,3 +303,143 @@ def test_expertise_rejects_blank_topic_without_testclient(
 def json_like(value: object) -> str:
     """Return a compact string representation for leak assertions."""
     return str(value)
+
+
+def test_expertise_admin_passes_allow_all_to_qdrant(
+    migrated_engine: Engine,
+) -> None:
+    """H2: expertise() with allow_all=True (admin) must forward allow_all=True to Qdrant."""
+    with migrated_engine.begin() as connection:
+        mock_qdrant = MagicMock(spec=QdrantSearchClient)
+        mock_qdrant.search.return_value = []
+        service = RelatedService(
+            repository=RelatedRepository(connection),
+            qdrant_client=mock_qdrant,
+            encoder=DeterministicTestEncoder(),
+            job_repo=MagicMock(spec=PipelineJobRepository),
+        )
+        service.expertise(topic="security", group_ids=[], allow_all=True)
+
+    assert mock_qdrant.search.called
+    assert mock_qdrant.search.call_args.kwargs.get("allow_all") is True
+
+
+def test_expertise_subscription_excluded_when_no_group_overlap(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    """H4: subscription user not in any of the requester's groups must not appear in expertise."""
+    _setup_users(migrated_engine)
+
+    doc_path = tmp_path / "doc.txt"
+    doc_path.write_text("security audit findings")
+    document_id = _create_doc(migrated_engine, "admins", str(doc_path), "Audit Doc")
+
+    # outsider subscribes to a matching topic but shares no group with admin requester
+    with migrated_engine.begin() as connection:
+        outsider_id = connection.execute(
+            sa.text("SELECT id FROM users WHERE email = 'outsider@example.com'")
+        ).scalar_one()
+        connection.execute(
+            sa.text(
+                "INSERT INTO alert_subscriptions (id, user_id, name, query, enabled)"
+                " VALUES (:id, :user_id, 'Security', 'security audit', true)"
+            ),
+            {"id": uuid4().hex, "user_id": outsider_id},
+        )
+
+    admin_group_ids = [str(g) for g in _user(migrated_engine, "admin@example.com").groups]
+
+    with migrated_engine.begin() as connection:
+        mock_qdrant = MagicMock(spec=QdrantSearchClient)
+        mock_qdrant.search.return_value = [
+            SearchResult(document_id=str(document_id), score=0.95),
+        ]
+        service = RelatedService(
+            repository=RelatedRepository(connection),
+            qdrant_client=mock_qdrant,
+            encoder=DeterministicTestEncoder(),
+            job_repo=MagicMock(spec=PipelineJobRepository),
+        )
+        results = service.expertise(
+            topic="security audit",
+            group_ids=admin_group_ids,
+            allow_all=False,
+        )
+
+    result_user_ids = [r["user_id"] for r in results]
+    assert str(outsider_id) not in result_user_ids
+
+
+def test_related_documents_router_uses_transitive_group_expansion(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    """H5: /related expands transitive groups so child-group users reach parent-group docs."""
+    # senior group owns source A; junior group is child of senior
+    # user is in junior only — Qdrant must be called with senior group in group_ids
+    with migrated_engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        senior_id = auth_repo.ensure_group("senior")
+        junior_id = auth_repo.ensure_group("junior")
+        connection.execute(
+            sa.text(
+                "INSERT INTO group_memberships (parent_group_id, child_group_id) VALUES (:p, :c)"
+            ),
+            {"p": db_uuid(senior_id), "c": db_uuid(junior_id)},
+        )
+        # grant junior direct access so assert_doc_access passes
+        junior_source_id = auth_repo.create_ingestion_source("Junior Source")
+        auth_repo.grant_source_to_group(junior_source_id, junior_id)
+        doc_repo = DocumentRepository(connection)
+        query_doc = doc_repo.create(
+            source_id=junior_source_id,
+            external_id="file:/data/query.txt",
+            source="folder",
+            mime_type="text/plain",
+            title="Query Doc",
+            path=str(tmp_path / "query.txt"),
+        )
+        auth_repo.create_local_user(
+            email="junior@example.com",
+            password_hash=hash_password("secret"),
+            display_name="Junior",
+            is_admin=False,
+            group_names=["junior"],
+        )
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = []
+
+    with (
+        patch(
+            "services.api.routers.documents.build_encoder",
+            return_value=DeterministicTestEncoder(),
+        ),
+        patch("services.api.routers.documents.PipelineJobRepository") as mock_job_repo_cls,
+    ):
+        mock_job_repo_cls.return_value.get_payload.return_value = {"content_text": "query content"}
+        client = TestClient(
+            create_app(
+                migrated_engine,
+                Settings(
+                    auth_provider="local",
+                    jwt_secret="x" * 32,
+                    feature_related_docs=True,
+                ),
+                qdrant_client=mock_qdrant,
+            )
+        )
+        login = client.post(
+            "/auth/login", json={"email": "junior@example.com", "password": "secret"}
+        )
+        assert login.status_code == 200
+        token = login.json()["access_token"]
+        client.get(
+            f"/documents/{query_doc.id}/related",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert mock_qdrant.search.called
+    group_ids_used = mock_qdrant.search.call_args.kwargs.get("group_ids", [])
+    assert str(senior_id) in group_ids_used

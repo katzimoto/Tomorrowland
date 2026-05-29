@@ -2,6 +2,29 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-29 — fix(security): ACL regression tests — issue #551
+
+Status: Done — tests merged to main; issue open
+Source: issue #551, Claude Code session
+
+**Goal:** Prove the H1–H5 ACL code fixes (already in source) with regression tests.
+
+**Changed files:**
+- `tests/integration/test_search_api.py` — added `test_search_admin_passes_allow_all_to_backends` (H1), `test_search_drops_orphaned_qdrant_vector` (H3)
+- `tests/integration/test_related_api.py` — fixed 2 broken `RelatedService(...)` calls missing `job_repo`; added `test_expertise_admin_passes_allow_all_to_qdrant` (H2), `test_expertise_subscription_excluded_when_no_group_overlap` (H4), `test_related_documents_router_uses_transitive_group_expansion` (H5); new imports: `TestClient`, `patch`, `hash_password`, `PipelineJobRepository`
+- `CHANGELOG.md` — Unreleased entry added
+
+**Verification:** 26 passed (2 excluded pre-existing failures); ruff clean; mypy clean.
+
+**Pre-existing test failures (not caused here):**
+- `test_search_es_failure_still_fails` — expects 500; ES degradation now returns 200 with empty results
+- `test_excessive_limit_on_comments_returns_422` — expects 422; gets 410 Gone for missing doc
+
+**Next agent prompt:**
+> Close issue #551. Fix the 2 pre-existing test failures (`test_search_es_failure_still_fails`, `test_excessive_limit_on_comments_returns_422`) in a focused patch PR. Then pick up #529 (admin ingestion debug page) or #552 (BM25 source-scope filtering).
+
+---
+
 ## 2026-05-29 — feat(intelligence): LLM provider abstraction (#528)
 
 Status: Done — PR open

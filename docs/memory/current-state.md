@@ -31,9 +31,32 @@ Fixture corpus and assertion layer built as prerequisite for Onyx benchmark comp
 
 ---
 
+## 2026-05-29 — fix(security): ACL audit HIGH findings — regression tests added (#551)
+
+Status: Done — tests on main, issue open (needs close)
+Source: issue #551, Claude Code session
+
+All H1–H5 HIGH findings and M1–M4 MEDIUM findings from `docs/context/acl-audit.md` were already fixed in source code. This session added the missing regression tests required by the acceptance criteria:
+
+- H1 (`/search` admin bypass): `test_search_admin_passes_allow_all_to_backends` — asserts ES receives `is_admin=True` and Qdrant receives `allow_all=True`
+- H2 (`/expertise` admin bypass): `test_expertise_admin_passes_allow_all_to_qdrant` — service-level test, `allow_all=True` forwarded to Qdrant
+- H3 (orphaned vector leak): `test_search_drops_orphaned_qdrant_vector` — orphaned doc_id in Qdrant result not present in response
+- H4 (subscription user-discovery leak): `test_expertise_subscription_excluded_when_no_group_overlap` — outsider subscriber excluded when no group overlap with requester
+- H5 (`/related` transitive groups): `test_related_documents_router_uses_transitive_group_expansion` — router passes parent group ID to Qdrant for child-group user
+
+Also fixed 2 pre-existing broken tests: `RelatedService(...)` calls in test_related_api.py were missing the required `job_repo` argument.
+
+Pre-existing failures NOT caused by this work (already failing before):
+- `test_search_es_failure_still_fails` — expects 500 but ES failures now degrade gracefully
+- `test_excessive_limit_on_comments_returns_422` — expects 422 but gets 410 Gone for missing doc
+
+Next action: Close issue #551. Fix the 2 pre-existing test failures in a follow-up.
+
+---
+
 ## 2026-05-29 — feat(intelligence): LLM provider abstraction — issue #528
 
-Status: Done — PR open, pending merge
+Status: Done — commit 9702530 on main, issue closed
 Source: issue #528, Claude Code session
 
 `LLMProvider` protocol + `OpenAICompatibleLLMProvider` + `build_llm_provider()` factory added.
@@ -199,30 +222,27 @@ See `handoffs.md` for full detail.
 
 ---
 
-## 2026-05-26 — annotations router — 2 security bugs fixed, ACL MEDIUM items still open
+## 2026-05-26 — annotations router + ACL audit — all HIGH and MEDIUM findings resolved
 
-Status: Active
-Source: Claude Code session (graphify codebase analysis)
+Status: Done
+Source: Claude Code sessions (multiple)
 
-**Fixed — committed to main (direct push, no open branch):**
-1. `DELETE /annotation-replies/{reply_id}` — was missing `assert_doc_access` entirely; a revoked user could delete their own replies by knowing the UUID. Fixed: fetch reply → fetch parent annotation → `assert_doc_access` before ownership check.
-2. `GET /annotations/{annotation_id}/replies` — only checked doc-level access, not annotation visibility. Non-owner with doc access could enumerate replies on a private annotation by knowing its ID. Fixed: 404 if `is_private && user != owner && !admin`.
+Annotation security fixes (committed directly to main):
+1. `DELETE /annotation-replies/{reply_id}` — added `assert_doc_access` before ownership check.
+2. `GET /annotations/{annotation_id}/replies` — fixed private annotation visibility.
+3. `_get_annotation_or_404_with_access()` helper extracted; all 4 per-annotation endpoints route through it.
 
-**Structural change:** `_get_annotation_or_404_with_access()` helper extracted in router — all 4 per-annotation endpoints now route through it, preventing future endpoints from accidentally skipping the access check.
+ACL audit HIGH findings (H1–H5) — code fixed + regression tests added (issue #551):
+- H1: `/search` admin bypass — `is_admin`/`allow_all` now forwarded to ES and Qdrant
+- H2: `/expertise` admin bypass — `allow_all=True` forwarded to Qdrant
+- H3: Orphaned vector leak — silently dropped, not returned
+- H4: Subscription user-discovery leak — `user_shares_group` check enforced
+- H5: `/related` transitive group expansion — `get_effective_group_ids` used in router
 
-**Still open — ACL audit HIGH items (`docs/context/acl-audit.md`):**
-- `/search` admin path returns no results (broken bypass)
-- `/expertise` admin path broken
-- Stub `SearchResultItem` in `/search` (data leak risk)
-- `get_effective_group_ids` transitive-group expansion missing
-- `/expertise` subscription leak
-
-**Still open — ACL audit MEDIUM items:**
-- `/me/activity` and `/notifications` not filtered by current doc-access
-- Per-version ACL on `/documents/{id}/versions`
-- Sensitive key masking in `GET /admin/config`
-
-**Next action:** Pick up ACL HIGH items (D2 PR blocker) or MEDIUM ACL items.
+ACL audit MEDIUM findings (M1–M4) — fixed in PR #516:
+- M1/M4: `/me/activity` + `/notifications` filter stale rows after group revocation
+- M2: `/admin/config` masks sensitive keys
+- M3: `/documents/{id}/versions` enforces per-version ACL
 
 ## 2026-05-26 — fix/extractor-bugs — 15-bug sweep across extractors + translation pipeline
 
