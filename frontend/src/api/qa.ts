@@ -8,6 +8,8 @@ export interface QACitation {
   score: number;
   chunk_index: number | null;
   source_id: string | null;
+  page_number?: number | null;
+  section_heading?: string | null;
 }
 
 export interface QAResponse {

@@ -77,7 +77,7 @@ def test_upsert_chunks_dimension_mismatch() -> None:
 
 
 def test_upsert_chunks_stores_optional_metadata() -> None:
-    """source_id, title, and source_language are stored in payload when present."""
+    """source_id, title, source_language, page_number, section_heading are stored."""
     client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
     mock_qdrant = MagicMock()
     client._client = mock_qdrant
@@ -87,6 +87,8 @@ def test_upsert_chunks_stores_optional_metadata() -> None:
         "source_id": "src-42",
         "title": "My Document",
         "source_language": "fr",
+        "page_number": 3,
+        "section_heading": "Introduction",
     }
     client.upsert_chunks([chunk])
 
@@ -95,6 +97,8 @@ def test_upsert_chunks_stores_optional_metadata() -> None:
     assert payload["source_id"] == "src-42"
     assert payload["title"] == "My Document"
     assert payload["source_language"] == "fr"
+    assert payload["page_number"] == 3
+    assert payload["section_heading"] == "Introduction"
 
 
 def test_upsert_chunks_without_optional_metadata_omits_keys() -> None:
@@ -410,3 +414,31 @@ def test_search_metadata_includes_extra_payload_fields() -> None:
     assert results[0].metadata["title"] == "Annual Report"
     assert results[0].metadata["source_language"] == "de"
     assert results[0].metadata["chunk_index"] == 3
+
+
+def test_search_metadata_includes_page_number_section_heading() -> None:
+    """page_number and section_heading in Qdrant payload must appear in metadata."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.query_points.return_value.points = [
+        MagicMock(
+            id="doc-1-0",
+            score=0.92,
+            payload={
+                "document_id": "doc-1",
+                "chunk_id": "doc-1-0",
+                "chunk_index": 0,
+                "text": "some chunk text",
+                "source_id": "src-7",
+                "page_number": 5,
+                "section_heading": "Results",
+            },
+        ),
+    ]
+    client._client = mock_qdrant
+
+    results = client.search(vector=[0.1] * 384, group_ids=["g1"])
+
+    assert results[0].metadata is not None
+    assert results[0].metadata["page_number"] == 5
+    assert results[0].metadata["section_heading"] == "Results"

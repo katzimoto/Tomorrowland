@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import bisect
 import re
 from re import Pattern
+from typing import Any
 
 # Sentence boundary patterns per language group.
 # English/Latin: punctuation + space + capital letter.
@@ -140,6 +142,93 @@ def chunk_text(
         chunks = _ensure_max_tokens(chunks, max_tokens)
 
     return chunks
+
+
+def resolve_chunk_locations(
+    original_text: str,
+    chunks: list[str],
+    location_segments: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Map each chunk to its page_number / section_heading from *location_segments*.
+
+    Each segment dict must have ``start_char`` and ``end_char`` (Python slice
+    offsets into *original_text*), and optionally ``page_number`` and/or
+    ``section_heading``.  For each chunk we find the segment with the largest
+    overlap and return its location fields.  Returns one dict per chunk (empty
+    dict when no segment matches).
+    """
+    if not chunks or not location_segments:
+        return [{} for _ in chunks]
+
+    # Sort segments by start_char for binary search
+    sorted_segs = sorted(location_segments, key=lambda s: s["start_char"])
+    starts = [s["start_char"] for s in sorted_segs]
+
+    def _overlap(seg: dict[str, Any], c_start: int, c_end: int) -> int:
+        s_end: int = seg.get("end_char", 0)
+        s_start: int = seg.get("start_char", 0)
+        return max(0, min(s_end, c_end) - max(s_start, c_start))
+
+    positions = _find_chunk_positions(original_text, chunks)
+    result: list[dict[str, Any]] = []
+    for c_start, c_end in positions:
+        best: dict[str, Any] = {}
+        best_overlap = 0
+        # Find the first segment that could overlap
+        idx = bisect.bisect_right(starts, c_end) - 1
+        # Scan backward then forward for overlapping segments.
+        # Window of ±2 segments (5 total) is fine for PDF pages and PPTX
+        # slides. For DOCX documents with many tiny heading sections (dense
+        # API reference, legal docs), a chunk spanning more than 5 sections
+        # could map to the wrong section — acceptable for this first cut.
+        for si in range(max(0, idx - 2), min(len(sorted_segs), idx + 3)):
+            seg = sorted_segs[si]
+            if seg["start_char"] > c_end:
+                break
+            if seg["end_char"] <= c_start:
+                continue
+            ov = _overlap(seg, c_start, c_end)
+            if ov > best_overlap:
+                best_overlap = ov
+                best = {}
+                if "page_number" in seg:
+                    best["page_number"] = seg["page_number"]
+                if "section_heading" in seg:
+                    best["section_heading"] = seg["section_heading"]
+        result.append(best)
+    return result
+
+
+def _find_chunk_positions(text: str, chunks: list[str]) -> list[tuple[int, int]]:
+    """Map each chunk to its (start, end) character position in *text*.
+
+    Uses sequential scanning to handle overlap between neighbouring chunks.
+    Returns ``(0, 0)`` for any chunk whose text cannot be located.
+
+    Note: ``chunk_text()`` joins sentences with single spaces while the
+    original text may use newlines between pages/slides/paragraphs.  We
+    normalize chunk whitespace to single spaces but search in the original
+    (un-normalized) text.  Any chunk spanning a page/slide/paragraph boundary
+    will fail the search and silently return ``(0, 0)`` — graceful degradation,
+    not a bug.
+    """
+    positions: list[tuple[int, int]] = []
+    pos = 0
+    for chunk in chunks:
+        normalized = re.sub(r"\s+", " ", chunk.strip())
+        if not normalized:
+            positions.append((0, 0))
+            continue
+        idx = text.find(normalized, pos)
+        if idx == -1:
+            idx = text.find(normalized)
+        if idx == -1:
+            positions.append((0, 0))
+            continue
+        end = idx + len(normalized)
+        positions.append((idx, end))
+        pos = end
+    return positions
 
 
 def _split_sentences(text: str, language: str | None = None) -> list[str]:

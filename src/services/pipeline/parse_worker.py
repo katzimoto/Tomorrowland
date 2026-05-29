@@ -50,8 +50,13 @@ class ParseConsumer(BaseConsumer):
 
         payload = self._job_repo.get_payload(document_id)
         content_text = (payload.get("content_text", "") if payload else None) or ""
+        location_segments: list[dict[str, Any]] = []
         if not content_text and doc.path:
-            content_text = self._extractor.extract(Path(doc.path), doc.mime_type).text
+            result = self._extractor.extract(Path(doc.path), doc.mime_type)
+            content_text = result.text
+            location_segments = [seg.to_dict() for seg in result.location_segments]
+            if location_segments:
+                self._job_repo.update_extraction_metadata(document_id, location_segments)
 
         self._job_repo.update_content_text(document_id, content_text)
         self._job_repo.mark_running_stage(job_id, "parsed")

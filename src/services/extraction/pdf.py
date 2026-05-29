@@ -14,7 +14,7 @@ from pathlib import Path
 from pypdf import PdfReader
 from pypdf.errors import FileNotDecryptedError, PdfStreamError
 
-from services.extraction.base import ExtractionResult
+from services.extraction.base import ExtractionResult, LocationSegment
 
 logger = logging.getLogger(__name__)
 
@@ -51,20 +51,36 @@ class PdfExtractor:
         self._ocr_fallback = ocr_fallback
 
     def extract(self, path: Path) -> ExtractionResult:
-        """Return concatenated text from all pages."""
+        """Return concatenated text from all pages with page-number segments."""
         try:
             reader = PdfReader(str(path))
-            pages = [page.extract_text() or "" for page in reader.pages]
-            text = "\n".join(pages)
+            pages_text: list[str] = []
+            segments: list[LocationSegment] = []
+            offset = 0
+            for i, page in enumerate(reader.pages, 1):
+                page_text = page.extract_text() or ""
+                if page_text:
+                    pages_text.append(page_text)
+                    end = offset + len(page_text)
+                    segments.append(
+                        LocationSegment(
+                            start_char=offset,
+                            end_char=end,
+                            page_number=i,
+                        )
+                    )
+                    offset = end + 1  # +1 for the newline separator
+            text = "\n".join(pages_text)
         except (OSError, ValueError, PdfStreamError, FileNotDecryptedError):
             return ExtractionResult(text="")
 
         if text.strip():
-            return ExtractionResult(text=text)
+            return ExtractionResult(text=text, location_segments=segments)
 
         # Empty result on a non-empty PDF → likely scanned; try OCR if enabled.
         if self._ocr_fallback and reader.pages:
             logger.debug("pypdf returned empty text; attempting OCR for path=%s", path)
-            return ExtractionResult(text=_ocr_pdf(path))
+            ocr_text = _ocr_pdf(path)
+            return ExtractionResult(text=ocr_text)
 
         return ExtractionResult(text=text)

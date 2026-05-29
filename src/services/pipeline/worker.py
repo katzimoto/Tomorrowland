@@ -12,7 +12,7 @@ from typing import Any, NamedTuple
 from uuid import UUID
 
 from services.alerts.service import AlertMatcher
-from services.chunking.splitter import chunk_text
+from services.chunking.splitter import chunk_text, resolve_chunk_locations
 from services.documents.repository import DocumentRelationshipRepository, DocumentRepository
 from services.extraction.base import AttachmentData, ExtractionResult
 from services.extraction.language import LanguageDetector
@@ -342,6 +342,8 @@ class PipelineWorker:
                 *,
                 lang: str | None,
                 suffix: str,
+                page_number: int | None = None,
+                section_heading: str | None = None,
             ) -> dict[str, Any]:
                 entry: dict[str, Any] = {
                     "chunk_id": f"{document_id}-{suffix}-{idx}",
@@ -356,7 +358,19 @@ class PipelineWorker:
                     entry["title"] = doc.title
                 if lang:
                     entry["language"] = lang
+                if page_number is not None:
+                    entry["page_number"] = page_number
+                if section_heading is not None:
+                    entry["section_heading"] = section_heading
                 return entry
+
+            # Resolve location metadata for original chunks from extraction result
+            location_segments_dicts: list[dict[str, Any]] = []
+            if _extraction_result is not None and _extraction_result.location_segments:
+                location_segments_dicts = [
+                    s.to_dict() for s in _extraction_result.location_segments
+                ]
+            orig_locations = resolve_chunk_locations(text, original_chunks, location_segments_dicts)
 
             # Collect all chunk texts
             chunk_texts: list[str] = []
@@ -364,11 +378,28 @@ class PipelineWorker:
 
             for idx, chunk_text_content in enumerate(original_chunks):
                 chunk_texts.append(chunk_text_content)
-                chunk_meta.append({"lang": doc.source_language, "suffix": "orig", "idx": idx})
+                loc = orig_locations[idx] if idx < len(orig_locations) else {}
+                chunk_meta.append(
+                    {
+                        "lang": doc.source_language,
+                        "suffix": "orig",
+                        "idx": idx,
+                        "page_number": loc.get("page_number"),
+                        "section_heading": loc.get("section_heading"),
+                    }
+                )
 
             for idx, chunk_text_content in enumerate(translated_chunks):
                 chunk_texts.append(chunk_text_content)
-                chunk_meta.append({"lang": doc.target_language, "suffix": "trans", "idx": idx})
+                chunk_meta.append(
+                    {
+                        "lang": doc.target_language,
+                        "suffix": "trans",
+                        "idx": idx,
+                        "page_number": None,
+                        "section_heading": None,
+                    }
+                )
 
             # Batch-encode all chunks in a single Ollama call
             vectors = self._encoder.encode_batch(chunk_texts)
@@ -381,6 +412,8 @@ class PipelineWorker:
                         meta["idx"],
                         lang=meta["lang"],
                         suffix=meta["suffix"],
+                        page_number=meta.get("page_number"),
+                        section_heading=meta.get("section_heading"),
                     )
                 )
 
