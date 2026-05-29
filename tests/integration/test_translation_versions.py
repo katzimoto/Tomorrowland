@@ -360,7 +360,6 @@ def test_slow_worker_with_version_repository(
         version_repo = TranslationVersionRepository(connection)
         worker = SlowWorker(
             document_repository=doc_repo,
-            extractor_registry=None,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
             es_client=mock_es,
@@ -436,7 +435,6 @@ def test_slow_worker_version_failure_marks_version_failed(
         version_repo = TranslationVersionRepository(connection)
         worker = SlowWorker(
             document_repository=doc_repo,
-            extractor_registry=None,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
             es_client=mock_es,

@@ -78,6 +78,7 @@ def engine() -> Engine:
                 content_path TEXT,
                 content_sha256 TEXT,
                 translated_text TEXT,
+                extraction_metadata TEXT,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )

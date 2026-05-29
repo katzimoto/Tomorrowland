@@ -212,7 +212,7 @@ def test_qa_ollama_failure_returns_fallback(migrated_engine: Engine) -> None:
             migrated_engine,
             _settings(),
             qdrant_client=mock_qdrant,
-            ollama_client=mock_ollama,
+            llm_provider=mock_ollama,
         )
     )
 

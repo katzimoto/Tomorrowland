@@ -215,7 +215,7 @@ def test_mime_fallback_works(monkeypatch: pytest.MonkeyPatch) -> None:
     root = r"\\fileserver.local\department\legal\contracts"
     unknown = r"\\fileserver.local\department\legal\contracts\document.unknownext"
     fake.directories[root] = [_FakeEntry("document.unknownext", is_dir=False, size=4)]
-    fake.files[unknown] = b"data"
+    fake.files[unknown] = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
     _install_fake(monkeypatch, fake)
 
     docs = list(SmbConnector(_config()).fetch_documents())

@@ -132,7 +132,7 @@ class _MetadataConnector:
     def validate(self) -> None:
         return None
 
-    def fetch_documents(self) -> list[ConnectorDocument]:
+    def fetch_documents(self, *, storage_root: str | None = None) -> list[ConnectorDocument]:
         return [
             ConnectorDocument(
                 external_id="smb://fileserver/department/legal/report.txt",
