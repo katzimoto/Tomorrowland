@@ -530,6 +530,7 @@ services:
       - ./data:/data/mounted:ro
 
   prometheus:
+    profiles: ["monitoring"]
     image: prom/prometheus:v2.54.1
     restart: unless-stopped
     command:
@@ -551,6 +552,7 @@ services:
       driver: json-file
 
   loki:
+    profiles: ["monitoring"]
     image: grafana/loki:3.1.0
     restart: unless-stopped
     command: -config.file=/etc/loki/config.yml
@@ -569,6 +571,7 @@ services:
       driver: json-file
 
   promtail:
+    profiles: ["monitoring"]
     image: grafana/promtail:3.1.0
     restart: unless-stopped
     command: -config.file=/etc/promtail/config.yml
@@ -583,6 +586,7 @@ services:
       driver: json-file
 
   grafana:
+    profiles: ["monitoring"]
     image: grafana/grafana:11.1.4
     restart: unless-stopped
     environment:
