@@ -278,6 +278,27 @@ done < "$tmp_dir/compose-images.txt"
 [[ "$missing" -eq 0 ]] || fail "one or more compose images are missing from the offline image bundle"
 log "Every compose image is present in the offline image bundle"
 
+# ------------------------------------------------------------------
+# MCP adapter validation (#564)
+# ------------------------------------------------------------------
+
+# Verify the mcp-server service is defined in the air-gapped Compose file.
+if ! grep -q 'mcp-server:' docker-compose.airgap.yml; then
+  fail "air-gapped compose configuration must include mcp-server service"
+fi
+
+# Verify the mcp-server service uses the backend image (no separate build required).
+if grep -A 20 '^  mcp-server:' "$tmp_dir/compose.rendered.yml" | grep -q 'build:'; then
+  fail "mcp-server service must use an image reference, not a build step"
+fi
+
+# Verify mcp-server port binding restricts to localhost.
+if ! grep -q '127.0.0.1:.*8001' docker-compose.airgap.yml; then
+  log "WARNING: mcp-server port may not be bound to 127.0.0.1; air-gapped deployments should bind to localhost only"
+fi
+
+log "MCP adapter service is present and properly configured in the air-gapped Compose file"
+
 if [[ -z "$model_bundle" ]]; then
   search_parent="$(cd "$artifact_dir/.." && pwd)"
   mapfile -t found_bundles < <(find "$artifact_dir" "$search_parent" -maxdepth 1 -type f -name 'tomorrowland-ollama-bundle-*.tar.gz' 2>/dev/null | sort -u)

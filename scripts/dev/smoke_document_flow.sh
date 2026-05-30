@@ -9,6 +9,7 @@
 #   1. check_dependencies — curl, python3
 #   2. api_health         — GET /health
 #   3. frontend_health    — GET /health (skipped when FRONTEND_URL unset)
+#  3b. mcp_health         — GET /mcp (MCP adapter reachability)
 #   4. doc_bootstrap      — docker compose exec smoke_bootstrap (skip if Docker absent)
 #   5. auth_login         — POST /auth/login (skipped when creds unset)
 #   6. doc_ingest         — POST /admin/ingestion/{source}/sync-now + poll search
@@ -314,6 +315,12 @@ frontend_health() {
   log_ok "Frontend health returned status=ok"
 }
 
+mcp_health() {
+  log_info "Probing MCP adapter at localhost:${MCP_HOST_PORT}"
+  wait_for_url "MCP adapter" "http://localhost:${MCP_HOST_PORT}/mcp" || return 1
+  log_ok "MCP adapter is reachable"
+}
+
 auth_login() {
   if [[ -z "$SMOKE_ADMIN_EMAIL" || -z "$SMOKE_ADMIN_PASSWORD" ]]; then
     log_skip "SMOKE_ADMIN_EMAIL/PASSWORD not set — skipping auth login"
@@ -583,6 +590,10 @@ else
   log_skip "Frontend health check skipped (FRONTEND_URL not set)"
   write_result "frontend_health" "skip" "FRONTEND_URL not set"
 fi
+
+# Stage 3b — MCP adapter health
+MCP_HOST_PORT="${MCP_HOST_PORT:-8001}"
+run_stage "mcp_health" mcp_health
 
 # Stage 4 — document bootstrap via Docker (skip if Docker absent)
 run_stage "doc_bootstrap" doc_bootstrap

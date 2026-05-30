@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Issue #564: Air-gapped MCP adapter deployment — added `mcp-server` service
+  to `docker-compose.airgap.yml` using the prebuilt backend image with
+  `tomorrowland-mcp-server` entry point, bound to `127.0.0.1:8001` by default.
+  Added MCP adapter configuration variables to `.env.example`
+  (`MCP_API_URL`, `TOMORROWLAND_API_KEY`, `MCP_HOST`, `MCP_PORT`,
+  `MCP_HOST_PORT`). Extended `scripts/validate-airgap-artifact.sh` with MCP
+  adapter checks (service presence, no build steps, localhost binding warning).
+  Expanded `docs/operations/mcp-adapter.md` with formal air-gapped Compose
+  service guidance, Hermes/Claude Code air-gapped connection instructions, and
+  air-gapped verification steps. Added MCP adapter section to
+  `docs/operations/air-gapped-deployment.md`.
 - Issue #563: Document Hermes researcher connection workflow — expanded
   `docs/operations/mcp-adapter.md` with a researcher-facing tool guide
   (when to use each tool, key parameters), example Hermes prompts for
