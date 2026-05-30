@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Issue #563: Document Hermes researcher connection workflow — expanded
+  `docs/operations/mcp-adapter.md` with a researcher-facing tool guide
+  (when to use each tool, key parameters), example Hermes prompts for
+  common research workflows (search, inspect, ask, find related, explore
+  facets, multi-step chaining), citation behaviour and troubleshooting
+  (what to do when citations are missing or insufficient), extended Hermes
+  configuration with tool include list, and a known limits / deferred
+  capabilities section tracking #561 (audit/usage limits), #562 (permission
+  regression), #564 (air-gapped behaviour), and #565 (write tools).
+  Updated `docs/README.md` operator index to list the MCP adapter doc.
 - Issue #561: Audit logging and usage limits for researcher agent queries —
   all six `/api/agent/v1/*` endpoints emit structured `agent_audit` log
   lines (safe metadata only: route, user id, correlation id, query length,

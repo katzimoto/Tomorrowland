@@ -11,6 +11,8 @@ README is the landing page; this index routes by audience.
   that preserves `.env` and persistent volumes.
 - [Production Compose](operations/production-compose.md) — connected Compose
   operation, service layout, backups, troubleshooting, and connector notes.
+- [MCP Adapter](operations/mcp-adapter.md) — connect Hermes or other MCP clients
+  to Tomorrowland's permissioned researcher tools.
 - [Release notes](operations/release-notes-rc.md) — release-candidate operator
   notes and known limitations.
 
