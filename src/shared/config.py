@@ -27,11 +27,11 @@ class Settings(BaseSettings):
     libretranslate_url: str = "http://libretranslate:5000"
 
     ollama_url: str = "http://ollama-llm:11434"
-    ollama_model: str = "qwen3.5:35b-a3b"
+    ollama_model: str = "qwen3:4b"
     # Optional smaller model for cheap repeated tasks (query rewrite, auto-tag,
     # key-points augmentation, chunk-level summary map). Falls back to
     # ollama_model when empty.
-    ollama_utility_model: str = "qwen3:14b"
+    ollama_utility_model: str = "qwen3:1.7b"
     # Optional dedicated model for cross-encoder reranking. Falls back to
     # effective_utility_model (and then ollama_model) when empty.
     # Also readable as RERANK_MODEL (future dedicated reranking pipeline).

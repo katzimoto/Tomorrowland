@@ -20,7 +20,7 @@ DEFAULT_TIMEOUT = 300.0
 class OllamaClient:
     """Thin wrapper around the Ollama HTTP API."""
 
-    def __init__(self, base_url: str, model: str = "mistral") -> None:
+    def __init__(self, base_url: str, model: str = "qwen3:4b") -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
 

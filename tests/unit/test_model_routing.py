@@ -63,12 +63,12 @@ class TestEffectiveModelResolution:
     def test_single_model_compat(self) -> None:
         """All three empty → effective_utility and effective_reranker both == main model."""
         s = Settings(
-            ollama_model="mistral",
+            ollama_model="qwen3:4b",
             ollama_utility_model="",
             ollama_reranker_model="",
         )
-        assert s.effective_utility_model == "mistral"
-        assert s.effective_reranker_model == "mistral"
+        assert s.effective_utility_model == "qwen3:4b"
+        assert s.effective_reranker_model == "qwen3:4b"
 
 
 # ---------------------------------------------------------------------------
