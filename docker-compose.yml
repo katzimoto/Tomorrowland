@@ -83,6 +83,37 @@ services:
       - files_data:/data
       - ./data:/data/mounted:ro
 
+  mcp-server:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command: ["tomorrowland-mcp-server"]
+    restart: unless-stopped
+    cpus: ${MCP_SERVER_CPUS:-0.50}
+    mem_limit: ${MCP_SERVER_MEM_LIMIT:-256m}
+    mem_reservation: ${MCP_SERVER_MEM_RESERVATION:-64m}
+    pids_limit: ${MCP_SERVER_PIDS_LIMIT:-256}
+    environment:
+      TOMORROWLAND_API_URL: ${MCP_API_URL:-http://api:8000}
+      TOMORROWLAND_API_KEY: ${TOMORROWLAND_API_KEY:-}
+      TOMORROWLAND_API_TIMEOUT: ${TOMORROWLAND_API_TIMEOUT:-30.0}
+      MCP_HOST: ${MCP_HOST:-0.0.0.0}
+      MCP_PORT: ${MCP_PORT:-8001}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "127.0.0.1:${MCP_HOST_PORT:-8001}:8001"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/8001'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+
   frontend:
     build:
       context: .

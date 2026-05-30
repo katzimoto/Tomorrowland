@@ -50,6 +50,7 @@ done
 
 API_PORT="${API_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-8080}"
+MCP_HOST_PORT="${MCP_HOST_PORT:-8001}"
 API_URL="${API_URL:-http://localhost:${API_PORT}}"
 FRONTEND_URL="${FRONTEND_URL:-http://localhost:${FRONTEND_PORT}}"
 SMOKE_ADMIN_EMAIL="${SMOKE_ADMIN_EMAIL:-smoke-admin@example.com}"
@@ -239,6 +240,14 @@ fi
 log_step "Checking frontend reachability"
 wait_for_url "frontend" "${FRONTEND_URL}/"
 wait_for_url "frontend health" "${FRONTEND_URL}/health"
+
+log_step "Checking MCP adapter reachability"
+if curl -fsS --connect-timeout 5 "http://localhost:${MCP_HOST_PORT:-8001}/mcp" >/dev/null 2>&1; then
+  echo "  [PASS] MCP adapter is reachable at localhost:${MCP_HOST_PORT:-8001}"
+else
+  echo "  [FAIL] MCP adapter is not reachable at localhost:${MCP_HOST_PORT:-8001}" >&2
+  exit 1
+fi
 
 log_step "Smoke test completed successfully"
 exit 0

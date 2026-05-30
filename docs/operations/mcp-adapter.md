@@ -95,8 +95,83 @@ tomorrowland_list_facets = true
 
 ### Air-gapped / local mode
 
-When running in an air-gapped environment, ensure both the Tomorrowland API
-and the MCP adapter are running on the same host:
+The MCP adapter is pre-configured in `docker-compose.airgap.yml` as the
+`mcp-server` service.  When you start the air-gapped stack with
+`./scripts/tomorrowland-airgap.sh up`, the MCP adapter starts automatically
+alongside the API and frontend.  No separate process management is needed.
+
+#### Air-gapped Compose service
+
+The `mcp-server` service:
+
+- Uses the same prebuilt backend image as the API container.
+- Runs `tomorrowland-mcp-server` as its entry point (Streamable HTTP on port 8001).
+- Depends on the `api` service being healthy before starting.
+- Binds to `127.0.0.1` on the host for security — no direct external access.
+- Forwards the configured `TOMORROWLAND_API_KEY` as a Bearer token to the API.
+
+#### Air-gapped configuration
+
+Add the following to your air-gapped `.env` file before starting the stack:
+
+```bash
+# MCP adapter — required for Hermes / Claude Code connectivity
+MCP_API_URL=http://api:8000                       # API service inside Compose network
+MCP_HOST=0.0.0.0                                  # listen on all container interfaces
+MCP_PORT=8001                                      # container port
+MCP_HOST_PORT=8001                                 # host port (bound to 127.0.0.1)
+TOMORROWLAND_API_KEY=your-researcher-bearer-token   # required
+TOMORROWLAND_API_TIMEOUT=30.0
+```
+
+**Important:** The `TOMORROWLAND_API_KEY` must be a valid JWT Bearer token
+for a Tomorrowland user with appropriate researcher permissions.  Generate
+one by logging into the Tomorrowland frontend and obtaining a token, or by
+using the admin API.  The MCP adapter forwards this token unmodified to
+every API call — the token's permissions determine which documents the
+connected MCP client can search and read.
+
+After the stack is healthy, verify the MCP adapter is reachable:
+
+```bash
+# Health check (the MCP endpoint returns a response on GET)
+curl -sS http://127.0.0.1:8001/mcp
+
+# Check service logs
+docker compose --env-file .env -f docker-compose.airgap.yml logs mcp-server
+```
+
+#### Connecting Hermes in air-gapped mode
+
+When both Tomorrowland and Hermes run on the same air-gapped host, point
+Hermes at the MCP adapter on localhost:
+
+```toml
+# hermes.toml
+[[mcp_servers]]
+name = "tomorrowland"
+transport = "http"
+url = "http://127.0.0.1:8001/mcp"
+api_key = "your-researcher-bearer-token"
+
+[mcp_servers.tool_include]
+tomorrowland_search_documents = true
+tomorrowland_get_document = true
+tomorrowland_get_passages = true
+tomorrowland_ask_corpus = true
+tomorrowland_get_related_documents = true
+tomorrowland_list_facets = true
+```
+
+#### Connecting Claude Code in air-gapped mode
+
+```bash
+claude mcp add --transport http tomorrowland http://127.0.0.1:8001/mcp
+```
+
+#### Standalone (non-Compose) air-gapped mode
+
+If running the MCP adapter outside Docker on the air-gapped host:
 
 ```bash
 export TOMORROWLAND_API_URL=http://host.docker.internal:8000
@@ -519,12 +594,19 @@ delete operations are not exposed to MCP clients.
   and MCP adapter are tracked in [#562](/issues/562).  Existing tests cover
   core ACL enforcement, but edge cases may not be fully exercised.
 
-### Air-gapped behaviour (#564)
+### Air-gapped behaviour (#564) ✅
 
-- Specific **air-gapped deployment** guidance and validation for the MCP
-  adapter is tracked in [#564](/issues/564).  The adapter works in
-  air-gapped mode (both processes on the same host), but formal validation
-  and operator documentation are still in progress.
+The MCP adapter is fully integrated into the air-gapped deployment path:
+
+- **Compose service:** `mcp-server` in `docker-compose.airgap.yml` uses the
+  prebuilt backend image with the `tomorrowland-mcp-server` entry point.
+  Starts automatically with `./scripts/tomorrowland-airgap.sh up`.
+- **Validation:** `scripts/validate-airgap-artifact.sh` verifies the
+  `mcp-server` service is present, uses an image (not a build step), and
+  warns if the port binding is not restricted to localhost.
+- **Configuration:** Air-gapped operators configure `MCP_API_URL`,
+  `TOMORROWLAND_API_KEY`, `MCP_HOST`, `MCP_PORT`, and `MCP_HOST_PORT` in
+  their `.env` file.  See "Air-gapped / local mode" above for full details.
 
 ### No direct store access
 

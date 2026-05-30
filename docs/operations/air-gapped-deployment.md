@@ -265,6 +265,38 @@ curl -fsS http://localhost:8080/health
 Open the frontend at `http://localhost:8080` or the host/port you configured
 in `.env`.
 
+### MCP adapter
+
+The MCP (Model Context Protocol) adapter exposes the Tomorrowland researcher
+API as MCP tools for Hermes, Claude Code, or any MCP client.  In air-gapped
+mode it runs as the `mcp-server` Compose service and starts automatically with
+`./scripts/tomorrowland-airgap.sh up`.
+
+**Configuration:** In your air-gapped `.env`, set:
+
+```env
+MCP_API_URL=http://api:8000
+TOMORROWLAND_API_KEY=your-researcher-bearer-token
+MCP_HOST=0.0.0.0
+MCP_PORT=8001
+MCP_HOST_PORT=8001
+```
+
+**Verification:** After stack startup, confirm the MCP adapter is reachable:
+
+```bash
+curl -sS http://127.0.0.1:8001/mcp
+```
+
+**Security:** The `mcp-server` port is bound to `127.0.0.1` on the host by
+default.  The adapter forwards the configured `TOMORROWLAND_API_KEY` as a
+Bearer token to the Tomorrowland API — it does not authenticate MCP clients
+itself.  All authorization (ACL enforcement, group membership) is handled by
+the Tomorrowland API.
+
+See `docs/operations/mcp-adapter.md` for full MCP tool descriptions, Hermes
+configuration, citation behaviour, and troubleshooting.
+
 ## Ollama model bundle
 
 Some releases may ship an Ollama model bundle as a separate optional release
