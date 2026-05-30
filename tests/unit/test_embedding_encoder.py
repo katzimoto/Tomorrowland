@@ -19,9 +19,7 @@ class TestOpenAICompatibleEmbeddingEncoder:
 
     @patch("services.search.encoder.httpx.post")
     def test_encode_hits_v1_embeddings(self, mock_post: MagicMock) -> None:
-        mock_post.return_value = _response(
-            {"data": [{"index": 0, "embedding": [0.1, 0.2, 0.3]}]}
-        )
+        mock_post.return_value = _response({"data": [{"index": 0, "embedding": [0.1, 0.2, 0.3]}]})
 
         encoder = OpenAICompatibleEmbeddingEncoder(
             "http://embeddings:8000", model="text-embedding-3-small"
@@ -76,9 +74,7 @@ class TestOpenAICompatibleEmbeddingEncoder:
 
     @patch("services.search.encoder.httpx.post")
     def test_auth_header_present_when_api_key_set(self, mock_post: MagicMock) -> None:
-        mock_post.return_value = _response(
-            {"data": [{"index": 0, "embedding": [0.1]}]}
-        )
+        mock_post.return_value = _response({"data": [{"index": 0, "embedding": [0.1]}]})
 
         encoder = OpenAICompatibleEmbeddingEncoder(
             "http://embeddings:8000",
@@ -93,9 +89,7 @@ class TestOpenAICompatibleEmbeddingEncoder:
 
     @patch("services.search.encoder.httpx.post")
     def test_auth_header_absent_when_api_key_empty(self, mock_post: MagicMock) -> None:
-        mock_post.return_value = _response(
-            {"data": [{"index": 0, "embedding": [0.1]}]}
-        )
+        mock_post.return_value = _response({"data": [{"index": 0, "embedding": [0.1]}]})
 
         encoder = OpenAICompatibleEmbeddingEncoder(
             "http://embeddings:8000",
@@ -109,9 +103,7 @@ class TestOpenAICompatibleEmbeddingEncoder:
         assert "Authorization" not in headers
 
     @patch("services.search.encoder.httpx.post")
-    def test_encode_batch_preserves_order_when_shuffled(
-        self, mock_post: MagicMock
-    ) -> None:
+    def test_encode_batch_preserves_order_when_shuffled(self, mock_post: MagicMock) -> None:
         """Batch results must be sorted by index so the return order matches
         the input order even when the server returns shuffled data."""
         mock_post.return_value = _response(
@@ -136,7 +128,12 @@ class TestOpenAICompatibleEmbeddingEncoder:
     @patch("services.search.encoder.httpx.post")
     def test_encode_request_payload(self, mock_post: MagicMock) -> None:
         mock_post.return_value = _response(
-            {"data": [{"index": 0, "embedding": [0.1]}]}
+            {
+                "data": [
+                    {"index": 0, "embedding": [0.1]},
+                    {"index": 1, "embedding": [0.2]},
+                ]
+            }
         )
 
         encoder = OpenAICompatibleEmbeddingEncoder(
@@ -151,11 +148,6 @@ class TestOpenAICompatibleEmbeddingEncoder:
     @patch("services.search.encoder.httpx.post")
     def test_encode_raises_on_http_error(self, mock_post: MagicMock) -> None:
         mock_post.return_value = _response({}, status_code=500)
-        mock_post.return_value.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "Server Error",
-            request=MagicMock(),
-            response=mock_post.return_value,
-        )
 
         encoder = OpenAICompatibleEmbeddingEncoder(
             "http://embeddings:8000", model="text-embedding-3-small"
@@ -176,12 +168,8 @@ class TestOpenAICompatibleEmbeddingEncoder:
             encoder.encode("hello")
 
     @patch("services.search.encoder.httpx.post")
-    def test_encode_raises_on_missing_embedding_in_entry(
-        self, mock_post: MagicMock
-    ) -> None:
-        mock_post.return_value = _response(
-            {"data": [{"index": 0, "embedding": None}]}
-        )
+    def test_encode_raises_on_missing_embedding_in_entry(self, mock_post: MagicMock) -> None:
+        mock_post.return_value = _response({"data": [{"index": 0, "embedding": None}]})
 
         encoder = OpenAICompatibleEmbeddingEncoder(
             "http://embeddings:8000", model="text-embedding-3-small"
@@ -213,10 +201,30 @@ class TestOpenAICompatibleEmbeddingEncoder:
             encoder.encode("hello")
 
     @patch("services.search.encoder.httpx.post")
-    def test_content_type_header(self, mock_post: MagicMock) -> None:
-        mock_post.return_value = _response(
-            {"data": [{"index": 0, "embedding": [0.1]}]}
+    def test_encode_raises_on_missing_index_in_entry(self, mock_post: MagicMock) -> None:
+        mock_post.return_value = _response({"data": [{"embedding": [0.1, 0.2]}]})
+
+        encoder = OpenAICompatibleEmbeddingEncoder(
+            "http://embeddings:8000", model="text-embedding-3-small"
         )
+
+        with pytest.raises(RuntimeError, match="missing 'index'"):
+            encoder.encode("hello")
+
+    @patch("services.search.encoder.httpx.post")
+    def test_encode_raises_on_count_mismatch(self, mock_post: MagicMock) -> None:
+        mock_post.return_value = _response({"data": [{"index": 0, "embedding": [0.1, 0.2]}]})
+
+        encoder = OpenAICompatibleEmbeddingEncoder(
+            "http://embeddings:8000", model="text-embedding-3-small"
+        )
+
+        with pytest.raises(RuntimeError, match="returned 1 embeddings for 2 inputs"):
+            encoder.encode_batch(["hello", "world"])
+
+    @patch("services.search.encoder.httpx.post")
+    def test_content_type_header(self, mock_post: MagicMock) -> None:
+        mock_post.return_value = _response({"data": [{"index": 0, "embedding": [0.1]}]})
 
         encoder = OpenAICompatibleEmbeddingEncoder(
             "http://embeddings:8000", model="text-embedding-3-small"

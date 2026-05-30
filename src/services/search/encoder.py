@@ -141,21 +141,23 @@ class OpenAICompatibleEmbeddingEncoder:
                 f"Cannot connect to embedding service at {self._base_url}."
             ) from None
         except httpx.TimeoutException:
-            raise RuntimeError(
-                f"Embedding request timed out after {self._timeout}s."
-            ) from None
+            raise RuntimeError(f"Embedding request timed out after {self._timeout}s.") from None
 
         response.raise_for_status()
         data = response.json()
 
         raw_data: list[dict[str, Any]] | None = data.get("data")
         if raw_data is None:
-            raise RuntimeError(
-                "OpenAI-compatible /v1/embeddings response missing 'data' key"
-            )
+            raise RuntimeError("OpenAI-compatible /v1/embeddings response missing 'data' key")
 
-        # Sort by index to guarantee input-order stability
-        sorted_data = sorted(raw_data, key=lambda entry: entry.get("index", 0))
+        # Validate index presence before sorting; compliant providers always include it.
+        for i, entry in enumerate(raw_data):
+            if entry.get("index") is None:
+                raise RuntimeError(
+                    f"OpenAI-compatible /v1/embeddings response entry {i} missing 'index'"
+                )
+        sorted_data = sorted(raw_data, key=lambda entry: entry["index"])
+
         embeddings: list[list[float]] = []
         for entry in sorted_data:
             emb: list[float] | None = entry.get("embedding")
@@ -165,6 +167,11 @@ class OpenAICompatibleEmbeddingEncoder:
                 )
             embeddings.append(emb)
 
+        if len(embeddings) != len(texts):
+            raise RuntimeError(
+                f"OpenAI-compatible /v1/embeddings returned {len(embeddings)} embeddings "
+                f"for {len(texts)} inputs."
+            )
         return embeddings
 
 
