@@ -960,6 +960,18 @@ wheels = [
 ]
 
 [[package]]
+name = "ldap3"
+version = "2.9.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyasn1" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/43/ac/96bd5464e3edbc61595d0d69989f5d9969ae411866427b2500a8e5b812c0/ldap3-2.9.1.tar.gz", hash = "sha256:f3e7fc4718e3f09dda568b57100095e0ce58633bcabbed8667ce3f8fbaa4229f", size = 398830, upload-time = "2021-07-18T06:34:21.786Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4e/f6/71d6ec9f18da0b2201287ce9db6afb1a1f637dedb3f0703409558981c723/ldap3-2.9.1-py2.py3-none-any.whl", hash = "sha256:5869596fc4948797020d3f03b7939da938778a0f9e2009f7a072ccf92b8e8d70", size = 432192, upload-time = "2021-07-18T06:34:12.905Z" },
+]
+
+[[package]]
 name = "librt"
 version = "0.10.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1782,6 +1794,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyasn1"
+version = "0.6.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5c/5f/6583902b6f79b399c9c40674ac384fd9cd77805f9e6205075f828ef11fb2/pyasn1-0.6.3.tar.gz", hash = "sha256:697a8ecd6d98891189184ca1fa05d1bb00e2f84b5977c481452050549c8a72cf", size = 148685, upload-time = "2026-03-17T01:06:53.382Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5d/a0/7d793dce3fa811fe047d6ae2431c672364b462850c6235ae306c0efd025f/pyasn1-0.6.3-py3-none-any.whl", hash = "sha256:a80184d120f0864a52a073acc6fc642847d0be408e7c7252f31390c0f4eadcde", size = 83997, upload-time = "2026-03-17T01:06:52.036Z" },
+]
+
+[[package]]
 name = "pycparser"
 version = "3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2566,6 +2587,7 @@ dependencies = [
     { name = "extract-msg" },
     { name = "fastapi" },
     { name = "langdetect" },
+    { name = "ldap3" },
     { name = "magika" },
     { name = "mcp", extra = ["cli"] },
     { name = "meilisearch" },
@@ -2609,6 +2631,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "testcontainers" },
+    { name = "types-ldap3" },
 ]
 
 [package.metadata]
@@ -2621,6 +2644,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.111" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "langdetect", specifier = ">=1.0.9" },
+    { name = "ldap3", specifier = ">=2.9.1" },
     { name = "magika", specifier = ">=1.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.27.2" },
     { name = "meilisearch", specifier = ">=0.41,<1" },
@@ -2658,6 +2682,7 @@ dev = [
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "testcontainers", specifier = ">=4.14.2" },
+    { name = "types-ldap3", specifier = ">=2.9.13.20260518" },
 ]
 
 [[package]]
@@ -2676,12 +2701,33 @@ wheels = [
 ]
 
 [[package]]
+name = "types-ldap3"
+version = "2.9.13.20260518"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "types-pyasn1" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fa/6f/d6094c70e3b1d62baacedaa56a41e5a64412313ad1db80acbf66dc05fd9b/types_ldap3-2.9.13.20260518.tar.gz", hash = "sha256:d1ab194a677da0e153ee686b7b7a606cec601d742266a2367d51e2be6d014c08", size = 33911, upload-time = "2026-05-18T06:07:05.497Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/d7/2ee992a0957c9a36713935b215f55fcea262eb55002468690369bbac1ed0/types_ldap3-2.9.13.20260518-py3-none-any.whl", hash = "sha256:c70656b7e31fc1497ea5e666e7a3a46311898c6b75f526193ba28eb5c649c668", size = 56752, upload-time = "2026-05-18T06:07:04.57Z" },
+]
+
+[[package]]
 name = "types-openpyxl"
 version = "3.1.5.20260508"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0b/25/86379c5b2d83235984b2514168bf1c04deb54adbb9e0ab0a2abc3809dfa2/types_openpyxl-3.1.5.20260508.tar.gz", hash = "sha256:34f5c6398f9066bdad309661f300590fdd090846f76164002110a97327173d3d", size = 101398, upload-time = "2026-05-08T04:48:22.161Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/05/82/19cdc3d26f18c0848ad53ccc216e8bdcdd60a3c22c60cd47499f8e2dcd2d/types_openpyxl-3.1.5.20260508-py3-none-any.whl", hash = "sha256:603e41a524bb4f34e2ccfee63f5fe1f166d75387d36b1060183242f0958ec539", size = 165593, upload-time = "2026-05-08T04:48:20.834Z" },
+]
+
+[[package]]
+name = "types-pyasn1"
+version = "0.6.0.20260408"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/58/c0/02f897fc8543f64fa6b1ca6a30d388e37c4ec2f761f469a2d9a29b89cdef/types_pyasn1-0.6.0.20260408.tar.gz", hash = "sha256:32dc90927adbe504fd2eee83ae30cf5ef934e5db0d1d94886071fed47eb50c8c", size = 17312, upload-time = "2026-04-08T04:27:16.874Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/a5/473e06d5aaec3730aab5a9d40c2044e673c927412c24bd7f3fa0df7e95d3/types_pyasn1-0.6.0.20260408-py3-none-any.whl", hash = "sha256:ee7fbd98bce61193c5d4f8f7812fa53cddc5b8cc5ceb9fcda6eea539947c6d6b", size = 24044, upload-time = "2026-04-08T04:27:16.002Z" },
 ]
 
 [[package]]

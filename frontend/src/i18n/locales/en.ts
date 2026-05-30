@@ -312,7 +312,11 @@ export interface Translations {
     lastSynced: (value: string) => string;
     syncResult: (enqueued: number, skipped: number, failed: number) => string;
     syncStarted: (name: string) => string;
-    syncCompleted: (enqueued: number, skipped: number, failed: number) => string;
+    syncCompleted: (
+      enqueued: number,
+      skipped: number,
+      failed: number,
+    ) => string;
     syncPartialFailure: (failed: number) => string;
     syncFailed: string;
     dialogTitle: string;
@@ -330,6 +334,35 @@ export interface Translations {
     placeholder: string;
     hint: string;
     empty: string;
+  };
+  adminLdap: {
+    title: string;
+    subtitle: string;
+    searchLabel: string;
+    searchPlaceholder: string;
+    searchBtn: string;
+    searchingText: string;
+    searchEmpty: string;
+    searchError: string;
+    colName: string;
+    colDN: string;
+    colExternalId: string;
+    colActions: string;
+    mapBtn: string;
+    selectGroupLabel: string;
+    selectGroupPlaceholder: string;
+    createMappingBtn: string;
+    existingMappings: string;
+    noMappings: string;
+    ephemeralNote: string;
+    mappingNote: string;
+    deleteMappingLabel: string;
+    deleteMappingConfirm: (name: string) => string;
+    mappingCreated: string;
+    mappingDeleted: string;
+    loadError: string;
+    createError: string;
+    deleteError: string;
   };
   lang: {
     label: string;
@@ -358,7 +391,8 @@ export const en: Translations = {
   app: {
     loadingApp: "Loading application",
     loadFailed: "Failed to load",
-    loadFailedBody: "Could not connect to the server. Reload the page to try again.",
+    loadFailedBody:
+      "Could not connect to the server. Reload the page to try again.",
   },
   auth: {
     heading: "Sign in to Tomorrowland",
@@ -393,14 +427,17 @@ export const en: Translations = {
     removeFilter: (label) => `Remove filter: ${label}`,
     resultsLabel: "Search results",
     unavailableTitle: "Search unavailable",
-    unavailableBody: "The search backend is not reachable. Check the server and try again.",
+    unavailableBody:
+      "The search backend is not reachable. Check the server and try again.",
     retry: "Retry",
     noResultsTitle: "No results found",
-    noResultsBody: "No accessible documents match your query. Try different terms or remove filters.",
+    noResultsBody:
+      "No accessible documents match your query. Try different terms or remove filters.",
     emptyTitle: "Start searching",
     emptyBody: "Type a query above and press Enter or Search.",
     failedToast: "Search failed. Check that the backend is reachable.",
-    keyboardHelp: "Use ↑/↓ or j/k to choose a result, Enter to open, Space to preview, and Esc to close preview.",
+    keyboardHelp:
+      "Use ↑/↓ or j/k to choose a result, Enter to open, Space to preview, and Esc to close preview.",
     quickPreviewTitle: "Quick preview",
     openSelected: "Open document",
     closePreview: "Close preview",
@@ -423,7 +460,8 @@ export const en: Translations = {
   },
   document: {
     notFoundTitle: "Document not found",
-    notFoundBody: "This document may have been deleted or you may not have access.",
+    notFoundBody:
+      "This document may have been deleted or you may not have access.",
     tryAgain: "Try again",
     backToSearch: "Back to search",
     untitled: "Untitled document",
@@ -493,15 +531,18 @@ export const en: Translations = {
     commentUpdateError: "Failed to update comment.",
     commentDeleteError: "Failed to delete comment.",
     subscriptionsTitle: "Subscriptions",
-    subscriptionsBody: "Subscribe to alerts for this document. Coming in Phase 08e.",
+    subscriptionsBody:
+      "Subscribe to alerts for this document. Coming in Phase 08e.",
   },
   qa: {
     title: "Q&A",
     ask: "Ask",
     failedTitle: "Request failed",
-    failedBody: "The Q&A service is not reachable. Check the server and try again.",
+    failedBody:
+      "The Q&A service is not reachable. Check the server and try again.",
     emptyTitle: "Ask anything",
-    emptyBody: "Type a question and press Ask. Answers are grounded in your accessible documents.",
+    emptyBody:
+      "Type a question and press Ask. Answers are grounded in your accessible documents.",
     toastError: "Q&A request failed. Check that the backend is reachable.",
   },
   chat: {
@@ -509,7 +550,8 @@ export const en: Translations = {
     newChat: "New Chat",
     startChat: "Start a chat",
     emptyTitle: "Ask questions about your documents.",
-    emptyBody: "Answers are based only on documents you can access, with sources.",
+    emptyBody:
+      "Answers are based only on documents you can access, with sources.",
     noChatsYet: "No chats yet.",
     loadChatsError: "Failed to load chats.",
     loadSessionError: "Failed to load chat.",
@@ -547,7 +589,8 @@ export const en: Translations = {
     failedTitle: "Failed to load notifications",
     failedBody: "Could not reach the server.",
     emptyTitle: "No notifications",
-    emptyBody: "You'll be notified here when documents match your subscriptions.",
+    emptyBody:
+      "You'll be notified here when documents match your subscriptions.",
     unread: "Unread",
     earlier: "Earlier",
   },
@@ -604,7 +647,8 @@ export const en: Translations = {
   },
   expertise: {
     title: "Expertise map",
-    subtitle: "Find colleagues through document evidence. Results are not rankings or performance scores.",
+    subtitle:
+      "Find colleagues through document evidence. Results are not rankings or performance scores.",
     topicLabel: "Topic",
     placeholder: "e.g. incident response",
     findBtn: "Find evidence",
@@ -615,7 +659,8 @@ export const en: Translations = {
   comments: {
     ariaLabel: "Comments",
     unavailableTitle: "Comments unavailable",
-    unavailableBody: "You do not have access to this document's collaboration notes.",
+    unavailableBody:
+      "You do not have access to this document's collaboration notes.",
     failedTitle: "Could not load comments",
     failedBody: "Try again later.",
     emptyTitle: "No comments yet",
@@ -673,6 +718,39 @@ export const en: Translations = {
     placeholder: "Type a destination…",
     hint: "Visible navigation remains available in the rail. Use this shortcut for faster routing.",
     empty: "No matching destinations.",
+  },
+  adminLdap: {
+    title: "LDAP Group Mappings",
+    subtitle:
+      "Search LDAP groups live and map them to Tomorrowland groups. Only explicit mappings are persisted — LDAP groups are never used directly in document ACLs.",
+    searchLabel: "Search LDAP groups",
+    searchPlaceholder: "Search by group name or description…",
+    searchBtn: "Search",
+    searchingText: "Searching…",
+    searchEmpty: "No LDAP groups found matching your query.",
+    searchError: "LDAP search failed. Check the LDAP configuration.",
+    colName: "Display Name",
+    colDN: "Distinguished Name",
+    colExternalId: "External ID",
+    colActions: "Actions",
+    mapBtn: "Map to Group",
+    selectGroupLabel: "Target Tomorrowland Group",
+    selectGroupPlaceholder: "Select a group…",
+    createMappingBtn: "Create Mapping",
+    existingMappings: "Existing Mappings",
+    noMappings: "No explicit mappings configured yet.",
+    ephemeralNote:
+      "Search results are ephemeral — only groups you explicitly map are persisted.",
+    mappingNote:
+      "LDAP groups only grant Tomorrowland group membership through explicit mappings. Unmapped LDAP groups are ignored.",
+    deleteMappingLabel: "Delete mapping",
+    deleteMappingConfirm: (name: string) =>
+      `Delete the mapping for "${name}"? This does not delete the Tomorrowland group itself.`,
+    mappingCreated: "Mapping created.",
+    mappingDeleted: "Mapping deleted.",
+    loadError: "Failed to load mappings.",
+    createError: "Failed to create mapping.",
+    deleteError: "Failed to delete mapping.",
   },
   lang: {
     label: "Language",

@@ -83,6 +83,22 @@ class Settings(BaseSettings):
     ldap_bind_user: str = "cn=svc-search,DC=company,DC=local"
     ldap_bind_password: str = "changeme"
 
+    # LDAP group search (#582).  Admin-only live search; results are never persisted
+    # unless the admin explicitly maps a group.
+    ldap_group_search_base_dns: str = ""
+    ldap_group_search_filter: str = "(&(objectClass=group)(cn=*{query}*))"
+    ldap_group_search_limit: int = Field(default=50, ge=1, le=200)
+    ldap_group_search_timeout: float = Field(default=10.0, ge=1.0, le=30.0)
+    ldap_group_external_id_attr: str = "objectGUID"
+    ldap_group_display_name_attr: str = "cn"
+
+    @property
+    def ldap_group_search_base_dn_list(self) -> list[str]:
+        """Return the configured group search base DNs as a list."""
+        if not self.ldap_group_search_base_dns:
+            return [self.ldap_base_dn]
+        return [dn.strip() for dn in self.ldap_group_search_base_dns.split(",") if dn.strip()]
+
     # --- Extraction feature flags ---
     # Requires tesseract-ocr + poppler-utils in PATH (or Docker image).
     enable_ocr: bool = False

@@ -30,7 +30,13 @@ export interface Source {
   last_sync_failed: number | null;
   last_sync_error: string | null;
   last_sync_at: string | null;
-  last_validation_status: "ok" | "unreachable" | "auth_failed" | "permission_denied" | "config_invalid" | null;
+  last_validation_status:
+    | "ok"
+    | "unreachable"
+    | "auth_failed"
+    | "permission_denied"
+    | "config_invalid"
+    | null;
   last_validation_error: string | null;
   last_validated_at: string | null;
 }
@@ -56,7 +62,12 @@ export interface SyncResult {
 
 export interface SourceTestResult {
   source_id: string;
-  status: "ok" | "unreachable" | "auth_failed" | "permission_denied" | "config_invalid";
+  status:
+    | "ok"
+    | "unreachable"
+    | "auth_failed"
+    | "permission_denied"
+    | "config_invalid";
   checked_at: string;
   details?: Record<string, unknown>;
   error?: string;
@@ -126,19 +137,24 @@ export const adminApi = {
   syncSource: (sourceId: string) =>
     api.post<SyncResult>(`/admin/ingestion/${sourceId}/sync-now`, {}),
   testSource: (sourceId: string) =>
-    api.post<SourceTestResult>(`/admin/sources/${sourceId}/test-connection`, {}),
+    api.post<SourceTestResult>(
+      `/admin/sources/${sourceId}/test-connection`,
+      {},
+    ),
   getSource: (sourceId: string) =>
     api.get<SourceDetail>(`/admin/sources/${sourceId}`),
   getSourceDocuments: (sourceId: string, limit = 50, offset = 0) =>
     api.get<SourceDocumentsResponse>(
-      `/admin/sources/${sourceId}/documents?limit=${limit}&offset=${offset}`
+      `/admin/sources/${sourceId}/documents?limit=${limit}&offset=${offset}`,
     ),
   requeueDocument: (documentId: string) =>
-    api.post<{ requeued: number }>(`/admin/documents/${documentId}/requeue`, {}),
+    api.post<{ requeued: number }>(
+      `/admin/documents/${documentId}/requeue`,
+      {},
+    ),
   deleteDocument: (documentId: string) =>
     api.delete(`/admin/documents/${documentId}`),
-  deleteSource: (sourceId: string) =>
-    api.delete(`/admin/sources/${sourceId}`),
+  deleteSource: (sourceId: string) => api.delete(`/admin/sources/${sourceId}`),
   listGroups: () => api.get<{ id: string; name: string }[]>("/admin/groups"),
   grantPermission: (sourceId: string, groupId: string) =>
     api.post(`/admin/sources/${sourceId}/permissions`, { group_id: groupId }),
@@ -148,14 +164,15 @@ export const adminApi = {
     api.put(`/admin/sources/${sourceId}`, payload),
   listUsers: () => api.get<UserDetail[]>("/admin/users"),
   getUser: (userId: string) => api.get<UserDetail>(`/admin/users/${userId}`),
-  updateUser: (userId: string, payload: { display_name?: string | null; is_admin?: boolean | null }) =>
-    api.patch<UserDetail>(`/admin/users/${userId}`, payload),
+  updateUser: (
+    userId: string,
+    payload: { display_name?: string | null; is_admin?: boolean | null },
+  ) => api.patch<UserDetail>(`/admin/users/${userId}`, payload),
   setUserGroups: (userId: string, groupNames: string[]) =>
     api.put(`/admin/users/${userId}/groups`, { group_names: groupNames }),
   createGroup: (name: string) =>
     api.post<{ id: string; name: string }>("/admin/groups", { name }),
-  deleteGroup: (groupId: string) =>
-    api.delete(`/admin/groups/${groupId}`),
+  deleteGroup: (groupId: string) => api.delete(`/admin/groups/${groupId}`),
   renameGroup: (groupId: string, name: string) =>
     api.put<{ id: string; name: string }>(`/admin/groups/${groupId}`, { name }),
   listGroupUsers: (groupId: string) =>
@@ -167,7 +184,9 @@ export const adminApi = {
   listGroupChildren: (groupId: string) =>
     api.get<ChildGroup[]>(`/admin/groups/${groupId}/children`),
   addChildGroup: (groupId: string, childGroupId: string) =>
-    api.post(`/admin/groups/${groupId}/children`, { child_group_id: childGroupId }),
+    api.post(`/admin/groups/${groupId}/children`, {
+      child_group_id: childGroupId,
+    }),
   removeChildGroup: (groupId: string, childGroupId: string) =>
     api.delete(`/admin/groups/${groupId}/children/${childGroupId}`),
 
@@ -186,37 +205,60 @@ export const adminApi = {
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
     if (params.offset !== undefined) qs.set("offset", String(params.offset));
     const q = qs.toString();
-    return api.get<IngestionStatusResponse>(`/admin/ingestion/status${q ? `?${q}` : ""}`);
+    return api.get<IngestionStatusResponse>(
+      `/admin/ingestion/status${q ? `?${q}` : ""}`,
+    );
   },
 
   getDocumentTrace: (documentId: string) =>
     api.get<DocumentTraceResponse>(`/admin/ingestion/status/${documentId}`),
 
   // --- Model Providers ---
-  listModelProviders: () =>
-    api.get<ModelProvider[]>("/admin/model-providers"),
+  listModelProviders: () => api.get<ModelProvider[]>("/admin/model-providers"),
   createModelProvider: (payload: ModelProviderCreatePayload) =>
     api.post<ModelProvider>("/admin/model-providers", payload),
   getModelProvider: (providerId: string) =>
     api.get<ModelProvider>(`/admin/model-providers/${providerId}`),
-  updateModelProvider: (providerId: string, payload: ModelProviderUpdatePayload) =>
-    api.put<ModelProvider>(`/admin/model-providers/${providerId}`, payload),
+  updateModelProvider: (
+    providerId: string,
+    payload: ModelProviderUpdatePayload,
+  ) => api.put<ModelProvider>(`/admin/model-providers/${providerId}`, payload),
   deleteModelProvider: (providerId: string) =>
     api.delete(`/admin/model-providers/${providerId}`),
   testModelProvider: (providerId: string) =>
-    api.post<ProviderTestResult>(`/admin/model-providers/${providerId}/test`, {}),
+    api.post<ProviderTestResult>(
+      `/admin/model-providers/${providerId}/test`,
+      {},
+    ),
   discoverModels: (providerId: string) =>
-    api.post<ProviderDiscoverResult[]>(`/admin/model-providers/${providerId}/discover`, {}),
+    api.post<ProviderDiscoverResult[]>(
+      `/admin/model-providers/${providerId}/discover`,
+      {},
+    ),
   reloadModelProviders: () =>
     api.post<{ status: string }>("/admin/model-providers/reload", {}),
 
   // --- Model Descriptors ---
   listModelDescriptors: (providerId: string) =>
-    api.get<ModelDescriptor[]>(`/admin/model-providers/${providerId}/descriptors`),
-  createModelDescriptor: (providerId: string, payload: ModelDescriptorCreatePayload) =>
-    api.post<ModelDescriptor>(`/admin/model-providers/${providerId}/descriptors`, payload),
-  updateModelDescriptor: (descriptorId: string, payload: Partial<ModelDescriptorCreatePayload>) =>
-    api.put<ModelDescriptor>(`/admin/model-descriptors/${descriptorId}`, payload),
+    api.get<ModelDescriptor[]>(
+      `/admin/model-providers/${providerId}/descriptors`,
+    ),
+  createModelDescriptor: (
+    providerId: string,
+    payload: ModelDescriptorCreatePayload,
+  ) =>
+    api.post<ModelDescriptor>(
+      `/admin/model-providers/${providerId}/descriptors`,
+      payload,
+    ),
+  updateModelDescriptor: (
+    descriptorId: string,
+    payload: Partial<ModelDescriptorCreatePayload>,
+  ) =>
+    api.put<ModelDescriptor>(
+      `/admin/model-descriptors/${descriptorId}`,
+      payload,
+    ),
   deleteModelDescriptor: (descriptorId: string) =>
     api.delete(`/admin/model-descriptors/${descriptorId}`),
 
@@ -226,9 +268,27 @@ export const adminApi = {
   getTaskDefault: (taskType: string) =>
     api.get<ModelTaskDefault>(`/admin/model-task-defaults/${taskType}`),
   setTaskDefault: (taskType: string, payload: ModelTaskDefaultSetPayload) =>
-    api.put<ModelTaskDefault>(`/admin/model-task-defaults/${taskType}`, payload),
+    api.put<ModelTaskDefault>(
+      `/admin/model-task-defaults/${taskType}`,
+      payload,
+    ),
   deleteTaskDefault: (taskType: string) =>
     api.delete(`/admin/model-task-defaults/${taskType}`),
+
+  // --- LDAP Group Search & Mappings ---
+  searchLdapGroups: (query: string, limit?: number) => {
+    const qs = new URLSearchParams({ q: query });
+    if (limit !== undefined) qs.set("limit", String(limit));
+    return api.get<LdapGroupSearchResult[]>(
+      `/admin/ldap/groups/search?${qs.toString()}`,
+    );
+  },
+  listLdapGroupMappings: () =>
+    api.get<LdapGroupMapping[]>("/admin/ldap/group-mappings"),
+  createLdapGroupMapping: (payload: LdapGroupMappingCreatePayload) =>
+    api.post<LdapGroupMapping>("/admin/ldap/group-mappings", payload),
+  deleteLdapGroupMapping: (mappingId: string) =>
+    api.delete(`/admin/ldap/group-mappings/${mappingId}`),
 };
 
 export interface IngestionStatusJob {
@@ -365,4 +425,34 @@ export interface ProviderTestResult {
 export interface ProviderDiscoverResult {
   model_name: string;
   display_name?: string | null;
+}
+
+// --- LDAP Group Search & Mappings ---
+
+export interface LdapGroupSearchResult {
+  dn: string;
+  display_name: string;
+  external_id: string | null;
+  description: string | null;
+  mail: string | null;
+}
+
+export interface LdapGroupMapping {
+  id: string;
+  ldap_dn: string;
+  ldap_external_id_attr: string;
+  ldap_external_id: string | null;
+  ldap_display_name: string;
+  target_group_id: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LdapGroupMappingCreatePayload {
+  ldap_dn: string;
+  ldap_external_id_attr: string;
+  ldap_external_id: string | null;
+  ldap_display_name: string;
+  target_group_id: string;
 }

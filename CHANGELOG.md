@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Issue #582: LDAP group mapping via live DC search — admin-only endpoints for
+  ephemeral LDAP group search (`GET /admin/ldap/groups/search?q=...`) and
+  explicit LDAP-group-to-Tomorrowland-group mappings (`GET/POST/DELETE
+  /admin/ldap/group-mappings`). Search uses the configured LDAP service
+  account, escapes admin query input before injecting into LDAP filters, and
+  enforces strict result limits and timeouts. Only explicit mappings are
+  persisted; LDAP groups are never used directly in source/document ACLs.
+  Login-time group resolution now matches user LDAP groups against explicit
+  mappings only — unmapped LDAP groups are silently ignored. New
+  `ldap_group_mappings` table (migration `l1m2n3o4p5q6`) stores DN, external
+  ID, display name, target group, and audit fields. Real `LdapClient`
+  (using `ldap3`) implements the `LdapAuthenticator` protocol plus
+  `search_groups`. New config fields: `LDAP_GROUP_SEARCH_BASE_DN_LIST`,
+  `LDAP_GROUP_SEARCH_FILTER`, `LDAP_GROUP_SEARCH_LIMIT`,
+  `LDAP_GROUP_SEARCH_TIMEOUT`, `LDAP_GROUP_EXTERNAL_ID_ATTR`,
+  `LDAP_GROUP_DISPLAY_NAME_ATTR`. Admin audit events for create/delete
+  mapping operations. 14 unit tests covering repository CRUD, duplicate
+  DN rejection, missing target group validation, filter escaping, and
+  mapping-aware auth integration.
+
 ### Changed
 - Issue #596: Default local setup to lighter Ollama models — `OLLAMA_MODEL`
   defaults to `qwen3:4b` and `OLLAMA_UTILITY_MODEL` defaults to `qwen3:1.7b`

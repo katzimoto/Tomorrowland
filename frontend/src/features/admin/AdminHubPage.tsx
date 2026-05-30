@@ -1,5 +1,12 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ServerIcon, Users, UserCircle, Activity, Cpu } from "lucide-react";
+import {
+  ServerIcon,
+  Users,
+  UserCircle,
+  Activity,
+  Cpu,
+  ShieldQuestion,
+} from "lucide-react";
 import styles from "./AdminHubPage.module.css";
 
 export function AdminHubPage() {
@@ -7,7 +14,9 @@ export function AdminHubPage() {
   return (
     <div className={styles.page}>
       <h1 className={styles.title}>Admin</h1>
-      <p className={styles.subtitle}>Manage sources, users, groups, and system settings.</p>
+      <p className={styles.subtitle}>
+        Manage sources, users, groups, and system settings.
+      </p>
       <div className={styles.grid}>
         <button
           type="button"
@@ -16,7 +25,9 @@ export function AdminHubPage() {
         >
           <UserCircle size={32} className={styles.cardIcon} />
           <span className={styles.cardTitle}>Users</span>
-          <span className={styles.cardDesc}>View and manage users, roles, and group memberships</span>
+          <span className={styles.cardDesc}>
+            View and manage users, roles, and group memberships
+          </span>
         </button>
         <button
           type="button"
@@ -25,7 +36,9 @@ export function AdminHubPage() {
         >
           <ServerIcon size={32} className={styles.cardIcon} />
           <span className={styles.cardTitle}>Sources</span>
-          <span className={styles.cardDesc}>Manage ingestion sources, sync, and permissions</span>
+          <span className={styles.cardDesc}>
+            Manage ingestion sources, sync, and permissions
+          </span>
         </button>
         <button
           type="button"
@@ -34,7 +47,9 @@ export function AdminHubPage() {
         >
           <Users size={32} className={styles.cardIcon} />
           <span className={styles.cardTitle}>Groups</span>
-          <span className={styles.cardDesc}>Manage user groups, memberships, and hierarchy</span>
+          <span className={styles.cardDesc}>
+            Manage user groups, memberships, and hierarchy
+          </span>
         </button>
         <button
           type="button"
@@ -43,7 +58,9 @@ export function AdminHubPage() {
         >
           <Activity size={32} className={styles.cardIcon} />
           <span className={styles.cardTitle}>Ingestion</span>
-          <span className={styles.cardDesc}>Monitor pipeline job status and per-document traces</span>
+          <span className={styles.cardDesc}>
+            Monitor pipeline job status and per-document traces
+          </span>
         </button>
         <button
           type="button"
@@ -52,7 +69,20 @@ export function AdminHubPage() {
         >
           <Cpu size={32} className={styles.cardIcon} />
           <span className={styles.cardTitle}>Model Providers</span>
-          <span className={styles.cardDesc}>Manage LLM providers, model descriptors, and task defaults</span>
+          <span className={styles.cardDesc}>
+            Manage LLM providers, model descriptors, and task defaults
+          </span>
+        </button>
+        <button
+          type="button"
+          className={styles.card}
+          onClick={() => navigate({ to: "/admin/ldap" })}
+        >
+          <ShieldQuestion size={32} className={styles.cardIcon} />
+          <span className={styles.cardTitle}>LDAP Mappings</span>
+          <span className={styles.cardDesc}>
+            Search LDAP groups and map them to Tomorrowland groups
+          </span>
         </button>
       </div>
     </div>

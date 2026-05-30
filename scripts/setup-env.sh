@@ -159,12 +159,14 @@ AUTH_PROVIDER="$(prompt "AUTH_PROVIDER (local/ldap/both)" "local")"
 LDAP_URL=""
 LDAP_BASE_DN=""
 LDAP_BIND_USER=""
-LDAP_BIND_PASSWORD=""
-if [[ "$AUTH_PROVIDER" == "ldap" || "$AUTH_PROVIDER" == "both" ]]; then
+LDAP_BIND_PASSWORD=""  if [[ "$AUTH_PROVIDER" == "ldap" || "$AUTH_PROVIDER" == "both" ]]; then
   LDAP_URL="$(prompt "LDAP_URL" "ldap://domain-controller:389")"
   LDAP_BASE_DN="$(prompt "LDAP_BASE_DN" "DC=company,DC=local")"
   LDAP_BIND_USER="$(prompt "LDAP_BIND_USER" "cn=svc-search,DC=company,DC=local")"
   LDAP_BIND_PASSWORD="$(prompt_secret "LDAP_BIND_PASSWORD" "$(secure_rand 24)")"
+  # Optional LDAP group search config (#582)
+  LDAP_GROUP_SEARCH_BASE_DNS="$(prompt "LDAP_GROUP_SEARCH_BASE_DNS (optional, comma-separated)" "")"
+  LDAP_GROUP_EXTERNAL_ID_ATTR="$(prompt "LDAP_GROUP_EXTERNAL_ID_ATTR" "objectGUID")"
 fi
 
 # Ports

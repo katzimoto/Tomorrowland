@@ -32,6 +32,7 @@ dependencies = [
   "magika>=1.0",
   "python-magic>=0.4",
   "mcp[cli]>=1.27.2",
+  "ldap3>=2.9.1",
 ]
 
 [project.optional-dependencies]
@@ -103,4 +104,5 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "testcontainers>=4.14.2",
+    "types-ldap3>=2.9.13.20260518",
 ]
