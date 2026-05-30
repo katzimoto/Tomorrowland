@@ -203,7 +203,7 @@ class LdapGroupSearchResult(BaseModel):
     """A single LDAP group returned by a live search.  Ephemeral — never persisted."""
 
     display_name: str | None = None
-    distinguished_name: str | None = None
+    dn: str | None = None
     external_id: str | None = None
     external_id_attr: str | None = None
     description: str | None = None

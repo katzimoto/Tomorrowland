@@ -191,7 +191,7 @@ class LdapClient(LdapAuthenticator):
                     results.append(
                         {
                             "display_name": _safe_str(display_name_raw),
-                            "distinguished_name": _safe_str(entry_dict.get("distinguishedName")),
+                            "dn": _safe_str(entry_dict.get("distinguishedName")),
                             "external_id": _octet_string_to_hex(external_id_raw),
                             "external_id_attr": external_id_attr,
                             "description": _safe_str(entry_dict.get("description")),

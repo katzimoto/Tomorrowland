@@ -25,7 +25,6 @@ export function AdminLdapPage() {
 
   // --- Search state ---
   const [query, setQuery] = useState("");
-  const [searchLimit, setSearchLimit] = useState(25);
   const [searched, setSearched] = useState(false);
 
   // --- Map dialog state ---
@@ -52,8 +51,8 @@ export function AdminLdapPage() {
     isError: searchIsError,
     error: searchErrorObj,
   } = useQuery({
-    queryKey: ["admin-ldap-search", query, searchLimit],
-    queryFn: () => adminApi.searchLdapGroups(query, searchLimit),
+    queryKey: ["admin-ldap-search", query],
+    queryFn: () => adminApi.searchLdapGroups(query),
     enabled: searched && query.trim().length > 0,
     retry: false,
   });
@@ -201,14 +200,6 @@ export function AdminLdapPage() {
               setSearched(false);
             }}
             placeholder={t.adminLdap.searchPlaceholder}
-          />
-        </div>
-        <div style={{ width: "100px" }}>
-          <TextInput
-            label="Limit"
-            type="number"
-            value={String(searchLimit)}
-            onChange={(e) => setSearchLimit(Number(e.target.value) || 25)}
           />
         </div>
         <Button type="submit" loading={searchLoading}>
