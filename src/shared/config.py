@@ -54,6 +54,13 @@ class Settings(BaseSettings):
     # (credentials are still encrypted in the DB but the key is deterministic).
     credential_store_key: str = ""
 
+    # MCP adapter settings (#560)
+    tomorrowland_api_url: str = "http://localhost:8000"
+    tomorrowland_api_key: str = ""
+    tomorrowland_api_timeout: float = 30.0
+    mcp_host: str = "127.0.0.1"
+    mcp_port: int = 8001
+
     # LLM generation provider — "ollama" (default), "openai-compatible",
     # "openai", "litellm", or "llama-cpp".
     # LLM_BASE_URL overrides OLLAMA_URL when set; LLM_MODEL overrides OLLAMA_MODEL.
