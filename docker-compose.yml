@@ -201,7 +201,7 @@ services:
     ports:
       - "${MEILISEARCH_PORT:-7700}:7700"
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import json, urllib.request; r = urllib.request.urlopen('http://127.0.0.1:7700/health', timeout=5); assert json.load(r).get('status') == 'available'\""]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7700/health | grep -q 'available'"]
       interval: 15s
       timeout: 10s
       retries: 10
