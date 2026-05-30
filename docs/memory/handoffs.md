@@ -2,32 +2,91 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
-## 2026-05-30 — feat(intelligence): deterministic source QA diagnostics — #586
+## 2026-05-30 — feat(admin): source profiles — per-source strategy configuration
 
-Status: Done — commit ef4a28f on main
-Source: issue #586, Claude Code session
+Status: Pending — PR in preparation, working tree on main
+Source: Working tree on main (no issue number yet)
 
-**Goal:** Add deterministic source-level ingestion/indexing health diagnostics for admins. No LLM calls, no SourceProfile, no Hermes runtime.
+**Goal:** Allow admins to configure per-source strategy profiles (domain type,
+chunking/retrieval/extraction strategies) with a full lifecycle: draft → active →
+deprecated. Wire the active profile into `IntelligenceWorker` for future strategy
+routing.
 
 **Changed files:**
-- `migrations/versions/a57fee5a821d_add_source_qa_checks_table.py` (new)
-- `src/services/intelligence/source_qa_repository.py` (new) — `SourceQARepository`, `SourceQACheck`, `SourceQAIssue`; upsert + get_latest; `dict(row)` cast for mypy strict
-- `src/services/intelligence/source_qa_service.py` (new) — `SourceQAService.run_check(source_id)`; 5 deterministic checks
-- `src/services/api/routers/admin/source_qa.py` (new) — `GET /admin/source-qa/{source_id}`
-- `src/services/api/main.py` — source_qa router registered
-- `src/services/intelligence/__init__.py` — exports added
-- `tests/unit/test_source_qa_repository.py` (new)
-- `tests/unit/test_source_qa_routes.py` (new)
-- `tests/unit/test_source_qa_service.py` (new)
+- `migrations/versions/c4d5e6f7a8b9_add_source_profiles_table.py` (new) — `source_profiles` table with FK to `ingestion_sources` and `model_providers`, CheckConstraints on all 4 strategy fields, config JSON column
+- `src/services/intelligence/profile_repository.py` (new) — `ProfileRepository` with `create_profile`, `get_profile`, `get_active_profile`, `list_profiles`, `update_profile`, `activate_profile` (atomic one-active-per-source with auto-deprecation), `deprecate_profile`, `delete_profile` (blocks active). Enum validation on all strategy fields.
+- `src/services/api/routers/admin/source_profiles.py` (new) — 7 endpoints under `/admin/source-profiles`: POST create (201), GET list (optional `source_id` filter), GET by id, PATCH update, POST `/{id}/activate`, POST `/{id}/deprecate`, DELETE (422 if active). Source existence validation, provider existence validation. Admin-only with audit logs.
+- `src/services/api/main.py` — router registered
+- `src/services/intelligence/__init__.py` — `ProfileRepository` exported
+- `src/services/intelligence/worker.py` — `process_document()` accepts `source_id`, resolves active profile, logs strategy fields
+- `src/services/pipeline/intelligence_consumer.py` — creates `ProfileRepository` and passes to `IntelligenceWorker`
+- `tests/unit/test_profile_repository.py` (new) — 17 tests
+- `tests/integration/test_source_profiles_api.py` (new) — 18 tests
 
-**Checks (all deterministic):** `empty_chunks`, `missing_content`, `missing_metadata`, `missing_title`, `index_lag` (pending_documents > 0).
+**Verification:** ruff clean, ruff format clean, mypy strict clean, 17/17 unit tests pass.
 
-**Key invariant:** `SourceQACheck.from_row(dict(row))` — SQLAlchemy `RowMapping` must be cast to `dict` before passing to `from_row`.
-
-**Verification:** 26 unit tests pass; ruff clean; mypy strict clean.
+**Key invariants:**
+- One active profile per source enforced atomically in `activate_profile` (previous active auto-deprecated)
+- Active profiles cannot be deleted (must deprecate first)
+- Delete with FK to `model_providers` uses `ON DELETE SET NULL`
+- Worker integration is logging-only — strategy dispatch deferred to future work
 
 **Next agent prompt:**
-> #586 source QA diagnostics are on main (commit ef4a28f). Admin endpoint: `GET /admin/source-qa/{source_id}`. All checks are deterministic — no LLM calls. Pick up the next issue from the release queue in AGENTS.md.
+> PR for source profiles is ready for review. Strategy dispatch (mapping profile fields to actual chunking/retrieval/extraction behavior) is the next logical piece.
+
+---
+
+## 2026-05-30 — feat(agents): Hermes MCP adapter for researcher API — #560, PR #593
+
+Status: Done — PR #593 merged to main (squash), branch `feature/mcp-adapter-560` deleted
+Source: issue #560, PR #593, Claude Code session
+
+**Goal:** Add an MCP server that exposes Tomorrowland researcher tools to Hermes/MCP clients by forwarding all tool calls to the permissioned `/api/agent/v1/*` API (#558). No direct DB/storage access.
+
+**Changed files:**
+- `src/services/mcp/__init__.py` (new) — package init; exports `create_mcp_server`, `run_server`, `main`
+- `src/services/mcp/client.py` (new) — `TomorrowlandClient` HTTP client wrapping all 6 `/api/agent/v1/*` endpoints
+- `src/services/mcp/server.py` (new) — FastMCP server with 6 tools; `_sanitize_log_env()` for secrets protection
+- `src/shared/config.py` — added `MCPConfig` inner class (`tomorrowland_api_url`, `tomorrowland_api_key`, `mcp_host`, `mcp_port`, `api_timeout`)
+- `pyproject.toml` — `mcp[cli]>=1.27` dep; `tomorrowland-mcp-server` console_scripts entry point
+- `tests/unit/test_mcp_server.py` (new) — 45 tests covering all tools, auth forwarding, error translation, log sanitization, no direct store imports
+- `docs/operations/mcp-adapter.md` (new) — operations doc with Hermes config snippet, auth, troubleshooting
+- `CHANGELOG.md` — #560 entry added
+
+**Verification:** ruff clean, mypy strict clean, 45/45 tests pass.
+
+**Next agent prompt:**
+> PR #593 is on main — the MCP adapter is live at `tomorrowland-mcp-server`. Use `TOMORROWLAND_API_URL=http://localhost:8000 TOMORROWLAND_API_KEY=<token> tomorrowland-mcp-server`. Pick up #561 (audit/usage limits) or #562 (permission regression expansion) next.
+
+---
+
+## 2026-05-30 — feat(agents): permissioned researcher API endpoints — #558/#592
+
+Status: Done — PR #592 squash-merged to main (branch deleted)
+Source: issue #558, PR #592, Claude Code session
+
+**Goal:** Add read-only `/api/agent/v1` API surface that future Hermes/MCP clients (#560) can call through the same source/document ACL as normal users.
+
+**Changed files:**
+- `src/services/api/routers/agent.py` (new) — 6 endpoints: `search_documents`, `get_document`, `get_passages`, `ask_corpus`, `get_related_documents`, `list_facets`
+- `src/services/api/main.py` — router registered at `/api/agent/v1`
+
+**Security:**
+- Every endpoint enforces `AuthRepository.get_effective_group_ids` and `assert_doc_access`
+- Admin bypass uses `allow_all=True` path (standard)
+- `ask_corpus` re-checks per-citation source ACLs as defence in depth
+- `QdrantSearchClient.list_chunks_by_document` filters by group IDs
+
+**CI fixes applied before merge:**
+- Migration `source_id` type: `String(32)` → `Uuid()` to match `ingestion_sources.id` (PostgreSQL FK type mismatch)
+- E501 line length violations fixed in migration, `source_qa_repository.py`, test files
+- mypy fix: `RowMapping` type instead of `Mapping` in `SourceQACheck.from_row`
+- `ruff format` applied to all changed files
+
+**Verification:** ruff clean, mypy strict clean, all unit tests pass.
+
+**Next agent prompt:**
+> PR #592 is on main — the `/api/agent/v1` endpoints are live. Pick up #560 (Hermes MCP adapter) next: build an MCP server process that wraps each endpoint as an MCP tool. The endpoint schemas in `agent.py` are the source of truth for tool input/output shapes.
 
 ---
 

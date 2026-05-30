@@ -33,12 +33,12 @@ class IntelligenceConsumer(BaseConsumer):
         translated_text: str = "",
     ) -> None:
         if content_text:
-            self._intelligence.process_document(document_id, content_text)
+            self._intelligence.process_document(document_id, content_text, source_id=source_id)
         else:
             payload = self._job_repo.get_payload(document_id)
             content = (payload.get("content_text", "") if payload else None) or ""
             if content:
-                self._intelligence.process_document(document_id, content)
+                self._intelligence.process_document(document_id, content, source_id=source_id)
         self._job_repo.mark_running_stage(job_id, "intelligence_done")
 
 
@@ -48,6 +48,7 @@ def main() -> None:
     import sqlalchemy as sa
 
     from services.intelligence.factory import build_llm_provider
+    from services.intelligence.profile_repository import ProfileRepository
     from services.intelligence.repository import IntelligenceRepository
     from services.intelligence.worker import IntelligenceWorker
     from shared.config import Settings
@@ -63,6 +64,7 @@ def main() -> None:
             repository=IntelligenceRepository(conn),
             ollama_client=build_llm_provider(settings),
             utility_model=settings.effective_utility_model,
+            profile_repo=ProfileRepository(conn),
         )
         consumer = IntelligenceConsumer(rabbit, job_repo, intelligence)
         consumer.run()

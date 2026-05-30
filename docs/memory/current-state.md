@@ -2,27 +2,79 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
-## 2026-05-30 — feat(intelligence): deterministic source QA diagnostics — #586, commit ef4a28f
+## 2026-05-30 — feat(admin): source profiles — per-source strategy configuration
 
-Status: Done — committed and pushed to main
-Source: issue #586, Claude Code session
+Status: Pending — PR preparation in progress
+Source: Working tree on main
 
-Deterministic source-level ingestion/indexing health diagnostics for admins. No LLM calls.
+New `source_profiles` system for per-source strategy configuration (domain type,
+chunking, retrieval, extraction). Admin-only API with full CRUD, activate/deprecate
+lifecycle, and audit logging. Foundational wiring into `IntelligenceWorker`.
 
 | Area | Detail |
 |---|---|
-| Migration | `a57fee5a821d` — `source_qa_checks` table (source_id FK, checked_at, doc counts, issue counters) |
-| Repository | `SourceQARepository` — upsert + get_latest per source in `src/services/intelligence/source_qa_repository.py` |
-| Service | `SourceQAService.run_check(source_id)` — detects empty chunks, missing content, missing metadata, missing title, index lag; all deterministic |
-| Admin API | `GET /admin/source-qa/{source_id}` — returns latest check result; 404 when no check run yet |
-| Tests | 26 unit tests (repository, service, routes); ruff clean; mypy strict clean |
+| Migration | `c4d5e6f7a8b9` — `source_profiles` table with DB-level CheckConstraints on enum fields |
+| Repository | `ProfileRepository` — CRUD + `activate_profile` (atomic one-active-per-source) + `deprecate_profile` + `delete_profile` (blocks active) in `src/services/intelligence/profile_repository.py` |
+| Admin API | `GET/POST/PATCH/DELETE /admin/source-profiles` + `POST /{id}/activate` + `POST /{id}/deprecate` in `src/services/api/routers/admin/source_profiles.py`; all admin-only with audit logs |
+| Worker integration | `IntelligenceWorker.process_document()` accepts `source_id`, resolves active profile for strategy routing (logging only; dispatch deferred) |
+| Tests | 17 unit tests (repository CRUD, enum validation, activate/deprecate/delete edge cases) + 18 integration tests (auth, CRUD, provider references, enum rejection, one-active enforcement) |
+| Verified | ruff clean, ruff format clean, mypy strict clean |
 
-Key constraints:
-- No LLM calls, no Hermes runtime, no SourceProfile dependency
-- `SourceQACheck.from_row(dict(row))` — `RowMapping` cast required for mypy strict
-- Checks: `empty_chunks`, `missing_content`, `missing_metadata`, `missing_title`, `index_lag` (pending > 0)
+---
 
-Next action: Check AGENTS.md release queue for next issue.
+## 2026-05-30 — feat(agents): Hermes MCP adapter for researcher API — #560, PR #593
+
+Status: Done — PR #593 merged to main (squash), branch deleted
+Source: issue #560, PR #593, Claude Code session
+
+Six read-only MCP tools exposing the permissioned `/api/agent/v1/*` endpoints (#558) via Streamable HTTP transport.
+
+| Area | Detail |
+|---|---|
+| Package | `src/services/mcp/` — FastMCP server + HTTP client |
+| Tools | `tomorrowland_search_documents`, `tomorrowland_get_document`, `tomorrowland_get_passages`, `tomorrowland_ask_corpus`, `tomorrowland_get_related_documents`, `tomorrowland_list_facets` |
+| Transport | Streamable HTTP (FastMCP built-in) at `/mcp`; stdio via `transport="stdio"` |
+| Auth | Bearer token from `TOMORROWLAND_API_KEY` forwarded as-is; never inspected or logged |
+| Config | `TOMORROWLAND_API_URL`, `TOMORROWLAND_API_KEY`, `MCP_HOST`, `MCP_PORT`, `API_TIMEOUT` |
+| Entry point | `tomorrowland-mcp-server` CLI via `pyproject.toml` |
+| Docs | `docs/operations/mcp-adapter.md` — config, auth, tools, Hermes snippet, troubleshooting |
+
+**Security:**
+- No direct DB, Qdrant, or Meilisearch access — all calls proxy through #558
+- No write tools, no ACL duplication, no secrets in logs
+- Error mapping: 401→auth, 403→denied, 404→not found, 422→invalid, 503→unavailable
+
+**Verification:** ruff clean, mypy strict clean (3 files), 45/45 unit tests pass.
+
+Next action: #561 (audit/usage limits) or #562 (permission regression expansion).
+
+---
+
+## 2026-05-30 — feat(agents): permissioned researcher API endpoints — #558/#592 merged  (+ CI fixes)
+
+Status: Done — PR #592 merged to main (squash), branch deleted
+Source: issue #558, PR #592, Claude Code session
+
+New read-only `/api/agent/v1` surface with 6 endpoints that future Hermes/MCP clients (#560) can call through the same source/document ACL as normal users.
+
+| Area | Detail |
+|---|---|
+| Endpoints | `search_documents`, `get_document`, `get_passages`, `ask_corpus`, `get_related_documents`, `list_facets` — all under `/api/agent/v1` |
+| Auth | Every endpoint enforces transitive group expansion via `AuthRepository.get_effective_group_ids` and `assert_doc_access`; admin bypass uses `allow_all=True` |
+| Security | `ask_corpus` re-checks per-citation source ACLs as defence in depth — Qdrant payload corruption cannot leak inaccessible documents |
+| New query | `QdrantSearchClient.list_chunks_by_document` scrolls chunks in stable `chunk_index` order with the same group-id filter |
+| Scope | No write tools, no MCP adapter, no Hermes runtime in this PR |
+
+**CI fixes applied before merge:**
+- Migration `a57fee5a821d`: changed `source_id` from `sa.String(32)` to `sa.Uuid()` to match `ingestion_sources.id` type (PostgreSQL FK mismatch)
+- Fixed E501 line length violations in migration, `source_qa_repository.py`, test files
+- Fixed mypy error: used `sqlalchemy.RowMapping` type instead of `Mapping` in `SourceQACheck.from_row`
+- Ran `ruff format` on all changed files
+- All unit tests pass (ruff, mypy strict, pytest)
+
+**Agent router file:** `src/services/api/routers/agent.py` — new file, registered in `main.py`
+
+Next action: #560 (Hermes MCP adapter) can start now that #592 is merged.
 
 ---
 
