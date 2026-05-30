@@ -659,5 +659,6 @@ def list_facets(
 
     return AgentFacetsResponse(facets=meili_results.facets or {})
 
+
 # Translation quality is not exposed directly on AgentSearchResultItem to keep
 # the surface narrow; clients that need it can call ``get_document``.

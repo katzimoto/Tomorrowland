@@ -51,9 +51,7 @@ class _FakeMeiliProvider:
     def search(self, query: DocumentSearchQuery, user: object) -> SearchResults:
         with self._engine.begin() as conn:
             rows = conn.execute(
-                sa.text(
-                    "SELECT id, title FROM documents WHERE title LIKE :q LIMIT :limit"
-                ),
+                sa.text("SELECT id, title FROM documents WHERE title LIKE :q LIMIT :limit"),
                 {"q": f"%{query.q}%", "limit": query.limit},
             ).fetchall()
         results = [SearchResult(document_id=str(r[0]), score=1.0, title=r[1]) for r in rows]
@@ -174,9 +172,7 @@ def test_anonymous_blocked_on_every_endpoint(migrated_engine: Engine) -> None:
         ("get", "/api/agent/v1/list_facets", None),
     ]
     for method, path, body in endpoints:
-        response = (
-            client.post(path, json=body) if method == "post" else client.get(path)
-        )
+        response = client.post(path, json=body) if method == "post" else client.get(path)
         assert response.status_code == 401, f"{method} {path} -> {response.status_code}"
 
 
@@ -644,9 +640,7 @@ def test_list_facets_user_without_groups_returns_empty(
 
     client = _build_app(
         migrated_engine,
-        meili_provider=_FakeMeiliProvider(
-            migrated_engine, facets={"source": {"folder": 3}}
-        ),
+        meili_provider=_FakeMeiliProvider(migrated_engine, facets={"source": {"folder": 3}}),
     )
     token = _login(client, "alone@example.com")
 

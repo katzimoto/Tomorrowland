@@ -82,7 +82,8 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
         sa.UniqueConstraint(
-            "provider_id", "model_name",
+            "provider_id",
+            "model_name",
             name="uq_model_descriptors_provider_model",
         ),
     )

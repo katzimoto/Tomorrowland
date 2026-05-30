@@ -517,9 +517,7 @@ def test_list_chunks_by_document_collection_missing_returns_empty() -> None:
     mock_qdrant.collection_exists.return_value = False
     client._client = mock_qdrant
 
-    results = client.list_chunks_by_document(
-        document_id="doc-1", group_ids=["g1"], allow_all=False
-    )
+    results = client.list_chunks_by_document(document_id="doc-1", group_ids=["g1"], allow_all=False)
 
     assert results == []
     mock_qdrant.scroll.assert_not_called()

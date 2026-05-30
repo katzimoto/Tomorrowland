@@ -22,7 +22,12 @@ def upgrade() -> None:
     op.create_table(
         "source_qa_checks",
         sa.Column("id", sa.String(32), primary_key=True),
-        sa.Column("source_id", sa.String(32), sa.ForeignKey("ingestion_sources.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "source_id",
+            sa.Uuid(),
+            sa.ForeignKey("ingestion_sources.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("checked_at", sa.String(32), nullable=False),
         sa.Column("total_documents", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("indexed_documents", sa.Integer(), nullable=False, server_default=sa.text("0")),
@@ -36,7 +41,12 @@ def upgrade() -> None:
         sa.Column("ocr_maybe_needed", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("index_lag_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("issues", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
         sa.UniqueConstraint("source_id", name="uq_source_qa_checks_source_id"),
     )
     op.create_index("ix_source_qa_checks_source_id", "source_qa_checks", ["source_id"])
