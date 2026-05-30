@@ -18,6 +18,7 @@ from services.auth.models import TokenPayload
 from services.intelligence.factory import build_llm_provider
 from services.intelligence.llm_provider import LLMProvider
 from services.intelligence.provider_registry import ProviderRegistry
+from services.intelligence.task_defaults import TaskDefaultResolver
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
@@ -83,6 +84,17 @@ def create_app(
     )
     provider_registry.load()
     app.state.provider_registry = provider_registry
+
+    # Task default resolver — resolves model providers for named task types
+    # from DB-backed model_task_defaults.  Falls back to env/config when no
+    # DB row exists (zero-row backward compatibility).
+    task_default_resolver = TaskDefaultResolver(
+        engine=app.state.engine,
+        settings=app.state.settings,
+        credential_store_key=app.state.settings.credential_store_key,
+    )
+    task_default_resolver.load()
+    app.state.task_default_resolver = task_default_resolver
 
     if meili_provider is not None:
         app.state.meili_provider = meili_provider

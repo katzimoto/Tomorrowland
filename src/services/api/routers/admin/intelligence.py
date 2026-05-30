@@ -12,6 +12,7 @@ from services.api.main import current_user
 from services.auth.models import TokenPayload
 from services.documents.repository import DocumentRepository
 from services.intelligence.repository import IntelligenceRepository
+from services.intelligence.task_defaults import TaskDefaultResolver
 from services.intelligence.worker import IntelligenceWorker
 from services.permissions.enforcer import require_admin
 from services.pipeline.jobs import PipelineJobRepository
@@ -42,10 +43,14 @@ def trigger_intelligence(
         try:
             intelligence_repo = IntelligenceRepository(connection)
             ollama_client = request.app.state.llm_provider
+            resolver: TaskDefaultResolver | None = getattr(
+                request.app.state, "task_default_resolver", None
+            )
             worker = IntelligenceWorker(
                 repository=intelligence_repo,
                 ollama_client=ollama_client,
                 utility_model=request.app.state.settings.effective_utility_model,
+                resolver=resolver,
             )
             worker.process_document(document_id, text)
         except Exception as exc:
@@ -80,10 +85,14 @@ def regenerate_summary(
         try:
             intelligence_repo = IntelligenceRepository(connection)
             ollama_client = request.app.state.llm_provider
+            resolver: TaskDefaultResolver | None = getattr(
+                request.app.state, "task_default_resolver", None
+            )
             worker = IntelligenceWorker(
                 repository=intelligence_repo,
                 ollama_client=ollama_client,
                 utility_model=request.app.state.settings.effective_utility_model,
+                resolver=resolver,
             )
             worker._summarize(document_id, text)
             logger.info(

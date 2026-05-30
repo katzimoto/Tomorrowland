@@ -2,6 +2,22 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-30 — feat(models): task-default resolver wired into consumers — #578 merged
+
+Status: Done — PR pending (branch feat/admin-provider-registry-api-577)
+Source: issue #578 (S5 of #544), OpenCode session
+
+Created `TaskDefaultResolver` with `resolve(task_type)` and `build_llm_provider(task_type)` interface. Wired into `app.state.task_default_resolver` at startup. Chat router, admin intelligence endpoints, and `IntelligenceWorker` use the resolver. Zero-row DB returns None — callers fall back to env/Settings behavior unchanged. 18 new unit tests covering all fallback paths, disabled/missing provider/descriptor, reload, and no-secret-leakage.
+
+| Area | Detail |
+|---|---|
+| Resolver | Loads task defaults + providers + descriptors + API keys at startup; `reload()` refreshes from DB |
+| Fallback | No DB row → None; disabled/missing provider → None; disabled descriptor → no model_name (env fallback) |
+| LLM builder | `build_llm_from_resolution()` creates `OllamaClient` or `OpenAICompatibleLLMProvider` from a `TaskResolution` |
+| Chat router | Resolves `chat` LLM, `utility` model, `reranker` model independently |
+| Worker | Accepts optional `TaskDefaultResolver` in constructor; resolves `utility` model when not explicitly set |
+| Secrets | API keys loaded at init, never logged; `mask_credential` pattern for safe display |
+
 ## 2026-05-30 — feat(models): generation provider adapters — #544 S3, PR #588 merged
 
 Status: Done — PR #588 squash-merged to main (branch feat/generation-provider-adapters-576 deleted)
