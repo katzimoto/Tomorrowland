@@ -30,7 +30,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 try:
-    import magic as _magic  # type: ignore[import-not-found]
+    import magic as _magic
 
     _MAGIC_AVAILABLE = True
 except ImportError:  # pragma: no cover

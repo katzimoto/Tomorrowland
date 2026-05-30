@@ -194,3 +194,42 @@ class DocumentTraceResponse(BaseModel):
     document_title: str | None = None
     source_name: str | None = None
     jobs: list[DocumentTraceJob]
+
+
+# --- LDAP group search & mapping (#582) ---
+
+
+class LdapGroupSearchResult(BaseModel):
+    """A single LDAP group returned by a live search.  Ephemeral — never persisted."""
+
+    display_name: str | None = None
+    dn: str | None = None
+    external_id: str | None = None
+    external_id_attr: str | None = None
+    description: str | None = None
+    mail: str | None = None
+
+
+class CreateLdapGroupMappingRequest(BaseModel):
+    """Request body for creating an explicit LDAP group mapping."""
+
+    ldap_dn: str = Field(..., min_length=1, max_length=1000)
+    ldap_external_id_attr: str = Field(..., min_length=1, max_length=100)
+    ldap_external_id: str | None = Field(default=None, max_length=256)
+    ldap_display_name: str = Field(..., min_length=1, max_length=500)
+    target_group_id: str = Field(..., min_length=1, max_length=36)
+
+
+class LdapGroupMappingResponse(BaseModel):
+    """A persisted LDAP group → Tomorrowland group mapping."""
+
+    id: str
+    ldap_dn: str
+    ldap_external_id_attr: str
+    ldap_external_id: str | None = None
+    ldap_display_name: str
+    target_group_id: str
+    target_group_name: str
+    created_by: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None

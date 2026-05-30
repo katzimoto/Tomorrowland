@@ -73,7 +73,31 @@ class AuthRepository:
         return user
 
     def upsert_ldap_user(self, profile: LdapProfile) -> UserIdentity:
-        """Insert or update an LDAP-backed user and synchronize groups."""
+        """Insert or update an LDAP-backed user and synchronize groups.
+
+        LDAP group DNs are resolved through explicit
+        ``ldap_group_mappings`` only (#582).  Unmapped LDAP groups are
+        silently ignored — no implicit group creation from raw LDAP
+        membership.
+        """
+        from services.auth.ldap_group_mapping_repository import (
+            LdapGroupMappingRepository,
+        )
+
+        mapping_repo = LdapGroupMappingRepository(self._connection)
+        mapped_ids = mapping_repo.get_mapped_tomorrowland_group_ids(profile.group_names)
+
+        # Also resolve group names by looking up the group IDs.
+        group_names: list[str] = []
+        if mapped_ids:
+            placeholders = ", ".join(f":gid{i}" for i in range(len(mapped_ids)))
+            params = {f"gid{i}": db_uuid(gid) for i, gid in enumerate(mapped_ids)}
+            rows = self._connection.execute(
+                sa.text(f"SELECT name FROM groups WHERE id IN ({placeholders})"),
+                params,
+            ).scalars()
+            group_names = [str(r) for r in rows]
+
         existing = self.get_user_by_email(profile.email)
         if existing is None:
             user_id = uuid4()
@@ -98,7 +122,7 @@ class AuthRepository:
                     """),
                 {"id": db_uuid(user_id), "display_name": profile.display_name},
             )
-        self.set_user_groups(user_id, profile.group_names)
+        self.set_user_groups(user_id, group_names)
         user = self.get_user_by_email(profile.email)
         if user is None:
             raise RuntimeError("ldap user upsert did not persist")

@@ -6,6 +6,7 @@ from sqlalchemy import Engine
 
 from services.auth.jwt import JwtService
 from services.auth.ldap import LdapProfile
+from services.auth.ldap_group_mapping_repository import LdapGroupMappingRepository
 from services.auth.passwords import hash_password, verify_password
 from services.auth.repository import AuthRepository
 from services.auth.service import AuthService
@@ -52,6 +53,18 @@ def test_ldap_auth_upserts_user_and_falls_back_to_local(migrated_engine: Engine)
             password_hash=hash_password("local-secret"),
             group_names=["local-users"],
         )
+        # Create a Tomorrowland group and an LDAP mapping so the LDAP user
+        # gets groups via explicit mapping (#582).
+        group_id = repository.ensure_group("ldap-users")
+        mapping_repo = LdapGroupMappingRepository(connection)
+        mapping_repo.create_mapping(
+            ldap_dn="ldap-users",
+            ldap_external_id_attr="objectGUID",
+            ldap_external_id="fake-guid-ldap-users",
+            ldap_display_name="LDAP Users",
+            target_group_id=group_id,
+        )
+
         service = AuthService(repository, JwtService("x" * 32), "both", FakeLdap())
 
         ldap_response = service.authenticate("ldap@example.com", "ldap-secret")

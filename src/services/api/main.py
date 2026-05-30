@@ -73,6 +73,11 @@ def create_app(
         allow_headers=["*"],
     )
     app.state.ldap_authenticator = ldap_authenticator
+    # Also expose as ldap_client for admin group-search routes (#582).
+    if ldap_authenticator is not None and hasattr(ldap_authenticator, "search_groups"):
+        app.state.ldap_client = ldap_authenticator
+    else:
+        app.state.ldap_client = None
     app.state.translator = translator
     app.state.qdrant_client = qdrant_client
     app.state.llm_provider = llm_provider or build_llm_provider(app.state.settings)
@@ -189,6 +194,7 @@ def create_app(
     from services.api.routers.admin.ingestion_status import router as admin_ingestion_status_router
     from services.api.routers.admin.intelligence import router as admin_intelligence_router
     from services.api.routers.admin.jobs import router as admin_jobs_router
+    from services.api.routers.admin.ldap import router as admin_ldap_router
     from services.api.routers.admin.model_providers import router as admin_model_providers_router
     from services.api.routers.admin.rabbit import router as admin_rabbit_router
     from services.api.routers.admin.source_profiles import router as admin_source_profiles_router
@@ -220,6 +226,7 @@ def create_app(
     app.include_router(admin_dlq_router)
     app.include_router(admin_intelligence_router)
     app.include_router(admin_jobs_router)
+    app.include_router(admin_ldap_router)
     app.include_router(admin_model_providers_router)
     app.include_router(admin_rabbit_router)
     app.include_router(admin_source_profiles_router)

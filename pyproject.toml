@@ -32,6 +32,7 @@ dependencies = [
   "magika>=1.0",
   "python-magic>=0.4",
   "mcp[cli]>=1.27.2",
+  "ldap3>=2.9.1",
 ]
 
 [project.optional-dependencies]
@@ -42,6 +43,7 @@ dev = [
   "pytest-cov>=5.0",
   "ruff>=0.5",
   "testcontainers>=4.0",
+  "types-ldap3>=2.9",
   "types-openpyxl>=3.1",
 ]
 # pip install tomorrowland[ocr] — requires tesseract + poppler in PATH
@@ -95,6 +97,18 @@ module = ["bcrypt", "openpyxl", "openpyxl.*", "pika", "pika.*", "testcontainers"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = ["ebooklib", "ebooklib.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["langdetect", "langdetect.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["ldap3", "ldap3.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = ["magika", "magika.*"]
 ignore_missing_imports = true
 
@@ -103,4 +117,5 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "testcontainers>=4.14.2",
+    "types-ldap3>=2.9.13.20260518",
 ]
