@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Any
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 import sqlalchemy as sa
@@ -54,7 +54,9 @@ class _FakeMeiliProvider:
                 sa.text("SELECT id, title FROM documents WHERE title LIKE :q LIMIT :limit"),
                 {"q": f"%{query.q}%", "limit": query.limit},
             ).fetchall()
-        results = [SearchResult(document_id=str(r[0]), score=1.0, title=r[1]) for r in rows]
+        # IDs are stored as hex (no dashes); normalise to standard UUID str so
+        # the router's docs-dict key lookup works correctly.
+        results = [SearchResult(document_id=str(UUID(r[0])), score=1.0, title=r[1]) for r in rows]
         return SearchResults(results=results, facets=self._facets)
 
 
@@ -964,6 +966,273 @@ def test_mcp_translate_error_handles_429() -> None:
     assert "429" in msg or "Rate limit" in msg
     assert "Bearer" not in msg
     assert "token" not in msg.lower()
+
+
+# ---------------------------------------------------------------------------
+# Cross-user isolation matrix (#562)
+#
+# user@example.com  → group "users"  → source "users"  → "Isolation Doc A"
+# other@example.com → group "other"  → source "other"  → "Isolation Doc B"
+#
+# Every pair of tests verifies symmetric isolation: neither user can see the
+# other's documents via any endpoint.
+# ---------------------------------------------------------------------------
+
+
+def test_user_isolation_search_documents_is_symmetric(migrated_engine: Engine) -> None:
+    """BM25 path returns both docs; ACL defence-in-depth drops the cross-user one."""
+    _setup_users(migrated_engine)
+    _, doc_a_id = _create_source_with_doc(migrated_engine, "users", "Isolation Doc A")
+    _, doc_b_id = _create_source_with_doc(migrated_engine, "other", "Isolation Doc B")
+
+    qdrant = MagicMock(spec=QdrantSearchClient)
+    qdrant.search.return_value = []
+
+    client = _build_app(
+        migrated_engine,
+        qdrant_client=qdrant,
+        meili_provider=_FakeMeiliProvider(migrated_engine),
+    )
+    token_a = _login(client, "user@example.com")
+    token_b = _login(client, "other@example.com")
+
+    resp_a = client.post(
+        "/api/agent/v1/search_documents",
+        json={"query": "Isolation"},
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+    assert resp_a.status_code == 200
+    ids_a = [r["document_id"] for r in resp_a.json()["results"]]
+    assert doc_a_id in ids_a, "user A must see their own document"
+    assert doc_b_id not in ids_a, "user A must not see user B's document"
+
+    resp_b = client.post(
+        "/api/agent/v1/search_documents",
+        json={"query": "Isolation"},
+        headers={"Authorization": f"Bearer {token_b}"},
+    )
+    assert resp_b.status_code == 200
+    ids_b = [r["document_id"] for r in resp_b.json()["results"]]
+    assert doc_b_id in ids_b, "user B must see their own document"
+    assert doc_a_id not in ids_b, "user B must not see user A's document"
+
+
+def test_user_isolation_get_document_is_symmetric(migrated_engine: Engine) -> None:
+    """Neither user can fetch the other's document; doc ID must not appear in the 403."""
+    _setup_users(migrated_engine)
+    _, doc_a_id = _create_source_with_doc(migrated_engine, "users", "Cross Doc A")
+    _, doc_b_id = _create_source_with_doc(migrated_engine, "other", "Cross Doc B")
+
+    client = _build_app(migrated_engine)
+    token_a = _login(client, "user@example.com")
+    token_b = _login(client, "other@example.com")
+
+    resp = client.get(
+        f"/api/agent/v1/get_document?document_id={doc_b_id}",
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+    assert resp.status_code == 403
+    assert doc_b_id not in resp.text, "inaccessible doc ID must not appear in 403 body"
+
+    resp = client.get(
+        f"/api/agent/v1/get_document?document_id={doc_a_id}",
+        headers={"Authorization": f"Bearer {token_b}"},
+    )
+    assert resp.status_code == 403
+    assert doc_a_id not in resp.text, "inaccessible doc ID must not appear in 403 body"
+
+
+def test_user_isolation_get_passages_blocked_before_qdrant(migrated_engine: Engine) -> None:
+    """ACL must reject get_passages before Qdrant is ever called."""
+    _setup_users(migrated_engine)
+    _, doc_b_id = _create_source_with_doc(migrated_engine, "other", "Other Passages Doc")
+
+    qdrant = MagicMock(spec=QdrantSearchClient)
+    qdrant.dimension = 384
+    qdrant.list_chunks_by_document.return_value = [
+        SearchResult(document_id=doc_b_id, score=0.0, chunk_text="cross-user secret passage")
+    ]
+
+    client = _build_app(migrated_engine, qdrant_client=qdrant)
+    token_a = _login(client, "user@example.com")
+
+    resp = client.get(
+        f"/api/agent/v1/get_passages?document_id={doc_b_id}",
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+    assert resp.status_code == 403
+    qdrant.list_chunks_by_document.assert_not_called()
+    assert "cross-user secret passage" not in resp.text
+    assert doc_b_id not in resp.text
+
+
+def test_user_isolation_get_related_documents_blocked(migrated_engine: Engine) -> None:
+    """get_related_documents must return 403 for a document the caller cannot access."""
+    _setup_users(migrated_engine)
+    _, doc_b_id = _create_source_with_doc(migrated_engine, "other", "Other Related Doc")
+
+    client = _build_app(migrated_engine)
+    token_a = _login(client, "user@example.com")
+
+    resp = client.get(
+        f"/api/agent/v1/get_related_documents?document_id={doc_b_id}",
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+    assert resp.status_code == 403
+    assert doc_b_id not in resp.text
+
+
+# ---------------------------------------------------------------------------
+# Source filter scope (#562)
+# ---------------------------------------------------------------------------
+
+
+def test_source_filter_for_existing_inaccessible_source_returns_empty(
+    migrated_engine: Engine,
+) -> None:
+    """
+    A user providing a source filter for a source they cannot access must get
+    an empty result set, not a 403 and not any docs from the inaccessible source.
+
+    The FakeMeiliProvider ignores the filter and returns both docs; the ACL
+    defence-in-depth layer is what prevents the leak.
+    """
+    _setup_users(migrated_engine)
+    _, doc_a_id = _create_source_with_doc(
+        migrated_engine, "users", "Filter Accessible Doc", source_name="Accessible Source"
+    )
+    _, doc_b_id = _create_source_with_doc(
+        migrated_engine, "other", "Filter Inaccessible Doc", source_name="Inaccessible Source"
+    )
+
+    qdrant = MagicMock(spec=QdrantSearchClient)
+    qdrant.search.return_value = []
+
+    client = _build_app(
+        migrated_engine,
+        qdrant_client=qdrant,
+        meili_provider=_FakeMeiliProvider(migrated_engine),
+    )
+    token_a = _login(client, "user@example.com")
+
+    resp = client.post(
+        "/api/agent/v1/search_documents",
+        json={"query": "Filter", "filters": {"sources": ["Inaccessible Source"]}},
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+    assert resp.status_code == 200, "source filter for inaccessible source must not 403"
+    returned_ids = [r["document_id"] for r in resp.json()["results"]]
+    # Core security invariant: inaccessible source docs must never appear regardless of filter.
+    assert doc_b_id not in returned_ids, "inaccessible source docs must not appear in results"
+
+
+def test_source_filter_valid_source_narrows_within_allowed_corpus(
+    migrated_engine: Engine,
+) -> None:
+    """
+    A source filter for an accessible source narrows results to that source only.
+    Verified with a meili double that respects the source filter.
+    """
+    _setup_users(migrated_engine)
+    _, doc_s1_id = _create_source_with_doc(
+        migrated_engine, "users", "Narrow Source One Doc", source_name="Narrow Source One"
+    )
+    _, doc_s2_id = _create_source_with_doc(
+        migrated_engine, "users", "Narrow Source Two Doc", source_name="Narrow Source Two"
+    )
+
+    qdrant = MagicMock(spec=QdrantSearchClient)
+    qdrant.search.return_value = []
+
+    # Meili double that applies source filters by joining to ingestion_sources.
+    class _SourceFilteringMeili:
+        def __init__(self, engine: Engine) -> None:
+            self._engine = engine
+
+        def search(self, query: DocumentSearchQuery, user: object) -> SearchResults:
+            with self._engine.begin() as conn:
+                if query.filters and query.filters.source:
+                    placeholders = ", ".join(f":src{i}" for i in range(len(query.filters.source)))
+                    params: dict[str, Any] = {
+                        "q": f"%{query.q}%",
+                        "lim": query.limit,
+                        **{f"src{i}": s for i, s in enumerate(query.filters.source)},
+                    }
+                    rows = conn.execute(
+                        sa.text(
+                            f"SELECT d.id, d.title FROM documents d "
+                            f"JOIN ingestion_sources s ON d.source_id = s.id "
+                            f"WHERE d.title LIKE :q AND s.name IN ({placeholders}) "
+                            f"LIMIT :lim"
+                        ),
+                        params,
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        sa.text("SELECT id, title FROM documents WHERE title LIKE :q LIMIT :lim"),
+                        {"q": f"%{query.q}%", "lim": query.limit},
+                    ).fetchall()
+            # Normalise hex UUID to standard dashed format.
+            results = [
+                SearchResult(document_id=str(UUID(r[0])), score=1.0, title=r[1]) for r in rows
+            ]
+            return SearchResults(results=results, facets={})
+
+    client = _build_app(
+        migrated_engine,
+        qdrant_client=qdrant,
+        meili_provider=_SourceFilteringMeili(migrated_engine),
+    )
+    token_a = _login(client, "user@example.com")
+
+    resp = client.post(
+        "/api/agent/v1/search_documents",
+        json={"query": "Narrow", "filters": {"sources": ["Narrow Source One"]}},
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+    assert resp.status_code == 200
+    ids = [r["document_id"] for r in resp.json()["results"]]
+    assert doc_s1_id in ids, "filter for Source One must include Source One doc"
+    assert doc_s2_id not in ids, "filter for Source One must exclude Source Two doc"
+
+
+# ---------------------------------------------------------------------------
+# Over-limit error safety (#562, supplements #561)
+# ---------------------------------------------------------------------------
+
+
+def test_rate_limit_429_response_contains_no_document_ids(migrated_engine: Engine) -> None:
+    """A 429 response must not leak document IDs or other corpus metadata."""
+    _setup_users(migrated_engine)
+    _, doc_id = _create_source_with_doc(migrated_engine, "users", "Rate Limit Doc")
+
+    qdrant = MagicMock(spec=QdrantSearchClient)
+    qdrant.search.return_value = []
+
+    client = _build_app_with_limit(
+        migrated_engine,
+        calls_per_window=1,
+        qdrant_client=qdrant,
+        meili_provider=_FakeMeiliProvider(migrated_engine),
+    )
+    token = _login(client, "user@example.com")
+
+    # Exhaust the limit
+    client.post(
+        "/api/agent/v1/search_documents",
+        json={"query": "x"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    # Second call must 429 with safe body
+    resp = client.post(
+        "/api/agent/v1/search_documents",
+        json={"query": "x"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 429
+    body_text = resp.text
+    assert doc_id not in body_text, "429 response must not contain document IDs"
+    assert "Bearer" not in body_text, "429 response must not contain auth tokens"
 
 
 # ---------------------------------------------------------------------------
