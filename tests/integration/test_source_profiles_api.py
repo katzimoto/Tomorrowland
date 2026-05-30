@@ -643,3 +643,54 @@ def test_delete_active_rejected(migrated_engine):
     )
     assert resp.status_code == 422
     assert "Cannot delete an active profile" in resp.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# Active profile by source
+# ---------------------------------------------------------------------------
+
+
+def test_get_active_profile_by_source(migrated_engine):
+    client = TestClient(create_app(migrated_engine, _settings()))
+    token = _admin_token(client, migrated_engine)
+
+    source_id = db_uuid(uuid4())
+    with migrated_engine.begin() as conn:
+        _create_source(conn, source_id)
+
+    profile_id = client.post(
+        "/admin/source-profiles",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "source_id": source_id,
+            "name": "Active For Source",
+            "domain_type": _DOMAIN,
+            "chunking_strategy": _CHUNKING,
+            "retrieval_strategy": _RETRIEVAL,
+            "extraction_strategy": _EXTRACTION,
+        },
+    ).json()["id"]
+
+    client.post(
+        f"/admin/source-profiles/{profile_id}/activate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    resp = client.get(
+        f"/admin/source-profiles/active/{source_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["id"] == profile_id
+    assert resp.json()["status"] == "active"
+
+
+def test_get_active_profile_by_source_404_when_none(migrated_engine):
+    client = TestClient(create_app(migrated_engine, _settings()))
+    token = _admin_token(client, migrated_engine)
+
+    resp = client.get(
+        f"/admin/source-profiles/active/{uuid4()}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404

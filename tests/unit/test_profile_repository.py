@@ -413,7 +413,13 @@ def test_list_profiles(engine: Engine) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_delete_provider_sets_null_on_profile(engine: Engine) -> None:
+def test_profile_with_provider_roundtrip(engine: Engine) -> None:
+    """Profile records a model_policy_provider_id and retrieves it correctly.
+
+    ON DELETE SET NULL is enforced at the DB level by the migration FK constraint,
+    not by the unit-test fixture schema (which omits FKs for simplicity).  The
+    migration-level behaviour is covered by the integration tests.
+    """
     with engine.begin() as conn:
         source_id = uuid4()
         provider_id = uuid4()
@@ -434,23 +440,7 @@ def test_delete_provider_sets_null_on_profile(engine: Engine) -> None:
         fetched = repo.get_profile(profile_id)
         assert fetched is not None
         assert fetched["model_policy_provider_id"] is not None
-
-        # Delete the provider
-        conn.execute(
-            sa.text("DELETE FROM model_providers WHERE id = :id"),
-            {"id": db_uuid(provider_id)},
-        )
-
-        # The profile's reference should be set to NULL
-        # Note: SQLite with PRAGMA foreign_keys=ON should enforce ON DELETE SET NULL
-        # but since source_profiles doesn't have an explicit FK in this test,
-        # we manually check that the reference is now orphaned
-        fetched_after = repo.get_profile(profile_id)
-        assert fetched_after is not None
-        # In this unit test table we don't have the FK constraint,
-        # so the id remains. The migration handles this via FOREIGN KEY.
-        # We just verify the profile still exists.
-        assert fetched_after["name"] == "With Provider"
+        assert fetched["name"] == "With Provider"
 
 
 # ---------------------------------------------------------------------------

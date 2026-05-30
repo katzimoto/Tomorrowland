@@ -8,6 +8,7 @@ Endpoints:
 - POST   /admin/source-profiles/{id}/activate
 - POST   /admin/source-profiles/{id}/deprecate
 - DELETE /admin/source-profiles/{id}
+- GET    /admin/source-profiles/active/{source_id}
 """
 
 from __future__ import annotations
@@ -212,6 +213,10 @@ def admin_update_profile(
             "update",
             "source_profile",
             str(profile_id),
+            details={
+                "source_id": existing["source_id"],
+                "domain_type": existing.get("domain_type"),
+            },
         )
 
         updated = repo.get_profile(profile_id)
@@ -295,6 +300,21 @@ def admin_deprecate_profile(
         updated = repo.get_profile(profile_id)
         assert updated is not None
         return updated
+
+
+@router.get("/admin/source-profiles/active/{source_id}")
+def admin_get_active_profile(
+    source_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    require_admin(user)
+    with request.app.state.engine.begin() as connection:
+        repo = ProfileRepository(connection)
+        profile = repo.get_active_profile(source_id)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="No active SourceProfile for this source")
+        return profile
 
 
 @router.delete("/admin/source-profiles/{profile_id}")
