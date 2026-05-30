@@ -12,7 +12,7 @@ import {
   XCircle,
   RefreshCw,
 } from "lucide-react";
-import { adminApi, type ModelProvider, type ModelDescriptor, type ModelTaskDefault, type ProviderDiscoverResult } from "@/api/admin";
+import { adminApi, type ModelProvider, type ModelDescriptor, type ModelTaskDefault, type ModelProviderUpdatePayload, type ModelDescriptorCreatePayload, type ProviderDiscoverResult } from "@/api/admin";
 import { Button } from "@/components/primitives/Button";
 import { Dialog } from "@/components/primitives/Dialog";
 import { Badge } from "@/components/primitives/Badge";
@@ -68,9 +68,12 @@ export function AdminModelProvidersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<ModelProvider | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ModelProvider | null>(null);
+  const [deleteDescriptorTarget, setDeleteDescriptorTarget] = useState<ModelDescriptor | null>(null);
+  const [deleteTdTarget, setDeleteTdTarget] = useState<string | null>(null);
   const [descriptorProvider, setDescriptorProvider] = useState<ModelProvider | null>(null);
   const [descriptorEdit, setDescriptorEdit] = useState<ModelDescriptor | null>(null);
   const [taskDefaultEdit, setTaskDefaultEdit] = useState<ModelTaskDefault | null>(null);
+  const [addTdOpen, setAddTdOpen] = useState(false);
 
   const [testResults, setTestResults] = useState<Record<string, string>>({});
   const [discoverResults, setDiscoverResults] = useState<Record<string, ProviderDiscoverResult[] | string>>({});
@@ -138,7 +141,7 @@ export function AdminModelProvidersPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
+    mutationFn: ({ id, payload }: { id: string; payload: ModelProviderUpdatePayload }) =>
       adminApi.updateModelProvider(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["model-providers"] });
@@ -159,7 +162,7 @@ export function AdminModelProvidersPage() {
   });
 
   const descCreateMutation = useMutation({
-    mutationFn: ({ providerId, payload }: { providerId: string; payload: Record<string, unknown> }) =>
+    mutationFn: ({ providerId, payload }: { providerId: string; payload: ModelDescriptorCreatePayload }) =>
       adminApi.createModelDescriptor(providerId, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["model-descriptors", descriptorProvider?.id] });
@@ -170,7 +173,7 @@ export function AdminModelProvidersPage() {
   });
 
   const descUpdateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<ModelDescriptorCreatePayload> }) =>
       adminApi.updateModelDescriptor(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["model-descriptors", descriptorProvider?.id] });
@@ -196,6 +199,7 @@ export function AdminModelProvidersPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["model-task-defaults"] });
       setTaskDefaultEdit(null);
+      setAddTdOpen(false);
       resetTdForm();
       showToast("success", "Task default saved.");
     },
@@ -302,7 +306,7 @@ export function AdminModelProvidersPage() {
   const handleEdit = useCallback(async () => {
     if (!editTarget || !editName.trim()) { setEditError("Name is required."); return; }
     setEditError("");
-    const payload: Record<string, unknown> = {
+    const payload: ModelProviderUpdatePayload = {
       name: editName.trim(),
       provider_type: editType,
       base_url: editBaseUrl.trim() || null,
@@ -346,7 +350,7 @@ export function AdminModelProvidersPage() {
     if (!descModelName.trim()) { setDescError("Model name is required."); return; }
     if (!descriptorProvider) return;
     setDescError("");
-    const payload: Record<string, unknown> = { model_name: descModelName.trim() };
+    const payload: ModelDescriptorCreatePayload = { model_name: descModelName.trim() };
     if (descDisplayName.trim()) payload.display_name = descDisplayName.trim();
     if (descDescription.trim()) payload.description = descDescription.trim();
     if (descContextWindow.trim()) payload.context_window = Number(descContextWindow.trim());
@@ -376,10 +380,10 @@ export function AdminModelProvidersPage() {
     const r = testResults[providerId];
     if (!r) return null;
     if (r === "testing") return null;
-    const isOk = !r.startsWith("Healthy");
+    const isError = !r.startsWith("Healthy");
     return (
-      <p className={`${styles.syncResult} ${isOk ? styles.syncError : styles.syncOk}`}>
-        {isOk ? <XCircle size={13} /> : <CheckCircle2 size={13} />}
+      <p className={`${styles.syncResult} ${isError ? styles.syncError : styles.syncOk}`}>
+        {isError ? <XCircle size={13} /> : <CheckCircle2 size={13} />}
         {r}
       </p>
     );
@@ -564,11 +568,9 @@ export function AdminModelProvidersPage() {
                       <td>
                         <div className={styles.actions}>
                           <Button variant="secondary" size="sm" onClick={() => openTdEdit(td)}>Edit</Button>
-                          <Button variant="secondary" size="sm" onClick={() => {
-                            if (confirm(`Remove task default for "${td.task_type}"? System will fall back to env/config.`)) {
-                              tdDeleteMutation.mutate(td.task_type);
-                            }
-                          }}><Trash2 size={13} /></Button>
+                          <Button variant="secondary" size="sm" onClick={() => setDeleteTdTarget(td.task_type)}>
+                            <Trash2 size={13} />
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -580,7 +582,7 @@ export function AdminModelProvidersPage() {
         </div>
       )}
       <div style={{ marginTop: "8px" }}>
-        <Button size="sm" onClick={() => { resetTdForm(); setTaskDefaultEdit(null); }}>
+        <Button size="sm" onClick={() => { resetTdForm(); setAddTdOpen(true); }}>
           <Plus size={14} />
           Add Task Default
         </Button>
@@ -699,11 +701,9 @@ export function AdminModelProvidersPage() {
                     <td>
                       <div className={styles.actions}>
                         <Button variant="secondary" size="sm" onClick={() => openDescriptorEdit(d)}>Edit</Button>
-                        <Button variant="secondary" size="sm" onClick={() => {
-                          if (confirm(`Delete descriptor "${d.model_name}"?`)) {
-                            descDeleteMutation.mutate(d.id);
-                          }
-                        }}><Trash2 size={13} /></Button>
+                        <Button variant="secondary" size="sm" onClick={() => setDeleteDescriptorTarget(d)}>
+                          <Trash2 size={13} />
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -768,8 +768,8 @@ export function AdminModelProvidersPage() {
 
       {/* --- Task Default Dialog --- */}
       <Dialog
-        open={!!taskDefaultEdit || false}
-        onClose={() => { setTaskDefaultEdit(null); resetTdForm(); }}
+        open={addTdOpen || !!taskDefaultEdit}
+        onClose={() => { setAddTdOpen(false); setTaskDefaultEdit(null); resetTdForm(); }}
         title={taskDefaultEdit ? `Edit Task Default: ${taskDefaultEdit.task_type}` : "Add Task Default"}
       >
         <form className={styles.form} onSubmit={(e) => { e.preventDefault(); handleSaveTaskDefault(); }} noValidate>
@@ -805,9 +805,48 @@ export function AdminModelProvidersPage() {
           {tdError && <p className={styles.formError} role="alert">{tdError}</p>}
           <div className={styles.dialogActions}>
             <Button type="submit" loading={tdMutation.isPending}>Save Task Default</Button>
-            <Button type="button" variant="secondary" onClick={() => { setTaskDefaultEdit(null); resetTdForm(); }}>Cancel</Button>
+            <Button type="button" variant="secondary" onClick={() => { setAddTdOpen(false); setTaskDefaultEdit(null); resetTdForm(); }}>Cancel</Button>
           </div>
         </form>
+      </Dialog>
+      {/* --- Descriptor Delete Confirmation --- */}
+      <Dialog
+        open={!!deleteDescriptorTarget}
+        onClose={() => setDeleteDescriptorTarget(null)}
+        title={`Delete Descriptor: ${deleteDescriptorTarget?.model_name ?? ""}`}
+      >
+        <p style={{ marginBottom: "16px", color: "var(--color-text-secondary)" }}>
+          Are you sure you want to delete descriptor <strong>{deleteDescriptorTarget?.model_name}</strong>? This cannot be undone.
+        </p>
+        {deleteDescriptorTarget && (
+          <div className={styles.dialogActions}>
+            <Button variant="danger" onClick={() => { descDeleteMutation.mutate(deleteDescriptorTarget.id); setDeleteDescriptorTarget(null); }} loading={descDeleteMutation.isPending}>
+              <Trash2 size={14} />
+              Delete Descriptor
+            </Button>
+            <Button variant="secondary" onClick={() => setDeleteDescriptorTarget(null)}>Cancel</Button>
+          </div>
+        )}
+      </Dialog>
+
+      {/* --- Task Default Delete Confirmation --- */}
+      <Dialog
+        open={!!deleteTdTarget}
+        onClose={() => setDeleteTdTarget(null)}
+        title={`Remove Task Default: ${deleteTdTarget ?? ""}`}
+      >
+        <p style={{ marginBottom: "16px", color: "var(--color-text-secondary)" }}>
+          Remove task default for <strong>{deleteTdTarget}</strong>? The system will fall back to env/config for this task type.
+        </p>
+        {deleteTdTarget && (
+          <div className={styles.dialogActions}>
+            <Button variant="danger" onClick={() => { tdDeleteMutation.mutate(deleteTdTarget); setDeleteTdTarget(null); }} loading={tdDeleteMutation.isPending}>
+              <Trash2 size={14} />
+              Remove
+            </Button>
+            <Button variant="secondary" onClick={() => setDeleteTdTarget(null)}>Cancel</Button>
+          </div>
+        )}
       </Dialog>
     </div>
   );

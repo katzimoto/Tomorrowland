@@ -290,7 +290,6 @@ export interface ModelProvider {
   provider_type: string;
   description: string | null;
   base_url: string | null;
-  api_key_ref: string | null;
   credential_set: boolean;
   locality: string;
   enabled: boolean;

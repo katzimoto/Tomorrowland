@@ -26,7 +26,7 @@ const LazyAdminEditSourcePage   = lazy(() => import("@/features/admin/AdminEditS
 const LazyAdminGroupsPage       = lazy(() => import("@/features/admin/AdminGroupsPage").then(m => ({ default: m.AdminGroupsPage })));
 const LazyAdminGroupDetailPage  = lazy(() => import("@/features/admin/AdminGroupDetailPage").then(m => ({ default: m.AdminGroupDetailPage })));
 const LazyAdminUsersPage        = lazy(() => import("@/features/admin/AdminUsersPage").then(m => ({ default: m.AdminUsersPage })));
-const LazyAdminUserDetailPage         = lazy(() => import("@/features/admin/AdminUserDetailPage").then(m => ({ default: m.AdminUserDetailPage })));
+const LazyAdminUserDetailPage   = lazy(() => import("@/features/admin/AdminUserDetailPage").then(m => ({ default: m.AdminUserDetailPage })));
 const LazyAdminModelProvidersPage     = lazy(() => import("@/features/admin/AdminModelProvidersPage").then(m => ({ default: m.AdminModelProvidersPage })));
 
 // Auth pages need their own Suspense boundary (no AppLayout shell above them).

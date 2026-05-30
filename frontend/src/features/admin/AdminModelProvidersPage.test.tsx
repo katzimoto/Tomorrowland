@@ -20,7 +20,6 @@ const mockProviders = [
     provider_type: "ollama",
     description: null,
     base_url: "http://localhost:11434",
-    api_key_ref: null,
     credential_set: false,
     locality: "local",
     enabled: true,
@@ -33,7 +32,6 @@ const mockProviders = [
     provider_type: "openai",
     description: "Production OpenAI instance",
     base_url: "https://api.openai.com/v1",
-    api_key_ref: "enc::v1::abc",
     credential_set: true,
     locality: "external",
     enabled: true,
@@ -46,7 +44,6 @@ const mockProviders = [
     provider_type: "llama-cpp",
     description: null,
     base_url: "http://localhost:8080",
-    api_key_ref: null,
     credential_set: false,
     locality: "self_hosted",
     enabled: false,
@@ -316,5 +313,40 @@ describe("AdminModelProvidersPage", () => {
     adminApi.listTaskDefaults = vi.fn().mockResolvedValue([]);
     render(<AdminModelProvidersPage />);
     expect(await screen.findByText(/No task defaults configured/)).toBeInTheDocument();
+  });
+
+  it("opens Add Task Default dialog via button", async () => {
+    render(<AdminModelProvidersPage />);
+    const addBtn = await screen.findByText("Add Task Default");
+    await userEvent.click(addBtn);
+    expect(screen.getByText("Add Task Default", { selector: "[role='heading'], h2, h3, [class*='title']" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Task Type")).toBeInTheDocument();
+  });
+
+  it("opens descriptor delete confirmation dialog", async () => {
+    render(<AdminModelProvidersPage />);
+    const modelBtns = await screen.findAllByText("Models");
+    await userEvent.click(modelBtns[0]);
+
+    await screen.findByText(/Models: Local Ollama/);
+    const descRow = screen.getAllByText("llama3.2")[1].closest("tr")!;
+    const rowBtns = within(descRow).getAllByRole("button");
+    await userEvent.click(rowBtns[rowBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Delete Descriptor:/)).toBeInTheDocument();
+    });
+  });
+
+  it("opens task default delete confirmation dialog", async () => {
+    render(<AdminModelProvidersPage />);
+    await screen.findByText("chat");
+    const chatRow = screen.getByText("chat").closest("tr")!;
+    const rowBtns = within(chatRow).getAllByRole("button");
+    await userEvent.click(rowBtns[rowBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Remove Task Default:/)).toBeInTheDocument();
+    });
   });
 });
