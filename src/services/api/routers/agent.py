@@ -11,6 +11,7 @@ can access.
 from __future__ import annotations
 
 import logging
+import time
 from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Annotated, Any
@@ -45,6 +46,33 @@ from shared.correlation import get_correlation_id
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/agent/v1", tags=["agent"])
+
+
+def _agent_audit_log(
+    *,
+    route: str,
+    user_id: str,
+    query_length: int = 0,
+    result_count: int = 0,
+    latency_ms: float = 0.0,
+    status: str = "ok",
+) -> None:
+    """Emit a structured audit log line for a researcher API call.
+
+    Logs safe metadata only — no raw query text, no document content,
+    no authorization headers, no secrets.
+    """
+    logger.info(
+        "agent_audit route=%s user=%s correlation_id=%s "
+        "query_length=%d result_count=%d latency_ms=%.1f status=%s",
+        route,
+        user_id,
+        get_correlation_id(),
+        query_length,
+        result_count,
+        latency_ms,
+        status,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -228,11 +256,20 @@ def search_documents(
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> AgentSearchResponse:
     """Hybrid search restricted to documents the caller can access."""
+    t0 = time.perf_counter()
+    request.app.state.agent_rate_limiter.check(str(user.sub))
     settings = request.app.state.settings
 
     with request.app.state.engine.begin() as connection:
         group_ids, is_admin = _resolve_effective_groups(request, user, connection)
         if not group_ids and not is_admin:
+            _agent_audit_log(
+                route="search_documents",
+                user_id=str(user.sub),
+                query_length=len(body.query),
+                result_count=0,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
             return AgentSearchResponse(results=[], total=0, query=body.query)
 
         bm25_results: list[SearchResult] = []
@@ -341,6 +378,13 @@ def search_documents(
                 )
             )
 
+        _agent_audit_log(
+            route="search_documents",
+            user_id=str(user.sub),
+            query_length=len(body.query),
+            result_count=len(items),
+            latency_ms=(time.perf_counter() - t0) * 1000,
+        )
         return AgentSearchResponse(
             results=items,
             total=len(merged),
@@ -355,6 +399,8 @@ def get_document(
     document_id: Annotated[UUID, Query(...)],
 ) -> AgentDocumentResponse:
     """Return permissioned metadata for a single document."""
+    t0 = time.perf_counter()
+    request.app.state.agent_rate_limiter.check(str(user.sub))
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
         assert_doc_access(document_id, user, auth_repo)
@@ -368,6 +414,12 @@ def get_document(
         summary_row = intelligence_repo.get_summary(document_id)
         tags = intelligence_repo.get_tags(document_id)
 
+        _agent_audit_log(
+            route="get_document",
+            user_id=str(user.sub),
+            result_count=1,
+            latency_ms=(time.perf_counter() - t0) * 1000,
+        )
         return AgentDocumentResponse(
             document_id=str(doc.id),
             source_id=str(doc.source_id),
@@ -396,6 +448,8 @@ def get_passages(
     offset: Annotated[int, Query(ge=0, le=10000)] = 0,
 ) -> AgentPassagesResponse:
     """Return ordered passages (chunks) for a document the caller can access."""
+    t0 = time.perf_counter()
+    request.app.state.agent_rate_limiter.check(str(user.sub))
     settings = request.app.state.settings
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
@@ -403,6 +457,12 @@ def get_passages(
 
         group_ids, is_admin = _resolve_effective_groups(request, user, connection)
         if not group_ids and not is_admin:
+            _agent_audit_log(
+                route="get_passages",
+                user_id=str(user.sub),
+                result_count=0,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
             return AgentPassagesResponse(document_id=str(document_id), passages=[], total=0)
 
     encoder = build_encoder(settings, timeout=settings.search_embedding_timeout)
@@ -438,6 +498,12 @@ def get_passages(
         )
         for r in chunk_results
     ]
+    _agent_audit_log(
+        route="get_passages",
+        user_id=str(user.sub),
+        result_count=len(passages),
+        latency_ms=(time.perf_counter() - t0) * 1000,
+    )
     return AgentPassagesResponse(
         document_id=str(document_id),
         passages=passages,
@@ -457,6 +523,8 @@ def ask_corpus(
     of the standard group filter applied to Qdrant, plus an explicit
     per-citation source-ACL re-check for defence in depth.
     """
+    t0 = time.perf_counter()
+    request.app.state.agent_rate_limiter.check(str(user.sub), is_ask_corpus=True)
     settings = request.app.state.settings
 
     with request.app.state.engine.begin() as connection:
@@ -555,6 +623,13 @@ def ask_corpus(
                 )
             )
 
+        _agent_audit_log(
+            route="ask_corpus",
+            user_id=str(user.sub),
+            query_length=len(body.question),
+            result_count=len(safe_citations),
+            latency_ms=(time.perf_counter() - t0) * 1000,
+        )
         return AgentAskResponse(
             question=answer.question,
             answer=answer.answer,
@@ -570,6 +645,8 @@ def get_related_documents(
     document_id: Annotated[UUID, Query(...)],
 ) -> AgentRelatedResponse:
     """Return related documents the caller can access."""
+    t0 = time.perf_counter()
+    request.app.state.agent_rate_limiter.check(str(user.sub))
     settings = request.app.state.settings
     with request.app.state.engine.begin() as connection:
         require_related_docs_enabled(connection, settings)
@@ -583,6 +660,12 @@ def get_related_documents(
 
         group_ids, is_admin = _resolve_effective_groups(request, user, connection)
         if not group_ids and not is_admin:
+            _agent_audit_log(
+                route="get_related_documents",
+                user_id=str(user.sub),
+                result_count=0,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
             return AgentRelatedResponse(document_id=str(document_id), related=[])
 
         encoder = build_encoder(settings)
@@ -622,6 +705,12 @@ def get_related_documents(
             )
             for r in raw_related
         ]
+        _agent_audit_log(
+            route="get_related_documents",
+            user_id=str(user.sub),
+            result_count=len(related),
+            latency_ms=(time.perf_counter() - t0) * 1000,
+        )
         return AgentRelatedResponse(document_id=str(document_id), related=related)
 
 
@@ -632,12 +721,29 @@ def list_facets(
     query: Annotated[str, Query(min_length=0, max_length=500)] = "",
 ) -> AgentFacetsResponse:
     """Return facet distributions over documents the caller can access."""
+    t0 = time.perf_counter()
+    request.app.state.agent_rate_limiter.check(str(user.sub))
     with request.app.state.engine.begin() as connection:
         group_ids, is_admin = _resolve_effective_groups(request, user, connection)
         if not group_ids and not is_admin:
+            _agent_audit_log(
+                route="list_facets",
+                user_id=str(user.sub),
+                query_length=len(query),
+                result_count=0,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
             return AgentFacetsResponse(facets={})
 
     if request.app.state.meili_provider is None:
+        _agent_audit_log(
+            route="list_facets",
+            user_id=str(user.sub),
+            query_length=len(query),
+            result_count=0,
+            latency_ms=(time.perf_counter() - t0) * 1000,
+            status="degraded",
+        )
         return AgentFacetsResponse(facets={})
 
     try:
@@ -655,9 +761,25 @@ def list_facets(
             exc.__class__.__name__,
             get_correlation_id(),
         )
+        _agent_audit_log(
+            route="list_facets",
+            user_id=str(user.sub),
+            query_length=len(query),
+            result_count=0,
+            latency_ms=(time.perf_counter() - t0) * 1000,
+            status="degraded",
+        )
         return AgentFacetsResponse(facets={})
 
-    return AgentFacetsResponse(facets=meili_results.facets or {})
+    facets = meili_results.facets or {}
+    _agent_audit_log(
+        route="list_facets",
+        user_id=str(user.sub),
+        query_length=len(query),
+        result_count=len(facets),
+        latency_ms=(time.perf_counter() - t0) * 1000,
+    )
+    return AgentFacetsResponse(facets=facets)
 
 
 # Translation quality is not exposed directly on AgentSearchResultItem to keep

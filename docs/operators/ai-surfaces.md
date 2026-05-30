@@ -379,6 +379,64 @@ merged to `main`.
 
 ---
 
+## Researcher API — Audit Logging and Usage Limits (#561)
+
+The permissioned researcher API (`/api/agent/v1/*`) and the Hermes MCP
+adapter (`/mcp`) emit structured audit events and enforce per-user rate
+limits.  Both behaviours are active by default and require no changes for
+standard deployments.
+
+### Audit events
+
+Every successful call to the six researcher endpoints emits an `INFO`-level
+structured log line.  Example:
+
+```
+agent_audit route=search_documents user=<uuid> correlation_id=<uuid> \
+  query_length=12 result_count=5 latency_ms=42.3 status=ok
+```
+
+**What is logged**: route name, user id (UUID), correlation id, query or
+question *length* (character count, not the raw text), result count, end-to-end
+latency in milliseconds, and status (`ok` or `degraded`).
+
+**What is never logged**: raw query text, raw question text, document content,
+passage text, citation text, answer text, Authorization headers, JWTs, or
+API keys.
+
+Log lines appear under the logger `services.api.routers.agent`.  Route
+MCP calls through REST; because every MCP tool forwards to a REST endpoint,
+audit events are emitted on the REST side automatically — there is no
+separate MCP-side audit log, and there are no duplicate events.
+
+### Usage limits
+
+| Setting                                     | Env var                                        | Default | Purpose                                         |
+|---------------------------------------------|------------------------------------------------|---------|-------------------------------------------------|
+| `agent_rate_limit_enabled`                  | `AGENT_RATE_LIMIT_ENABLED`                     | `true`  | Master toggle. Set `false` in dev/test only.    |
+| `agent_rate_limit_window_seconds`           | `AGENT_RATE_LIMIT_WINDOW_SECONDS`              | `60`    | Sliding-window width in seconds.                |
+| `agent_rate_limit_calls_per_window`         | `AGENT_RATE_LIMIT_CALLS_PER_WINDOW`            | `100`   | Max calls per user per window (non-ask_corpus). |
+| `agent_rate_limit_ask_corpus_calls_per_window` | `AGENT_RATE_LIMIT_ASK_CORPUS_CALLS_PER_WINDOW` | `20` | Max `ask_corpus` calls per user per window.     |
+
+**Counters are independent**: `ask_corpus` has its own bucket per user;
+the general counter covers the other five endpoints.
+
+**MCP**: because MCP tools forward to REST, they count against the same
+per-user REST-side limits.  There is no separate MCP-side limit.
+
+**Fail-closed**: if any limit value is invalid (≤ 0), the server refuses to
+start.  An over-limit request receives `HTTP 429 Rate limit exceeded` with a
+safe message and no internal detail.
+
+**Over-limit troubleshooting**:
+- Confirm `AGENT_RATE_LIMIT_CALLS_PER_WINDOW` / `AGENT_RATE_LIMIT_ASK_CORPUS_CALLS_PER_WINDOW` are set appropriately for your workload.
+- Limits are in-memory per process; they reset on restart and do not
+  synchronise across multiple API replicas.
+- Normal user-facing search and RAG endpoints (`/search`, `/qa`, chat) are
+  **not** affected by these limits.
+
+---
+
 ## See Also
 
 - `docs/operations/air-gapped-deployment.md` — install, load, validate.

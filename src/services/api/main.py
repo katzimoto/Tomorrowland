@@ -30,6 +30,7 @@ from shared.metrics import (
     set_current_metrics,
     status_class,
 )
+from shared.rate_limit import AgentRateLimiter
 from shared.request_context import reset_request_id, set_request_id
 
 AUTH_SCHEME = "Bearer "
@@ -120,6 +121,13 @@ def create_app(
             app.state.admins_group_id = str(admins_id) if admins_id else None
         except Exception:
             app.state.admins_group_id = None
+
+    app.state.agent_rate_limiter = AgentRateLimiter(
+        enabled=app.state.settings.agent_rate_limit_enabled,
+        window_seconds=app.state.settings.agent_rate_limit_window_seconds,
+        calls_per_window=app.state.settings.agent_rate_limit_calls_per_window,
+        ask_corpus_calls_per_window=app.state.settings.agent_rate_limit_ask_corpus_calls_per_window,
+    )
 
     app.state.readiness_checker = ReadinessChecker(
         engine=app.state.engine,
