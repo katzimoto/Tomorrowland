@@ -361,7 +361,10 @@ class PreviewService:
                     'high',
                     'auto_enrich',
                     'pending',
-                    'en'
+                    COALESCE(
+                        (SELECT target_language FROM documents WHERE id = :document_id),
+                        'en'
+                    )
                 ON CONFLICT (document_id, request_type)
                 WHERE status IN ('pending', 'running')
                 DO NOTHING

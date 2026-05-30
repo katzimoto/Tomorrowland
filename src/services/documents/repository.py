@@ -412,11 +412,13 @@ class TranslationVersionRepository:
                 sa.text("""
                     INSERT INTO document_translation_versions (
                         id, document_id, version_number, label, quality, request_type,
-                        status, target_language, requested_by_id, request_note
+                        status, source_language, target_language, requested_by_id, request_note
                     )
                     VALUES (
                         :id, :document_id, :version_number, :label, :quality, :request_type,
-                        'pending', :target_language, :requested_by_id, :request_note
+                        'pending',
+                        (SELECT source_language FROM documents WHERE id = :document_id),
+                        :target_language, :requested_by_id, :request_note
                     )
                     RETURNING id, document_id, version_number, label, source_language,
                               target_language, quality, request_type, status,

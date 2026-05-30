@@ -111,8 +111,12 @@ class SlowWorker:
             # 1. Use pre-extracted text from the parse stage payload
             text = content_text
 
-            # 2. Translate
-            translated = self._translator.translate(text, source_lang=doc.source_language)
+            # 2. Translate to the document's configured target language
+            translated = self._translator.translate(
+                text,
+                source_lang=doc.source_language,
+                target_lang=doc.target_language or "en",
+            )
 
             # 3. No-op guard: translation returned the same text (document already
             #    in the target language, or LibreTranslate failed auto-detect).
@@ -155,8 +159,12 @@ class SlowWorker:
         # 1. Use pre-extracted text from the parse stage payload
         text = content_text
 
-        # 2. Translate
-        translated = self._translator.translate(text, source_lang=doc.source_language)
+        # 2. Translate to the document's configured target language
+        translated = self._translator.translate(
+            text,
+            source_lang=doc.source_language,
+            target_lang=doc.target_language or "en",
+        )
 
         # 3. Chunk and index
         self._index_document(doc, translated, original=text)
