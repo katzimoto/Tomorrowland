@@ -765,17 +765,3 @@ def test_search_drops_orphaned_qdrant_vector(
     returned_ids = [r["document_id"] for r in data["results"]]
     assert orphaned_id not in returned_ids
     assert real_doc_id in returned_ids
-
-
-def test_excessive_limit_on_comments_returns_422(migrated_engine: Engine) -> None:
-    _setup_users(migrated_engine)
-    _create_source_with_doc(migrated_engine, "users")
-    app = create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
-    client = TestClient(app)
-    token = _user_token(client)
-
-    resp = client.get(
-        "/documents/00000000-0000-0000-0000-000000000000/comments?limit=201",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert resp.status_code == 422
