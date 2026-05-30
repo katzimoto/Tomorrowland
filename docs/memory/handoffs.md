@@ -2,6 +2,38 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-30 — feat(models): generation provider adapters — #544 S3, PR #588
+
+Status: Done — merged to main (branch deleted)
+Source: issue #576 (S3 of #544), PR #588, Claude Code session
+
+**Goal:** Extend `OpenAICompatibleLLMProvider` with Bearer auth + SSE streaming; add `CrossEncoderEndpointReranker`; register `openai`/`litellm`/`llama-cpp` provider names.
+
+**Changed files:**
+- `src/services/intelligence/factory.py` — `_OPENAI_COMPATIBLE_PROVIDERS` frozenset; `openai` startup guard (ValueError when `LLM_API_KEY` missing)
+- `src/services/intelligence/llm_provider.py` — `_build_headers()`, `api_key` param on `__init__`, full SSE `generate_stream()`, error handling on both paths
+- `src/services/rag/reranker.py` — `CrossEncoderEndpointReranker` (unwired; factory wiring deferred to #578)
+- `src/shared/config.py` — `llm_api_key: str = ""`
+- `tests/unit/test_llm_provider.py` — streaming error path tests, auth tests, factory guard test
+- `tests/unit/test_rag_reranker.py` — full endpoint reranker coverage
+- `CHANGELOG.md` — Unreleased entries for S3
+
+**Review fixes (commit cff1239 on PR branch before merge):**
+- Factory: `ValueError` at startup when `LLM_PROVIDER=openai` and `LLM_API_KEY` unset
+- Streaming error handler: `exc.response.status_code` instead of `response.status_code` (scope dependency)
+- Tests: streaming error paths (HTTPStatusError, ConnectError, TimeoutException) + `test_factory_openai_requires_api_key`
+
+**Key invariants:**
+- Default `llm_provider=""` → `"ollama"` → `OllamaClient` — unchanged
+- `LLM_API_KEY` unset → no `Authorization` header on any request
+- API keys and full prompts never logged; only key length at DEBUG and prompt length at DEBUG
+- `CrossEncoderEndpointReranker` identity-fallback on any error — RAG pipeline never blocked
+
+**Next agent prompt:**
+> S3 (#544/#576) is on main. Pick up S4 (#577) — admin provider registry API. This adds CRUD REST endpoints for the `model_providers` / `model_descriptors` / `model_task_defaults` tables laid down in S1. The `ModelProviderRepository` in `src/services/intelligence/model_provider_repository.py` is the data layer. Do not implement frontend UI (#579) or service wiring (#578) in this slice.
+
+---
+
 ## 2026-05-30 — feat(models): model provider registry foundation — #544 S1, PR #584
 
 Status: Done — merged to main

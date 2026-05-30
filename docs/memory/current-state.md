@@ -2,6 +2,65 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-30 — feat(models): generation provider adapters — #544 S3, PR #588 merged
+
+Status: Done — PR #588 squash-merged to main (branch feat/generation-provider-adapters-576 deleted)
+Source: issue #576 (S3 of #544), PR #588, Claude Code session
+
+`OpenAICompatibleLLMProvider` now supports Bearer auth, SSE streaming, and clean error handling. Three review fixes applied before merge.
+
+| Area | Detail |
+|---|---|
+| Auth | `LLM_API_KEY` env var → `Bearer` header; never logged — only key length at DEBUG |
+| Streaming | `generate_stream()` parses `data: ...` SSE chunks, terminates on `[DONE]`, skips blank/bad-JSON lines |
+| Errors | HTTP status, ConnectError, TimeoutException all caught and re-raised with log; malformed JSON returns `""` |
+| Factory | `openai`, `litellm`, `llama-cpp` added to `_OPENAI_COMPATIBLE_PROVIDERS`; `openai` enforces `LLM_API_KEY` at startup |
+| Reranker | `CrossEncoderEndpointReranker` added — TEI-compatible endpoint, identity fallback; unwired (factory wiring is #578) |
+| Config | `llm_api_key: str = ""` added to `Settings` |
+| Tests | 64 unit tests pass (streaming error paths, auth header present/absent, factory guard, reranker all covered) |
+
+Review fixes applied before merge:
+- `factory.py`: `ValueError` at startup when `LLM_PROVIDER=openai` and `LLM_API_KEY` is unset
+- `llm_provider.py`: streaming `HTTPStatusError` handler uses `exc.response.status_code` (not the `with`-block variable)
+- `test_llm_provider.py`: 3 streaming error tests + `test_factory_openai_requires_api_key` added
+
+Remaining #544 slices:
+- S4 #577 — admin provider registry API
+- S5 #578 — task-default resolver/service wiring (also wires `CrossEncoderEndpointReranker`)
+
+Next action: Pick up S4 (#577) — admin provider registry API.
+
+---
+
+## 2026-05-30 — feat(models): OpenAI-compatible embedding encoder — #544 S2, PR #587 merged
+
+Status: Done — PR #587 squash-merged to main (branch feature/openai-embedding-encoder deleted)
+Source: issue #575 (S2 of #544), PR #587, Claude Code session
+
+`OpenAICompatibleEmbeddingEncoder` on main. No runtime behavior change — new provider only activates when `embedding_provider="openai-compatible"` is explicitly configured.
+
+| Area | Detail |
+|---|---|
+| Encoder | `OpenAICompatibleEmbeddingEncoder` in `src/services/search/encoder.py` — calls `/v1/embeddings`, sorts by `index`, validates count |
+| Config | `embedding_api_key: str = ""` added to `Settings` — optional, defaults empty |
+| Factory | `build_encoder()` routes `embedding_provider="openai-compatible"` to new encoder; all existing paths unchanged |
+| Tests | 16 encoder unit tests + 5 factory tests; all passing |
+
+Review fixes applied before merge:
+- Missing-`index` field in response entries now raises RuntimeError (was silently defaulting to 0)
+- Count mismatch (server returns fewer embeddings than inputs) now raises RuntimeError (was silent truncation)
+- Dead `.side_effect` assignment removed from `test_encode_raises_on_http_error`
+- `test_encode_request_payload` mock fixed to return matching embedding count
+
+Remaining #544 slices:
+- S3 #576 — DONE (PR #588)
+- S4 #577 — admin provider registry API
+- S5 #578 — task-default resolver/service wiring
+
+Next action: Pick up S4 (#577) — admin provider registry API.
+
+---
+
 ## 2026-05-30 — feat(models): model provider registry foundation — #544 S1, PR #584 merged
 
 Status: Done — PR #584 merged to main (squash commit 6860555)
