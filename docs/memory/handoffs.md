@@ -2,6 +2,35 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-30 — feat(intelligence): deterministic source QA diagnostics — #586
+
+Status: Done — commit ef4a28f on main
+Source: issue #586, Claude Code session
+
+**Goal:** Add deterministic source-level ingestion/indexing health diagnostics for admins. No LLM calls, no SourceProfile, no Hermes runtime.
+
+**Changed files:**
+- `migrations/versions/a57fee5a821d_add_source_qa_checks_table.py` (new)
+- `src/services/intelligence/source_qa_repository.py` (new) — `SourceQARepository`, `SourceQACheck`, `SourceQAIssue`; upsert + get_latest; `dict(row)` cast for mypy strict
+- `src/services/intelligence/source_qa_service.py` (new) — `SourceQAService.run_check(source_id)`; 5 deterministic checks
+- `src/services/api/routers/admin/source_qa.py` (new) — `GET /admin/source-qa/{source_id}`
+- `src/services/api/main.py` — source_qa router registered
+- `src/services/intelligence/__init__.py` — exports added
+- `tests/unit/test_source_qa_repository.py` (new)
+- `tests/unit/test_source_qa_routes.py` (new)
+- `tests/unit/test_source_qa_service.py` (new)
+
+**Checks (all deterministic):** `empty_chunks`, `missing_content`, `missing_metadata`, `missing_title`, `index_lag` (pending_documents > 0).
+
+**Key invariant:** `SourceQACheck.from_row(dict(row))` — SQLAlchemy `RowMapping` must be cast to `dict` before passing to `from_row`.
+
+**Verification:** 26 unit tests pass; ruff clean; mypy strict clean.
+
+**Next agent prompt:**
+> #586 source QA diagnostics are on main (commit ef4a28f). Admin endpoint: `GET /admin/source-qa/{source_id}`. All checks are deterministic — no LLM calls. Pick up the next issue from the release queue in AGENTS.md.
+
+---
+
 ## 2026-05-30 — feat(#579): #544 S6 admin UI — COMPLETE, PR #591
 
 Status: Done — squash-merged to main (commit 2ab796d, branch deleted)

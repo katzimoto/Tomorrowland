@@ -2,6 +2,30 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-30 — feat(intelligence): deterministic source QA diagnostics — #586, commit ef4a28f
+
+Status: Done — committed and pushed to main
+Source: issue #586, Claude Code session
+
+Deterministic source-level ingestion/indexing health diagnostics for admins. No LLM calls.
+
+| Area | Detail |
+|---|---|
+| Migration | `a57fee5a821d` — `source_qa_checks` table (source_id FK, checked_at, doc counts, issue counters) |
+| Repository | `SourceQARepository` — upsert + get_latest per source in `src/services/intelligence/source_qa_repository.py` |
+| Service | `SourceQAService.run_check(source_id)` — detects empty chunks, missing content, missing metadata, missing title, index lag; all deterministic |
+| Admin API | `GET /admin/source-qa/{source_id}` — returns latest check result; 404 when no check run yet |
+| Tests | 26 unit tests (repository, service, routes); ruff clean; mypy strict clean |
+
+Key constraints:
+- No LLM calls, no Hermes runtime, no SourceProfile dependency
+- `SourceQACheck.from_row(dict(row))` — `RowMapping` cast required for mypy strict
+- Checks: `empty_chunks`, `missing_content`, `missing_metadata`, `missing_title`, `index_lag` (pending > 0)
+
+Next action: Check AGENTS.md release queue for next issue.
+
+---
+
 ## 2026-05-30 — feat(#579): #544 S6 admin UI — COMPLETE, PR #591 merged
 
 Status: Done — squash-merged to main (commit 2ab796d, branch deleted)
