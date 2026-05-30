@@ -209,18 +209,19 @@ class TaskDefaultResolver:
             if descriptor is None:
                 logger.warning(
                     "TaskDefaultResolver: task_type=%r references missing "
-                    "descriptor_id=%s — ignoring descriptor",
+                    "descriptor_id=%s — falling back to None",
                     task_type,
                     default.model_descriptor_id,
                 )
+                return None
             elif not descriptor.enabled:
                 logger.info(
                     "TaskDefaultResolver: task_type=%r descriptor model=%r is disabled — "
-                    "falling back to default model name",
+                    "falling back to None",
                     task_type,
                     descriptor.model_name,
                 )
-                model_name = None
+                return None
             else:
                 model_name = descriptor.model_name
 
@@ -250,7 +251,8 @@ class TaskDefaultResolver:
     def build_llm_provider(self, task_type: str) -> LLMProvider | None:
         """Build an :class:`LLMProvider` from a DB default.
 
-        Returns *None* when no DB default exists (env fallback).
+        Returns *None* when no DB default exists or when the configured
+        descriptor is disabled/missing (env fallback).
         """
         resolution = self.resolve(task_type)
         if resolution is None:

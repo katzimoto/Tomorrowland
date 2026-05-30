@@ -4,10 +4,10 @@ Canonical shared memory for active project state. Keep this file compact and fac
 
 ## 2026-05-30 — feat(models): task-default resolver wired into consumers — #578 merged
 
-Status: Done — PR pending (branch feat/admin-provider-registry-api-577)
+Status: Done — PR pending (branch feat/task-default-resolver-578)
 Source: issue #578 (S5 of #544), OpenCode session
 
-Created `TaskDefaultResolver` with `resolve(task_type)` and `build_llm_provider(task_type)` interface. Wired into `app.state.task_default_resolver` at startup. Chat router, admin intelligence endpoints, and `IntelligenceWorker` use the resolver. Zero-row DB returns None — callers fall back to env/Settings behavior unchanged. 18 new unit tests covering all fallback paths, disabled/missing provider/descriptor, reload, and no-secret-leakage.
+Created `TaskDefaultResolver` with `resolve(task_type)` and `build_llm_provider(task_type)` interface. Wired into `app.state.task_default_resolver` at startup. Chat router, admin intelligence endpoints, and `IntelligenceWorker` use the resolver. Zero-row DB returns None — callers fall back to env/Settings behavior unchanged. `POST /admin/model-providers/reload` reloads both the provider registry and the resolver. 19 unit tests + 2 integration tests covering all fallback paths, disabled/missing provider/descriptor, reload, and no-secret-leakage.
 
 | Area | Detail |
 |---|---|

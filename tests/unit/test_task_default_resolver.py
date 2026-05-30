@@ -230,10 +230,11 @@ def test_resolver_missing_provider_falls_back(
     assert resolver.resolve("chat") is None
 
 
-def test_resolver_disabled_descriptor_returns_none_model_name(
+def test_resolver_disabled_descriptor_falls_back(
     engine: Engine, resolver: TaskDefaultResolver
 ) -> None:
-    """Disabled descriptor → resolution returned but model_name is None."""
+    """Disabled descriptor → resolve returns None (env fallback), not a partial
+    resolution with model_name=None that would create a provider with empty model."""
     with engine.begin() as conn:
         repo = ModelProviderRepository(conn)
         prov = repo.create_provider(
@@ -258,16 +259,15 @@ def test_resolver_disabled_descriptor_returns_none_model_name(
             )
         )
     resolver.load()
-    res = resolver.resolve("chat")
-    assert res is not None
-    assert res.provider_name == "Ollama"
-    assert res.model_name is None
+    assert resolver.resolve("chat") is None
 
 
-def test_resolver_missing_descriptor_returns_none_model_name(
+def test_resolver_deleted_descriptor_behaves_like_no_descriptor(
     engine: Engine, resolver: TaskDefaultResolver
 ) -> None:
-    """Descriptor deleted after default → resolution returned but model_name=None."""
+    """Descriptor deleted after default → ON DELETE SET NULL nulls model_descriptor_id,
+    so the task default behaves as if no descriptor was ever configured: resolve()
+    returns a TaskResolution with model_name=None (use provider default model)."""
     with engine.begin() as conn:
         repo = ModelProviderRepository(conn)
         prov = repo.create_provider(
@@ -291,7 +291,7 @@ def test_resolver_missing_descriptor_returns_none_model_name(
                 model_descriptor_id=desc.id,
             )
         )
-        # Delete the descriptor — default references it but it's gone
+        # ON DELETE SET NULL: model_descriptor_id becomes NULL on deletion
         repo.delete_descriptor(desc.id)
     resolver.load()
     res = resolver.resolve("chat")
@@ -511,3 +511,41 @@ def test_resolver_does_not_expose_api_key_in_string(
     # Verify no log message contains the raw key
     for record in caplog.records:
         assert "sk-abc123def456" not in record.message
+
+
+# ---------------------------------------------------------------------------
+# build_llm_provider — disabled/missing descriptor fallback
+# ---------------------------------------------------------------------------
+
+
+def test_build_llm_provider_disabled_descriptor_returns_none(
+    engine: Engine, resolver: TaskDefaultResolver
+) -> None:
+    """Disabled descriptor → build_llm_provider returns None, not a provider with
+    empty model name that silently bypasses the env fallback chain."""
+    with engine.begin() as conn:
+        repo = ModelProviderRepository(conn)
+        prov = repo.create_provider(
+            ModelProviderCreate(
+                name="Ollama",
+                provider_type="ollama",
+                base_url="http://ollama:11434",
+                enabled=True,
+            )
+        )
+        desc = repo.create_descriptor(
+            ModelDescriptorCreate(
+                provider_id=prov.id,
+                model_name="disabled-model",
+                enabled=False,
+            )
+        )
+        repo.set_task_default(
+            ModelTaskDefaultCreate(
+                task_type="chat",
+                provider_id=prov.id,
+                model_descriptor_id=desc.id,
+            )
+        )
+    resolver.load()
+    assert resolver.build_llm_provider("chat") is None
