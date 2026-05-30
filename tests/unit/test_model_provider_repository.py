@@ -81,12 +81,6 @@ def engine(tmp_path) -> Engine:
     return eng
 
 
-@pytest.fixture
-def repo(engine: Engine) -> ModelProviderRepository:
-    with engine.begin() as conn:
-        return ModelProviderRepository(conn)
-
-
 # ---------------------------------------------------------------------------
 # Provider CRUD
 # ---------------------------------------------------------------------------
@@ -347,12 +341,14 @@ def test_set_task_default_upsert(engine: Engine) -> None:
         p2 = repo.create_provider(
             ModelProviderCreate(name="TD2", provider_type="openai-compatible")
         )
-        repo.set_task_default(ModelTaskDefaultCreate(task_type="summary", provider_id=p1.id))
+        original = repo.set_task_default(ModelTaskDefaultCreate(task_type="summary", provider_id=p1.id))
         # Upsert — same task_type, different provider
         upserted = repo.set_task_default(
             ModelTaskDefaultCreate(task_type="summary", provider_id=p2.id)
         )
         assert upserted.provider_id == p2.id
+        # id must be the original row's id, not a freshly generated one
+        assert upserted.id == original.id
         all_defaults = repo.list_task_defaults()
         assert len(all_defaults) == 1
 

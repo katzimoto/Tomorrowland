@@ -325,19 +325,9 @@ class ModelProviderRepository:
                 "updated_at": now,
             },
         )
-        return _map_task_default(
-            {
-                "id": db_uuid(row_id),
-                "task_type": data.task_type,
-                "provider_id": db_uuid(data.provider_id),
-                "model_descriptor_id": (
-                    db_uuid(data.model_descriptor_id) if data.model_descriptor_id else None
-                ),
-                "parameters": data.parameters,
-                "created_at": now,
-                "updated_at": now,
-            }
-        )
+        result = self.get_task_default(data.task_type)
+        assert result is not None  # always present after upsert
+        return result
 
     def get_task_default(self, task_type: str) -> ModelTaskDefault | None:
         """Return the default for a task type, or None."""

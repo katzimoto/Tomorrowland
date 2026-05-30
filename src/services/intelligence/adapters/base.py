@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
-@dataclass(frozen=True)
+@dataclass
 class ProviderCapabilities:
     """Declared capabilities of a model provider adapter."""
 
@@ -19,7 +19,7 @@ class ProviderCapabilities:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass
 class ProviderHealthResult:
     """Result of a provider health check."""
 
