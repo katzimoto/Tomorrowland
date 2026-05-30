@@ -116,8 +116,8 @@ Combined with `_succeeded_total` and `_retried_total` / `_dead_lettered_total`
 this describes the overall throughput and error split.
 
 ```promql
-# Per-minute claim rate for pipeline worker
-rate(tomorrowland_pipeline_jobs_claimed_total{worker_type="pipeline"}[5m]) * 60
+# Per-minute claim rate for parse worker
+rate(tomorrowland_pipeline_jobs_claimed_total{worker_type="parse"}[5m]) * 60
 ```
 
 ---
@@ -212,9 +212,9 @@ Measures wall-clock duration of each job attempt from claim to outcome.
 | `enrich` | `enrich` | `succeeded`, `retried`, `dead_lettered` |
 
 ```promql
-# p95 job duration for pipeline workers
+# p95 job duration for parse worker
 histogram_quantile(0.95,
-  rate(tomorrowland_pipeline_job_duration_seconds_bucket{worker_type="pipeline"}[10m])
+  rate(tomorrowland_pipeline_job_duration_seconds_bucket{worker_type="parse"}[10m])
 )
 
 # p99 for embed

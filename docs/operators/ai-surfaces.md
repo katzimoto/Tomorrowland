@@ -191,10 +191,9 @@ specific to the AI surfaces.
 | Service           | Compose host       | Used by                              |
 |-------------------|--------------------|--------------------------------------|
 | `qdrant`          | `qdrant:6333`      | search, RAG, related docs            |
-| `meilisearch`   | `meilisearch:7700` | keyword/BM25 search             |
+| `meilisearch`     | `meilisearch:7700` | keyword/BM25 search, typo-tolerant   |
 | `ollama`          | `ollama:11434`     | summary, entities, tags, RAG, embeddings (if `EMBEDDING_PROVIDER=ollama`) |
 | `libretranslate`  | `libretranslate:5000` | translation enrichment (not strictly AI but required for non-English indexing) |
-| `meilisearch`     | `meilisearch:7700` | keyword/BM25 search, typo-tolerant              |
 
 ### Loading models
 

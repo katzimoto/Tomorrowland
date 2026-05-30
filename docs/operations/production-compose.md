@@ -373,7 +373,6 @@ for the operating system and Docker runtime.
 | `postgres` | 1.00 | 1536m | 512m | 512 |
 | `meilisearch` | 1.00 | 1g | 256m | 512 |
 | `qdrant` | 1.00 | 1536m | 512m | 512 |
-| `meilisearch` | 1.00 | 1g | 256m | 512 |
 | `libretranslate` | 1.00 | 2g | 512m | 512 |
 | `ollama` | 2.00 | 4g | 1g | 1024 |
 | `api` | 1.00 | 1g | 256m | 512 |
