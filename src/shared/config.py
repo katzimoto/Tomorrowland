@@ -50,6 +50,10 @@ class Settings(BaseSettings):
         """Model to use for reranking. Falls back through utility to main."""
         return self.ollama_reranker_model or self.effective_utility_model
 
+    # Credential store encryption key.  When empty, a dev-only fallback is used
+    # (credentials are still encrypted in the DB but the key is deterministic).
+    credential_store_key: str = ""
+
     # LLM generation provider — "ollama" (default), "openai-compatible",
     # "openai", "litellm", or "llama-cpp".
     # LLM_BASE_URL overrides OLLAMA_URL when set; LLM_MODEL overrides OLLAMA_MODEL.
