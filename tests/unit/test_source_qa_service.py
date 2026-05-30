@@ -87,8 +87,12 @@ def _insert_doc(
     doc_id = db_uuid(uuid4())
     conn.execute(
         sa.text("""
-            INSERT INTO documents (id, source_id, external_id, source, mime_type, title, status, metadata, created_at)
-            VALUES (:id, :source_id, :external_id, :source, :mime_type, :title, :status, :metadata, :created_at)
+            INSERT INTO documents
+                (id, source_id, external_id, source, mime_type, title,
+                 status, metadata, created_at)
+            VALUES
+                (:id, :source_id, :external_id, :source, :mime_type, :title,
+                 :status, :metadata, :created_at)
         """),
         {
             "id": doc_id,
@@ -105,7 +109,9 @@ def _insert_doc(
     return doc_id
 
 
-def _insert_payload(conn: sa.Connection, doc_id: str, *, content_text: str | None = "some content") -> None:
+def _insert_payload(
+    conn: sa.Connection, doc_id: str, *, content_text: str | None = "some content"
+) -> None:
     conn.execute(
         sa.text("""
             INSERT INTO document_payloads (document_id, content_text)

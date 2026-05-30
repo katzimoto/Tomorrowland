@@ -133,7 +133,11 @@ class SourceQARepository:
             {
                 "id": db_uuid(uuid4()),
                 "source_id": db_uuid(check.source_id),
-                "checked_at": check.checked_at.isoformat() if check.checked_at else datetime.now(UTC).isoformat(),
+                "checked_at": (
+                    check.checked_at.isoformat()
+                    if check.checked_at
+                    else datetime.now(UTC).isoformat()
+                ),
                 "total_documents": check.total_documents,
                 "indexed_documents": check.indexed_documents,
                 "pending_documents": check.pending_documents,
@@ -167,4 +171,4 @@ class SourceQARepository:
             .mappings()
             .first()
         )
-        return SourceQACheck.from_row(row) if row else None
+        return SourceQACheck.from_row(dict(row)) if row else None

@@ -44,7 +44,13 @@ def _create_source(conn: sa.Connection, source_id: str) -> None:
             INSERT INTO ingestion_sources (id, name, type, path, enabled, created_at, updated_at)
             VALUES (:id, :name, :type, :path, :enabled, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         """),
-        {"id": source_id, "name": "Test Source", "type": "folder", "path": "/tmp/test", "enabled": True},
+        {
+            "id": source_id,
+            "name": "Test Source",
+            "type": "folder",
+            "path": "/tmp/test",
+            "enabled": True,
+        },
     )
 
 
