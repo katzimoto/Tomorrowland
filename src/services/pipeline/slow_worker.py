@@ -16,7 +16,6 @@ from services.documents.repository import (
 )
 from services.intelligence.worker import IntelligenceWorker
 from services.pipeline.jobs import PipelineJobRepository
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.encoder import TextEncoder
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.meili_types import ChunkMetadata, SearchChunkRecord
@@ -38,7 +37,6 @@ class SlowWorker:
         document_repository: DocumentRepository,
         translator: LibreTranslateClient,
         encoder: TextEncoder,
-        es_client: ElasticsearchSearchClient,
         qdrant_client: QdrantSearchClient,
         version_repository: TranslationVersionRepository | None = None,
         meili_provider: MeilisearchSearchProvider | None = None,
@@ -48,7 +46,6 @@ class SlowWorker:
         self._doc_repo = document_repository
         self._translator = translator
         self._encoder = encoder
-        self._es = es_client
         self._qdrant = qdrant_client
         self._meili = meili_provider
         self._intelligence = intelligence_worker
@@ -180,23 +177,6 @@ class SlowWorker:
             list(chunk_text(original, language=doc.source_language)) if original else []
         )
         translated_chunks = list(chunk_text(translated, language=doc.target_language))
-
-        # Index full document in Elasticsearch (preserve original text on re-index)
-        self._es.index_document(
-            str(document_id),
-            {
-                "document_id": str(document_id),
-                "path": doc.path or "",
-                "filename": Path(doc.path).name if doc.path else doc.title or "",
-                "content_original": original or translated,
-                "content_english": translated,
-                "title": doc.title or "",
-                "summary": "",
-                "tags": [],
-                "metadata": doc.metadata,
-                "allowed_group_ids": allowed_group_ids,
-            },
-        )
 
         # Index chunks in Meilisearch when configured
         if self._meili is not None:
@@ -486,7 +466,6 @@ if __name__ == "__main__":
     with engine.begin() as conn:
         doc_repo = DocumentRepository(conn)
         version_repo = TranslationVersionRepository(conn)
-        es_client = ElasticsearchSearchClient(hosts=[settings.elastic_url])
         qdrant_client = QdrantSearchClient(url=settings.qdrant_url)
         translator = LibreTranslateClient(base_url=settings.libretranslate_url)
         encoder = build_encoder(settings)
@@ -494,7 +473,6 @@ if __name__ == "__main__":
         intelligence_worker = IntelligenceWorker(
             repository=IntelligenceRepository(conn),
             ollama_client=build_llm_provider(settings),
-            es_client=es_client,
             utility_model=settings.effective_utility_model,
         )
 
@@ -502,7 +480,6 @@ if __name__ == "__main__":
             document_repository=doc_repo,
             translator=translator,
             encoder=encoder,
-            es_client=es_client,
             qdrant_client=qdrant_client,
             version_repository=version_repo,
             intelligence_worker=intelligence_worker,

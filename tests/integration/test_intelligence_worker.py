@@ -9,12 +9,6 @@ from sqlalchemy import Engine
 from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.repository import IntelligenceRepository
 from services.intelligence.worker import IntelligenceWorker
-from services.search.elastic import ElasticsearchSearchClient
-
-
-@pytest.fixture
-def mock_es() -> MagicMock:
-    return MagicMock(spec=ElasticsearchSearchClient)
 
 
 @pytest.fixture
@@ -24,7 +18,6 @@ def ollama_client() -> OllamaClient:
 
 def test_worker_summarizes_and_stores(
     migrated_engine: Engine,
-    mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
     document_id = uuid4()
@@ -38,8 +31,7 @@ def test_worker_summarizes_and_stores(
         worker = IntelligenceWorker(
             repository=repo,
             ollama_client=ollama_client,
-            es_client=mock_es,
-        )
+            )
         worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
@@ -48,14 +40,10 @@ def test_worker_summarizes_and_stores(
         assert summary is not None
         assert summary["summary"] == "A document about AI and finance."
 
-    # Summary uses update_document_fields; entities + tags + key_points use update_document_field
-    assert mock_es.update_document_field.call_count == 3
-    assert mock_es.update_document_fields.call_count == 1
 
 
 def test_worker_extracts_entities(
     migrated_engine: Engine,
-    mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
     document_id = uuid4()
@@ -74,8 +62,7 @@ def test_worker_extracts_entities(
         worker = IntelligenceWorker(
             repository=repo,
             ollama_client=ollama_client,
-            es_client=mock_es,
-        )
+            )
         worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
@@ -89,7 +76,6 @@ def test_worker_extracts_entities(
 
 def test_worker_auto_tags(
     migrated_engine: Engine,
-    mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
     document_id = uuid4()
@@ -102,8 +88,7 @@ def test_worker_auto_tags(
         worker = IntelligenceWorker(
             repository=repo,
             ollama_client=ollama_client,
-            es_client=mock_es,
-        )
+            )
         worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
@@ -114,7 +99,6 @@ def test_worker_auto_tags(
 
 def test_worker_skips_disabled_tasks(
     migrated_engine: Engine,
-    mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
     document_id = uuid4()
@@ -134,18 +118,15 @@ def test_worker_skips_disabled_tasks(
         worker = IntelligenceWorker(
             repository=repo,
             ollama_client=ollama_client,
-            es_client=mock_es,
-            config_source=config,
+                config_source=config,
         )
         worker.process_document(document_id, content)
 
     ollama_client.generate.assert_not_called()
-    mock_es.update_document_field.assert_not_called()
 
 
 def test_worker_failure_does_not_block(
     migrated_engine: Engine,
-    mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
     document_id = uuid4()
@@ -158,8 +139,7 @@ def test_worker_failure_does_not_block(
         worker = IntelligenceWorker(
             repository=repo,
             ollama_client=ollama_client,
-            es_client=mock_es,
-        )
+            )
         # Should not raise
         worker.process_document(document_id, content)
 
@@ -173,7 +153,6 @@ def test_worker_failure_does_not_block(
 
 def test_worker_task_failures_are_swallowed(
     migrated_engine: Engine,
-    mock_es: MagicMock,
     ollama_client: OllamaClient,
 ) -> None:
     """Partial task failure must not raise — all tasks are best-effort."""
@@ -188,8 +167,7 @@ def test_worker_task_failures_are_swallowed(
         worker = IntelligenceWorker(
             repository=repo,
             ollama_client=ollama_client,
-            es_client=mock_es,
-        )
+            )
         # Must not raise even when entity extraction (and auto-tag) fail
         worker.process_document(document_id, content)
 

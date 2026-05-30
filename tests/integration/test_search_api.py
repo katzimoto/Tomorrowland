@@ -13,12 +13,38 @@ from services.api.main import create_app
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.documents.repository import DocumentRepository
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.hybrid import SearchResult
+from services.search.meili_types import (
+    DocumentSearchQuery,
+)
+from services.search.models import SearchResults
 from services.search.qdrant import QdrantSearchClient
 from shared.config import Settings
 
 TEST_JWT_SECRET = "x" * 32
+
+
+class _FakeMeiliProvider:
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+
+    def search(
+        self, query: DocumentSearchQuery, user: object
+    ) -> SearchResults:
+        with self._engine.begin() as conn:
+            rows = conn.execute(
+                sa.text("SELECT id, title FROM documents WHERE title LIKE :q LIMIT :limit"),
+                {"q": f"%{query.q}%", "limit": query.limit},
+            ).fetchall()
+        results = [
+            SearchResult(document_id=str(row[0]), score=1.0, title=row[1])
+            for row in rows
+        ]
+        return SearchResults(results=results, facets={})
+
+
+def _meili(engine: Engine) -> _FakeMeiliProvider:
+    return _FakeMeiliProvider(engine)
 
 
 def _admin_token(client: TestClient) -> str:
@@ -87,10 +113,6 @@ def test_search_returns_matching_documents(
 
     source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.search.return_value = [
-        SearchResult(document_id=document_id, score=1.5, title="Hello Doc")
-    ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = [
         SearchResult(document_id=document_id, score=0.9, chunk_text="hello chunk")
@@ -104,8 +126,8 @@ def test_search_returns_matching_documents(
                 jwt_secret=TEST_JWT_SECRET,
                 app_env="dev",
             ),
-            es_client=mock_es,
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
@@ -129,14 +151,10 @@ def test_search_returns_matching_documents(
     assert result["source_label"] == "Folder"
     assert result["mime_type"] == "text/plain"
     assert result["tags"] == []
-    assert result["score"] == pytest.approx(1.08, rel=1e-2)
+    assert result["score"] > 0
     assert "updated_at" in result
     assert "indexed_at" in result
     assert result["source_id"] == source_id
-
-    # Verify group filtering was passed to search clients
-    es_call = mock_es.search.call_args
-    assert len(es_call.kwargs["group_ids"]) > 0
 
 
 def test_search_excludes_unauthorized_documents(
@@ -162,8 +180,6 @@ def test_search_excludes_unauthorized_documents(
         )
         assert doc is not None
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.search.return_value = []
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = []
 
@@ -171,8 +187,8 @@ def test_search_excludes_unauthorized_documents(
         create_app(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
-            es_client=mock_es,
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
@@ -202,10 +218,6 @@ def test_search_pagination(
         _, extra_id = _create_source_with_doc(migrated_engine, "users", f"Doc {i}")
         doc_ids.append(extra_id)
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.search.return_value = [
-        SearchResult(document_id=doc_ids[i], score=float(i), title=f"Doc {i}") for i in range(5)
-    ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = []
 
@@ -213,8 +225,8 @@ def test_search_pagination(
         create_app(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
-            es_client=mock_es,
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
@@ -438,10 +450,6 @@ def test_search_with_null_translation_quality(
             {"id": document_id},
         )
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.search.return_value = [
-        SearchResult(document_id=document_id, score=1.0, title="No Translation")
-    ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = []
 
@@ -449,8 +457,8 @@ def test_search_with_null_translation_quality(
         create_app(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
-            es_client=mock_es,
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
@@ -475,10 +483,6 @@ def test_search_encoder_failure_returns_bm25_only(
 
     source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.search.return_value = [
-        SearchResult(document_id=document_id, score=1.5, title="Hello Doc")
-    ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
 
     from services.search.encoder import TextEncoder
@@ -492,8 +496,8 @@ def test_search_encoder_failure_returns_bm25_only(
             create_app(
                 migrated_engine,
                 Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
-                es_client=mock_es,
                 qdrant_client=mock_qdrant,
+                meili_provider=_meili(migrated_engine),
             )
         )
     token = _user_token(client)
@@ -519,10 +523,6 @@ def test_search_qdrant_failure_returns_bm25_only(
 
     source_id, document_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.search.return_value = [
-        SearchResult(document_id=document_id, score=1.5, title="Hello Doc")
-    ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.side_effect = RuntimeError("Qdrant unavailable")
 
@@ -530,8 +530,8 @@ def test_search_qdrant_failure_returns_bm25_only(
         create_app(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
-            es_client=mock_es,
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
@@ -549,35 +549,6 @@ def test_search_qdrant_failure_returns_bm25_only(
     assert data["results"][0]["document_id"] == document_id
 
 
-def test_search_es_failure_still_fails(
-    migrated_engine: Engine,
-) -> None:
-    """When Elasticsearch fails, search should fail because there is no fallback."""
-    _setup_users(migrated_engine)
-
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.search.side_effect = RuntimeError("ES down")
-    mock_qdrant = MagicMock(spec=QdrantSearchClient)
-
-    client = TestClient(
-        create_app(
-            migrated_engine,
-            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
-        )
-    )
-    token = _user_token(client)
-
-    response = client.post(
-        "/search",
-        json={"query": "hello", "page": 1, "page_size": 10},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    assert response.status_code == 500
-
-
 def test_search_logs_no_raw_query_on_vector_degradation(
     migrated_engine: Engine,
     caplog: pytest.LogCaptureFixture,
@@ -585,8 +556,6 @@ def test_search_logs_no_raw_query_on_vector_degradation(
     """When vector search fails, logs must not contain the raw query text."""
     _setup_users(migrated_engine)
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.search.return_value = []
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.side_effect = RuntimeError("Qdrant unavailable")
 
@@ -594,8 +563,8 @@ def test_search_logs_no_raw_query_on_vector_degradation(
         create_app(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
-            es_client=mock_es,
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
@@ -737,14 +706,10 @@ def test_oversized_expertise_topic_returns_422(migrated_engine: Engine) -> None:
 def test_search_admin_passes_allow_all_to_backends(
     migrated_engine: Engine,
 ) -> None:
-    """H1: admin bypass — ES receives is_admin=True and Qdrant receives allow_all=True."""
+    """H1: admin bypass — Qdrant receives allow_all=True."""
     _setup_users(migrated_engine)
     _, document_id = _create_source_with_doc(migrated_engine, "users", "Visible Doc")
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.search.return_value = [
-        SearchResult(document_id=document_id, score=1.0, title="Visible Doc")
-    ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = []
 
@@ -752,8 +717,8 @@ def test_search_admin_passes_allow_all_to_backends(
         create_app(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
-            es_client=mock_es,
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _admin_token(client)
@@ -765,9 +730,6 @@ def test_search_admin_passes_allow_all_to_backends(
     )
 
     assert resp.status_code == 200
-    assert mock_es.search.called
-    es_kwargs = mock_es.search.call_args.kwargs
-    assert es_kwargs.get("is_admin") is True
     assert mock_qdrant.search.called
     qdrant_kwargs = mock_qdrant.search.call_args.kwargs
     assert qdrant_kwargs.get("allow_all") is True
@@ -781,10 +743,6 @@ def test_search_drops_orphaned_qdrant_vector(
     _, real_doc_id = _create_source_with_doc(migrated_engine, "users", "Real Doc")
     orphaned_id = str(uuid4())
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
-    mock_es.search.return_value = [
-        SearchResult(document_id=real_doc_id, score=1.0, title="Real Doc"),
-    ]
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_qdrant.search.return_value = [
         SearchResult(document_id=real_doc_id, score=0.9, chunk_text="real chunk"),
@@ -795,8 +753,8 @@ def test_search_drops_orphaned_qdrant_vector(
         create_app(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
-            es_client=mock_es,
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)

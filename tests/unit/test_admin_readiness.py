@@ -83,18 +83,17 @@ def test_admin_readiness_reports_ok_and_caches_probe_results(migrated_engine: En
     assert first["checked_at"].endswith("Z")
     assert set(first["dependencies"]) == {
         "postgres",
-        "elasticsearch",
         "qdrant",
         "libretranslate",
         "ollama",
     }
     assert all(dep["status"] == "ok" for dep in first["dependencies"].values())
-    assert len(calls) == 4
+    assert len(calls) == 3
 
     clock.monotonic_value += 16
     checker.check()
 
-    assert len(calls) == 8
+    assert len(calls) == 6
 
 
 def test_admin_readiness_reports_degraded_for_optional_dependency_failure(
@@ -116,16 +115,15 @@ def test_admin_readiness_reports_degraded_for_optional_dependency_failure(
 
 def test_admin_readiness_reports_down_for_core_dependency_failure(migrated_engine: Engine) -> None:
     clock = Clock()
+    migrated_engine.dispose()
 
     def http_get(url: str, *, timeout: float) -> httpx.Response:
-        if "elasticsearch" in url:
-            return httpx.Response(503, request=httpx.Request("GET", url))
         return httpx.Response(200, request=httpx.Request("GET", url))
 
     response = _checker(migrated_engine, clock, http_get).check()
 
     assert response["status"] == "down"
-    assert response["dependencies"]["elasticsearch"]["status"] == "down"
+    assert response["dependencies"]["postgres"]["status"] == "down"
 
 
 def test_admin_readiness_updates_dependency_metrics(migrated_engine: Engine) -> None:

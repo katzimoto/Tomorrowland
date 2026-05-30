@@ -14,7 +14,6 @@ def test_settings_load_from_environment(monkeypatch) -> None:  # type: ignore[no
 
     assert settings.app_env == "test"
     assert settings.auto_enrich_threshold == 7
-    assert settings.elastic_url == "http://elasticsearch:9200"
 
 
 def test_env_example_matches_settings_and_feature_defaults() -> None:

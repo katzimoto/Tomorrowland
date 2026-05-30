@@ -11,7 +11,6 @@ from sqlalchemy import Engine
 from services.api.main import create_app
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
@@ -69,7 +68,6 @@ def test_sync_now_indexes_document(
 
     source_id = _create_folder_source(migrated_engine, source_folder)
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.return_value = "Bonjour le monde"
@@ -79,8 +77,7 @@ def test_sync_now_indexes_document(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             translator=mock_translator,
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)
@@ -139,7 +136,6 @@ def test_sync_now_matches_alert_subscriptions(
             {"id": uuid4().hex, "user_id": admin_id},
         )
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.return_value = "security update"
@@ -149,8 +145,7 @@ def test_sync_now_matches_alert_subscriptions(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             translator=mock_translator,
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)
@@ -177,7 +172,6 @@ def test_sync_now_skips_duplicate(
 
     source_id = _create_folder_source(migrated_engine, source_folder)
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.return_value = "Bonjour le monde"
@@ -187,8 +181,7 @@ def test_sync_now_skips_duplicate(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             translator=mock_translator,
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)
@@ -224,7 +217,6 @@ def test_sync_now_translation_failure_still_indexes(
 
     source_id = _create_folder_source(migrated_engine, source_folder)
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     # Translator returns original text (simulated failure)
     mock_translator = MagicMock(spec=LibreTranslateClient)
@@ -235,8 +227,7 @@ def test_sync_now_translation_failure_still_indexes(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             translator=mock_translator,
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)
@@ -276,7 +267,6 @@ def test_sync_now_pipeline_failure_sets_failed_status(
 
     source_id = _create_folder_source(migrated_engine, source_folder)
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.return_value = "Bonjour le monde"
@@ -286,8 +276,7 @@ def test_sync_now_pipeline_failure_sets_failed_status(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             translator=mock_translator,
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)
@@ -472,7 +461,6 @@ def test_sync_now_with_pre_extracted_text(
                 text_content="Stub document body from NiFi.",
             )
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.return_value = "Stub document body from NiFi."
@@ -484,8 +472,7 @@ def test_sync_now_with_pre_extracted_text(
                 migrated_engine,
                 Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
                 translator=mock_translator,
-                es_client=mock_es,
-                qdrant_client=mock_qdrant,
+                        qdrant_client=mock_qdrant,
             )
         )
         token = _admin_token(client)
@@ -554,7 +541,6 @@ def test_sync_now_middle_item_failure_continues_sync(
                 text_content="third",
             )
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.side_effect = lambda text, **_: text
@@ -566,8 +552,7 @@ def test_sync_now_middle_item_failure_continues_sync(
                 migrated_engine,
                 Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
                 translator=mock_translator,
-                es_client=mock_es,
-                qdrant_client=mock_qdrant,
+                        qdrant_client=mock_qdrant,
             )
         )
         token = _admin_token(client)
@@ -642,7 +627,6 @@ def test_sync_now_document_creation_failure_continues_sync(
                 text_content="third",
             )
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.side_effect = lambda text, **_: text
@@ -669,8 +653,7 @@ def test_sync_now_document_creation_failure_continues_sync(
                 migrated_engine,
                 Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
                 translator=mock_translator,
-                es_client=mock_es,
-                qdrant_client=mock_qdrant,
+                        qdrant_client=mock_qdrant,
             )
         )
         token = _admin_token(client)
@@ -791,7 +774,6 @@ def test_sync_now_smb_preserves_temp_files_for_worker(
                 path="/tmp/staged_002.txt",
             )
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.side_effect = lambda text, **_: text
@@ -803,8 +785,7 @@ def test_sync_now_smb_preserves_temp_files_for_worker(
                 migrated_engine,
                 Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
                 translator=mock_translator,
-                es_client=mock_es,
-                qdrant_client=mock_qdrant,
+                        qdrant_client=mock_qdrant,
             )
         )
         token = _admin_token(client)

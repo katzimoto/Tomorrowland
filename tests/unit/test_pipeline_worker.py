@@ -131,17 +131,6 @@ class _FakeEncoder:
         return [[0.1, 0.2, 0.3] for _ in texts]
 
 
-class _FakeElasticsearch:
-    def __init__(self, *, fail: bool = False) -> None:
-        self.fail = fail
-        self.calls: list[tuple[str, dict[str, object]]] = []
-
-    def index_document(self, document_id: str, body: dict[str, object]) -> None:
-        self.calls.append((document_id, body))
-        if self.fail:
-            raise RuntimeError("elasticsearch_unavailable")
-
-
 class _FakeQdrant:
     def __init__(self, *, fail: bool = False) -> None:
         self.fail = fail
@@ -192,7 +181,6 @@ def _worker(
     *,
     repo: _FakeDocumentRepository,
     encoder: _FakeEncoder,
-    es: _FakeElasticsearch,
     qdrant: _FakeQdrant,
     meili: _FakeMeili | None = None,
     translator: _FakeTranslator | None = None,
@@ -202,7 +190,6 @@ def _worker(
         extractor_registry=_FakeExtractor(),  # type: ignore[arg-type]
         translator=translator or _FakeTranslator(),  # type: ignore[arg-type]
         encoder=encoder,  # type: ignore[arg-type]
-        es_client=es,  # type: ignore[arg-type]
         qdrant_client=qdrant,  # type: ignore[arg-type]
         meili_provider=meili,  # type: ignore[arg-type]
     )
@@ -215,17 +202,13 @@ def test_worker_indexes_text_when_encoder_fails(
     group_id = uuid4()
     repo = _FakeDocumentRepository(doc, [group_id])
     encoder = _FakeEncoder(fail=True)
-    es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
-    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant)
+    worker = _worker(repo=repo, encoder=encoder, qdrant=qdrant)
 
     caplog.set_level(logging.ERROR, logger="services.pipeline.worker")
 
     worker.process_document(doc.id, pre_extracted_text="raw_document_marker")
 
-    assert len(es.calls) == 1
-    indexed_body = es.calls[0][1]
-    assert indexed_body["allowed_group_ids"] == [str(group_id)]
     assert qdrant.calls == []
     assert repo.indexed_updates == [(doc.id, "indexed", None)]
     assert repo.status_updates == []
@@ -234,21 +217,23 @@ def test_worker_indexes_text_when_encoder_fails(
     assert "raw_document_marker" not in caplog.text
 
 
-def test_worker_does_not_vector_index_when_text_index_fails() -> None:
+def test_worker_does_not_vector_index_when_text_index_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     doc = _document()
     repo = _FakeDocumentRepository(doc, [uuid4()])
     encoder = _FakeEncoder()
-    es = _FakeElasticsearch(fail=True)
-    qdrant = _FakeQdrant()
-    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant)
+    qdrant = _FakeQdrant(fail=True)
+    worker = _worker(repo=repo, encoder=encoder, qdrant=qdrant)
 
-    with pytest.raises(RuntimeError, match="elasticsearch_unavailable"):
-        worker.process_document(doc.id, pre_extracted_text="document body")
+    caplog.set_level(logging.ERROR, logger="services.pipeline.worker")
 
-    assert encoder.calls == []
-    assert qdrant.calls == []
-    assert repo.indexed_updates == []
-    assert repo.status_updates == [(doc.id, "failed")]
+    worker.process_document(doc.id, pre_extracted_text="document body")
+
+    assert len(qdrant.calls) == 1
+    assert "Vector indexing failed" in caplog.text
+    assert repo.indexed_updates == [(doc.id, "indexed", None)]
+    assert repo.status_updates == []
 
 
 def test_worker_marks_indexed_when_text_and_vector_succeed() -> None:
@@ -256,13 +241,11 @@ def test_worker_marks_indexed_when_text_and_vector_succeed() -> None:
     group_id = uuid4()
     repo = _FakeDocumentRepository(doc, [group_id])
     encoder = _FakeEncoder()
-    es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
-    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant)
+    worker = _worker(repo=repo, encoder=encoder, qdrant=qdrant)
 
     worker.process_document(doc.id, pre_extracted_text="document body")
 
-    assert len(es.calls) == 1
     assert len(qdrant.calls) == 1
     qdrant_chunks = qdrant.calls[0]
     assert qdrant_chunks
@@ -277,10 +260,9 @@ def test_worker_indexes_chunks_in_meilisearch_when_configured() -> None:
     group_id = uuid4()
     repo = _FakeDocumentRepository(doc, [group_id])
     encoder = _FakeEncoder()
-    es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
     meili = _FakeMeili()
-    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant, meili=meili)
+    worker = _worker(repo=repo, encoder=encoder, qdrant=qdrant, meili=meili)
 
     worker.process_document(doc.id, pre_extracted_text="document body")
 
@@ -305,12 +287,11 @@ def test_meili_content_is_original_and_content_en_is_translation() -> None:
     group_id = uuid4()
     repo = _FakeDocumentRepository(doc, [group_id])
     encoder = _FakeEncoder()
-    es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
     meili = _FakeMeili()
     translator = _FakeTranslator(translated="translated english text")
     worker = _worker(
-        repo=repo, encoder=encoder, es=es, qdrant=qdrant, meili=meili, translator=translator
+        repo=repo, encoder=encoder, qdrant=qdrant, meili=meili, translator=translator
     )
 
     worker.process_document(doc.id, pre_extracted_text="原始中文文本")
@@ -331,10 +312,9 @@ def test_meili_content_en_is_none_when_no_translation() -> None:
     group_id = uuid4()
     repo = _FakeDocumentRepository(doc, [group_id])
     encoder = _FakeEncoder()
-    es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
     meili = _FakeMeili()
-    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant, meili=meili)
+    worker = _worker(repo=repo, encoder=encoder, qdrant=qdrant, meili=meili)
 
     worker.process_document(doc.id, pre_extracted_text="english text")
 
@@ -352,10 +332,9 @@ def test_worker_marks_indexed_when_meilisearch_fails(
     doc = _document()
     repo = _FakeDocumentRepository(doc, [uuid4()])
     encoder = _FakeEncoder()
-    es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
     meili = _FakeMeili(fail=True)
-    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant, meili=meili)
+    worker = _worker(repo=repo, encoder=encoder, qdrant=qdrant, meili=meili)
 
     caplog.set_level(logging.ERROR, logger="services.pipeline.worker")
 
@@ -373,19 +352,10 @@ def test_worker_indexes_filename_path_and_content_fields() -> None:
     group_id = uuid4()
     repo = _FakeDocumentRepository(doc, [group_id])
     encoder = _FakeEncoder()
-    es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
-    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant)
+    worker = _worker(repo=repo, encoder=encoder, qdrant=qdrant)
 
     worker.process_document(doc.id, pre_extracted_text="Original extracted text")
-
-    assert len(es.calls) == 1
-    indexed_body = es.calls[0][1]
-    assert indexed_body["path"] == "/data/ingest/test1.pdf"
-    assert indexed_body["filename"] == "test1.pdf"
-    assert indexed_body["content_original"] == "Original extracted text"
-    assert indexed_body["content_english"] == "Original extracted text"
-    assert indexed_body["title"] == "Test document"
 
 
 def test_worker_indexes_filename_fallback_when_path_is_none() -> None:
@@ -394,25 +364,19 @@ def test_worker_indexes_filename_fallback_when_path_is_none() -> None:
     doc.title = "My Document Title"
     repo = _FakeDocumentRepository(doc, [uuid4()])
     encoder = _FakeEncoder()
-    es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
-    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant)
+    worker = _worker(repo=repo, encoder=encoder, qdrant=qdrant)
 
     worker.process_document(doc.id, pre_extracted_text="Some content")
-
-    indexed_body = es.calls[0][1]
-    assert indexed_body["filename"] == "My Document Title"
-    assert indexed_body["path"] == ""
 
 
 def test_process_document_returns_process_result_on_success() -> None:
     doc = _document()
     repo = _FakeDocumentRepository(doc, [uuid4()])
     encoder = _FakeEncoder()
-    es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
     translator = _FakeTranslator(translated="translated body")
-    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant, translator=translator)
+    worker = _worker(repo=repo, encoder=encoder, qdrant=qdrant, translator=translator)
 
     result = worker.process_document(doc.id, pre_extracted_text="raw body")
 
@@ -421,18 +385,20 @@ def test_process_document_returns_process_result_on_success() -> None:
     assert result.translated_text == "translated body"
 
 
-def test_process_document_raises_on_failure() -> None:
+def test_process_document_raises_on_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     doc = _document()
     repo = _FakeDocumentRepository(doc, [uuid4()])
     encoder = _FakeEncoder()
-    es = _FakeElasticsearch(fail=True)
-    qdrant = _FakeQdrant()
-    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant)
+    qdrant = _FakeQdrant(fail=True)
+    worker = _worker(repo=repo, encoder=encoder, qdrant=qdrant)
 
-    with pytest.raises(RuntimeError, match="elasticsearch_unavailable"):
-        worker.process_document(doc.id, pre_extracted_text="raw body")
+    caplog.set_level(logging.ERROR, logger="services.pipeline.worker")
 
-    assert repo.status_updates == [(doc.id, "failed")]
+    worker.process_document(doc.id, pre_extracted_text="raw body")
+
+    assert "Vector indexing failed" in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -507,7 +473,6 @@ def test_worker_skips_attachment_when_mime_not_supported(tmp_path: Path) -> None
 
     repo = _FakeDocumentRepositoryWithCreate(doc, [uuid4()])
     encoder = _FakeEncoder()
-    es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
 
     worker = PipelineWorker(
@@ -515,7 +480,6 @@ def test_worker_skips_attachment_when_mime_not_supported(tmp_path: Path) -> None
         extractor_registry=registry,  # type: ignore[arg-type]
         translator=_FakeTranslator(),  # type: ignore[arg-type]
         encoder=encoder,  # type: ignore[arg-type]
-        es_client=es,  # type: ignore[arg-type]
         qdrant_client=qdrant,  # type: ignore[arg-type]
     )
 
@@ -567,7 +531,6 @@ def test_worker_creates_child_doc_for_supported_attachment(
     repo.set_child_doc(child_doc)
 
     encoder = _FakeEncoder()
-    es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
 
     worker = PipelineWorker(
@@ -575,8 +538,7 @@ def test_worker_creates_child_doc_for_supported_attachment(
         extractor_registry=registry,  # type: ignore[arg-type]
         translator=_FakeTranslator(),  # type: ignore[arg-type]
         encoder=encoder,  # type: ignore[arg-type]
-        es_client=es,  # type: ignore[arg-type]
-        qdrant_client=qdrant,  # type: ignore[arg-type]
+        qdrant_client=qdrant,  # type: ignore[arg-type],
     )
 
     worker.process_document(doc.id)

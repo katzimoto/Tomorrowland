@@ -12,7 +12,6 @@ from services.api.main import create_app
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.documents.repository import DocumentRepository
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.qdrant import QdrantSearchClient
 from shared.config import Settings
 from shared.db import db_uuid
@@ -440,7 +439,6 @@ def test_slow_worker_processes_pending_high(
         translation_quality="pending_high",
     )
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock()
     mock_translator.translate.return_value = "Translated hello world document content."
@@ -454,8 +452,7 @@ def test_slow_worker_processes_pending_high(
             document_repository=doc_repo,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
         )
         worker.process_document(UUID(document_id))
 
@@ -468,13 +465,10 @@ def test_slow_worker_processes_pending_high(
         assert row[0] == "high"
         assert row[1] == "indexed"
 
-    # Verify ES and Qdrant were called
-    mock_es.index_document.assert_called_once()
+    # Verify Qdrant was called
     mock_qdrant.upsert_chunks.assert_called_once()
     with migrated_engine.begin() as connection:
         user_group_id = AuthRepository(connection).ensure_group("users")
-    indexed_doc = mock_es.index_document.call_args.args[1]
-    assert indexed_doc["allowed_group_ids"] == [str(user_group_id)]
     qdrant_chunks = mock_qdrant.upsert_chunks.call_args.args[0]
     assert qdrant_chunks[0]["group_id"] == [str(user_group_id)]
 
@@ -497,7 +491,6 @@ def test_slow_worker_failure_sets_failed(
         translation_quality="pending_high",
     )
 
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock()
     mock_translator.translate.side_effect = RuntimeError("Translation failed")
@@ -511,8 +504,7 @@ def test_slow_worker_failure_sets_failed(
             document_repository=doc_repo,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
-            es_client=mock_es,
-            qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
         )
         worker.process_document(UUID(document_id))
 
@@ -525,6 +517,5 @@ def test_slow_worker_failure_sets_failed(
         assert row[0] == "pending_high"
         assert row[1] == "failed"
 
-    # Verify ES and Qdrant were NOT called
-    mock_es.index_document.assert_not_called()
+    # Verify Qdrant was NOT called
     mock_qdrant.upsert_chunks.assert_not_called()

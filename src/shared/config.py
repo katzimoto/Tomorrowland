@@ -19,7 +19,6 @@ class Settings(BaseSettings):
 
     postgres_url: str = "postgresql+psycopg://postgres:changeme@postgres:5432/app"
     kafka_broker: str = "kafka:9092"
-    elastic_url: str = "http://elasticsearch:9200"
     qdrant_url: str = "http://qdrant:6333"
     files_root: Path = Path("/data")
     jwt_secret: str = "change-me-in-production"
@@ -118,7 +117,7 @@ class Settings(BaseSettings):
     meilisearch_url: str = "http://meilisearch:7700"
     meilisearch_master_key: str = ""
     meilisearch_search_key: str = ""
-    feature_meilisearch_search: bool = False
+    feature_meilisearch_search: bool = True
     feature_meilisearch_shadow_index: bool = False
 
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"

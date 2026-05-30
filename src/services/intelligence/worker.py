@@ -20,7 +20,6 @@ from services.intelligence.summary_helpers import (
     normalize_summary_output,
     safe_error_category,
 )
-from services.search.elastic import ElasticsearchSearchClient
 from shared.correlation import get_correlation_id
 from shared.metrics import current_metrics
 
@@ -87,13 +86,11 @@ class IntelligenceWorker:
         self,
         repository: IntelligenceRepository,
         ollama_client: LLMProvider,
-        es_client: ElasticsearchSearchClient,
         config_source: Any | None = None,
         utility_model: str | None = None,
     ) -> None:
         self._repo = repository
         self._ollama = ollama_client
-        self._es = es_client
         self._config = config_source
         # When set, cheap/repeated tasks use this model instead of the main
         # model. None means use the client default (single-model behavior).
@@ -252,16 +249,6 @@ class IntelligenceWorker:
                 content_hash=text_hash,
             )
 
-            if normalized["status"] != "failed":
-                es_doc: dict[str, Any] = {"summary": normalized["summary"]}
-                if normalized["bullets"]:
-                    es_doc["summary_bullets"] = normalized["bullets"]
-                if normalized.get("language") and normalized["language"] != "unknown":
-                    es_doc["summary_language"] = normalized["language"]
-                if normalized.get("document_type") and normalized["document_type"] != "unknown":
-                    es_doc["summary_document_type"] = normalized["document_type"]
-                self._update_es_fields(document_id, es_doc)
-
         except Exception as exc:
             category = safe_error_category(exc)
             self._repo.upsert_summary(
@@ -302,11 +289,6 @@ class IntelligenceWorker:
                 entity_id = self._repo.upsert_entity(name, entity_type)
                 self._repo.link_document_entity(document_id, entity_id)
 
-            # Update ES with entity names
-            entity_names = [
-                str(e.get("name", "")) for e in entities if isinstance(e, dict) and e.get("name")
-            ]
-            self._update_es_field(document_id, "entities", entity_names)
             logger.info(
                 "Extracted %d entities for document_id=%s",
                 len(entities),
@@ -334,7 +316,6 @@ class IntelligenceWorker:
 
             tags = [str(t).strip() for t in parsed if isinstance(t, str) and str(t).strip()]
             self._repo.replace_tags(document_id, tags)
-            self._update_es_field(document_id, "tags", tags)
             logger.info("Tagged document_id=%s with %d tags", document_id, len(tags))
         except Exception:
             logger.warning(
@@ -382,7 +363,6 @@ class IntelligenceWorker:
                 )
 
         self._repo.upsert_key_points(document_id, points)
-        self._update_es_field(document_id, "key_points", points)
         logger.info("Extracted %d key points for document_id=%s", len(points), document_id)
 
     def _build_prompt(
@@ -425,34 +405,4 @@ class IntelligenceWorker:
         truncated = content[:max_chars]
         return f"{base_prompt}\n\n{truncated}"
 
-    def _update_es_field(
-        self,
-        document_id: UUID,
-        field: str,
-        value: Any,
-    ) -> None:
-        """Update a single field in the Elasticsearch document."""
-        try:
-            self._es.update_document_field(str(document_id), field, value)
-        except Exception:
-            logger.warning(
-                "Failed to update ES field %s for document_id=%s",
-                field,
-                document_id,
-                exc_info=True,
-            )
 
-    def _update_es_fields(
-        self,
-        document_id: UUID,
-        fields: dict[str, Any],
-    ) -> None:
-        """Update multiple fields in the Elasticsearch document atomically."""
-        try:
-            self._es.update_document_fields(str(document_id), fields)
-        except Exception:
-            logger.warning(
-                "Failed to update ES fields for document_id=%s",
-                document_id,
-                exc_info=True,
-            )

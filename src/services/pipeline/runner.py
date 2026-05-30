@@ -23,7 +23,6 @@ from services.documents.repository import DocumentRepository, TranslationVersion
 from services.extraction.registry import ExtractorRegistry
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.worker import PipelineWorker
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.metrics import MetricsRegistry
@@ -624,7 +623,6 @@ if __name__ == "__main__":
 
     with engine.connect() as conn:
         doc_repo = DocumentRepository(conn)
-        es_client = ElasticsearchSearchClient(hosts=[settings.elastic_url])
         translator = LibreTranslateClient(base_url=settings.libretranslate_url)
         encoder = build_encoder(settings)
         qdrant_client = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
@@ -633,7 +631,6 @@ if __name__ == "__main__":
         intelligence_worker = IntelligenceWorker(
             repository=IntelligenceRepository(conn),
             ollama_client=ollama_client,
-            es_client=es_client,
             utility_model=settings.effective_utility_model,
         )
 
@@ -647,7 +644,6 @@ if __name__ == "__main__":
             ),
             translator=translator,
             encoder=encoder,
-            es_client=es_client,
             qdrant_client=qdrant_client,
             meili_provider=meili_provider,
             intelligence_worker=intelligence_worker,

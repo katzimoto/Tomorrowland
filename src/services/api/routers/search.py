@@ -17,7 +17,6 @@ from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
 from services.documents.models import DocumentRow
 from services.documents.repository import DocumentRepository
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.factory import build_encoder
 from services.search.hybrid import SearchResult, merge_results
 from services.search.meili_types import DocumentSearchFilters, DocumentSearchQuery
@@ -87,33 +86,6 @@ def search(
             )
             # Degrade gracefully: continue with empty BM25 results so vector search
             # can still return results instead of surfacing a 500 to the user.
-    else:
-        try:
-            es_client = http_request.app.state.es_client or ElasticsearchSearchClient(
-                hosts=[http_request.app.state.settings.elastic_url]
-            )
-            encoder = build_encoder(http_request.app.state.settings)
-            qdrant_client = http_request.app.state.qdrant_client or QdrantSearchClient(
-                url=http_request.app.state.settings.qdrant_url,
-                dimension=encoder.dimension,
-            )
-
-            backend_start = time.perf_counter()
-            bm25_results = es_client.search(
-                request.query, group_ids=search_group_ids, size=50, is_admin=is_admin
-            )
-            http_request.app.state.metrics.search_backend_duration_seconds.labels(
-                "elasticsearch", "search"
-            ).observe(time.perf_counter() - backend_start)
-            logger.debug(f"The elastic search client returned {bm25_results}")
-        except Exception as exc:
-            logger.warning(
-                "Elasticsearch search degraded route=/search stage=bm25_search "
-                "error_type=%s correlation_id=%s",
-                exc.__class__.__name__,
-                get_correlation_id(),
-            )
-            # Degrade gracefully: continue with empty BM25 results.
 
     vector_results: list[SearchResult] = []
     try:

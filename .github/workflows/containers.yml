@@ -96,7 +96,7 @@ jobs:
           set -euo pipefail
 
           deadline=$((SECONDS + 900))
-          services="postgres kafka elasticsearch qdrant libretranslate ollama api frontend"
+          services="postgres kafka qdrant libretranslate ollama api frontend"
 
           while true; do
             not_ready=()

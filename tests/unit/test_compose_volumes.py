@@ -19,7 +19,6 @@ STANDARD_VOLUMES = {
     "files_data": "/data",
     "postgres_data": "/var/lib/postgresql/data",
     "kafka_data": "/var/lib/redpanda/data",
-    "elasticsearch_data": "/usr/share/elasticsearch/data",
     "qdrant_data": "/qdrant/storage",
     "libretranslate_data": "/home/libretranslate/.local",
     # Ollama was split into separate LLM and embed services in standard compose
@@ -36,7 +35,6 @@ AIRGAP_VOLUMES = {
     "files_data": "/data",
     "postgres_data": "/var/lib/postgresql/data",
     "kafka_data": "/var/lib/redpanda/data",
-    "elasticsearch_data": "/usr/share/elasticsearch/data",
     "qdrant_data": "/qdrant/storage",
     "libretranslate_data": "/home/libretranslate/.local",
     "ollama_data": "/root/.ollama",
@@ -112,7 +110,6 @@ class TestComposeVolumeDefaults:
             ("files_data", "tomorrowland_files_data"),
             ("postgres_data", "tomorrowland_postgres_data"),
             ("kafka_data", "tomorrowland_kafka_data"),
-            ("elasticsearch_data", "tomorrowland_elasticsearch_data"),
             ("qdrant_data", "tomorrowland_qdrant_data"),
             ("libretranslate_data", "tomorrowland_libretranslate_data"),
             ("ollama_llm_data", "tomorrowland_ollama_llm_data"),
@@ -133,7 +130,6 @@ class TestComposeVolumeDefaults:
             ("files_data", "tomorrowland_files_data"),
             ("postgres_data", "tomorrowland_postgres_data"),
             ("kafka_data", "tomorrowland_kafka_data"),
-            ("elasticsearch_data", "tomorrowland_elasticsearch_data"),
             ("qdrant_data", "tomorrowland_qdrant_data"),
             ("libretranslate_data", "tomorrowland_libretranslate_data"),
             ("ollama_data", "tomorrowland_ollama_data"),
@@ -190,8 +186,6 @@ class TestComposeVolumeCustomization:
         assert names["files_data"] == "my_files"
         assert names["postgres_data"] == "my_postgres"
         assert names["qdrant_data"] == "my_qdrant"
-        # Unchanged volumes should still use defaults
-        assert names["elasticsearch_data"] == "tomorrowland_elasticsearch_data"
 
     def test_standard_compose_monitoring_custom_names(self) -> None:
         env = {

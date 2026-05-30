@@ -50,7 +50,6 @@ def main() -> None:
     from services.intelligence.factory import build_llm_provider
     from services.intelligence.repository import IntelligenceRepository
     from services.intelligence.worker import IntelligenceWorker
-    from services.search.elastic import ElasticsearchSearchClient
     from shared.config import Settings
     from shared.rabbit import RabbitClient
 
@@ -60,11 +59,9 @@ def main() -> None:
     with engine.connect() as conn:
         rabbit = RabbitClient(settings.rabbitmq_url, enabled=True)
         job_repo = PipelineJobRepository(conn)
-        es_client = ElasticsearchSearchClient(hosts=[settings.elastic_url])
         intelligence = IntelligenceWorker(
             repository=IntelligenceRepository(conn),
             ollama_client=build_llm_provider(settings),
-            es_client=es_client,
             utility_model=settings.effective_utility_model,
         )
         consumer = IntelligenceConsumer(rabbit, job_repo, intelligence)

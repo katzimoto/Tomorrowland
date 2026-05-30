@@ -88,7 +88,6 @@ def _make_worker(
     mock_ollama.parse_json_array.return_value = []
 
     mock_repo = MagicMock()
-    mock_es = MagicMock()
     mock_config: dict[str, Any] = {
         "feature.summarization": True,
         "feature.entity_extraction": True,
@@ -99,7 +98,6 @@ def _make_worker(
     worker = IntelligenceWorker(
         repository=mock_repo,
         ollama_client=mock_ollama,
-        es_client=mock_es,
         config_source=mock_config,
         utility_model=utility_model,
     )

@@ -15,7 +15,6 @@ from sqlalchemy import Engine
 from services.documents.repository import DocumentRepository
 from services.extraction.registry import ExtractorRegistry
 from services.pipeline.worker import PipelineWorker
-from services.search.elastic import ElasticsearchSearchClient
 from services.search.encoder import TextEncoder
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
@@ -74,7 +73,6 @@ def test_chunk_index_is_non_null_in_qdrant_payload(
     _source_id_hex, doc_id = _create_source_and_document(migrated_engine, tmp_path)
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_translator = MagicMock(spec=LibreTranslateClient)
     mock_translator.translate.side_effect = lambda text, **_: text
 
@@ -85,7 +83,6 @@ def test_chunk_index_is_non_null_in_qdrant_payload(
             extractor_registry=ExtractorRegistry(),
             translator=mock_translator,
             encoder=_make_encoder(),
-            es_client=mock_es,
             qdrant_client=mock_qdrant,
         )
         worker.process_document(
