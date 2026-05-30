@@ -2,6 +2,47 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-30 — feat(admin): S4 admin provider registry API — #544 S4, PR #589
+
+Status: Done — merged to main (commit c06a72e, branch deleted)
+Source: issue #577 (S4 of #544), PR #589, Claude Code session
+
+**Goal:** Admin CRUD for model providers, model descriptors, and model task defaults. Encrypted credential store, SSRF URL validation, `ProviderRegistry` startup wiring.
+
+**Changed files:**
+- `migrations/versions/a0b1c2d3e4f5_add_provider_credentials_table.py` (new)
+- `src/services/intelligence/credential_store.py` (new) — `CredentialStore`, `mask_credential`
+- `src/services/intelligence/ssrf_validation.py` (new) — `validate_provider_url`, `validate_locality`
+- `src/services/intelligence/provider_registry.py` (new) — `ProviderRegistry`
+- `src/services/api/routers/admin/model_providers.py` (new) — full admin CRUD + test + discover
+- `src/services/intelligence/model_provider_models.py` — added `ModelProviderResponse` (credential_set bool, no plaintext)
+- `src/shared/config.py` — `credential_store_key: str = ""`
+- `src/services/api/main.py` — `ProviderRegistry` wired to `app.state.provider_registry`; admin router registered
+- `src/services/intelligence/__init__.py` — exports `CredentialStore`, `ProviderRegistry`, `mask_credential`, `validate_provider_url`
+- `tests/integration/test_model_provider_api.py` (new) — 41 tests
+- `tests/unit/test_credential_store.py` (new) — 14 tests
+- `tests/unit/test_provider_registry.py` (new) — 7 tests
+- `tests/unit/test_ssrf_validation.py` (new) — 20 tests
+
+**Review fix applied (commit 62267ef on PR branch before merge):**
+- `_derive_fernet_key("dev-only")` called `Fernet.generate_key()` — random key per `CredentialStore` instantiation, so credentials written in one request were unreadable in any subsequent request. Fixed to route through `_make_key("dev-only")` (deterministic SHA-256). Added `test_dev_only_key_is_deterministic_across_instances` regression test.
+
+**Key invariants:**
+- `ModelProviderResponse` exposes `credential_set: bool` and `api_key_ref` (opaque key name) — never plaintext credential
+- SSRF validation runs at create/update time; `external` locality rejects RFC 1918, loopback, link-local, IPv6 private
+- `ProviderRegistry._build_adapter()` returns `None` for all provider types — no concrete adapters yet (pending #578)
+- `app.state.provider_registry` is populated at startup but no consumers read from it until #578
+
+**Open non-blocking notes (deferred to #578):**
+- `ProviderRegistry` goes stale after admin CRUD — add `request.app.state.provider_registry.reload()` at end of mutating endpoints when wiring consumers
+- `test`/`discover` endpoints follow HTTP redirects by default — consider no-redirect handler
+- `api_key_ref` (opaque key name) is exposed in `ModelProviderResponse` — could be omitted if callers don't need it
+
+**Next agent prompt:**
+> S4 (#544/#577) is on main. Pick up S5 (#578) — task-default resolver/service wiring. This wires `app.state.provider_registry` into the chat, RAG, and embedding consumers so they select providers from the DB task-default table instead of env vars. Also wires `CrossEncoderEndpointReranker` (already on main from S3). The `ProviderRegistry` in `app.state.provider_registry` is ready to use. Do not add frontend UI (#579) in this slice.
+
+---
+
 ## 2026-05-30 — feat(models): generation provider adapters — #544 S3, PR #588
 
 Status: Done — merged to main (branch deleted)

@@ -2,6 +2,33 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-30 — feat(admin): S4 admin provider registry API — #544 S4, PR #589 merged
+
+Status: Done — PR #589 squash-merged to main (commit c06a72e, branch deleted)
+Source: issue #577 (S4 of #544), PR #589, Claude Code session
+
+Admin CRUD for model providers, descriptors, and task defaults. `CredentialStore` (Fernet-encrypted API keys), `ProviderRegistry` (startup adapter map), SSRF URL validation, and full integration test suite.
+
+| Area | Detail |
+|---|---|
+| CredentialStore | Fernet encryption in `provider_credentials` table; `credential_set` bool in responses; plaintext never returned |
+| SSRF | `validate_provider_url()` blocks RFC 1918 / loopback / link-local for `external` locality; `local`/`self_hosted` unrestricted |
+| Admin API | Full CRUD at `/admin/model-providers`, `/admin/model-providers/{id}/descriptors`, `/admin/model-task-defaults` |
+| Health/discover | `POST .../test` (10s timeout) + `POST .../discover` (15s timeout); admin-only |
+| ProviderRegistry | Loads enabled providers at startup; wired to `app.state.provider_registry`; no consumers yet (pending #578) |
+| Migration | `a0b1c2d3e4f5` — `provider_credentials` table; clean downgrade |
+| Tests | 68 unit + 41 integration tests |
+
+Review fix applied before merge (commit 62267ef):
+- `_derive_fernet_key("dev-only")` was calling `Fernet.generate_key()` (random key per call) — fixed to use `_make_key("dev-only")` (deterministic SHA-256). Added round-trip regression test.
+
+Remaining #544 slices:
+- S5 #578 — task-default resolver/service wiring (also wires `CrossEncoderEndpointReranker`)
+
+Next action: Pick up S5 (#578) — task-default resolver and service wiring.
+
+---
+
 ## 2026-05-30 — feat(models): generation provider adapters — #544 S3, PR #588 merged
 
 Status: Done — PR #588 squash-merged to main (branch feat/generation-provider-adapters-576 deleted)
