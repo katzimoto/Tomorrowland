@@ -4,19 +4,44 @@ Canonical shared memory for active project state. Keep this file compact and fac
 
 ## 2026-05-30 — feat(models): task-default resolver wired into consumers — #578 merged
 
-Status: Done — PR pending (branch feat/task-default-resolver-578)
-Source: issue #578 (S5 of #544), OpenCode session
+Status: Done — PR #590 squash-merged to main (branch feat/task-default-resolver-578)
+Source: issue #578 (S5 of #544), OpenCode + Claude Code session
 
 Created `TaskDefaultResolver` with `resolve(task_type)` and `build_llm_provider(task_type)` interface. Wired into `app.state.task_default_resolver` at startup. Chat router, admin intelligence endpoints, and `IntelligenceWorker` use the resolver. Zero-row DB returns None — callers fall back to env/Settings behavior unchanged. `POST /admin/model-providers/reload` reloads both the provider registry and the resolver. 19 unit tests + 2 integration tests covering all fallback paths, disabled/missing provider/descriptor, reload, and no-secret-leakage.
 
 | Area | Detail |
 |---|---|
 | Resolver | Loads task defaults + providers + descriptors + API keys at startup; `reload()` refreshes from DB |
-| Fallback | No DB row → None; disabled/missing provider → None; disabled descriptor → no model_name (env fallback) |
+| Fallback | No DB row → None; disabled/missing provider → None; disabled descriptor → None (env fallback) |
 | LLM builder | `build_llm_from_resolution()` creates `OllamaClient` or `OpenAICompatibleLLMProvider` from a `TaskResolution` |
 | Chat router | Resolves `chat` LLM, `utility` model, `reranker` model independently |
 | Worker | Accepts optional `TaskDefaultResolver` in constructor; resolves `utility` model when not explicitly set |
 | Secrets | API keys loaded at init, never logged; `mask_credential` pattern for safe display |
+| Reload | `POST /admin/model-providers/reload` reloads both `ProviderRegistry` and `TaskDefaultResolver` in-process |
+
+---
+
+## 2026-05-30 — feat(admin): S4 admin provider registry API — #544 S4, PR #589 merged
+
+Status: Done — PR #589 squash-merged to main (commit c06a72e, branch deleted)
+Source: issue #577 (S4 of #544), PR #589, Claude Code session
+
+Admin CRUD for model providers, descriptors, and task defaults. `CredentialStore` (Fernet-encrypted API keys), `ProviderRegistry` (startup adapter map), SSRF URL validation, and full integration test suite.
+
+| Area | Detail |
+|---|---|
+| CredentialStore | Fernet encryption in `provider_credentials` table; `credential_set` bool in responses; plaintext never returned |
+| SSRF | `validate_provider_url()` blocks RFC 1918 / loopback / link-local for `external` locality; `local`/`self_hosted` unrestricted |
+| Admin API | Full CRUD at `/admin/model-providers`, `/admin/model-providers/{id}/descriptors`, `/admin/model-task-defaults` |
+| Health/discover | `POST .../test` (10s timeout) + `POST .../discover` (15s timeout); admin-only |
+| ProviderRegistry | Loads enabled providers at startup; wired to `app.state.provider_registry`; no consumers yet (pending #578) |
+| Migration | `a0b1c2d3e4f5` — `provider_credentials` table; clean downgrade |
+| Tests | 68 unit + 41 integration tests |
+
+Review fix applied before merge (commit 62267ef):
+- `_derive_fernet_key("dev-only")` was calling `Fernet.generate_key()` (random key per call) — fixed to use `_make_key("dev-only")` (deterministic SHA-256). Added round-trip regression test.
+
+---
 
 ## 2026-05-30 — feat(models): generation provider adapters — #544 S3, PR #588 merged
 
