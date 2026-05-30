@@ -70,6 +70,104 @@ class DeterministicTestEncoder:
         return [self.encode(text) for text in texts]
 
 
+class OpenAICompatibleEmbeddingEncoder:
+    """Encoder using an OpenAI-compatible ``/v1/embeddings`` endpoint.
+
+    Supports providers such as Ollama (``/v1/embeddings``), LiteLLM, or any
+    OpenAI-proxy that exposes the standard OpenAI embedding API shape::
+
+        {
+          "data": [
+            {"index": 0, "embedding": [...]},
+            {"index": 1, "embedding": [...]},
+          ]
+        }
+
+    Batch results are sorted by ``index`` so the return order always matches
+    the input order regardless of server-side response ordering.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        dimension: int = 768,
+        api_key: str = "",
+        timeout: float = 180.0,
+    ) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._model = model
+        self._dimension = dimension
+        self._api_key = api_key
+        self._timeout = timeout
+
+    @property
+    def dimension(self) -> int:
+        return self._dimension
+
+    def encode(self, text: str) -> list[float]:
+        if not isinstance(text, str):
+            raise TypeError("text must be a string")
+        return self._embed_batch([text])[0]
+
+    def encode_batch(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        return self._embed_batch(texts)
+
+    def _embed_batch(self, texts: list[str]) -> list[list[float]]:
+        url = f"{self._base_url}/v1/embeddings"
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+        }
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "input": texts,
+        }
+
+        logger.debug(
+            "OpenAI-compatible embed model=%s batch_size=%d",
+            self._model,
+            len(texts),
+        )
+
+        try:
+            response = httpx.post(url, json=payload, headers=headers, timeout=self._timeout)
+        except httpx.ConnectError:
+            raise RuntimeError(
+                f"Cannot connect to embedding service at {self._base_url}."
+            ) from None
+        except httpx.TimeoutException:
+            raise RuntimeError(
+                f"Embedding request timed out after {self._timeout}s."
+            ) from None
+
+        response.raise_for_status()
+        data = response.json()
+
+        raw_data: list[dict[str, Any]] | None = data.get("data")
+        if raw_data is None:
+            raise RuntimeError(
+                "OpenAI-compatible /v1/embeddings response missing 'data' key"
+            )
+
+        # Sort by index to guarantee input-order stability
+        sorted_data = sorted(raw_data, key=lambda entry: entry.get("index", 0))
+        embeddings: list[list[float]] = []
+        for entry in sorted_data:
+            emb: list[float] | None = entry.get("embedding")
+            if emb is None:
+                raise RuntimeError(
+                    "OpenAI-compatible /v1/embeddings response entry missing 'embedding'"
+                )
+            embeddings.append(emb)
+
+        return embeddings
+
+
 def _parse_ollama_error(response: httpx.Response) -> str | None:
     """Extract the error message from an Ollama error response body."""
     try:
