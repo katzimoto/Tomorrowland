@@ -191,6 +191,44 @@ export const adminApi = {
 
   getDocumentTrace: (documentId: string) =>
     api.get<DocumentTraceResponse>(`/admin/ingestion/status/${documentId}`),
+
+  // --- Model Providers ---
+  listModelProviders: () =>
+    api.get<ModelProvider[]>("/admin/model-providers"),
+  createModelProvider: (payload: ModelProviderCreatePayload) =>
+    api.post<ModelProvider>("/admin/model-providers", payload),
+  getModelProvider: (providerId: string) =>
+    api.get<ModelProvider>(`/admin/model-providers/${providerId}`),
+  updateModelProvider: (providerId: string, payload: ModelProviderUpdatePayload) =>
+    api.put<ModelProvider>(`/admin/model-providers/${providerId}`, payload),
+  deleteModelProvider: (providerId: string) =>
+    api.delete(`/admin/model-providers/${providerId}`),
+  testModelProvider: (providerId: string) =>
+    api.post<ProviderTestResult>(`/admin/model-providers/${providerId}/test`, {}),
+  discoverModels: (providerId: string) =>
+    api.post<ProviderDiscoverResult[]>(`/admin/model-providers/${providerId}/discover`, {}),
+  reloadModelProviders: () =>
+    api.post<{ status: string }>("/admin/model-providers/reload", {}),
+
+  // --- Model Descriptors ---
+  listModelDescriptors: (providerId: string) =>
+    api.get<ModelDescriptor[]>(`/admin/model-providers/${providerId}/descriptors`),
+  createModelDescriptor: (providerId: string, payload: ModelDescriptorCreatePayload) =>
+    api.post<ModelDescriptor>(`/admin/model-providers/${providerId}/descriptors`, payload),
+  updateModelDescriptor: (descriptorId: string, payload: Partial<ModelDescriptorCreatePayload>) =>
+    api.put<ModelDescriptor>(`/admin/model-descriptors/${descriptorId}`, payload),
+  deleteModelDescriptor: (descriptorId: string) =>
+    api.delete(`/admin/model-descriptors/${descriptorId}`),
+
+  // --- Task Defaults ---
+  listTaskDefaults: () =>
+    api.get<ModelTaskDefault[]>("/admin/model-task-defaults"),
+  getTaskDefault: (taskType: string) =>
+    api.get<ModelTaskDefault>(`/admin/model-task-defaults/${taskType}`),
+  setTaskDefault: (taskType: string, payload: ModelTaskDefaultSetPayload) =>
+    api.put<ModelTaskDefault>(`/admin/model-task-defaults/${taskType}`, payload),
+  deleteTaskDefault: (taskType: string) =>
+    api.delete(`/admin/model-task-defaults/${taskType}`),
 };
 
 export interface IngestionStatusJob {
@@ -242,4 +280,89 @@ export interface UserDetail {
   is_admin: boolean;
   created_at: string | null;
   groups: SourceGroup[];
+}
+
+// --- Model Providers ---
+
+export interface ModelProvider {
+  id: string;
+  name: string;
+  provider_type: string;
+  description: string | null;
+  base_url: string | null;
+  credential_set: boolean;
+  locality: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelProviderCreatePayload {
+  name: string;
+  provider_type: string;
+  description?: string | null;
+  base_url?: string | null;
+  credential_value?: string | null;
+  locality?: string;
+  enabled?: boolean;
+}
+
+export interface ModelProviderUpdatePayload {
+  name?: string;
+  provider_type?: string;
+  description?: string | null;
+  base_url?: string | null;
+  credential_value?: string | null;
+  locality?: string;
+  enabled?: boolean;
+}
+
+export interface ModelDescriptor {
+  id: string;
+  provider_id: string;
+  model_name: string;
+  display_name: string | null;
+  description: string | null;
+  capabilities: Record<string, unknown> | null;
+  context_window: number | null;
+  max_output_tokens: number | null;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelDescriptorCreatePayload {
+  model_name: string;
+  display_name?: string | null;
+  description?: string | null;
+  capabilities?: Record<string, unknown> | null;
+  context_window?: number | null;
+  max_output_tokens?: number | null;
+  enabled?: boolean;
+}
+
+export interface ModelTaskDefault {
+  task_type: string;
+  provider_id: string;
+  model_descriptor_id: string | null;
+  parameters: Record<string, unknown> | null;
+  updated_at: string;
+}
+
+export interface ModelTaskDefaultSetPayload {
+  provider_id: string;
+  model_descriptor_id?: string | null;
+  parameters?: Record<string, unknown> | null;
+}
+
+export interface ProviderTestResult {
+  healthy: boolean;
+  latency_ms: number | null;
+  error: string | null;
+  provider_type: string;
+}
+
+export interface ProviderDiscoverResult {
+  model_name: string;
+  display_name?: string | null;
 }

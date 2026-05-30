@@ -27,6 +27,7 @@ const LazyAdminGroupsPage       = lazy(() => import("@/features/admin/AdminGroup
 const LazyAdminGroupDetailPage  = lazy(() => import("@/features/admin/AdminGroupDetailPage").then(m => ({ default: m.AdminGroupDetailPage })));
 const LazyAdminUsersPage        = lazy(() => import("@/features/admin/AdminUsersPage").then(m => ({ default: m.AdminUsersPage })));
 const LazyAdminUserDetailPage   = lazy(() => import("@/features/admin/AdminUserDetailPage").then(m => ({ default: m.AdminUserDetailPage })));
+const LazyAdminModelProvidersPage     = lazy(() => import("@/features/admin/AdminModelProvidersPage").then(m => ({ default: m.AdminModelProvidersPage })));
 
 // Auth pages need their own Suspense boundary (no AppLayout shell above them).
 function LoginPage()  { return <Suspense fallback={null}><LazyLoginPage /></Suspense>; }
@@ -50,6 +51,7 @@ const AdminGroupsPage       = LazyAdminGroupsPage;
 const AdminGroupDetailPage  = LazyAdminGroupDetailPage;
 const AdminUsersPage        = LazyAdminUsersPage;
 const AdminUserDetailPage   = LazyAdminUserDetailPage;
+const AdminModelProvidersPage = LazyAdminModelProvidersPage;
 
 function requireAuth() {
   if (!authStorage.hasToken()) {
@@ -208,6 +210,12 @@ const adminUserDetailRoute = createRoute({
   component: AdminUserDetailPage,
 });
 
+const adminModelProvidersRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/model-providers",
+  component: AdminModelProvidersPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -230,6 +238,7 @@ const routeTree = rootRoute.addChildren([
     adminGroupDetailRoute,
     adminUsersRoute,
     adminUserDetailRoute,
+    adminModelProvidersRoute,
   ]),
 ]);
 

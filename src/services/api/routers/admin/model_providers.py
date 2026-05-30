@@ -72,7 +72,7 @@ def _provider_to_response(
         provider_type=provider.provider_type,
         description=provider.description,
         base_url=provider.base_url,
-        api_key_ref=provider.api_key_ref,
+        api_key_ref=None,
         credential_set=credential_set,
         locality=provider.locality,
         enabled=provider.enabled,
