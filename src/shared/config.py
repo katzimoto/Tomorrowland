@@ -90,7 +90,6 @@ class Settings(BaseSettings):
     feature_document_chat_translated_text: bool = True
     feature_document_chat_streaming: bool = True
     auto_enrich_threshold: int = Field(default=5, ge=0)
-    ingest_mode: Literal["hybrid", "watch", "poll"] = "hybrid"
 
     embedding_provider: str = ""
     # Also readable as OLLAMA_EMBED_MODEL.

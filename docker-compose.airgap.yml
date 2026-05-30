@@ -31,7 +31,6 @@ x-app-environment: &app-environment
   FEATURE_RELATED_DOCS: ${FEATURE_RELATED_DOCS:-true}
   FEATURE_AUTO_TAGGING: ${FEATURE_AUTO_TAGGING:-true}
   AUTO_ENRICH_THRESHOLD: ${AUTO_ENRICH_THRESHOLD:-5}
-  INGEST_MODE: ${INGEST_MODE:-hybrid}
 
 services:
   migrate:
