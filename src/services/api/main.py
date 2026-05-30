@@ -78,11 +78,16 @@ def create_app(
 
     # Provider registry — holds runtime adapter instances keyed by provider name.
     # Not yet used by chat / RAG / embedding consumers (that change is #578).
+    # Gracefully degrades to empty when the DB tables don't exist yet
+    # (e.g. before migrations run, or in unit tests).
     provider_registry = ProviderRegistry(
         engine=app.state.engine,
         credential_store_key=app.state.settings.credential_store_key,
     )
-    provider_registry.load()
+    try:
+        provider_registry.load()
+    except Exception:
+        logger.warning("ProviderRegistry.load() failed — tables may not exist yet")
     app.state.provider_registry = provider_registry
 
     # Task default resolver — resolves model providers for named task types
@@ -93,7 +98,10 @@ def create_app(
         settings=app.state.settings,
         credential_store_key=app.state.settings.credential_store_key,
     )
-    task_default_resolver.load()
+    try:
+        task_default_resolver.load()
+    except Exception:
+        logger.warning("TaskDefaultResolver.load() failed — tables may not exist yet")
     app.state.task_default_resolver = task_default_resolver
 
     if meili_provider is not None:
