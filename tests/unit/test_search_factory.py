@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from services.search.encoder import DeterministicTestEncoder, OllamaEmbeddingEncoder
+from services.search.encoder import (
+    DeterministicTestEncoder,
+    OllamaEmbeddingEncoder,
+    OpenAICompatibleEmbeddingEncoder,
+)
 from services.search.factory import build_encoder
 from shared.config import Settings
 
@@ -101,6 +105,77 @@ def test_factory_ollama_falls_back_to_ollama_url() -> None:
 
     assert isinstance(encoder, OllamaEmbeddingEncoder)
     assert encoder._base_url == "http://fallback-ollama:11434"
+
+
+# ---------------------------------------------------------------------------
+# OpenAI-compatible embedding encoder
+# ---------------------------------------------------------------------------
+
+
+def test_factory_builds_openai_compatible_encoder() -> None:
+    settings = Settings(
+        app_env="dev",
+        embedding_provider="openai-compatible",
+        embedding_url="http://openai-proxy:8000",
+        embedding_model="text-embedding-3-small",
+        embedding_dimension=768,
+    )
+    encoder = build_encoder(settings)
+
+    assert isinstance(encoder, OpenAICompatibleEmbeddingEncoder)
+    assert encoder._base_url == "http://openai-proxy:8000"
+    assert encoder._model == "text-embedding-3-small"
+    assert encoder._dimension == 768
+
+
+def test_factory_openai_compatible_requires_embedding_url() -> None:
+    settings = Settings(
+        app_env="dev",
+        embedding_provider="openai-compatible",
+        embedding_url="",
+    )
+
+    with pytest.raises(ValueError, match="EMBEDDING_URL must be set"):
+        build_encoder(settings)
+
+
+def test_factory_openai_compatible_forwards_api_key() -> None:
+    settings = Settings(
+        app_env="dev",
+        embedding_provider="openai-compatible",
+        embedding_url="http://openai-proxy:8000",
+        embedding_api_key="sk-test-key",
+    )
+    encoder = build_encoder(settings)
+
+    assert isinstance(encoder, OpenAICompatibleEmbeddingEncoder)
+    assert encoder._api_key == "sk-test-key"
+
+
+def test_factory_openai_compatible_empty_api_key() -> None:
+    settings = Settings(
+        app_env="dev",
+        embedding_provider="openai-compatible",
+        embedding_url="http://openai-proxy:8000",
+        embedding_api_key="",
+    )
+    encoder = build_encoder(settings)
+
+    assert isinstance(encoder, OpenAICompatibleEmbeddingEncoder)
+    assert encoder._api_key == ""
+
+
+def test_factory_openai_compatible_timeout_override() -> None:
+    settings = Settings(
+        app_env="dev",
+        embedding_provider="openai-compatible",
+        embedding_url="http://openai-proxy:8000",
+        embedding_timeout=180.0,
+    )
+    encoder = build_encoder(settings, timeout=5.0)
+
+    assert isinstance(encoder, OpenAICompatibleEmbeddingEncoder)
+    assert encoder._timeout == 5.0
 
 
 # ---------------------------------------------------------------------------

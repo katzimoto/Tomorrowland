@@ -98,6 +98,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ollama_embed_model", "embedding_model"),
     )
     embedding_url: str = ""
+    # Optional API key for OpenAI-compatible embedding providers.
+    embedding_api_key: str = ""
     # Also readable as EMBEDDING_DIM.
     embedding_dimension: int = Field(
         default=4096,

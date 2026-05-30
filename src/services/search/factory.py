@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from shared.config import Settings
 
-from .encoder import DeterministicTestEncoder, OllamaEmbeddingEncoder, TextEncoder
+from .encoder import (
+    DeterministicTestEncoder,
+    OllamaEmbeddingEncoder,
+    OpenAICompatibleEmbeddingEncoder,
+    TextEncoder,
+)
 
 
 def build_encoder(
@@ -46,6 +51,19 @@ def build_encoder(
             model=settings.embedding_model,
             dimension=settings.embedding_dimension,
             max_tokens=settings.embedding_max_tokens,
+            timeout=timeout if timeout is not None else settings.embedding_timeout,
+        )
+
+    if provider == "openai-compatible":
+        if not settings.embedding_url:
+            raise ValueError(
+                "EMBEDDING_URL must be set when embedding_provider is 'openai-compatible'"
+            )
+        return OpenAICompatibleEmbeddingEncoder(
+            base_url=settings.embedding_url,
+            model=settings.embedding_model,
+            dimension=settings.embedding_dimension,
+            api_key=settings.embedding_api_key,
             timeout=timeout if timeout is not None else settings.embedding_timeout,
         )
 
