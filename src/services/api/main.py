@@ -51,6 +51,7 @@ def create_app(
     translator: LibreTranslateClient | None = None,
     qdrant_client: QdrantSearchClient | None = None,
     llm_provider: LLMProvider | None = None,
+    meili_provider: MeilisearchSearchProvider | None = None,
 ) -> FastAPI:
     """Create the API app with Phase 02 auth routes."""
     app = FastAPI(title="Tomorrowland API")
@@ -73,7 +74,9 @@ def create_app(
     app.state.qdrant_client = qdrant_client
     app.state.llm_provider = llm_provider or build_llm_provider(app.state.settings)
 
-    if app.state.settings.feature_meilisearch_search:
+    if meili_provider is not None:
+        app.state.meili_provider = meili_provider
+    elif app.state.settings.feature_meilisearch_search:
         import meilisearch
 
         is_meiliseach_shadow = app.state.settings.feature_meilisearch_shadow_index

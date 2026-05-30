@@ -117,7 +117,10 @@ def test_admin_readiness_reports_down_for_core_dependency_failure(migrated_engin
     clock = Clock()
     migrated_engine.dispose()
 
-    response = _checker(migrated_engine, clock, urlopen).check()
+    def http_get(url: str, *, timeout: float) -> httpx.Response:
+        return httpx.Response(200, request=httpx.Request("GET", url))
+
+    response = _checker(migrated_engine, clock, http_get).check()
 
     assert response["status"] == "down"
     assert response["dependencies"]["postgres"]["status"] == "down"

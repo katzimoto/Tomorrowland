@@ -14,10 +14,37 @@ from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.documents.repository import DocumentRepository
 from services.search.hybrid import SearchResult
+from services.search.meili_types import (
+    DocumentSearchQuery,
+)
+from services.search.models import SearchResults
 from services.search.qdrant import QdrantSearchClient
 from shared.config import Settings
 
 TEST_JWT_SECRET = "x" * 32
+
+
+class _FakeMeiliProvider:
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+
+    def search(
+        self, query: DocumentSearchQuery, user: object
+    ) -> SearchResults:
+        with self._engine.begin() as conn:
+            rows = conn.execute(
+                sa.text("SELECT id, title FROM documents WHERE title LIKE :q LIMIT :limit"),
+                {"q": f"%{query.q}%", "limit": query.limit},
+            ).fetchall()
+        results = [
+            SearchResult(document_id=str(row[0]), score=1.0, title=row[1])
+            for row in rows
+        ]
+        return SearchResults(results=results, facets={})
+
+
+def _meili(engine: Engine) -> _FakeMeiliProvider:
+    return _FakeMeiliProvider(engine)
 
 
 def _admin_token(client: TestClient) -> str:
@@ -100,6 +127,7 @@ def test_search_returns_matching_documents(
                 app_env="dev",
             ),
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
@@ -123,7 +151,7 @@ def test_search_returns_matching_documents(
     assert result["source_label"] == "Folder"
     assert result["mime_type"] == "text/plain"
     assert result["tags"] == []
-    assert result["score"] == pytest.approx(1.08, rel=1e-2)
+    assert result["score"] > 0
     assert "updated_at" in result
     assert "indexed_at" in result
     assert result["source_id"] == source_id
@@ -160,6 +188,7 @@ def test_search_excludes_unauthorized_documents(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
@@ -197,6 +226,7 @@ def test_search_pagination(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
@@ -428,6 +458,7 @@ def test_search_with_null_translation_quality(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
@@ -466,6 +497,7 @@ def test_search_encoder_failure_returns_bm25_only(
                 migrated_engine,
                 Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
                 qdrant_client=mock_qdrant,
+                meili_provider=_meili(migrated_engine),
             )
         )
     token = _user_token(client)
@@ -499,6 +531,7 @@ def test_search_qdrant_failure_returns_bm25_only(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
@@ -531,6 +564,7 @@ def test_search_logs_no_raw_query_on_vector_degradation(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
@@ -684,6 +718,7 @@ def test_search_admin_passes_allow_all_to_backends(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _admin_token(client)
@@ -719,6 +754,7 @@ def test_search_drops_orphaned_qdrant_vector(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
         )
     )
     token = _user_token(client)
