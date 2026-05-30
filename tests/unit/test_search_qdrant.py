@@ -416,6 +416,147 @@ def test_search_metadata_includes_extra_payload_fields() -> None:
     assert results[0].metadata["chunk_index"] == 3
 
 
+def test_list_chunks_by_document_returns_sorted_passages() -> None:
+    """Scroll-based listing returns chunks sorted by chunk_index."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.collection_exists.return_value = True
+    mock_qdrant.scroll.return_value = (
+        [
+            MagicMock(
+                id="point-2",
+                payload={
+                    "document_id": "doc-1",
+                    "chunk_id": "doc-1-1",
+                    "chunk_index": 1,
+                    "text": "second",
+                    "group_id": ["g1"],
+                },
+            ),
+            MagicMock(
+                id="point-1",
+                payload={
+                    "document_id": "doc-1",
+                    "chunk_id": "doc-1-0",
+                    "chunk_index": 0,
+                    "text": "first",
+                    "group_id": ["g1"],
+                },
+            ),
+        ],
+        None,
+    )
+    client._client = mock_qdrant
+
+    results = client.list_chunks_by_document(
+        document_id="doc-1",
+        group_ids=["g1"],
+        limit=10,
+        offset=0,
+    )
+
+    assert [r.chunk_text for r in results] == ["first", "second"]
+    assert results[0].metadata is not None
+    assert results[0].metadata["chunk_index"] == 0
+
+
+def test_list_chunks_by_document_applies_group_filter() -> None:
+    """Without admin bypass, listing chunks must include the group_id filter."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.collection_exists.return_value = True
+    mock_qdrant.scroll.return_value = ([], None)
+    client._client = mock_qdrant
+
+    client.list_chunks_by_document(
+        document_id="doc-1",
+        group_ids=["g1", "g2"],
+        limit=10,
+    )
+
+    scroll_filter = mock_qdrant.scroll.call_args.kwargs["scroll_filter"]
+    condition_keys = [c.key for c in scroll_filter.must]
+    assert "document_id" in condition_keys
+    assert "group_id" in condition_keys
+
+
+def test_list_chunks_by_document_admin_bypass_skips_group_filter() -> None:
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.collection_exists.return_value = True
+    mock_qdrant.scroll.return_value = ([], None)
+    client._client = mock_qdrant
+
+    client.list_chunks_by_document(
+        document_id="doc-1",
+        group_ids=[],
+        allow_all=True,
+    )
+
+    scroll_filter = mock_qdrant.scroll.call_args.kwargs["scroll_filter"]
+    condition_keys = [c.key for c in scroll_filter.must]
+    assert "document_id" in condition_keys
+    assert "group_id" not in condition_keys
+
+
+def test_list_chunks_by_document_no_groups_returns_empty() -> None:
+    """Empty groups + no admin bypass must short-circuit to empty results."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    client._client = mock_qdrant
+
+    results = client.list_chunks_by_document(document_id="doc-1", group_ids=[])
+
+    assert results == []
+    mock_qdrant.scroll.assert_not_called()
+
+
+def test_list_chunks_by_document_collection_missing_returns_empty() -> None:
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.collection_exists.return_value = False
+    client._client = mock_qdrant
+
+    results = client.list_chunks_by_document(
+        document_id="doc-1", group_ids=["g1"], allow_all=False
+    )
+
+    assert results == []
+    mock_qdrant.scroll.assert_not_called()
+
+
+def test_list_chunks_by_document_offset_pagination() -> None:
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.collection_exists.return_value = True
+    mock_qdrant.scroll.return_value = (
+        [
+            MagicMock(
+                id=f"p-{i}",
+                payload={
+                    "document_id": "doc-1",
+                    "chunk_id": f"doc-1-{i}",
+                    "chunk_index": i,
+                    "text": f"chunk-{i}",
+                    "group_id": ["g1"],
+                },
+            )
+            for i in range(5)
+        ],
+        None,
+    )
+    client._client = mock_qdrant
+
+    results = client.list_chunks_by_document(
+        document_id="doc-1",
+        group_ids=["g1"],
+        limit=2,
+        offset=2,
+    )
+
+    assert [r.chunk_text for r in results] == ["chunk-2", "chunk-3"]
+
+
 def test_search_metadata_includes_page_number_section_heading() -> None:
     """page_number and section_heading in Qdrant payload must appear in metadata."""
     client = QdrantSearchClient(url="http://localhost:6333", dimension=384)

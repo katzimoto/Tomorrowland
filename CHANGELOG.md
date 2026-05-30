@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Issue #558: Permissioned researcher API endpoints — new read-only `/api/agent/v1` surface (`search_documents`, `get_document`, `get_passages`, `ask_corpus`, `get_related_documents`, `list_facets`) that future Hermes/MCP clients (#560) can call through the same source/document ACL as normal users. Every endpoint enforces transitive group expansion via `AuthRepository.get_effective_group_ids` and `assert_doc_access`; admin bypass uses the standard `allow_all=True` path. `ask_corpus` re-checks per-citation source ACLs as defence in depth so Qdrant payload corruption cannot leak inaccessible documents. New `QdrantSearchClient.list_chunks_by_document` scrolls chunks in stable `chunk_index` order with the same group-id filter applied. No write tools, no MCP adapter, and no Hermes runtime in this PR.
+
 ### Removed
 - Issue #545 (S1): Legacy comments API router and dead `FEATURE_DOCUMENT_COMMENTS` feature flag. All comments endpoints previously returned HTTP 410; callers must use the annotations API instead.
 - Issue #545 (S4): DB-poll pipeline entrypoints and dead config. Deleted `src/services/pipeline/runner.py` and `vector_worker.py`; removed `INGEST_MODE` env var and `ingest_mode` config field; removed `pipeline-worker` and `vector-worker` Compose services with their `db-poll` profile blocks. The canonical pipeline is now RabbitMQ-only.
