@@ -2,6 +2,25 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-30 — test(agents): permission regression tests for researcher queries — #562, PR #598
+
+Status: Done — PR #598 squash-merged to main (commit 0462d30), branch deleted
+Source: issue #562, PR #598, Claude Code session
+
+Permission regression test suite for the six `/api/agent/v1/*` researcher endpoints and MCP tools.
+
+| Area | Detail |
+|---|---|
+| Cross-user isolation | 4 tests: user A / user B symmetric isolation across search, get_document, get_passages, get_related_documents |
+| Source filter scope | 2 tests: filter for existing-but-inaccessible source returns no docs; `_SourceFilteringMeili` double verifies narrowing within allowed corpus |
+| Over-limit safety | 1 test: 429 body contains no document IDs or auth tokens |
+| MCP parity | 24 unit tests: all 6 tools translate 401/403 to static safe messages; 403 body doc IDs not forwarded; 429 metadata not forwarded |
+| Bug fixed | `_FakeMeiliProvider` returned hex UUIDs (no dashes) while router's `docs` dict uses dashed keys — `r.document_id in docs` was always False, silently masking BM25-only path tests. Fixed `str(r[0])` → `str(UUID(r[0]))`. No product code changed |
+| Test counts | integration: 30 → 38; unit (MCP): 37 → 61 |
+| Verified | ruff clean, ruff format clean, mypy strict clean, 38 integration + 61 MCP unit tests pass |
+
+---
+
 ## 2026-05-30 — feat(agents): audit logging and usage limits for researcher API — #561, PR #595
 
 Status: Done — PR #595 squash-merged to main (commit 9d28657), branch deleted

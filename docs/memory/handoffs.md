@@ -2,6 +2,32 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-30 — test(agents): permission regression tests for researcher queries — #562, PR #598
+
+Status: Done — PR #598 squash-merged to main (commit 0462d30), branch deleted
+Source: issue #562, PR #598, Claude Code session
+
+**Goal:** Add regression coverage proving the researcher REST API and MCP tools follow the same access rules as the rest of the app and do not leak inaccessible documents.
+
+**Changed files:**
+- `tests/integration/test_agent_api.py` — +273 lines: cross-user isolation (4 tests), source filter scope (2 tests), over-limit safety (1 test), `_FakeMeiliProvider` UUID normalisation fix
+- `tests/unit/test_mcp_server.py` — +135 lines: `TestMCPAuthorizationParity` class (24 tests across all 6 tools × 401/403, plus targeted 403/429 data-leak checks)
+
+**Key invariants verified:**
+- `user@example.com` (group `users`) and `other@example.com` (group `other`) have symmetric, disjoint access across all four ACL-enforcing endpoints
+- Source filter for an existing-but-inaccessible source returns no docs from that source (ACL defence-in-depth)
+- 429 response body never contains document IDs or auth tokens
+- All 6 MCP tools translate 401/403 to static safe messages; 403 response body content (doc IDs) is never forwarded
+- No product code changed — test-only PR
+
+**Infrastructure bug fixed:**
+- `_FakeMeiliProvider.search` returned document IDs as 32-char hex strings (SQLite `db_uuid` format). The router builds its `docs` dict with standard dashed-UUID string keys, so `r.document_id in docs` was always False — silently making every BM25-only search test return empty results. Fixed `str(r[0])` → `str(UUID(r[0]))`. Existing tests were unaffected because they relied on the Qdrant mock path, which already used proper UUID strings.
+
+**Next agent prompt:**
+> #562 is on main (PR #598, commit 0462d30). All researcher API and MCP permission regression tests are in place. Next candidates: #563 (Hermes workflow docs) or #564 (air-gapped behavior).
+
+---
+
 ## 2026-05-30 — feat(agents): audit logging and usage limits — #561, PR #595
 
 Status: Done — PR #595 squash-merged to main (commit 9d28657), branch deleted
