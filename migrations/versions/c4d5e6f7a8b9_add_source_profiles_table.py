@@ -45,8 +45,8 @@ def upgrade() -> None:
             sa.Text(),
             sa.CheckConstraint(
                 sa.text(
-                    "chunking_strategy IN ('paragraph','clause','heading','row','thread','page','code_block','default')"
-                ),  # noqa: E501
+                    "chunking_strategy IN ('paragraph','clause','heading','row','thread','page','code_block','default')"  # noqa: E501
+                ),
                 name="ck_source_profiles_chunking_strategy",
             ),
             nullable=False,
@@ -56,8 +56,8 @@ def upgrade() -> None:
             sa.Text(),
             sa.CheckConstraint(
                 sa.text(
-                    "retrieval_strategy IN ('hybrid','vector_only','keyword_only','metadata_first','default')"
-                ),  # noqa: E501
+                    "retrieval_strategy IN ('hybrid','vector_only','keyword_only','metadata_first','default')"  # noqa: E501
+                ),
                 name="ck_source_profiles_retrieval_strategy",
             ),
             nullable=False,
@@ -67,8 +67,8 @@ def upgrade() -> None:
             sa.Text(),
             sa.CheckConstraint(
                 sa.text(
-                    "extraction_strategy IN ('full_text','ocr_required','table_aware','header_metadata','default')"
-                ),  # noqa: E501
+                    "extraction_strategy IN ('full_text','ocr_required','table_aware','header_metadata','default')"  # noqa: E501
+                ),
                 name="ck_source_profiles_extraction_strategy",
             ),
             nullable=False,
