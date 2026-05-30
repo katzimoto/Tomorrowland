@@ -1,7 +1,7 @@
 # Pipeline Worker Operations Guide
 
-This guide covers the five long-running worker processes that drive document
-ingestion, vector indexing, translation, enrichment, and alert/intelligence
+This guide covers the worker services that drive document ingestion,
+translation, embedding, indexing, enrichment, and alert/intelligence
 post-processing, the Prometheus metrics they emit, and how to interpret those
 signals on-call.
 
@@ -9,40 +9,41 @@ signals on-call.
 
 ## Worker Architecture
 
-Tomorrowland's ingestion pipeline is served by two independent workers that
-claim durable jobs from a shared PostgreSQL-backed queue (`pipeline_jobs`
-table).
+Tomorrowland's ingestion pipeline is served by a chain of RabbitMQ workers.
+Each worker reads from its own stage queue, processes a message, and publishes
+to the next stage. The canonical 7-stage pipeline is:
 
-| Service | Module | Job types handled |
-|---------|--------|-----------------|
-| `pipeline-worker` | `services.pipeline.runner` | `process_document`, `intelligence_document`, `alert_document` |
-| `vector-worker` | `services.pipeline.vector_worker` | `vector_index_document` |
-| `translation-worker` | `services.pipeline.translation_worker` | `translate_document` |
-| `index-worker` | `services.pipeline.index_worker` | `index_document` |
-| `slow-worker` | `services.pipeline.slow_worker` | `enrich_document` |
+| Service | Module | Stage |
+|---------|--------|-------|
+| `parse-worker` | `services.pipeline.parse_worker` | Parse (extraction + chunking) |
+| `translate-worker` | `services.pipeline.translate_worker` | Translate |
+| `embed-worker` | `services.pipeline.embed_worker` | Embed (vector encoding) |
+| `index-worker` | `services.pipeline.index_worker` | Index (Meilisearch + Qdrant) |
+| `intelligence-worker` | `services.pipeline.intelligence_consumer` | Intelligence (summary, entities, tags) |
+| `alert-worker` | `services.pipeline.alert_consumer` | Alert matching |
+| `enrich-worker` | `services.pipeline.enrich_worker` | Enrich (re-translation) |
 
-**Queue transport**: workers poll the database with `SELECT … FOR UPDATE SKIP
-LOCKED`. There is no Kafka consumer; consumer-lag concepts do not apply here.
+**Queue transport**: RabbitMQ with per-stage queues, 30s retry tiers, and
+dead-letter queues (DLQ). Each stage has a primary queue, a retry queue, and
+a DLQ. Messages that exhaust their retry budget land in the DLQ for operator
+attention.
 
-**Job flow**: when the pipeline worker successfully completes a
-`process_document` job it enqueues downstream jobs for the same document:
-`vector_index_document`, `translate_document`, `index_document`, `enrich_document`,
-`intelligence_document`, and `alert_document`. Each downstream worker picks up
-its associated job type independently.
+**Job flow**: ingestion starts when a document is published to the parse queue
+(from a sync-now API call or the scheduler). Each worker processes its stage,
+marks progress via `pipeline_jobs.stage`, and publishes to the next queue.
+`intelligence` and `alert` run in parallel after indexing. `enrich` is
+triggered separately for frequently viewed documents.
 
-`intelligence_document` and `alert_document` are **best-effort** jobs: if the
-pipeline worker was not started with an `IntelligenceWorker` or `AlertMatcher`
-dependency, these jobs are immediately marked succeeded (no-op). On failure,
-they are retried with bounded backoff; if all retries are exhausted, they are
-dead-lettered without affecting the document's ingestion success.
+`intelligence_document` and `alert_document` are **best-effort** stages: if
+the model or alert service is unreachable, the stage is logged and the
+document's ingestion status is unaffected.
 
-All workers run a tight poll loop:
+All workers run a tight consume loop:
 
 1. Emit heartbeat gauge (current Unix timestamp).
-2. Sample queue depth by status and job type.
-3. Reap stale locks every 60 seconds.
-4. Attempt to claim and process one job; sleep `poll_interval` (default 1 s)
-   when the queue is empty.
+2. Consume from the stage queue with a 30-second timeout.
+3. On success, acknowledge and publish to the next stage.
+4. On failure, nack with retry routing or DLQ after max attempts.
 
 ---
 
@@ -57,9 +58,9 @@ Metric names are reproduced exactly as registered.
 **Labels**: `worker_type`, `worker_id`
 
 Set to the current Unix timestamp at the top of every loop iteration.
-`worker_type` is one of `pipeline`, `vector`, `translation`, `index`, or
-`enrich`; `worker_id` is the stable identifier passed at startup (e.g.
-`pipeline-worker`, `vector-worker`).
+`worker_type` is one of `parse`, `translate`, `embed`, `index`,
+`intelligence`, `alert`, or `enrich`; `worker_id` is the stable identifier
+passed at startup (e.g. `parse-worker`, `index-worker`).
 
 **How to use**: detect a stopped or stale worker:
 
@@ -78,14 +79,13 @@ the process is stuck or has stopped.
 **Labels**: `status`, `job_type`
 
 Snapshot of the `pipeline_jobs` table, counted by `(status, job_type)`, taken
-at the top of every loop iteration by both workers. The snapshot is produced by
-`PipelineJobRepository.count_by_status()` which issues a single
+at the top of every loop iteration by the admin API. The snapshot is produced
+by `PipelineJobRepository.count_by_status()` which issues a single
 `COUNT … GROUP BY status, job_type` query.
 
 Known `status` values: `pending`, `running`, `retry`, `dead_letter`.  
-Known `job_type` values: `process_document`, `vector_index_document`,
-`translate_document`, `index_document`, `enrich_document`,
-`intelligence_document`, `alert_document`.
+Known `job_type` values: `process_document`, `translate_document`,
+`index_document`, `enrich_document`, `intelligence_document`, `alert_document`.
 
 **How to use**:
 
@@ -98,7 +98,7 @@ sum(tomorrowland_pipeline_queue_depth{status="dead_letter"})
 
 # Queue depth by job type
 tomorrowland_pipeline_queue_depth{status="pending", job_type="process_document"}
-tomorrowland_pipeline_queue_depth{status="pending", job_type="vector_index_document"}
+tomorrowland_pipeline_queue_depth{status="pending", job_type="translate_document"}
 ```
 
 A non-zero `dead_letter` depth requires operator attention; those jobs will not
@@ -116,8 +116,8 @@ Combined with `_succeeded_total` and `_retried_total` / `_dead_lettered_total`
 this describes the overall throughput and error split.
 
 ```promql
-# Per-minute claim rate for pipeline worker
-rate(tomorrowland_pipeline_jobs_claimed_total{worker_type="pipeline"}[5m]) * 60
+# Per-minute claim rate for parse worker
+rate(tomorrowland_pipeline_jobs_claimed_total{worker_type="parse"}[5m]) * 60
 ```
 
 ---
@@ -127,9 +127,8 @@ rate(tomorrowland_pipeline_jobs_claimed_total{worker_type="pipeline"}[5m]) * 60
 **Type**: Counter  
 **Labels**: `worker_type`, `job_type`
 
-Incremented when a job is marked succeeded. For `pipeline` workers the stage
-is `process` (or `intelligence` / `alert` for best-effort jobs); for `vector`
-workers the stage is `vector_encode`.
+Incremented when a job is marked succeeded. The stage matches the worker type:
+`parse`, `translate`, `embed`, `index`, `intelligence`, `alert`, or `enrich`.
 
 ```promql
 # Success rate as a fraction of claimed jobs (5-minute window)
@@ -204,23 +203,23 @@ Measures wall-clock duration of each job attempt from claim to outcome.
 
 | `worker_type` | `stage` | `outcome` values |
 |--------------|---------|-----------------|
-| `pipeline` | `process` | `succeeded`, `retried`, `dead_lettered` |
-| `pipeline` | `intelligence` | `succeeded`, `retried`, `dead_lettered` |
-| `pipeline` | `alert` | `succeeded`, `retried`, `dead_lettered` |
-| `vector` | `vector_encode` | `succeeded`, `retried`, `dead_lettered` |
-| `translation` | `translate` | `succeeded`, `retried`, `dead_lettered` |
+| `parse` | `parse` | `succeeded`, `retried`, `dead_lettered` |
+| `translate` | `translate` | `succeeded`, `retried`, `dead_lettered` |
+| `embed` | `embed` | `succeeded`, `retried`, `dead_lettered` |
 | `index` | `index` | `succeeded`, `retried`, `dead_lettered` |
+| `intelligence` | `intelligence` | `succeeded`, `retried`, `dead_lettered` |
+| `alert` | `alert` | `succeeded`, `retried`, `dead_lettered` |
 | `enrich` | `enrich` | `succeeded`, `retried`, `dead_lettered` |
 
 ```promql
-# p95 job duration for pipeline workers
+# p95 job duration for parse worker
 histogram_quantile(0.95,
-  rate(tomorrowland_pipeline_job_duration_seconds_bucket{worker_type="pipeline"}[10m])
+  rate(tomorrowland_pipeline_job_duration_seconds_bucket{worker_type="parse"}[10m])
 )
 
-# p99 for vector encode
+# p99 for embed
 histogram_quantile(0.99,
-  rate(tomorrowland_pipeline_job_duration_seconds_bucket{stage="vector_encode"}[10m])
+  rate(tomorrowland_pipeline_job_duration_seconds_bucket{stage="embed"}[10m])
 )
 ```
 
@@ -248,18 +247,9 @@ tracebacks.
 
 ## Queue Depth Sampling
 
-Queue depth is **not** tracked via Kafka consumer lag. The workers sample the
-PostgreSQL `pipeline_jobs` table directly at the top of every loop iteration:
-
-```sql
-SELECT status, job_type, COUNT(*) FROM pipeline_jobs GROUP BY status, job_type;
-```
-
-This snapshot reflects the instantaneous state of the queue at that moment. Each
-worker independently samples and sets the same gauge labels, so the gauge for
-`job_type="process_document"` is updated by the pipeline worker and the gauge
-for `job_type="vector_index_document"` is updated by the vector worker, and so
-on for all active workers.
+Queue depth is tracked via the `pipeline_jobs` table and RabbitMQ admin API.
+Each worker reports its queue depth metrics via `GET /admin/rabbit/queues`.
+The admin dashboard also shows live RabbitMQ queue depths per stage.
 
 ---
 
@@ -285,26 +275,21 @@ operator-controlled label value.
 
 ---
 
-## Stale Lock Reaping
+## Stale Job Recovery
 
-When a worker process is killed or crashes while a job is in `running` state,
-the job remains locked with no process to complete it. `reap_stale_locks()`
-detects these orphaned jobs and resets them to `pending` so they can be
-reclaimed.
+When a worker process is killed or crashes while processing a message, the
+message is automatically re-routed by RabbitMQ after the connection drops
+(consumer timeout). Stale `pipeline_jobs` rows in `running` state are reset
+to `pending` on worker restart via `reap_stale_locks()`.
 
-The reap check runs at the top of each loop iteration whenever at least 60
-seconds have elapsed since the last reap. The reap query looks for `running`
-jobs whose lock timestamp is older than the configured timeout (configured in
-`PipelineJobRepository`) and resets them atomically.
+The reap check runs every 60 seconds. It looks for `running` jobs whose lock
+timestamp is older than the configured timeout and resets them atomically.
 
 **What stale locks mean operationally**:
 
 - A single reap event after a deploy or container restart is expected.
-- Repeated reaps of the same job (visible via the dead-letter counter if the
-  job exhausts attempts after repeated crashes) indicate the job itself is
-  causing crashes.
-- A sustained non-zero reap rate on a stable system means workers are crashing
-  repeatedly; check `worker_loop_errors_total` and container exit codes.
+- Repeated reaps of the same job indicate the job itself is causing crashes.
+- Check `worker_loop_errors_total` and container exit codes.
 
 ---
 
@@ -313,20 +298,26 @@ jobs whose lock timestamp is older than the configured timeout (configured in
 To restart a stuck worker safely using Docker Compose:
 
 ```bash
-# Restart pipeline-worker without losing container config
-docker compose restart pipeline-worker
+# Restart a specific worker without losing container config
+docker compose restart parse-worker
 
-# Restart vector-worker
-docker compose restart vector-worker
+# Restart translate-worker
+docker compose restart translate-worker
 
-# Restart translation-worker
-docker compose restart translation-worker
+# Restart embed-worker
+docker compose restart embed-worker
 
 # Restart index-worker
 docker compose restart index-worker
 
-# Restart slow-worker (enrichment)
-docker compose restart slow-worker
+# Restart intelligence-worker
+docker compose restart intelligence-worker
+
+# Restart alert-worker
+docker compose restart alert-worker
+
+# Restart enrich-worker
+docker compose restart enrich-worker
 ```
 
 `restart: unless-stopped` is set on all worker services, so a plain container
@@ -339,13 +330,12 @@ finds, returning orphaned `running` jobs to `pending` within 60 seconds.
 To observe the worker after restart:
 
 ```bash
-docker compose logs -f pipeline-worker
-docker compose logs -f vector-worker
+docker compose logs -f parse-worker
+docker compose logs -f index-worker
 ```
 
-Look for the startup log line `pipeline worker started` / `vector worker
-started` to confirm the process is running, followed by periodic heartbeat
-and queue-depth updates.
+Look for the startup log line `<worker-type> worker started` to confirm the
+process is running, followed by periodic heartbeat and queue-depth updates.
 
 Each log line for a job event includes:
 - `worker_type`, `job_id`, `document_id`, `source_id`
@@ -360,9 +350,9 @@ Each log line for a job event includes:
 
 **Signals**: `time() - tomorrowland_worker_heartbeat_timestamp_seconds > 120`
 
-1. Check container status: `docker compose ps pipeline-worker vector-worker translation-worker index-worker slow-worker`
-2. Check recent logs: `docker compose logs --tail=100 pipeline-worker`
-3. If the container is stopped: `docker compose restart pipeline-worker`
+1. Check container status: `docker compose ps parse-worker translate-worker embed-worker index-worker intelligence-worker alert-worker enrich-worker`
+2. Check recent logs: `docker compose logs --tail=100 parse-worker`
+3. If the container is stopped: `docker compose restart parse-worker`
 4. If it exits immediately, check for config/DB connection errors in the logs
    and verify `DATABASE_URL` in `.env`.
 
@@ -371,15 +361,13 @@ Each log line for a job event includes:
 ### Queue backlog growing
 
 **Signals**: `tomorrowland_pipeline_queue_depth{status="pending"}` rising,
-claim rate (`tomorrowland_pipeline_jobs_claimed_total`) flat.
+RabbitMQ queue depth growing (check `GET /admin/rabbit/queues`).
 
 1. Confirm workers are running and heartbeating.
-2. If workers are running but not claiming, check `worker_loop_errors_total` —
-    loop errors cause the worker to sleep and skip the claim attempt.
-3. Check that resource limits (`cpus`, `mem_limit`) are not throttling the
-    worker — inspect with `docker stats` or `docker compose stats`.
+2. Check `worker_loop_errors_total` for loop errors.
+3. Check that resource limits are not throttling the worker.
 4. Scale workers if capacity is genuinely saturated:
-    `docker compose up -d --scale pipeline-worker=2`
+    `docker compose up -d --scale parse-worker=2`
 
 ---
 
@@ -388,14 +376,13 @@ claim rate (`tomorrowland_pipeline_jobs_claimed_total`) flat.
 **Signals**: `rate(tomorrowland_pipeline_jobs_retried_total[5m])` non-zero and rising.
 
 1. Check which `job_type` is retrying: filter by `job_type` label.
-2. For `process_document` retries: check Elasticsearch and Qdrant health.
-3. For `vector_index_document` retries: check Qdrant and Ollama health.
-4. For `translate_document` retries: check LibreTranslate health.
-5. For `intelligence_document` or `alert_document` retries: check Ollama or
+2. For `process_document` retries: check Qdrant and Meilisearch health.
+3. For `translate_document` retries: check LibreTranslate health.
+4. For `intelligence_document` or `alert_document` retries: check Ollama or
    alert-matcher configuration respectively. These are best-effort; a sustained
    retry pattern indicates the downstream dependency is not configured.
-6. Check worker logs for the exception class driving retries.
-7. If a dependency is recovering, retries will clear automatically once it is
+5. Check worker logs for the exception class driving retries.
+6. If a dependency is recovering, retries will clear automatically once it is
    healthy.
 
 ---
@@ -439,7 +426,7 @@ Loop errors are unhandled exceptions outside of the per-job retry/dead-letter
 path — typically infrastructure failures (DB connection lost, unexpected OS
 errors).
 
-1. Check logs for the full traceback: `docker compose logs -f pipeline-worker`
+1. Check logs for the full traceback: `docker compose logs -f parse-worker`
 2. The `error_type` label gives the Python exception class for alerting.
 3. Loop errors cause a `poll_interval` sleep before retrying; they do not
    immediately crash the worker, but a sustained rate indicates instability.
@@ -455,12 +442,10 @@ histogram_quantile(0.95,
 ) > 30
 ```
 
-1. Filter by `stage` to isolate whether the slowdown is in `process` or
-   `vector_encode`.
-2. For `process`: check Elasticsearch indexing latency and extraction time for
-   large documents.
-3. For `vector_encode`: check Ollama embedding latency
-   (`tomorrowland_ollama_duration_seconds`) and Qdrant upsert latency.
+1. Filter by `stage` to isolate which worker is slow.
+2. For `parse`: check extraction time for large documents.
+3. For `embed`: check Ollama embedding latency
+   (`tomorrowland_ollama_duration_seconds`).
 4. Very large documents will naturally fall in higher histogram buckets; check
    `tomorrowland_pipeline_document_bytes` for document size distribution.
 
@@ -468,11 +453,13 @@ histogram_quantile(0.95,
 
 ## See Also
 
-- `src/services/pipeline/runner.py` — pipeline worker loop and job lifecycle
-- `src/services/pipeline/vector_worker.py` — vector worker loop
-- `src/services/pipeline/translation_worker.py` — translation worker loop
-- `src/services/pipeline/index_worker.py` — index worker loop
-- `src/services/pipeline/slow_worker.py` — enrich worker loop
+- `src/services/pipeline/parse_worker.py` — parse stage handler
+- `src/services/pipeline/translate_worker.py` — translate stage handler
+- `src/services/pipeline/embed_worker.py` — embed stage handler
+- `src/services/pipeline/index_worker.py` — index stage handler
+- `src/services/pipeline/intelligence_consumer.py` — intelligence stage handler
+- `src/services/pipeline/alert_consumer.py` — alert stage handler
+- `src/services/pipeline/enrich_worker.py` — enrich stage handler
 - `src/shared/metrics.py` — `MetricsRegistry` with all metric definitions
 - `docs/operations/production-compose.md` — Compose service layout
 - `docs/operations/air-gapped-deployment.md` — offline deployment guide

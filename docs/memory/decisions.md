@@ -137,12 +137,12 @@ Status: Active
 Source: commit 4ec9bc5 on main; src/services/api/routers/search.py
 
 Decision:
-- Both the Meilisearch and Elasticsearch BM25 exception handlers log a warning and continue with `bm25_results=[]` — they do NOT re-raise.
+- The Meilisearch BM25 exception handler logs a warning and continues with `bm25_results=[]` — it does NOT re-raise.
 - Result: any transient BM25 backend failure produces vector-only results, not HTTP 500.
 - The 400 "input length exceeds" path in the encoder still raises ValueError (job-level error, not request-level).
 
 Impact:
-- Search view always loads for users even when Meilisearch or ES is temporarily unavailable.
+- Search view always loads for users even when Meilisearch is temporarily unavailable.
 
 ## 2026-05-24 — Embedding token estimation ratio lowered to 2.0
 

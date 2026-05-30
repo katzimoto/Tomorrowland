@@ -168,20 +168,20 @@ else
 fi
 [[ -s "$backup_dir/files/files_data.tar.gz" ]] || fail "files archive is empty"
 
-cat > "$backup_dir/notes/elasticsearch-qdrant-restore-strategy.md" <<'NOTES'
-# Elasticsearch and Qdrant backup/restore strategy
+cat > "$backup_dir/notes/qdrant-restore-strategy.md" <<'NOTES'
+# Qdrant backup/restore strategy
 
 This backup script records Compose metadata and preserves PostgreSQL plus the
-Tomorrowland files volume. It does not automate live Elasticsearch or Qdrant
-snapshots because snapshot repository setup is deployment-specific and should not
-write secrets or host paths into release tooling.
+Tomorrowland files volume. It does not automate live Qdrant snapshots because
+snapshot repository setup is deployment-specific and should not write secrets
+or host paths into release tooling.
 
 Safe fallback before a high-risk upgrade:
 
 1. Run `scripts/backup-airgap-data.sh` successfully.
 2. Stop services without deleting volumes: `docker compose --env-file .env -f docker-compose.airgap.yml stop`.
 3. Take storage-level snapshots or offline archives of the named volumes listed in
-   `metadata/current-volumes.txt`, especially `elasticsearch_data` and `qdrant_data`.
+   `metadata/current-volumes.txt`, especially `qdrant_data` and `meilisearch_data`.
 4. Start services again only after volume snapshots complete.
 
 Never run `docker compose down -v`; it deletes persistent product data.

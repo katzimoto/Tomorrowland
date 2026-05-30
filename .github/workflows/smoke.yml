@@ -84,7 +84,7 @@ jobs:
       API_PORT: 8000
       FRONTEND_PORT: 8080
       POSTGRES_PASSWORD: changeme
-      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      MEILI_MASTER_KEY: ""
       JWT_SECRET: ci-smoke-jwt-secret-not-for-production
       EMBEDDING_PROVIDER: ""
       RABBITMQ_ENABLED: "false"

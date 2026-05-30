@@ -70,7 +70,7 @@ cleanup() {
 
   if [[ $exit_code -ne 0 ]]; then
     echo "Smoke test failed. Inspect service logs with:" >&2
-    echo "  docker compose logs --tail=200 api frontend migrate postgres elasticsearch qdrant" >&2
+    echo "  docker compose logs --tail=200 api frontend migrate postgres qdrant" >&2
   fi
 
   if [[ $STARTED_STACK -eq 1 && $KEEP_RUNNING -eq 0 ]]; then

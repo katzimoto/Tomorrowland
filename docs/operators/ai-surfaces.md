@@ -23,7 +23,7 @@ its feature flag is enabled and its backing service is reachable.
 
 | Surface              | Backing service(s)               | Feature flag                  | Status            |
 |----------------------|----------------------------------|-------------------------------|-------------------|
-| Hybrid search        | Qdrant + Elasticsearch (+Meili)  | always on                     | Available         |
+| Hybrid search        | Qdrant + Meilisearch             | always on                     | Available         |
 | Document summary     | Ollama (generation model)        | `feature_summarization`       | Available         |
 | Entity extraction    | Ollama (generation model)        | `feature_entity_extraction`   | Available         |
 | Auto-tags            | Ollama (generation model)        | `feature_auto_tagging`        | Available         |
@@ -76,8 +76,7 @@ information found" answer with zero citations rather than 500-ing.
 `IntelligenceWorker` (`src/services/intelligence/worker.py`) runs best-effort
 LLM tasks after a document is indexed. The pipeline currently runs:
 
-1. `summarize` — Ollama summary, stored on the document and mirrored into the
-   Elasticsearch `summary` field. Cap: `MAX_SUMMARIZE_CHARS = 8000`.
+1. `summarize` — Ollama summary, stored on the document. Cap: `MAX_SUMMARIZE_CHARS = 8000`.
 2. `extract_entities` — Ollama JSON output, parsed into person /
    organization / location rows linked to the document. Cap:
    `MAX_ENTITY_CHARS = 6000`.
@@ -192,10 +191,9 @@ specific to the AI surfaces.
 | Service           | Compose host       | Used by                              |
 |-------------------|--------------------|--------------------------------------|
 | `qdrant`          | `qdrant:6333`      | search, RAG, related docs            |
-| `elasticsearch`   | `elasticsearch:9200` | hybrid search, lexical fallback   |
+| `meilisearch`     | `meilisearch:7700` | keyword/BM25 search, typo-tolerant   |
 | `ollama`          | `ollama:11434`     | summary, entities, tags, RAG, embeddings (if `EMBEDDING_PROVIDER=ollama`) |
 | `libretranslate`  | `libretranslate:5000` | translation enrichment (not strictly AI but required for non-English indexing) |
-| `meilisearch`     | `meilisearch:7700` | optional typo-tolerant search (feature-flagged) |
 
 ### Loading models
 
@@ -224,12 +222,10 @@ curl -s http://localhost:11434/api/tags | grep -q "$EMBEDDING_MODEL" \
   empty or "no answer" responses. Ingestion succeeds; full-text and vector
   search still work.
 - **Embedding model missing:** Qdrant indexing is skipped gracefully on
-  ingest; semantic search returns zero results; lexical (Elasticsearch)
+  ingest; semantic search returns zero results; Meilisearch (BM25)
   search continues to work; RAG retrieval is effectively disabled.
 - **Qdrant unreachable:** RAG returns "no relevant information"; related
-  documents returns an empty list; lexical search continues.
-- **Elasticsearch unreachable:** ingestion cannot complete (see
-  `pipeline-workers.md`); lexical search returns errors.
+  documents returns an empty list; Meilisearch (BM25) search continues.
 
 None of these states should fail login, document upload, preview, or
 download — those paths do not depend on AI services.
@@ -337,8 +333,7 @@ and they are not interchangeable.
 | Backend         | Role                              | Required?                  | Notes                                                       |
 |-----------------|-----------------------------------|----------------------------|-------------------------------------------------------------|
 | **Qdrant**      | Vector / semantic search          | Yes for semantic + RAG     | Collection per embedding dimension. Soft-failure on ingest. |
-| **Elasticsearch** | Lexical / BM25 search             | Yes for ingestion complete | Required for `status = 'done'` (see `pipeline-workers.md`). |
-| **Meilisearch** | Typo-tolerant lexical (optional)  | No                         | Gated by `feature_meilisearch_search` and `feature_meilisearch_shadow_index`. |
+| **Meilisearch** | Keyword / BM25 search             | Yes — primary BM25 index    | Gated by `feature_meilisearch_search`. Canonical BM25 backend. |
 
 Default merge behaviour (hybrid `/search`) is RRF fusion via
 `search/hybrid.py::merge_results()`. The same fusion will be wired into
