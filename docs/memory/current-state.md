@@ -2,6 +2,31 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-30 — refactor(runtime): remove DB-poll pipeline entrypoints (#545 S4)
+
+Status: Done — PR #580 merged to main
+Source: issue #545, PR #580
+
+DB-poll pipeline removed from the entire runtime:
+
+| Area | Change |
+|---|---|
+| `src/services/pipeline/runner.py` | Deleted (630 lines, DB-poll loop + `__main__`) |
+| `src/services/pipeline/vector_worker.py` | Deleted (419 lines, DB-poll loop + `__main__`) |
+| `docker-compose.yml` | Removed `pipeline-worker` and `vector-worker` services (profiles: `db-poll`) |
+| `src/shared/config.py` | Removed `ingest_mode` field |
+| `.env.example`, `.env.airgap.example`, both Compose files | Removed `INGEST_MODE` env var |
+| `tests/unit/test_pipeline_runner.py` | Deleted (623 lines, entirely DB-poll-specific) |
+| `tests/unit/test_worker_observability.py` | Removed `TestPipelineRunnerMetrics` and `TestVectorWorkerMetrics` |
+
+`rabbitmq_enabled` preserved — live checks in `scheduler.py`, `admin/ingestion.py`, `publisher.py`.
+
+Canonical pipeline is RabbitMQ-only. #545 S5 (docs/smoke cleanup) remains.
+
+Next action: #544 model-provider adapter and #558 remain out of scope for this slice.
+
+---
+
 ## 2026-05-30 — refactor(search): remove Elasticsearch entirely (#545 S2 + S3)
 
 Status: Done — PR #573 merged to main
