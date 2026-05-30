@@ -2,6 +2,33 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-30 — feat(agents): audit logging and usage limits — #561, PR #595
+
+Status: Done — PR #595 squash-merged to main (commit 9d28657), branch deleted
+Source: issue #561, PR #595, Claude Code session
+
+**Goal:** Add safe audit logging and per-user rate limiting to the six `/api/agent/v1/*` researcher endpoints. MCP inherits both via REST proxying.
+
+**Changed files:**
+- `src/shared/rate_limit.py` (new) — `AgentRateLimiter`: in-process sliding window, two independent per-user buckets (general + ask_corpus), fail-closed on invalid config
+- `src/shared/config.py` — 4 new settings: `AGENT_RATE_LIMIT_ENABLED/WINDOW_SECONDS/CALLS_PER_WINDOW/ASK_CORPUS_CALLS_PER_WINDOW`
+- `src/services/api/main.py` — `AgentRateLimiter` instantiated in `create_app`, stored as `app.state.agent_rate_limiter`
+- `src/services/api/routers/agent.py` — `_agent_audit_log()` helper + rate-check + audit call in all 6 endpoints
+- `src/services/mcp/server.py` — HTTP 429 added to `_translate_error`
+- `tests/unit/test_rate_limit.py` (new) — 18 tests; `tests/unit/test_mcp_server.py` — 429 case
+- `tests/integration/test_agent_api.py` — 8 new tests; `_StubLLM.model` fixed from instance attr to `@property`
+- `docs/operators/ai-surfaces.md` — operator reference section added; `CHANGELOG.md` — entry added
+
+**Key invariants:**
+- Audit log never contains raw query/question text, document content, JWTs, auth headers, or secrets
+- MCP tools do NOT have separate audit events or rate limits — REST-side enforcement covers both paths automatically
+- Limits are in-memory only — reset on restart; not synchronized across replicas
+
+**Next agent prompt:**
+> #561 is on main (PR #595, commit 9d28657). Researcher API has audit logging and per-user rate limits. MCP inherits both. Normal search/RAG paths unaffected. Next candidates: #562 (permission regression test expansion) or #563 (Hermes workflow docs).
+
+---
+
 ## 2026-05-30 — feat(admin): source profiles P1 — #585, PR #594
 
 Status: Done — PR #594 squash-merged to main (commit cf1d41d), branch deleted

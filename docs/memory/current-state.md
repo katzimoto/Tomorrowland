@@ -2,6 +2,26 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-30 — feat(agents): audit logging and usage limits for researcher API — #561, PR #595
+
+Status: Done — PR #595 squash-merged to main (commit 9d28657), branch deleted
+Source: issue #561, PR #595, Claude Code session
+
+Structured audit logging and per-user rate limiting for all six `/api/agent/v1/*` endpoints.
+
+| Area | Detail |
+|---|---|
+| Audit logging | `_agent_audit_log()` helper in `agent.py` — emits structured `INFO` log line per call; logs route, user id, correlation id, query length, result count, latency, status; never logs raw text, JWTs, or auth headers |
+| Rate limiter | `AgentRateLimiter` in `src/shared/rate_limit.py` — in-memory sliding window; two independent per-user buckets: general (100/60s) and ask_corpus (20/60s); fail-closes on invalid config at startup |
+| MCP inheritance | MCP tools proxy to REST — limits and audit events inherited automatically; no separate MCP enforcement; 429 added to `_translate_error` |
+| Config | `AGENT_RATE_LIMIT_ENABLED` (true), `AGENT_RATE_LIMIT_WINDOW_SECONDS` (60), `AGENT_RATE_LIMIT_CALLS_PER_WINDOW` (100), `AGENT_RATE_LIMIT_ASK_CORPUS_CALLS_PER_WINDOW` (20) |
+| Bug fix | `_StubLLM` in integration test fixture set `self.model` as instance attribute against read-only `@property` on `LLMProvider` Protocol — fixed to `@property` |
+| Operator docs | New section in `docs/operators/ai-surfaces.md` — audit event format, what is/isn't logged, rate limit table, MCP behavior, troubleshooting |
+| Tests | 18 unit tests (rate limiter) + 8 integration tests (audit emission, no-leak, 429, per-user isolation, disabled limiter, MCP 429 translation) |
+| Verified | ruff clean, ruff format clean, mypy clean on changed files, 31 integration tests pass |
+
+---
+
 ## 2026-05-30 — feat(admin): source profiles P1 — #585, PR #594, commit cf1d41d
 
 Status: Done — PR #594 squash-merged to main, branch deleted
