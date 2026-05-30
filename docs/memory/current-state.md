@@ -2,6 +2,36 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-30 — feat(models): model provider registry foundation — #544 S1, PR #584 merged
+
+Status: Done — PR #584 merged to main (squash commit 6860555)
+Source: issue #574 (S1 of #544), PR #584, Claude Code session
+
+Model provider registry foundation on main. No runtime behavior change.
+
+| Area | Detail |
+|---|---|
+| Protocol | `BaseModelProviderAdapter`, `ProviderCapabilities`, `ProviderHealthResult` in `src/services/intelligence/adapters/base.py` |
+| DB schema | `model_providers`, `model_descriptors`, `model_task_defaults` — locality/enabled/timestamps/unique constraints |
+| Migration | `z0a1b2c3d4e5` — additive, empty tables, no seed data; downgrade is clean |
+| Repository | `ModelProviderRepository` typed CRUD in `src/services/intelligence/model_provider_repository.py` |
+| Tests | 32 unit + 4 migration tests |
+
+Review fixes applied before merge (commit 0497647):
+- `set_task_default` re-queries DB after upsert so returned `id` matches the actual row (not the discarded new UUID)
+- Removed dead `repo` fixture from unit tests
+- Dropped `frozen=True` from `ProviderCapabilities`/`ProviderHealthResult` (mutable `extra: dict` was inconsistent)
+
+Remaining #544 slices:
+- S2 #575 — embedding adapter extensions
+- S3 #576 — generation/chat adapters
+- S4 #577 — admin provider registry API
+- S5 #578 — task-default resolver/service wiring
+
+Next action: Pick up S2 (#575) — embedding adapter.
+
+---
+
 ## 2026-05-30 — docs: canonical MVP runtime cleanup (#545 S5)
 
 Status: Done

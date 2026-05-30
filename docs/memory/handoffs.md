@@ -2,6 +2,36 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-30 — feat(models): model provider registry foundation — #544 S1, PR #584
+
+Status: Done — merged to main
+Source: issue #574 (S1), PR #584, Claude Code session
+
+**Goal:** Lay the schema and protocol foundation for multi-provider model registry. No runtime behavior change.
+
+**Changed files:**
+- `migrations/versions/z0a1b2c3d4e5_add_model_provider_registry_tables.py` (new)
+- `src/services/intelligence/adapters/__init__.py` (new)
+- `src/services/intelligence/adapters/base.py` (new) — `BaseModelProviderAdapter` Protocol, `ProviderCapabilities`, `ProviderHealthResult`
+- `src/services/intelligence/model_provider_models.py` (new) — Pydantic CRUD models
+- `src/services/intelligence/model_provider_repository.py` (new) — `ModelProviderRepository`
+- `tests/unit/test_model_provider_repository.py` (new) — 32 tests
+- `tests/test_migrations.py` — 4 new migration tests appended
+- `CHANGELOG.md` — Unreleased entry added
+
+**Review fixes (commit 0497647 on PR branch before merge):**
+- `set_task_default`: ON CONFLICT upsert returned freshly generated UUID instead of existing row id — fixed by re-querying with `get_task_default(task_type)` after execute
+- `test_set_task_default_upsert`: added `assert upserted.id == original.id` to lock in fix
+- Removed dead `repo` fixture (connection closed before any test could use it)
+- Dropped `frozen=True` from `ProviderCapabilities` / `ProviderHealthResult` — mutable `extra: dict` made frozen inconsistent
+
+**Verification:** 32 unit tests passed; 4 migration tests passed; ruff/mypy clean per PR body.
+
+**Next agent prompt:**
+> S1 (#544/#574) is on main. Pick up S2 (#575) — embedding adapter extensions. The `BaseModelProviderAdapter` protocol in `src/services/intelligence/adapters/base.py` is the extension point; add an `EmbeddingAdapter` sub-protocol there and implement the Ollama embedding adapter as the first concrete class. Do not touch service wiring (S5/#578).
+
+---
+
 ## 2026-05-29 — ci(e2e): PR-gated smoke workflows — issue #547, PR #567
 
 Status: Done — merged to main
