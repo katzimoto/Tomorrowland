@@ -2,6 +2,38 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-30 — feat(#579): #544 S6 admin UI — COMPLETE, PR #591 merged
+
+Status: Done — squash-merged to main (commit 2ab796d, branch deleted)
+Source: issue #579 (S6 of #544), PR #591, Claude Code session
+
+Admin UI and operator docs for the model provider registry. Completes the full #544 track (S1–S6 all on main).
+
+| Area | Detail |
+|---|---|
+| Route | `/admin/model-providers` — lazy-loaded under appRoute |
+| Provider list | Name, type badge, locality badge (local/self_hosted/external), enabled/disabled, credential_set state |
+| Create/edit | Dialog with provider type, base URL, locality, credential (masked, type=password, autoComplete=new-password) |
+| Delete | Explicit Dialog confirmation; warns all descriptors removed |
+| Credential UX | `credential_set: boolean` only — plaintext never sent to frontend; `api_key_ref` nulled in `_provider_to_response` |
+| Descriptor management | Per-provider dialog: list, create/edit/delete (Dialog confirmations); context window display in K |
+| Task defaults | Table + add/edit/delete (Dialog confirmations); env fallback text when empty |
+| Health/discover | Per-row Test + Discover buttons; results inline; consistent error display |
+| Reload | `Reload` button triggers `POST /admin/model-providers/reload` in-process |
+| Admin hub | `Cpu` icon card added to AdminHubPage |
+| Operator docs | `docs/operations/model-providers.md` — Ollama, OpenAI-compat, LiteLLM, llama.cpp, locality/SSRF, credential handling, air-gapped deployment, task defaults with env fallback |
+| Tests | 23 unit tests (23/23 pass) — list, CRUD, credential masking, descriptor, task defaults, health/discover, empty/loading/error, Add Task Default dialog |
+
+Review findings fixed before merge:
+- Blocking: "Add Task Default" button was a no-op (`setTaskDefaultEdit(null)` on already-null state); dialog guard `open={!!taskDefaultEdit}` never opened for new creates. Fixed via `addTdOpen` state.
+- `api_key_ref` (internal credential store key name) traveled over the wire unnecessarily — nulled in `_provider_to_response`; dropped from frontend TypeScript type.
+- `renderTestResult` variable `isOk` was named backwards (logic correct, name misleading) — renamed to `isError`.
+- Mutation payload types tightened from `Record<string, unknown>` to `ModelProviderUpdatePayload` / `ModelDescriptorCreatePayload`.
+- Descriptor and task-default deletes replaced inline `confirm()` with Dialog confirmations (consistent with provider delete).
+- Whitespace churn on `LazyAdminUserDetailPage` in routes.tsx reverted.
+
+---
+
 ## 2026-05-30 — feat(models): task-default resolver wired into consumers — #578 merged
 
 Status: Done — PR #590 squash-merged to main (branch feat/task-default-resolver-578)

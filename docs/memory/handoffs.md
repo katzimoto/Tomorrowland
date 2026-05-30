@@ -2,6 +2,42 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-30 — feat(#579): #544 S6 admin UI — COMPLETE, PR #591
+
+Status: Done — squash-merged to main (commit 2ab796d, branch deleted)
+Source: issue #579 (S6 of #544), PR #591, Claude Code session
+
+**Goal:** Admin UI for model providers, model descriptors, and task defaults. Operator docs. Completes #544.
+
+**Changed files:**
+- `frontend/src/api/admin.ts` — 15 API methods + TypeScript types for provider/descriptor/task-default endpoints; `api_key_ref` dropped from `ModelProvider` interface
+- `frontend/src/app/routes.tsx` — `/admin/model-providers` route added
+- `frontend/src/features/admin/AdminHubPage.tsx` — `Cpu` icon card added
+- `frontend/src/features/admin/AdminModelProvidersPage.tsx` (new) — full CRUD with confirmation dialogs, masked credentials, test/discover actions, descriptor dialog, task default section, reload button
+- `frontend/src/features/admin/AdminModelProvidersPage.test.tsx` (new) — 23 unit tests
+- `docs/operations/model-providers.md` (new) — operator guide covering all provider types
+- `CHANGELOG.md` — S6 entry added
+- `src/services/api/routers/admin/model_providers.py` — `api_key_ref=None` in `_provider_to_response`
+
+**Review findings fixed before merge (commit 30d2e5c):**
+- Blocking: `addTdOpen` state added; "Add Task Default" button was calling `setTaskDefaultEdit(null)` (no-op) so dialog never opened for new creates
+- `api_key_ref` nulled in backend response; removed from TypeScript `ModelProvider` interface
+- `isOk` renamed `isError` in `renderTestResult` (logic correct, name was inverted)
+- Mutation types tightened from `Record<string, unknown>` to concrete payload interfaces
+- Descriptor and task-default deletes converted from `confirm()` to Dialog confirmations
+
+**Key invariants:**
+- `credential_set: boolean` is the only credential signal sent to frontend; `api_key_ref` stays backend-only
+- All destructive actions use Dialog confirmation
+- Task default dialog serves both create (`addTdOpen=true`) and edit (`taskDefaultEdit=<row>`) paths
+
+**#544 is fully complete. S1–S6 all on main.**
+
+**Next agent prompt:**
+> #544 is done — all six slices on main. Admin UI at `/admin/model-providers`. Operator docs at `docs/operations/model-providers.md`. Pick up from the release queue in AGENTS.md.
+
+---
+
 ## 2026-05-30 — feat(models): S5 task-default resolver wired into consumers — #544 S5, PR #590
 
 Status: Done — squash-merged to main (commit 65f0094, branch deleted)
