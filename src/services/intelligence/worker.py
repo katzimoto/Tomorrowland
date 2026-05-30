@@ -10,6 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from services.intelligence.llm_provider import LLMProvider, parse_json_array
+from services.intelligence.profile_repository import ProfileRepository
 from services.intelligence.repository import IntelligenceRepository
 from services.intelligence.summary_helpers import (
     MAX_SUMMARIZE_CHARS,
@@ -81,6 +82,10 @@ class IntelligenceWorker:
 
     Tasks are read from ``system_config`` feature flags. Failures are logged
     and swallowed — they never block ingestion.
+
+    When a *source_id* is provided alongside the document, the worker resolves
+    the active SourceProfile for that source and applies the configured
+    strategy fields to select existing code paths.
     """
 
     def __init__(
@@ -90,11 +95,13 @@ class IntelligenceWorker:
         config_source: Any | None = None,
         utility_model: str | None = None,
         resolver: TaskDefaultResolver | None = None,
+        profile_repo: ProfileRepository | None = None,
     ) -> None:
         self._repo = repository
         self._ollama = ollama_client
         self._config = config_source
         self._resolver = resolver
+        self._profile_repo = profile_repo
         # When set, cheap/repeated tasks use this model instead of the main
         # model. None means use the client default (single-model behavior).
         self._utility_model = utility_model or None
@@ -104,17 +111,49 @@ class IntelligenceWorker:
             if utility is not None and utility.model_name:
                 self._utility_model = utility.model_name
 
-    def process_document(self, document_id: UUID, content: str) -> None:
+    def process_document(
+        self, document_id: UUID, content: str, source_id: UUID | None = None
+    ) -> None:
         """Run enabled intelligence tasks for *document_id*.
 
         Tasks (summarize, extract_entities, auto_tag, key_points) run
         concurrently via a thread pool. Each task is independent — they
         share the same *content* but not each other's outputs.
 
+        If *source_id* is provided and a profile_repo is configured, the
+        active SourceProfile for that source is resolved and its strategy
+        fields are used to select existing code paths.  If no active profile
+        exists, current default behavior is preserved exactly.
+
         Failures in individual tasks are logged and swallowed so that LLM
         enrichment never blocks ingestion.  The pipeline job always succeeds
         from this method's perspective.
         """
+        # Resolve active SourceProfile for strategy routing
+        profile: dict[str, Any] | None = None
+        if source_id is not None and self._profile_repo is not None:
+            try:
+                profile = self._profile_repo.get_active_profile(source_id)
+            except Exception:
+                logger.warning(
+                    "Failed to resolve SourceProfile for source_id=%s "
+                    "document_id=%s; using defaults",
+                    source_id,
+                    document_id,
+                    exc_info=True,
+                )
+
+        if profile is not None:
+            logger.info(
+                "Using SourceProfile for source_id=%s document_id=%s "
+                "chunking=%s retrieval=%s extraction=%s",
+                source_id,
+                document_id,
+                profile.get("chunking_strategy", "default"),
+                profile.get("retrieval_strategy", "default"),
+                profile.get("extraction_strategy", "default"),
+            )
+
         tasks = self._enabled_tasks()
         if not tasks:
             return

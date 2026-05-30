@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Source profiles: per-source strategy configuration system — new
+  `source_profiles` table (migration `c4d5e6f7a8b9`) with configurable
+  domain type, chunking strategy, retrieval strategy, and extraction
+  strategy with DB-level CheckConstraints. `ProfileRepository` in
+  `src/services/intelligence/profile_repository.py` provides full CRUD
+  plus `activate_profile` (atomic one-active-per-source with auto-deprecation
+  of the previous active profile) and `deprecate_profile`.
+  Admin API at `/admin/source-profiles` with 7 endpoints: create (POST,
+  status 201), list (GET, optional `source_id` filter), get (GET by id),
+  update (PATCH), activate (POST `/{id}/activate`), deprecate (POST
+  `/{id}/deprecate`), and delete (DELETE; blocks active profiles).
+  All endpoints enforce admin auth and write audit log entries.
+  `IntelligenceWorker.process_document()` now accepts an optional
+  `source_id` parameter and resolves the active `SourceProfile` for
+  strategy routing — foundational wiring with logging; actual strategy
+  dispatch deferred to future work. 17 unit tests + 18 integration tests.
 - Issue #560: Hermes MCP adapter for researcher API — new
   `tomorrowland-mcp-server` binary exposes six read-only MCP tools
   (`search_documents`, `get_document`, `get_passages`, `ask_corpus`,

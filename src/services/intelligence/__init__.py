@@ -4,6 +4,7 @@ from services.intelligence.credential_store import CredentialStore, mask_credent
 from services.intelligence.factory import build_llm_provider
 from services.intelligence.llm_provider import LLMProvider, OpenAICompatibleLLMProvider
 from services.intelligence.ollama_client import OllamaClient
+from services.intelligence.profile_repository import ProfileRepository
 from services.intelligence.provider_registry import ProviderRegistry
 from services.intelligence.repository import IntelligenceRepository
 from services.intelligence.source_qa_repository import SourceQACheck, SourceQARepository
@@ -19,6 +20,7 @@ from services.intelligence.worker import IntelligenceWorker
 __all__ = [
     "IntelligenceWorker",
     "IntelligenceRepository",
+    "ProfileRepository",
     "LLMProvider",
     "OllamaClient",
     "OpenAICompatibleLLMProvider",

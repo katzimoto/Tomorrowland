@@ -175,6 +175,7 @@ def create_app(
     from services.api.routers.admin.jobs import router as admin_jobs_router
     from services.api.routers.admin.model_providers import router as admin_model_providers_router
     from services.api.routers.admin.rabbit import router as admin_rabbit_router
+    from services.api.routers.admin.source_profiles import router as admin_source_profiles_router
     from services.api.routers.admin.source_qa import router as admin_source_qa_router
     from services.api.routers.admin.sources import router as admin_sources_router
     from services.api.routers.admin.users import router as admin_users_router
@@ -205,6 +206,7 @@ def create_app(
     app.include_router(admin_jobs_router)
     app.include_router(admin_model_providers_router)
     app.include_router(admin_rabbit_router)
+    app.include_router(admin_source_profiles_router)
     app.include_router(admin_source_qa_router)
     app.include_router(vault_router)
     app.include_router(agent_router)
