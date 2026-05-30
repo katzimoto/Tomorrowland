@@ -11,6 +11,8 @@ from services.api._helpers import _record_source_sync_state, _sanitize_source_er
 from services.api.main import current_user
 from services.auth.models import TokenPayload
 from services.connectors.factory import build_connector
+from services.connectors.sync_models import SyncRunCreate, SyncRunUpdate
+from services.connectors.sync_repository import SyncRunRepository
 from services.documents.models import DocumentSource
 from services.documents.repository import DocumentRepository
 from services.permissions.enforcer import require_admin
@@ -91,13 +93,42 @@ def sync_now(
         if source_row is None:
             raise HTTPException(status_code=404, detail="Source not found")
 
+        connector_type = str(source_row["type"])
+
+        # Create a sync run record
+        sync_repo = SyncRunRepository(connection)
+
+        # Guard against concurrent syncs
+        if sync_repo.has_active_sync(source_id):
+            raise HTTPException(
+                status_code=409,
+                detail="Source already has an active sync in progress. "
+                "Wait for it to complete before starting a new one.",
+            )
+
+        sync_run = sync_repo.create(
+            SyncRunCreate(
+                source_id=source_id,
+                connector_type=connector_type,
+                sync_mode="incremental",
+            )
+        )
+        sync_run_id = sync_run.id
+        sync_repo.start(sync_run_id)
+
         try:
             connector = build_connector(source_row)
             connector.validate()
         except ValueError as exc:
             detail = _sanitize_source_error(str(exc), source_row)
+            sync_repo.complete(sync_run_id, "failed", error_summary=detail)
             _record_source_sync_state(
-                connection, source_id, status="failed", failed=1, error=detail
+                connection,
+                source_id,
+                status="failed",
+                failed=1,
+                error=detail,
+                sync_run_id=sync_run_id,
             )
             raise HTTPException(status_code=400, detail=detail) from exc
 
@@ -111,17 +142,23 @@ def sync_now(
             "enqueued": 0,
             "failed_discovery": 0,
             "failed_enqueue": 0,
+            "unchanged": 0,
         }
         pending_rabbit: list[dict[str, Any]] = []
         source_language = source_row.get("source_language")
-        connector_type = str(source_row["type"])
         originals_root = request.app.state.settings.files_root / "originals"
         try:
             documents = connector.fetch_documents(storage_root=originals_root)
         except NotImplementedError as exc:
             detail = _sanitize_source_error(str(exc), source_row)
+            sync_repo.complete(sync_run_id, "failed", error_summary=detail)
             _record_source_sync_state(
-                connection, source_id, status="failed", failed=1, error=detail
+                connection,
+                source_id,
+                status="failed",
+                failed=1,
+                error=detail,
+                sync_run_id=sync_run_id,
             )
             raise HTTPException(status_code=400, detail=detail) from exc
         except Exception as exc:
@@ -130,8 +167,14 @@ def sync_now(
                 "Check connector settings and source availability.",
                 source_row,
             )
+            sync_repo.complete(sync_run_id, "failed", error_summary=detail)
             _record_source_sync_state(
-                connection, source_id, status="failed", failed=1, error=detail
+                connection,
+                source_id,
+                status="failed",
+                failed=1,
+                error=detail,
+                sync_run_id=sync_run_id,
             )
             raise HTTPException(status_code=502, detail=detail) from exc
 
@@ -223,13 +266,30 @@ def sync_now(
 
         if results["discovered"] > 0 and results["failed_discovery"] == results["discovered"]:
             sync_outcome = "failed"
+            sync_run_status: str = "failed"
         elif results["failed_enqueue"] > 0 or results["failed_discovery"] > 0:
             sync_outcome = "partial_failure"
+            sync_run_status = "completed_with_warnings"
         else:
             sync_outcome = "success"
+            sync_run_status = "completed"
+
         request.app.state.metrics.ingestion_syncs_total.labels(
             safe_label_value(connector_type), sync_outcome
         ).inc()
+
+        # Record final counts before completing — complete() sets the terminal status
+        sync_repo.update(
+            sync_run_id,
+            SyncRunUpdate(
+                documents_discovered=results["discovered"],
+                documents_created=results["created"],
+                documents_skipped=results["skipped"],
+                documents_failed=results["failed_discovery"] + results["failed_enqueue"],
+            ),
+        )
+        sync_repo.complete(sync_run_id, sync_run_status)  # type: ignore[arg-type]
+
         _record_source_sync_state(
             connection,
             source_id,
@@ -237,8 +297,9 @@ def sync_now(
             indexed=results["enqueued"],
             skipped=results["skipped"],
             failed=results["failed_discovery"] + results["failed_enqueue"],
+            sync_run_id=sync_run_id,
         )
     # Publish to RabbitMQ after transaction commits so consumers see the documents
     _publish_pending_rabbit_messages(request, pending_rabbit)
 
-    return {"status": sync_outcome, **results}
+    return {"status": sync_outcome, "sync_run_id": str(sync_run_id), **results}

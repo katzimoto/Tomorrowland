@@ -19,6 +19,8 @@ from sqlalchemy.engine import Engine
 
 from services.api._helpers import _record_source_sync_state, _sanitize_source_error
 from services.connectors.factory import build_connector
+from services.connectors.sync_models import SyncRunCreate, SyncRunUpdate
+from services.connectors.sync_repository import SyncRunRepository
 from services.documents.models import DocumentSource
 from services.documents.repository import DocumentRepository
 from services.pipeline.jobs import PipelineJobRepository
@@ -153,73 +155,71 @@ def _sync_source(
     """
     doc_repo = DocumentRepository(connection)
     job_repo = PipelineJobRepository(connection)
-
-    source_language = source_row.get("source_language")
+    sync_repo = SyncRunRepository(connection)
     pending_rabbit: list[dict[str, Any]] = []
 
-    def _record_dlq(document_id: UUID | None, message: str) -> None:
-        connection.execute(
-            sa.text(
-                """
-                INSERT INTO dlq (id, document_id, error_message, status)
-                VALUES (:id, :document_id, :error_message, 'pending')
-                """
-            ),
-            {
-                "id": db_uuid(uuid4()),
-                "document_id": (db_uuid(document_id) if document_id is not None else None),
-                "error_message": message,
-            },
+    # Guard against concurrent syncs for scheduled sources
+    if sync_repo.has_active_sync(source_id):
+        logger.warning(
+            "scheduled sync skipped source_id=%s — active sync already in progress",
+            source_id,
         )
+        return pending_rabbit
 
+    # Create and start a sync run
     connector_type = str(source_row["type"])
-    try:
-        connector = build_connector(source_row)
-    except ValueError as exc:
+    sync_run = sync_repo.create(
+        SyncRunCreate(
+            source_id=source_id,
+            connector_type=connector_type,
+            sync_mode="incremental",
+        )
+    )
+    sync_run_id = sync_run.id
+    sync_repo.start(sync_run_id)
+
+    source_language = source_row.get("source_language")
+
+    def _fail_sync(error: str) -> None:
+        if not sync_repo.complete(sync_run_id, "failed", error_summary=error):
+            logger.warning(
+                "sync_run %s was not in running state when failing — skipping completion",
+                sync_run_id,
+            )
         _record_source_sync_state(
             connection,
             source_id,
             status="failed",
             failed=1,
-            error=_sanitize_source_error(str(exc), source_row),
+            error=error,
+            sync_run_id=sync_run_id,
         )
+
+    try:
+        connector = build_connector(source_row)
+    except ValueError as exc:
+        _fail_sync(_sanitize_source_error(str(exc), source_row))
         return pending_rabbit
 
     try:
         connector.validate()
     except ValueError as exc:
-        _record_source_sync_state(
-            connection,
-            source_id,
-            status="failed",
-            failed=1,
-            error=_sanitize_source_error(str(exc), source_row),
-        )
+        _fail_sync(_sanitize_source_error(str(exc), source_row))
         return pending_rabbit
 
     originals_root = (files_root / "originals") if files_root is not None else None
     try:
         documents = connector.fetch_documents(storage_root=originals_root)
     except NotImplementedError as exc:
-        _record_source_sync_state(
-            connection,
-            source_id,
-            status="failed",
-            failed=1,
-            error=_sanitize_source_error(str(exc), source_row),
-        )
+        _fail_sync(_sanitize_source_error(str(exc), source_row))
         return pending_rabbit
     except Exception:
-        _record_source_sync_state(
-            connection,
-            source_id,
-            status="failed",
-            failed=1,
-            error=_sanitize_source_error(
+        _fail_sync(
+            _sanitize_source_error(
                 "Sync failed while reading source documents. "
                 "Check connector settings and source availability.",
                 source_row,
-            ),
+            )
         )
         return pending_rabbit
 
@@ -228,6 +228,7 @@ def _sync_source(
     skipped = 0
     enqueued = 0
     failed_discovery = 0
+    failed_enqueue = 0
 
     try:
         for item in documents:
@@ -273,7 +274,18 @@ def _sync_source(
                         }
                     )
                 except Exception:
-                    _record_dlq(doc.id, "Failed to enqueue document for processing")
+                    failed_enqueue += 1
+                    connection.execute(
+                        sa.text(
+                            "INSERT INTO dlq (id, document_id, error_message, status) "
+                            "VALUES (:id, :document_id, :error_message, 'pending')"
+                        ),
+                        {
+                            "id": db_uuid(uuid4()),
+                            "document_id": db_uuid(doc.id),
+                            "error_message": "Failed to enqueue document for processing",
+                        },
+                    )
             except Exception:
                 failed_discovery += 1
     except Exception:
@@ -286,30 +298,52 @@ def _sync_source(
             source_id,
             connector_type,
         )
-        _record_source_sync_state(
-            connection,
-            source_id,
-            status="failed",
-            indexed=enqueued,
-            skipped=skipped,
-            failed=failed_discovery + 1,
-            error=_sanitize_source_error(
+        sync_repo.update(
+            sync_run_id,
+            SyncRunUpdate(
+                documents_discovered=discovered,
+                documents_created=created,
+                documents_skipped=skipped,
+                documents_failed=failed_discovery + 1,
+            ),
+        )
+        _fail_sync(
+            _sanitize_source_error(
                 "Sync interrupted: unexpected error while reading source documents.",
                 source_row,
-            ),
+            )
         )
         return pending_rabbit
 
-    failed_enqueue = discovered - created - skipped - failed_discovery
+    # failed_enqueue is tracked explicitly in the inner exception handler
 
-    # "failed" means every discovered document was rejected — nothing made it
-    # through.  The previous condition `failed_discovery > 0 and discovered == 0`
-    # was logically unreachable because discovered is always >= failed_discovery.
-    sync_outcome = (
-        "failed"
-        if discovered > 0 and failed_discovery == discovered
-        else ("partial_failure" if failed_enqueue > 0 or failed_discovery > 0 else "success")
+    # Determine outcome
+    if discovered > 0 and failed_discovery == discovered:
+        sync_outcome = "failed"
+        sync_run_status = "failed"
+    elif failed_enqueue > 0 or failed_discovery > 0:
+        sync_outcome = "partial_failure"
+        sync_run_status = "completed_with_warnings"
+    else:
+        sync_outcome = "success"
+        sync_run_status = "completed"
+
+    # Record final counts before completing — complete() sets the terminal status
+    sync_repo.update(
+        sync_run_id,
+        SyncRunUpdate(
+            documents_discovered=discovered,
+            documents_created=created,
+            documents_skipped=skipped,
+            documents_failed=failed_discovery + failed_enqueue,
+        ),
     )
+    if not sync_repo.complete(sync_run_id, sync_run_status):  # type: ignore[arg-type]
+        logger.warning(
+            "sync_run %s was not in running state when completing (status=%s)",
+            sync_run_id,
+            sync_run_status,
+        )
 
     _record_source_sync_state(
         connection,
@@ -318,12 +352,14 @@ def _sync_source(
         indexed=enqueued,
         skipped=skipped,
         failed=failed_discovery + failed_enqueue,
+        sync_run_id=sync_run_id,
     )
 
     logger.info(
-        "scheduled sync source_id=%s outcome=%s",
+        "scheduled sync source_id=%s outcome=%s sync_run_id=%s",
         source_id,
         sync_outcome,
+        sync_run_id,
     )
 
     return pending_rabbit

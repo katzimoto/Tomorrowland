@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -29,6 +30,12 @@ class ConnectorDocument:
 
     File-based connectors set *path* and leave *text_content* as None.
     API/network connectors set *text_content* and leave *path* as None.
+
+    .. attribute:: last_modified
+
+        Upstream last-modified timestamp used by the sync cycle to detect
+        changed content without re-hashing every document.  Connectors that
+        have access to this data (e.g. Confluence/Jira) should populate it.
     """
 
     external_id: str
@@ -39,6 +46,7 @@ class ConnectorDocument:
     metadata: dict[str, Any] = field(default_factory=dict)
     path: str | None = None
     text_content: str | None = None
+    last_modified: datetime | None = None
 
 
 class SourceConnector(Protocol):
