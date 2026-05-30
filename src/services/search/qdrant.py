@@ -245,6 +245,81 @@ class QdrantSearchClient:
 
         return search_results
 
+    def list_chunks_by_document(
+        self,
+        document_id: str,
+        group_ids: list[str],
+        allow_all: bool = False,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[SearchResult]:
+        """List chunks belonging to *document_id* using Qdrant scroll.
+
+        Always applies the same group-id permission filter used by ``search``
+        as a defence-in-depth measure: even if the caller has already verified
+        document access at the application level, this method refuses to
+        return chunks whose payload ``group_id`` does not overlap *group_ids*
+        unless *allow_all* is True (admin bypass).
+
+        Results are ordered by ``chunk_index`` ascending. *offset* is applied
+        client-side after pagination so callers can safely page through chunks
+        without leaking points from other documents.
+        """
+        if not group_ids and not allow_all:
+            return []
+
+        if not self._client.collection_exists(collection_name=self._collection_name):
+            return []
+
+        must_conditions: list[Any] = [
+            FieldCondition(key="document_id", match=MatchValue(value=document_id)),
+        ]
+        if group_ids:
+            must_conditions.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
+        scroll_filter = Filter(must=must_conditions)
+
+        # Pull a generous page from Qdrant; we sort + paginate client-side so
+        # chunks come back in stable chunk_index order regardless of point id.
+        scroll_limit = max(limit + offset, 1)
+        points, _ = self._client.scroll(
+            collection_name=self._collection_name,
+            scroll_filter=scroll_filter,
+            limit=scroll_limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        results: list[SearchResult] = []
+        for point in points:
+            payload = point.payload or {}
+            meta: dict[str, Any] = {"chunk_id": payload.get("chunk_id", str(point.id))}
+            for extra_key in (
+                "source_id",
+                "title",
+                "source_language",
+                "chunk_index",
+                "page_number",
+                "section_heading",
+            ):
+                if extra_key in payload:
+                    meta[extra_key] = payload[extra_key]
+            results.append(
+                SearchResult(
+                    document_id=payload.get("document_id", ""),
+                    score=0.0,
+                    chunk_text=payload.get("text"),
+                    metadata=meta,
+                )
+            )
+
+        results.sort(
+            key=lambda r: (
+                int((r.metadata or {}).get("chunk_index") or 0),
+                (r.metadata or {}).get("chunk_id") or "",
+            )
+        )
+        return results[offset : offset + limit]
+
     def delete_by_doc_id(self, document_id: str) -> None:
         """Remove all chunks belonging to *document_id*."""
         if not self._client.collection_exists(collection_name=self._collection_name):

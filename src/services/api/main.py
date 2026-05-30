@@ -178,6 +178,7 @@ def create_app(
     from services.api.routers.admin.source_qa import router as admin_source_qa_router
     from services.api.routers.admin.sources import router as admin_sources_router
     from services.api.routers.admin.users import router as admin_users_router
+    from services.api.routers.agent import router as agent_router
     from services.api.routers.alerts import router as alerts_router
     from services.api.routers.annotations import router as annotations_router
     from services.api.routers.auth import router as auth_router
@@ -206,5 +207,6 @@ def create_app(
     app.include_router(admin_rabbit_router)
     app.include_router(admin_source_qa_router)
     app.include_router(vault_router)
+    app.include_router(agent_router)
 
     return app

@@ -8,7 +8,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
-from sqlalchemy.engine import Connection
+from sqlalchemy.engine import Connection, RowMapping
 
 from shared.db import db_uuid, to_uuid
 
@@ -68,7 +68,7 @@ class SourceQACheck:
         }
 
     @classmethod
-    def from_row(cls, row: dict[str, Any]) -> SourceQACheck:
+    def from_row(cls, row: RowMapping) -> SourceQACheck:
         raw_issues = row.get("issues")
         return cls(
             source_id=to_uuid(row["source_id"]),
