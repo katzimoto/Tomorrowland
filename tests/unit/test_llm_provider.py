@@ -292,6 +292,49 @@ def test_openai_compatible_generate_timeout_error_raises() -> None:
         provider.generate("prompt")
 
 
+def test_openai_compatible_generate_stream_http_error_raises() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+    resp = MagicMock()
+    resp.status_code = 401
+    exc = httpx.HTTPStatusError("401", request=MagicMock(), response=resp)
+    resp.raise_for_status.side_effect = exc
+    stream_ctx = MagicMock()
+    stream_ctx.__enter__.return_value = resp
+    stream_ctx.__exit__.return_value = False
+
+    with (
+        patch("services.intelligence.llm_provider.httpx.stream", return_value=stream_ctx),
+        pytest.raises(httpx.HTTPStatusError),
+    ):
+        list(provider.generate_stream("prompt"))
+
+
+def test_openai_compatible_generate_stream_connect_error_raises() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+
+    with (
+        patch(
+            "services.intelligence.llm_provider.httpx.stream",
+            side_effect=httpx.ConnectError("refused"),
+        ),
+        pytest.raises(httpx.ConnectError),
+    ):
+        list(provider.generate_stream("prompt"))
+
+
+def test_openai_compatible_generate_stream_timeout_raises() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+
+    with (
+        patch(
+            "services.intelligence.llm_provider.httpx.stream",
+            side_effect=httpx.TimeoutException("timed out"),
+        ),
+        pytest.raises(httpx.TimeoutException),
+    ):
+        list(provider.generate_stream("prompt"))
+
+
 def test_openai_compatible_model_property() -> None:
     provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="my-model")
     assert provider.model == "my-model"
@@ -369,12 +412,18 @@ def test_factory_unknown_provider_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("provider_name", ["openai", "litellm", "llama-cpp"])
+@pytest.mark.parametrize("provider_name", ["litellm", "llama-cpp"])
 def test_factory_new_providers_return_openai_compatible(provider_name: str) -> None:
     settings = _settings(llm_provider=provider_name)
     provider = build_llm_provider(settings)
     assert isinstance(provider, OpenAICompatibleLLMProvider)
     assert provider.model == "mistral"
+
+
+def test_factory_openai_requires_api_key() -> None:
+    settings = _settings(llm_provider="openai")
+    with pytest.raises(ValueError, match="LLM_API_KEY"):
+        build_llm_provider(settings)
 
 
 def test_factory_openai_passes_api_key() -> None:

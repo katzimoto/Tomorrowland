@@ -237,11 +237,11 @@ class OpenAICompatibleLLMProvider:
                         content = delta.get("content", "")
                         if content:
                             yield content
-        except httpx.HTTPStatusError:
+        except httpx.HTTPStatusError as exc:
             logger.warning(
                 "openai-compatible stream HTTP error model=%s status=%s",
                 target_model,
-                response.status_code,
+                exc.response.status_code,
             )
             raise
         except httpx.ConnectError:
