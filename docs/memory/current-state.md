@@ -2,10 +2,10 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
-## 2026-05-30 — feat(admin): source profiles — per-source strategy configuration
+## 2026-05-30 — feat(admin): source profiles P1 — #585, PR #594, commit cf1d41d
 
-Status: Pending — PR preparation in progress
-Source: Working tree on main
+Status: Done — PR #594 squash-merged to main, branch deleted
+Source: issue #585, PR #594, Claude Code session
 
 New `source_profiles` system for per-source strategy configuration (domain type,
 chunking, retrieval, extraction). Admin-only API with full CRUD, activate/deprecate
@@ -13,12 +13,12 @@ lifecycle, and audit logging. Foundational wiring into `IntelligenceWorker`.
 
 | Area | Detail |
 |---|---|
-| Migration | `c4d5e6f7a8b9` — `source_profiles` table with DB-level CheckConstraints on enum fields |
+| Migration | `c4d5e6f7a8b9` — `source_profiles` table with DB-level CheckConstraints on all enum fields (sa.text() consistent) |
 | Repository | `ProfileRepository` — CRUD + `activate_profile` (atomic one-active-per-source) + `deprecate_profile` + `delete_profile` (blocks active) in `src/services/intelligence/profile_repository.py` |
-| Admin API | `GET/POST/PATCH/DELETE /admin/source-profiles` + `POST /{id}/activate` + `POST /{id}/deprecate` in `src/services/api/routers/admin/source_profiles.py`; all admin-only with audit logs |
+| Admin API | 8 endpoints under `/admin/source-profiles` incl. `GET /active/{source_id}`; all admin-only with audit logs (update includes source_id/domain_type) |
 | Worker integration | `IntelligenceWorker.process_document()` accepts `source_id`, resolves active profile for strategy routing (logging only; dispatch deferred) |
-| Tests | 17 unit tests (repository CRUD, enum validation, activate/deprecate/delete edge cases) + 18 integration tests (auth, CRUD, provider references, enum rejection, one-active enforcement) |
-| Verified | ruff clean, ruff format clean, mypy strict clean |
+| Tests | 22 unit tests (repository + worker profile path) + 20 integration tests (incl. active-by-source) |
+| Verified | ruff clean, ruff format clean, mypy clean on changed files |
 
 ---
 

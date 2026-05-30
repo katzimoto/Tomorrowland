@@ -2,37 +2,27 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
-## 2026-05-30 — feat(admin): source profiles — per-source strategy configuration
+## 2026-05-30 — feat(admin): source profiles P1 — #585, PR #594
 
-Status: Pending — PR in preparation, working tree on main
-Source: Working tree on main (no issue number yet)
+Status: Done — PR #594 squash-merged to main (commit cf1d41d), branch deleted
+Source: issue #585, PR #594, Claude Code session
 
 **Goal:** Allow admins to configure per-source strategy profiles (domain type,
 chunking/retrieval/extraction strategies) with a full lifecycle: draft → active →
 deprecated. Wire the active profile into `IntelligenceWorker` for future strategy
 routing.
 
-**Changed files:**
-- `migrations/versions/c4d5e6f7a8b9_add_source_profiles_table.py` (new) — `source_profiles` table with FK to `ingestion_sources` and `model_providers`, CheckConstraints on all 4 strategy fields, config JSON column
-- `src/services/intelligence/profile_repository.py` (new) — `ProfileRepository` with `create_profile`, `get_profile`, `get_active_profile`, `list_profiles`, `update_profile`, `activate_profile` (atomic one-active-per-source with auto-deprecation), `deprecate_profile`, `delete_profile` (blocks active). Enum validation on all strategy fields.
-- `src/services/api/routers/admin/source_profiles.py` (new) — 7 endpoints under `/admin/source-profiles`: POST create (201), GET list (optional `source_id` filter), GET by id, PATCH update, POST `/{id}/activate`, POST `/{id}/deprecate`, DELETE (422 if active). Source existence validation, provider existence validation. Admin-only with audit logs.
-- `src/services/api/main.py` — router registered
-- `src/services/intelligence/__init__.py` — `ProfileRepository` exported
-- `src/services/intelligence/worker.py` — `process_document()` accepts `source_id`, resolves active profile, logs strategy fields
-- `src/services/pipeline/intelligence_consumer.py` — creates `ProfileRepository` and passes to `IntelligenceWorker`
-- `tests/unit/test_profile_repository.py` (new) — 17 tests
-- `tests/integration/test_source_profiles_api.py` (new) — 18 tests
-
-**Verification:** ruff clean, ruff format clean, mypy strict clean, 17/17 unit tests pass.
-
 **Key invariants:**
 - One active profile per source enforced atomically in `activate_profile` (previous active auto-deprecated)
 - Active profiles cannot be deleted (must deprecate first)
-- Delete with FK to `model_providers` uses `ON DELETE SET NULL`
+- `model_policy_provider_id` FK uses `ON DELETE SET NULL`
 - Worker integration is logging-only — strategy dispatch deferred to future work
+- `GET /admin/source-profiles/active/{source_id}` returns 404 when no active profile exists
+
+**Verification:** ruff clean, ruff format clean, mypy clean on changed files, 22 unit + 20 integration tests pass.
 
 **Next agent prompt:**
-> PR for source profiles is ready for review. Strategy dispatch (mapping profile fields to actual chunking/retrieval/extraction behavior) is the next logical piece.
+> #585 source profiles P1 is on main (PR #594, commit cf1d41d). Admin API at `/admin/source-profiles` (8 endpoints). Strategy dispatch — mapping profile fields to actual chunking/retrieval/extraction behavior in the intelligence worker — is the next piece.
 
 ---
 
