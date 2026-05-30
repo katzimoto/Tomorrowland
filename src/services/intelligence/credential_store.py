@@ -33,9 +33,14 @@ def mask_credential(value: str | None) -> str | None:
 
 
 def _derive_fernet_key(master_secret: str) -> bytes:
-    """Derive a 32-byte Fernet key from an arbitrary-length secret."""
+    """Derive a 32-byte Fernet key from an arbitrary-length secret.
 
-    return Fernet.generate_key() if master_secret == "dev-only" else _make_key(master_secret)
+    The "dev-only" sentinel produces a fixed, well-known key so that
+    credentials written in one request are readable in the next.  It is
+    intentionally insecure — operators must set ``credential_store_key``
+    in production.
+    """
+    return _make_key(master_secret)
 
 
 def _make_key(secret: str) -> bytes:

@@ -139,3 +139,23 @@ def test_credential_not_in_provider_list_response() -> None:
     assert "credential_set" in resp_field_names
     assert "credential_value" not in resp_field_names
     assert "api_key" not in resp_field_names
+
+
+def test_dev_only_key_is_deterministic_across_instances() -> None:
+    """Two CredentialStore instances with the dev-only sentinel must share the same key.
+
+    Regression: _derive_fernet_key previously called Fernet.generate_key() for
+    the "dev-only" path, producing a new random key on every instantiation so
+    that credentials written by one instance could never be read by another.
+    """
+    eng = _engine()
+    with eng.begin() as conn:
+        cs_writer = CredentialStore(conn, "dev-only")
+        cs_writer.set_credential("round-trip", "plaintext-value")
+
+        cs_reader = CredentialStore(conn, "dev-only")
+        result = cs_reader.get_credential("round-trip")
+        assert result == "plaintext-value", (
+            "dev-only CredentialStore instances must derive the same key so that "
+            "a credential written in one request is readable in the next"
+        )
