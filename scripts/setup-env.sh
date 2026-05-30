@@ -187,7 +187,7 @@ FILES_ROOT="$(prompt "FILES_ROOT" "/data")"
 CORS_ORIGINS="$(prompt "CORS_ORIGINS" "http://localhost:8080")"
 LIBRETRANSLATE_URL="$(prompt "LIBRETRANSLATE_URL" "http://libretranslate:5000")"
 OLLAMA_URL="$(prompt "OLLAMA_URL" "http://ollama:11434")"
-OLLAMA_MODEL="$(prompt "OLLAMA_MODEL" "mistral")"
+OLLAMA_MODEL="$(prompt "OLLAMA_MODEL" "qwen3:4b")"
 
 # Translation
 SUPPORTED_TRANSLATION_SOURCE_LANGUAGES="$(prompt "SUPPORTED_TRANSLATION_SOURCE_LANGUAGES" "en,he,zh,ko,th,ar,fr,ru,es")"

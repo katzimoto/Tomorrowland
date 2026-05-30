@@ -1,6 +1,6 @@
 FROM ollama/ollama:latest
 
-ARG OLLAMA_MODEL=qwen3.5:35b-a3b
+ARG OLLAMA_MODEL=qwen3:4b
 ARG EMBEDDING_MODEL=qwen3-embedding:8b
 
 RUN /bin/ollama serve & \

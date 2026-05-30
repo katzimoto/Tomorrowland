@@ -10,7 +10,7 @@ Usage: scripts/build-ollama-model-bundle.sh <version>
 Build a Tomorrowland Ollama model bundle on a connected machine.
 
 Environment:
-  OLLAMA_MODEL                         Model to pull (default: mistral)
+  OLLAMA_MODEL                         Model to pull (default: qwen3:4b)
   OLLAMA_RUNTIME_IMAGE                 Ollama image to use (default: ollama/ollama:latest)
   RELEASE_DIST_DIR                     Output directory (default: dist)
   OLLAMA_MODEL_LICENSE_NAME            Verified/operator-approved license name
@@ -38,7 +38,7 @@ docker info >/dev/null 2>&1 || fail "Docker daemon is not reachable"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-model="${OLLAMA_MODEL:-mistral}"
+model="${OLLAMA_MODEL:-qwen3:4b}"
 runtime_image="${OLLAMA_RUNTIME_IMAGE:-ollama/ollama:latest}"
 dist_dir="${RELEASE_DIST_DIR:-dist}"
 safe_version="${version//\//-}"

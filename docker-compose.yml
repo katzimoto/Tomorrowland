@@ -10,8 +10,8 @@ x-app-environment: &app-environment
   SUPPORTED_TRANSLATION_SOURCE_LANGUAGES: ${SUPPORTED_TRANSLATION_SOURCE_LANGUAGES:-en,he,zh,ko,th,ar,fr,ru,es}
   SUPPORTED_TRANSLATION_TARGET_LANGUAGES: ${SUPPORTED_TRANSLATION_TARGET_LANGUAGES:-en,he,zh,ko,th,ar,fr,ru,es}
   OLLAMA_URL: ${OLLAMA_URL:-http://ollama-llm:11434}
-  OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3.5:35b-a3b}
-  OLLAMA_UTILITY_MODEL: ${OLLAMA_UTILITY_MODEL:-qwen3:14b}
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+  OLLAMA_UTILITY_MODEL: ${OLLAMA_UTILITY_MODEL:-qwen3:1.7b}
   OLLAMA_RERANKER_MODEL: ${OLLAMA_RERANKER_MODEL:-}
   EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-}
   EMBEDDING_MODEL: ${EMBEDDING_MODEL:-qwen3-embedding:8b}
@@ -263,13 +263,13 @@ services:
       context: .
       dockerfile: docker/ollama-llm.Dockerfile
       args:
-        OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3.5:35b-a3b}
-        OLLAMA_UTILITY_MODEL: ${OLLAMA_UTILITY_MODEL:-qwen3:14b}
+        OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+        OLLAMA_UTILITY_MODEL: ${OLLAMA_UTILITY_MODEL:-qwen3:1.7b}
         OLLAMA_RERANKER_MODEL: ${OLLAMA_RERANKER_MODEL:-}
     restart: unless-stopped
     cpus: ${OLLAMA_CPUS:-2.00}
-    mem_limit: ${OLLAMA_MEM_LIMIT:-24g}
-    mem_reservation: ${OLLAMA_MEM_RESERVATION:-4g}
+    mem_limit: ${OLLAMA_MEM_LIMIT:-8g}
+    mem_reservation: ${OLLAMA_MEM_RESERVATION:-2g}
     pids_limit: ${OLLAMA_PIDS_LIMIT:-1024}
     environment:
       OLLAMA_MODELS: /root/.ollama/models

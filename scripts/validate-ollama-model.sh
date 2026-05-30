@@ -10,7 +10,7 @@ Usage: scripts/validate-ollama-model.sh [--smoke-test]
 Validate that the configured Ollama model is already available offline.
 Environment:
   OLLAMA_URL    Ollama API URL (default: http://localhost:11434)
-  OLLAMA_MODEL  Expected model (default: mistral)
+  OLLAMA_MODEL  Expected model (default: qwen3:4b)
 USAGE
 }
 
@@ -27,7 +27,7 @@ command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v python3 >/dev/null 2>&1 || fail "python3 is required"
 
 ollama_url="${OLLAMA_URL:-http://localhost:11434}"
-model="${OLLAMA_MODEL:-mistral}"
+model="${OLLAMA_MODEL:-qwen3:4b}"
 
 tags_json="$(mktemp)"
 cleanup() { rm -f "$tags_json"; }

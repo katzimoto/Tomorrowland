@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Issue #596: Default local setup to lighter Ollama models — `OLLAMA_MODEL`
+  defaults to `qwen3:4b` and `OLLAMA_UTILITY_MODEL` defaults to `qwen3:1.7b`
+  (~6–7 GiB RAM total) for improved first-run usability on modest hardware.
+  Updated `.env.example`, `docker-compose.yml`, `docker-compose.airgap.yml`,
+  `docker/ollama-llm.Dockerfile`, `docker/ollama.Dockerfile`, `src/shared/config.py`,
+  `src/shared/feature_flags.py`, `src/services/intelligence/ollama_client.py`,
+  `scripts/setup-env.sh`, `scripts/build-ollama-model-bundle.sh`, and
+  `scripts/validate-ollama-model.sh`. Operators who already set explicit
+  `OLLAMA_MODEL`/`OLLAMA_UTILITY_MODEL` overrides are unaffected. Larger
+  models (`qwen3:8b`, `qwen3:14b`, `qwen3.5:35b-a3b`) remain fully supported.
+
 ### Added
 - Issue #564: Air-gapped MCP adapter deployment — added `mcp-server` service
   to `docker-compose.airgap.yml` using the prebuilt backend image with
