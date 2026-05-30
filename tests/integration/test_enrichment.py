@@ -11,7 +11,7 @@ from sqlalchemy import Engine
 from services.api.main import create_app
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
-from services.documents.repository import DocumentRepository
+from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from services.search.qdrant import QdrantSearchClient
 from shared.config import Settings
 from shared.db import db_uuid
@@ -471,6 +471,92 @@ def test_slow_worker_processes_pending_high(
         user_group_id = AuthRepository(connection).ensure_group("users")
     qdrant_chunks = mock_qdrant.upsert_chunks.call_args.args[0]
     assert qdrant_chunks[0]["group_id"] == [str(user_group_id)]
+
+
+def test_enrich_consumer_resolves_pending_version(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    """The deployed enrich consumer must mark the pending version available and
+    re-index — not dead-end after translating (regression for the high-quality
+    translation never completing)."""
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.txt"
+    test_file.write_text("Bonjour le monde.")
+
+    source_id, document_id = _create_source_with_doc(
+        migrated_engine,
+        "users",
+        path=str(test_file),
+        translation_quality="pending_high",
+    )
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_translator = MagicMock()
+    mock_translator.translate.return_value = "Hello world."
+
+    from services.pipeline.enrich_worker import EnrichConsumer
+    from services.pipeline.jobs import PipelineJobRepository
+    from services.pipeline.slow_worker import SlowWorker
+    from services.search.encoder import DeterministicTestEncoder
+
+    with migrated_engine.begin() as connection:
+        doc_repo = DocumentRepository(connection)
+        version_repo = TranslationVersionRepository(connection)
+        job_repo = PipelineJobRepository(connection)
+
+        # A pending manual version is what request_translation / auto-enrich create.
+        version = version_repo.create_version(
+            document_id=UUID(document_id),
+            label="Manual en",
+            quality="high",
+            request_type="manual",
+            target_language="en",
+        )
+        job_id = job_repo.enqueue_document(
+            document_id=UUID(document_id),
+            source_id=UUID(source_id),
+            job_type="enrich_document",
+        )
+
+        worker = SlowWorker(
+            document_repository=doc_repo,
+            translator=mock_translator,
+            encoder=DeterministicTestEncoder(),
+            qdrant_client=mock_qdrant,
+            version_repository=version_repo,
+        )
+        consumer = EnrichConsumer(MagicMock(), job_repo, worker)
+        consumer.handle_message(
+            job_id=job_id,
+            document_id=UUID(document_id),
+            source_id=UUID(source_id),
+            attempt=1,
+            correlation_id="",
+            content_text="Bonjour le monde.",
+        )
+
+    # Version is now available with the translated text, and quality promoted.
+    with migrated_engine.begin() as connection:
+        row = connection.execute(
+            sa.text(
+                "SELECT status, translated_text FROM document_translation_versions WHERE id = :id"
+            ),
+            {"id": db_uuid(UUID(str(version["id"])))},
+        ).fetchone()
+        assert row[0] == "available"
+        assert row[1] == "Hello world."
+
+        quality = connection.execute(
+            sa.text("SELECT translation_quality FROM documents WHERE id = :id"),
+            {"id": db_uuid(UUID(document_id))},
+        ).scalar_one()
+        assert quality == "high"
+
+    mock_qdrant.upsert_chunks.assert_called_once()
 
 
 def test_slow_worker_failure_sets_failed(
