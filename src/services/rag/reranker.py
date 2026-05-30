@@ -6,6 +6,8 @@ import logging
 import re
 from typing import Any, Protocol
 
+import httpx
+
 from services.intelligence.llm_provider import LLMProvider
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,78 @@ class NoOpReranker:
 
     def rerank(self, chunks: list[dict[str, Any]], question: str) -> list[dict[str, Any]]:
         return chunks
+
+
+class CrossEncoderEndpointReranker:
+    """Dedicated cross-encoder reranker that calls an external HTTP endpoint.
+
+    Post ``{"query": <question>, "texts": [<chunk_texts>]}`` to the configured
+    endpoint and expects ``{"scores": [<float>, ...]}`` back.  This matches the
+    TEI (Text Embeddings Inference) cross-encoder API format used by Hugging
+    Face TEI, Infinity, and similar serving stacks.
+
+    Falls back to identity (returns chunks unchanged) on any error so the
+    RAG pipeline is never blocked by a reranker failure.
+
+    Only active when ``rerank_url`` is set; otherwise ``NoOpReranker`` is used.
+    """
+
+    def __init__(
+        self,
+        rerank_url: str,
+        model: str | None = None,
+        api_key: str | None = None,
+        min_score: float = 0.0,
+        top_n: int = 8,
+        timeout: float = 30.0,
+    ) -> None:
+        self._url = rerank_url.rstrip("/")
+        self._model = model
+        self._api_key = api_key
+        self._min_score = min_score
+        self._top_n = top_n
+        self._timeout = timeout
+
+    def rerank(self, chunks: list[dict[str, Any]], question: str) -> list[dict[str, Any]]:
+        if not chunks:
+            return chunks
+
+        texts = [(chunk.get("chunk_text", "") or "")[:2000] for chunk in chunks]
+        payload: dict[str, Any] = {"query": question, "texts": texts}
+        if self._model:
+            payload["model"] = self._model
+
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+
+        try:
+            response = httpx.post(
+                self._url,
+                json=payload,
+                headers=headers,
+                timeout=self._timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+            scores: list[float] | None = data.get("scores")
+            if scores is None or len(scores) != len(chunks):
+                logger.warning(
+                    "CrossEncoderEndpointReranker: expected %d scores, got %d",
+                    len(chunks),
+                    len(scores) if scores is not None else 0,
+                )
+                return chunks
+        except Exception:
+            logger.warning("CrossEncoderEndpointReranker request failed", exc_info=True)
+            return chunks
+
+        scored: list[tuple[float, dict[str, Any]]] = list(zip(scores, chunks, strict=True))
+        scored.sort(key=lambda pair: (-pair[0], pair[1].get("document_id", "")))
+        return [chunk for score, chunk in scored[: self._top_n] if score >= self._min_score]
 
 
 class CrossEncoderReranker:

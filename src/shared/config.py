@@ -50,11 +50,14 @@ class Settings(BaseSettings):
         """Model to use for reranking. Falls back through utility to main."""
         return self.ollama_reranker_model or self.effective_utility_model
 
-    # LLM generation provider — "ollama" (default) or "openai-compatible".
+    # LLM generation provider — "ollama" (default), "openai-compatible",
+    # "openai", "litellm", or "llama-cpp".
     # LLM_BASE_URL overrides OLLAMA_URL when set; LLM_MODEL overrides OLLAMA_MODEL.
+    # LLM_API_KEY is used for OpenAI-compatible providers that require Bearer auth.
     llm_provider: str = ""
     llm_base_url: str = ""
     llm_model: str = ""
+    llm_api_key: str = ""
 
     auth_provider: Literal["local", "ldap", "both"] = "both"
     ldap_url: str = "ldap://domain-controller:389"

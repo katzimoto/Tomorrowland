@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from services.rag.reranker import CrossEncoderReranker, NoOpReranker, Reranker
+import httpx
+
+from services.rag.reranker import (
+    CrossEncoderEndpointReranker,
+    CrossEncoderReranker,
+    NoOpReranker,
+    Reranker,
+)
 
 
 def _make_ollama_mock(*, responses: list[str] | None = None):
@@ -157,3 +164,151 @@ def test_cross_encoder_rerank_calls_generate_with_relevance_prompt() -> None:
     prompt = olly.generate.call_args[0][0]
     assert "What is the answer?" in prompt
     assert "specific document text" in prompt
+
+
+# ---------------------------------------------------------------------------
+# CrossEncoderEndpointReranker
+# ---------------------------------------------------------------------------
+
+
+def _make_endpoint_response(scores: list[float]) -> MagicMock:
+    resp = MagicMock()
+    resp.json.return_value = {"scores": scores}
+    resp.raise_for_status = MagicMock()
+    return resp
+
+
+def test_endpoint_reranker_orders_by_score() -> None:
+    reranker = CrossEncoderEndpointReranker(
+        rerank_url="http://reranker:8080/rerank",
+        min_score=0.0,
+        top_n=10,
+    )
+    chunks = [
+        {"document_id": "d1", "chunk_text": "low", "score": 0.3},
+        {"document_id": "d2", "chunk_text": "high", "score": 0.9},
+        {"document_id": "d3", "chunk_text": "medium", "score": 0.5},
+    ]
+    resp = _make_endpoint_response([0.2, 0.9, 0.5])
+
+    with patch("services.rag.reranker.httpx.post", return_value=resp):
+        result = reranker.rerank(chunks, "question")
+
+    assert [c["document_id"] for c in result] == ["d2", "d3", "d1"]
+
+
+def test_endpoint_reranker_filters_below_threshold() -> None:
+    reranker = CrossEncoderEndpointReranker(
+        rerank_url="http://reranker:8080/rerank",
+        min_score=0.5,
+        top_n=10,
+    )
+    chunks = [
+        {"document_id": "d1", "chunk_text": "a", "score": 0.5},
+        {"document_id": "d2", "chunk_text": "b", "score": 0.5},
+        {"document_id": "d3", "chunk_text": "c", "score": 0.5},
+    ]
+    resp = _make_endpoint_response([0.1, 0.9, 0.3])
+
+    with patch("services.rag.reranker.httpx.post", return_value=resp):
+        result = reranker.rerank(chunks, "question")
+
+    assert [c["document_id"] for c in result] == ["d2"]
+
+
+def test_endpoint_reranker_respects_top_n() -> None:
+    reranker = CrossEncoderEndpointReranker(
+        rerank_url="http://reranker:8080/rerank",
+        min_score=0.0,
+        top_n=2,
+    )
+    chunks = [{"document_id": f"d{i}", "chunk_text": f"text {i}", "score": 0.5} for i in range(5)]
+    resp = _make_endpoint_response([0.9, 0.8, 0.7, 0.6, 0.5])
+
+    with patch("services.rag.reranker.httpx.post", return_value=resp):
+        result = reranker.rerank(chunks, "question")
+
+    assert len(result) == 2
+
+
+def test_endpoint_reranker_falls_back_on_error() -> None:
+    """On any error, the reranker must return chunks unchanged."""
+    reranker = CrossEncoderEndpointReranker(
+        rerank_url="http://reranker:8080/rerank",
+        min_score=0.0,
+        top_n=10,
+    )
+    chunks = [
+        {"document_id": "d1", "chunk_text": "important", "score": 0.9},
+    ]
+
+    with patch(
+        "services.rag.reranker.httpx.post",
+        side_effect=httpx.ConnectError("down"),
+    ):
+        result = reranker.rerank(chunks, "question")
+
+    assert result is chunks
+    assert result == chunks
+
+
+def test_endpoint_reranker_sends_bearer_auth() -> None:
+    reranker = CrossEncoderEndpointReranker(
+        rerank_url="http://reranker:8080/rerank",
+        api_key="sk-test-key",
+        min_score=0.0,
+    )
+    chunks = [{"document_id": "d1", "chunk_text": "text", "score": 0.5}]
+    resp = _make_endpoint_response([0.8])
+
+    with patch("services.rag.reranker.httpx.post", return_value=resp) as m:
+        reranker.rerank(chunks, "question")
+
+    headers = m.call_args[1].get("headers", {})
+    assert headers.get("Authorization") == "Bearer sk-test-key"
+
+
+def test_endpoint_reranker_empty_input() -> None:
+    reranker = CrossEncoderEndpointReranker(
+        rerank_url="http://reranker:8080/rerank",
+    )
+    assert reranker.rerank([], "question") == []
+
+
+def test_endpoint_reranker_wrong_score_count_returns_original() -> None:
+    """When the endpoint returns the wrong number of scores, return chunks unchanged."""
+    reranker = CrossEncoderEndpointReranker(
+        rerank_url="http://reranker:8080/rerank",
+        min_score=0.0,
+        top_n=10,
+    )
+    chunks = [
+        {"document_id": "d1", "chunk_text": "a", "score": 0.5},
+        {"document_id": "d2", "chunk_text": "b", "score": 0.5},
+    ]
+    resp = _make_endpoint_response([0.9])  # only 1 score for 2 chunks
+
+    with patch("services.rag.reranker.httpx.post", return_value=resp):
+        result = reranker.rerank(chunks, "question")
+
+    assert result is chunks
+    assert len(result) == 2
+
+
+def test_endpoint_reranker_sends_query_and_texts() -> None:
+    reranker = CrossEncoderEndpointReranker(
+        rerank_url="http://reranker:8080/rerank",
+        min_score=0.0,
+    )
+    chunks = [
+        {"document_id": "d1", "chunk_text": "chunk one", "score": 0.5},
+        {"document_id": "d2", "chunk_text": "chunk two", "score": 0.5},
+    ]
+    resp = _make_endpoint_response([0.9, 0.8])
+
+    with patch("services.rag.reranker.httpx.post", return_value=resp) as m:
+        reranker.rerank(chunks, "What is the answer?")
+
+    payload = m.call_args[1]["json"]
+    assert payload["query"] == "What is the answer?"
+    assert payload["texts"] == ["chunk one", "chunk two"]

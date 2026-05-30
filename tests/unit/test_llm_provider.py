@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from services.intelligence.factory import build_llm_provider
@@ -113,10 +115,224 @@ def test_openai_compatible_generate_empty_choices() -> None:
     assert result == ""
 
 
-def test_openai_compatible_generate_stream_raises() -> None:
+def _make_sse_stream(data_chunks: list[str]) -> MagicMock:
+    """Build a mock httpx response that yields SSE `data: ...` lines."""
+    lines = [f"data: {c}\n\n" for c in data_chunks]
+    lines.append("data: [DONE]\n\n")
+
+    mock_resp = MagicMock()
+    mock_resp.__enter__.return_value = mock_resp
+    mock_resp.iter_lines.return_value = [line for chunk in lines for line in chunk.split("\n")]
+    mock_resp.raise_for_status = MagicMock()
+    return mock_resp
+
+
+def test_openai_compatible_generate_stream_yields_tokens() -> None:
     provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
-    with pytest.raises(NotImplementedError):
-        provider.generate_stream("prompt")
+    sse = _make_sse_stream(
+        [
+            '{"choices":[{"delta":{"content":"Hello"}}]}',
+            '{"choices":[{"delta":{"content":" world"}}]}',
+        ]
+    )
+
+    with patch("services.intelligence.llm_provider.httpx.stream", return_value=sse):
+        tokens = list(provider.generate_stream("prompt"))
+
+    assert tokens == ["Hello", " world"]
+
+
+def test_openai_compatible_generate_stream_done_terminates() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+    sse = _make_sse_stream(
+        [
+            '{"choices":[{"delta":{"content":"only"}}]}',
+        ]
+    )
+    # also test that extra data after [DONE] is ignored
+
+    with patch("services.intelligence.llm_provider.httpx.stream", return_value=sse):
+        tokens = list(provider.generate_stream("prompt"))
+
+    assert tokens == ["only"]
+
+
+def test_openai_compatible_generate_stream_skips_non_data_lines() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+    sse = _make_sse_stream(
+        [
+            '{"choices":[{"delta":{"content":"token"}}]}',
+        ]
+    )
+    # add some cruft
+    sse_iter = [
+        "",
+        'data: {"choices":[{"delta":{"content":"token"}}]}',
+        "",
+        "data: [DONE]",
+        "",
+    ]
+    sse.iter_lines.return_value = sse_iter
+
+    with patch("services.intelligence.llm_provider.httpx.stream", return_value=sse):
+        tokens = list(provider.generate_stream("prompt"))
+
+    assert tokens == ["token"]
+
+
+def test_openai_compatible_generate_stream_bad_json_skips_line() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+    sse = _make_sse_stream(
+        [
+            "not valid json",
+            '{"choices":[{"delta":{"content":"valid"}}]}',
+        ]
+    )
+
+    with patch("services.intelligence.llm_provider.httpx.stream", return_value=sse):
+        tokens = list(provider.generate_stream("prompt"))
+
+    assert tokens == ["valid"]
+
+
+def test_openai_compatible_generate_sends_bearer_auth() -> None:
+    provider = OpenAICompatibleLLMProvider(
+        base_url="http://localhost:1234",
+        model="m",
+        api_key="sk-secret-key",
+    )
+    mock_resp = _make_httpx_response("ok")
+
+    with patch("services.intelligence.llm_provider.httpx.post", return_value=mock_resp) as m:
+        provider.generate("prompt")
+
+    headers = m.call_args[1].get("headers", {})
+    assert headers.get("Authorization") == "Bearer sk-secret-key"
+    assert "sk-secret-key" not in m.call_args[1].get("json", {}).values()
+
+
+def test_openai_compatible_generate_no_auth_when_no_api_key() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+    mock_resp = _make_httpx_response("ok")
+
+    with patch("services.intelligence.llm_provider.httpx.post", return_value=mock_resp) as m:
+        provider.generate("prompt")
+
+    headers = m.call_args[1].get("headers", {})
+    assert "Authorization" not in headers
+
+
+def test_openai_compatible_generate_sends_bearer_auth_stream() -> None:
+    provider = OpenAICompatibleLLMProvider(
+        base_url="http://localhost:1234",
+        model="m",
+        api_key="sk-secret",
+    )
+    sse = _make_sse_stream(['{"choices":[{"delta":{"content":"hi"}}]}'])
+
+    with patch("services.intelligence.llm_provider.httpx.stream", return_value=sse) as m:
+        list(provider.generate_stream("prompt"))
+
+    headers = m.call_args[1].get("headers", {})
+    assert headers.get("Authorization") == "Bearer sk-secret"
+
+
+def test_openai_compatible_generate_malformed_json_returns_empty() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+    resp = MagicMock()
+    resp.json.side_effect = json.JSONDecodeError("malformed", "", 0)
+    resp.raise_for_status = MagicMock()
+
+    with patch("services.intelligence.llm_provider.httpx.post", return_value=resp):
+        result = provider.generate("prompt")
+
+    assert result == ""
+
+
+def test_openai_compatible_generate_http_error_raises() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+    resp = MagicMock()
+    resp.status_code = 401
+    resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "401",
+        request=MagicMock(),
+        response=resp,
+    )
+
+    with (
+        patch("services.intelligence.llm_provider.httpx.post", return_value=resp),
+        pytest.raises(httpx.HTTPStatusError),
+    ):
+        provider.generate("prompt")
+
+
+def test_openai_compatible_generate_connect_error_raises() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+
+    with (
+        patch(
+            "services.intelligence.llm_provider.httpx.post",
+            side_effect=httpx.ConnectError("connection refused"),
+        ),
+        pytest.raises(httpx.ConnectError),
+    ):
+        provider.generate("prompt")
+
+
+def test_openai_compatible_generate_timeout_error_raises() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+
+    with (
+        patch(
+            "services.intelligence.llm_provider.httpx.post",
+            side_effect=httpx.TimeoutException("timed out"),
+        ),
+        pytest.raises(httpx.TimeoutException),
+    ):
+        provider.generate("prompt")
+
+
+def test_openai_compatible_generate_stream_http_error_raises() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+    resp = MagicMock()
+    resp.status_code = 401
+    exc = httpx.HTTPStatusError("401", request=MagicMock(), response=resp)
+    resp.raise_for_status.side_effect = exc
+    stream_ctx = MagicMock()
+    stream_ctx.__enter__.return_value = resp
+    stream_ctx.__exit__.return_value = False
+
+    with (
+        patch("services.intelligence.llm_provider.httpx.stream", return_value=stream_ctx),
+        pytest.raises(httpx.HTTPStatusError),
+    ):
+        list(provider.generate_stream("prompt"))
+
+
+def test_openai_compatible_generate_stream_connect_error_raises() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+
+    with (
+        patch(
+            "services.intelligence.llm_provider.httpx.stream",
+            side_effect=httpx.ConnectError("refused"),
+        ),
+        pytest.raises(httpx.ConnectError),
+    ):
+        list(provider.generate_stream("prompt"))
+
+
+def test_openai_compatible_generate_stream_timeout_raises() -> None:
+    provider = OpenAICompatibleLLMProvider(base_url="http://localhost:1234", model="m")
+
+    with (
+        patch(
+            "services.intelligence.llm_provider.httpx.stream",
+            side_effect=httpx.TimeoutException("timed out"),
+        ),
+        pytest.raises(httpx.TimeoutException),
+    ):
+        list(provider.generate_stream("prompt"))
 
 
 def test_openai_compatible_model_property() -> None:
@@ -189,3 +405,50 @@ def test_factory_unknown_provider_raises() -> None:
     settings = _settings(llm_provider="unknown-provider")
     with pytest.raises(ValueError, match="unknown-provider"):
         build_llm_provider(settings)
+
+
+# ---------------------------------------------------------------------------
+# New provider names (openai, litellm, llama-cpp)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("provider_name", ["litellm", "llama-cpp"])
+def test_factory_new_providers_return_openai_compatible(provider_name: str) -> None:
+    settings = _settings(llm_provider=provider_name)
+    provider = build_llm_provider(settings)
+    assert isinstance(provider, OpenAICompatibleLLMProvider)
+    assert provider.model == "mistral"
+
+
+def test_factory_openai_requires_api_key() -> None:
+    settings = _settings(llm_provider="openai")
+    with pytest.raises(ValueError, match="LLM_API_KEY"):
+        build_llm_provider(settings)
+
+
+def test_factory_openai_passes_api_key() -> None:
+    settings = _settings(
+        llm_provider="openai",
+        llm_base_url="https://api.openai.com/v1",
+        llm_model="gpt-4",
+        llm_api_key="sk-test",
+    )
+    provider = build_llm_provider(settings)
+    assert isinstance(provider, OpenAICompatibleLLMProvider)
+    assert provider._api_key == "sk-test"  # type: ignore[attr-defined]
+
+
+def test_factory_litellm_no_api_key() -> None:
+    settings = _settings(llm_provider="litellm")
+    provider = build_llm_provider(settings)
+    assert isinstance(provider, OpenAICompatibleLLMProvider)
+    assert provider._api_key is None  # type: ignore[attr-defined]
+
+
+def test_factory_ollama_ignores_llm_api_key() -> None:
+    settings = _settings(
+        llm_provider="ollama",
+        llm_api_key="should-not-affect-ollama",
+    )
+    provider = build_llm_provider(settings)
+    assert isinstance(provider, OllamaClient)
