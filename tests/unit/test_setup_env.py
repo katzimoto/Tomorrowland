@@ -18,7 +18,6 @@ REQUIRED_KEYS = {
     "JWT_SECRET",
     "POSTGRES_URL",
     "KAFKA_BROKER",
-    "ELASTIC_URL",
     "QDRANT_URL",
     "FILES_ROOT",
     "CORS_ORIGINS",

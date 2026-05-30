@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from unittest.mock import patch
 from uuid import UUID
 
 import httpx
@@ -115,12 +116,13 @@ def test_admin_readiness_reports_degraded_for_optional_dependency_failure(
 
 def test_admin_readiness_reports_down_for_core_dependency_failure(migrated_engine: Engine) -> None:
     clock = Clock()
-    migrated_engine.dispose()
 
     def http_get(url: str, *, timeout: float) -> httpx.Response:
         return httpx.Response(200, request=httpx.Request("GET", url))
 
-    response = _checker(migrated_engine, clock, http_get).check()
+    checker = _checker(migrated_engine, clock, http_get)
+    with patch.object(checker, "_execute_postgres_probe", side_effect=RuntimeError("db down")):
+        response = checker.check()
 
     assert response["status"] == "down"
     assert response["dependencies"]["postgres"]["status"] == "down"
