@@ -2,6 +2,47 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-30 — feat(models): S5 task-default resolver wired into consumers — #544 S5, PR #590
+
+Status: Done — squash-merged to main (commit 65f0094, branch deleted)
+Source: issue #578 (S5 of #544), PR #590, Claude Code session
+
+**Goal:** Add `TaskDefaultResolver`, wire it into `app.state`, and update chat router, admin intelligence endpoints, and `IntelligenceWorker` to resolve LLM providers from DB-backed `model_task_defaults`. Zero-row DB must leave existing env/Settings behavior unchanged.
+
+**Changed files:**
+- `src/services/intelligence/task_defaults.py` (new) — `TaskDefaultResolver`, `TaskResolution`, `build_llm_from_resolution()`
+- `src/services/api/main.py` — `TaskDefaultResolver` wired to `app.state.task_default_resolver` at startup
+- `src/services/api/routers/admin/model_providers.py` — added `POST /admin/model-providers/reload`
+- `src/services/api/routers/admin/intelligence.py` — passes resolver to `IntelligenceWorker`
+- `src/services/api/routers/chat.py` — resolves `chat` LLM, `utility` model, `reranker` model via resolver
+- `src/services/intelligence/worker.py` — accepts optional `resolver: TaskDefaultResolver | None`
+- `src/services/intelligence/__init__.py` — exports `TaskDefaultResolver`, `TaskResolution`, `build_llm_from_resolution`
+- `tests/unit/test_task_default_resolver.py` (new) — 19 tests
+- `tests/integration/test_provider_wiring.py` (new) — 2 tests
+
+**Key invariants:**
+- `resolve()` returns `None` for: no DB row, missing/disabled provider, or configured-but-disabled descriptor → all callers fall back to `app.state.llm_provider` / `Settings`
+- Deleted descriptor → `ON DELETE SET NULL` makes `model_descriptor_id=NULL`, treated as "no descriptor configured" (provider used with empty/default model name)
+- `app.state.llm_provider` remains set — not removed; other callers unaffected during transition
+- `POST /admin/model-providers/reload` reloads both `ProviderRegistry` and `TaskDefaultResolver` in-process; cross-process reload still requires rolling restart
+
+**Review fixes applied before merge:**
+- `resolve()` changed to return `None` (not `TaskResolution(model_name=None)`) when configured descriptor is disabled — prevents `build_llm_from_resolution()` from creating a provider with `model=""` that bypasses the env fallback chain
+- Added `POST /admin/model-providers/reload` (was missing from original PR)
+- Added `tests/integration/test_provider_wiring.py` (zero-row compat + reload round-trip)
+- CHANGELOG test count corrected; stale branch name in `current-state.md` fixed
+
+**Deferred (not in this slice):**
+- Encoder resolution (`get_encoder()` / `"embed"` task type) — chat router still calls `build_encoder(settings)` directly
+- Frontend admin UI — #579
+- Cross-process reload for workers — #432
+- `slow_worker` / `embed_worker` wiring to registry
+
+**Next agent prompt:**
+> S5 (#544/#578) is on main. The `TaskDefaultResolver` is wired into app state and all API-layer consumers. Next slice is the frontend admin UI (#579) for managing model providers and task defaults, or pick up the embedding/encoder resolution gap if that is higher priority. Do not remove `app.state.llm_provider` yet — workers still read it directly.
+
+---
+
 ## 2026-05-30 — feat(admin): S4 admin provider registry API — #544 S4, PR #589
 
 Status: Done — merged to main (commit c06a72e, branch deleted)
