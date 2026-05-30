@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Issue #560: Hermes MCP adapter for researcher API — new
+  `tomorrowland-mcp-server` binary exposes six read-only MCP tools
+  (`search_documents`, `get_document`, `get_passages`, `ask_corpus`,
+  `get_related_documents`, `list_facets`) that proxy to the permissioned
+  `/api/agent/v1/*` endpoints from #558. Streamable HTTP transport on
+  `localhost:8001`. No direct DB/Qdrant/Meilisearch access. Auth forwarded
+  as Bearer token. No secrets in logs. 25+ unit tests.
 - Issue #558: Permissioned researcher API endpoints — new read-only `/api/agent/v1` surface (`search_documents`, `get_document`, `get_passages`, `ask_corpus`, `get_related_documents`, `list_facets`) that future Hermes/MCP clients (#560) can call through the same source/document ACL as normal users. Every endpoint enforces transitive group expansion via `AuthRepository.get_effective_group_ids` and `assert_doc_access`; admin bypass uses the standard `allow_all=True` path. `ask_corpus` re-checks per-citation source ACLs as defence in depth so Qdrant payload corruption cannot leak inaccessible documents. New `QdrantSearchClient.list_chunks_by_document` scrolls chunks in stable `chunk_index` order with the same group-id filter applied. No write tools, no MCP adapter, and no Hermes runtime in this PR.
 
 ### Removed
