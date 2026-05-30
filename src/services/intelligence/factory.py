@@ -47,9 +47,7 @@ def build_llm_provider(settings: Settings) -> LLMProvider:
     if provider in _OPENAI_COMPATIBLE_PROVIDERS:
         api_key: str | None = settings.llm_api_key or None
         if provider == "openai" and not api_key:
-            raise ValueError(
-                "LLM_PROVIDER=openai requires LLM_API_KEY to be set"
-            )
+            raise ValueError("LLM_PROVIDER=openai requires LLM_API_KEY to be set")
         return OpenAICompatibleLLMProvider(
             base_url=base_url,
             model=model,

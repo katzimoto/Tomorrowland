@@ -34,6 +34,10 @@ class ModelProviderCreate(BaseModel):
     description: str | None = None
     base_url: str | None = None
     api_key_ref: str | None = None
+    credential_value: str | None = Field(
+        default=None,
+        description=("Plaintext credential to encrypt and store. Never returned in responses."),
+    )
     locality: str = "local"
     enabled: bool = True
 
@@ -46,8 +50,31 @@ class ModelProviderUpdate(BaseModel):
     description: str | None = None
     base_url: str | None = None
     api_key_ref: str | None = None
+    credential_value: str | None = Field(
+        default=None,
+        description=(
+            "Plaintext credential to encrypt and store. "
+            'Pass ``None`` to leave unchanged; pass ``""`` to clear.'
+        ),
+    )
     locality: str | None = None
     enabled: bool | None = None
+
+
+class ModelProviderResponse(BaseModel):
+    """API response for a model provider — never contains plaintext credentials."""
+
+    id: UUID
+    name: str
+    provider_type: str
+    description: str | None = None
+    base_url: str | None = None
+    api_key_ref: str | None = None
+    credential_set: bool = False
+    locality: str = "local"
+    enabled: bool = True
+    created_at: datetime
+    updated_at: datetime
 
 
 class ModelDescriptor(BaseModel):

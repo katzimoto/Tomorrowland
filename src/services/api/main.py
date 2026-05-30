@@ -17,6 +17,7 @@ from services.auth.ldap import LdapAuthenticator
 from services.auth.models import TokenPayload
 from services.intelligence.factory import build_llm_provider
 from services.intelligence.llm_provider import LLMProvider
+from services.intelligence.provider_registry import ProviderRegistry
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
@@ -73,6 +74,15 @@ def create_app(
     app.state.translator = translator
     app.state.qdrant_client = qdrant_client
     app.state.llm_provider = llm_provider or build_llm_provider(app.state.settings)
+
+    # Provider registry — holds runtime adapter instances keyed by provider name.
+    # Not yet used by chat / RAG / embedding consumers (that change is #578).
+    provider_registry = ProviderRegistry(
+        engine=app.state.engine,
+        credential_store_key=app.state.settings.credential_store_key,
+    )
+    provider_registry.load()
+    app.state.provider_registry = provider_registry
 
     if meili_provider is not None:
         app.state.meili_provider = meili_provider
@@ -151,6 +161,7 @@ def create_app(
     from services.api.routers.admin.ingestion_status import router as admin_ingestion_status_router
     from services.api.routers.admin.intelligence import router as admin_intelligence_router
     from services.api.routers.admin.jobs import router as admin_jobs_router
+    from services.api.routers.admin.model_providers import router as admin_model_providers_router
     from services.api.routers.admin.rabbit import router as admin_rabbit_router
     from services.api.routers.admin.sources import router as admin_sources_router
     from services.api.routers.admin.users import router as admin_users_router
@@ -178,6 +189,7 @@ def create_app(
     app.include_router(admin_dlq_router)
     app.include_router(admin_intelligence_router)
     app.include_router(admin_jobs_router)
+    app.include_router(admin_model_providers_router)
     app.include_router(admin_rabbit_router)
     app.include_router(vault_router)
 
