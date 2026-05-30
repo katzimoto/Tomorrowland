@@ -6,6 +6,8 @@ from services.intelligence.llm_provider import LLMProvider, OpenAICompatibleLLMP
 from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.provider_registry import ProviderRegistry
 from services.intelligence.repository import IntelligenceRepository
+from services.intelligence.source_qa_repository import SourceQACheck, SourceQARepository
+from services.intelligence.source_qa_service import get_latest_qa, run_source_qa
 from services.intelligence.ssrf_validation import validate_provider_url
 from services.intelligence.task_defaults import (
     TaskDefaultResolver,
@@ -20,6 +22,10 @@ __all__ = [
     "LLMProvider",
     "OllamaClient",
     "OpenAICompatibleLLMProvider",
+    "SourceQACheck",
+    "SourceQARepository",
+    "get_latest_qa",
+    "run_source_qa",
     "TaskDefaultResolver",
     "TaskResolution",
     "build_llm_from_resolution",
