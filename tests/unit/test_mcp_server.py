@@ -10,10 +10,12 @@ Tests cover:
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import ANY, MagicMock
 
 import httpx
 import pytest
+from mcp.server.fastmcp import FastMCP
 
 from services.mcp.client import (
     TomorrowlandClient,
@@ -492,3 +494,136 @@ class TestInvalidInputRejection:
     def test_question_empty_rejected(self) -> None:
         with pytest.raises(ValueError, match="question must be at least 1"):
             _validate_string("", 1, 2000, "question")
+
+
+# ======================================================================
+# MCP authorization parity (#562)
+# ======================================================================
+
+
+class TestMCPAuthorizationParity:
+    """MCP tools correctly proxy REST auth errors and never leak sensitive data."""
+
+    def _make_server_raising(self, status_code: int, detail: str) -> FastMCP:
+        """Return an MCP server whose client always raises TomorrowlandClientError."""
+        settings = Settings(tomorrowland_api_url="http://localhost:8000", app_env="test")
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        error = TomorrowlandClientError(detail, status_code=status_code)
+        for method_name in (
+            "search_documents",
+            "get_document",
+            "get_passages",
+            "ask_corpus",
+            "get_related_documents",
+            "list_facets",
+        ):
+            getattr(mock_client, method_name).side_effect = error
+        return create_mcp_server(settings, client=mock_client)
+
+    def _get_tool_fn(self, mcp: FastMCP, name: str) -> Any:
+        """Return the raw callable for a named MCP tool."""
+        for t in mcp._tool_manager.list_tools():
+            if t.name == name:
+                return t.fn
+        raise KeyError(f"Tool {name!r} not found")
+
+    def test_403_does_not_expose_document_id_from_response_body(self) -> None:
+        """When the REST API returns 403 with a doc ID in the body, the translated
+        MCP error must NOT contain that ID — only a static safe message."""
+        doc_id = "abc12345-0000-0000-0000-000000000000"
+        mcp = self._make_server_raising(403, f"Document {doc_id} not accessible")
+        fn = self._get_tool_fn(mcp, "tomorrowland_get_document")
+
+        with pytest.raises(ValueError) as exc_info:
+            fn(document_id=doc_id)
+
+        msg = str(exc_info.value)
+        assert doc_id not in msg, "inaccessible doc ID must not appear in MCP error"
+        assert "Access denied" in msg
+
+    def test_401_does_not_expose_api_key_in_error_message(self) -> None:
+        """A 401 error must not include the API key value in the translated error."""
+        api_key = "super-secret-key-must-not-leak-in-errors"
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000",
+            tomorrowland_api_key=api_key,
+            app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.search_documents.side_effect = TomorrowlandClientError(
+            f"Unauthorized: {api_key}", status_code=401
+        )
+        mcp = create_mcp_server(settings, client=mock_client)
+        fn = self._get_tool_fn(mcp, "tomorrowland_search_documents")
+
+        with pytest.raises(ValueError) as exc_info:
+            fn(query="test")
+
+        msg = str(exc_info.value)
+        assert api_key not in msg, "API key must not appear in MCP error message"
+        assert "Authentication failed" in msg
+
+    def test_429_error_does_not_expose_document_metadata(self) -> None:
+        """A 429 response must use a static safe message — no corpus metadata leaks."""
+        sensitive_id = "corpus-id-must-not-appear-in-429-error"
+        mcp = self._make_server_raising(429, f"Too many requests for {sensitive_id}")
+        fn = self._get_tool_fn(mcp, "tomorrowland_ask_corpus")
+
+        with pytest.raises(ValueError) as exc_info:
+            fn(question="what?")
+
+        msg = str(exc_info.value)
+        assert sensitive_id not in msg, "corpus metadata must not appear in 429 error"
+        assert "Rate limit" in msg
+
+    @pytest.mark.parametrize(
+        ("tool_name", "tool_kwargs"),
+        [
+            ("tomorrowland_search_documents", {"query": "test"}),
+            ("tomorrowland_get_document", {"document_id": "abc-123"}),
+            ("tomorrowland_get_passages", {"document_id": "abc-123"}),
+            ("tomorrowland_ask_corpus", {"question": "what?"}),
+            ("tomorrowland_get_related_documents", {"document_id": "abc-123"}),
+            ("tomorrowland_list_facets", {}),
+        ],
+    )
+    def test_all_tools_translate_401_to_safe_error(
+        self, tool_name: str, tool_kwargs: dict[str, Any]
+    ) -> None:
+        """Every MCP tool must convert a 401 to a safe ValueError (no raw API detail)."""
+        raw_detail = "raw-internal-detail-must-not-appear"
+        mcp = self._make_server_raising(401, raw_detail)
+        fn = self._get_tool_fn(mcp, tool_name)
+
+        with pytest.raises(ValueError) as exc_info:
+            fn(**tool_kwargs)
+
+        msg = str(exc_info.value)
+        assert "Authentication failed" in msg
+        assert raw_detail not in msg, "raw 401 detail must not leak through MCP"
+
+    @pytest.mark.parametrize(
+        ("tool_name", "tool_kwargs"),
+        [
+            ("tomorrowland_search_documents", {"query": "test"}),
+            ("tomorrowland_get_document", {"document_id": "abc-123"}),
+            ("tomorrowland_get_passages", {"document_id": "abc-123"}),
+            ("tomorrowland_ask_corpus", {"question": "what?"}),
+            ("tomorrowland_get_related_documents", {"document_id": "abc-123"}),
+            ("tomorrowland_list_facets", {}),
+        ],
+    )
+    def test_all_tools_translate_403_to_safe_error(
+        self, tool_name: str, tool_kwargs: dict[str, Any]
+    ) -> None:
+        """Every MCP tool must convert a 403 to a safe static message (no raw body)."""
+        hidden_resource_id = "hidden-resource-id-must-not-appear-in-error"
+        mcp = self._make_server_raising(403, f"Cannot access {hidden_resource_id}")
+        fn = self._get_tool_fn(mcp, tool_name)
+
+        with pytest.raises(ValueError) as exc_info:
+            fn(**tool_kwargs)
+
+        msg = str(exc_info.value)
+        assert "Access denied" in msg
+        assert hidden_resource_id not in msg, "raw 403 detail must not leak through MCP"
