@@ -51,7 +51,7 @@ def test_sync_now_publishes_to_rabbitmq(
             migrated_engine,
             settings,
             translator=mock_translator,
-                qdrant_client=mock_qdrant,
+            qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)
@@ -110,7 +110,7 @@ def test_sync_now_skips_rabbitmq_when_disabled(
             migrated_engine,
             settings,
             translator=mock_translator,
-                qdrant_client=mock_qdrant,
+            qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)

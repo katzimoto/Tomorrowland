@@ -131,10 +131,7 @@ class ReadinessChecker:
         return {"status": status, "latency_ms": latency_ms}
 
     def _overall_status(self, dependencies: dict[str, DependencyResult]) -> OverallStatus:
-        if any(
-            dependencies[name]["status"] == "down"
-            for name in ("postgres", "qdrant")
-        ):
+        if any(dependencies[name]["status"] == "down" for name in ("postgres", "qdrant")):
             return "down"
         optional_down = dependencies["libretranslate"]["status"] == "down" or (
             self._ollama_affects_readiness() and dependencies["ollama"]["status"] == "down"

@@ -290,9 +290,7 @@ def test_meili_content_is_original_and_content_en_is_translation() -> None:
     qdrant = _FakeQdrant()
     meili = _FakeMeili()
     translator = _FakeTranslator(translated="translated english text")
-    worker = _worker(
-        repo=repo, encoder=encoder, qdrant=qdrant, meili=meili, translator=translator
-    )
+    worker = _worker(repo=repo, encoder=encoder, qdrant=qdrant, meili=meili, translator=translator)
 
     worker.process_document(doc.id, pre_extracted_text="原始中文文本")
 

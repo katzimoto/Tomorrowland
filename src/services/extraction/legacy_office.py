@@ -77,8 +77,6 @@ class LegacyOfficeExtractor:
                 return ExtractionResult(text="")
 
             try:
-                return ExtractionResult(
-                    text=out_path.read_text(encoding="utf-8", errors="replace")
-                )
+                return ExtractionResult(text=out_path.read_text(encoding="utf-8", errors="replace"))
             except OSError:
                 return ExtractionResult(text="")

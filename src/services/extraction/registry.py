@@ -258,9 +258,7 @@ class ExtractorRegistry:
         #   ALWAYS try content sniffing — the stored type may be a mislabel, and
         #   ZipExtractor on a DOCX would return an XML-file listing, not doc text.
         # * For any other MIME type we only retry when extraction returned nothing.
-        _always_sniff: frozenset[str] = frozenset(
-            {"application/zip", "application/octet-stream"}
-        )
+        _always_sniff: frozenset[str] = frozenset({"application/zip", "application/octet-stream"})
         should_sniff = (mime_type in _always_sniff or not result.text) and path.exists()
         if should_sniff:
             sniffed = sniff_office_mime(path)

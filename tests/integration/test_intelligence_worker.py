@@ -31,7 +31,7 @@ def test_worker_summarizes_and_stores(
         worker = IntelligenceWorker(
             repository=repo,
             ollama_client=ollama_client,
-            )
+        )
         worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
@@ -39,7 +39,6 @@ def test_worker_summarizes_and_stores(
         summary = repo.get_summary(document_id)
         assert summary is not None
         assert summary["summary"] == "A document about AI and finance."
-
 
 
 def test_worker_extracts_entities(
@@ -62,7 +61,7 @@ def test_worker_extracts_entities(
         worker = IntelligenceWorker(
             repository=repo,
             ollama_client=ollama_client,
-            )
+        )
         worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
@@ -88,7 +87,7 @@ def test_worker_auto_tags(
         worker = IntelligenceWorker(
             repository=repo,
             ollama_client=ollama_client,
-            )
+        )
         worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
@@ -118,7 +117,7 @@ def test_worker_skips_disabled_tasks(
         worker = IntelligenceWorker(
             repository=repo,
             ollama_client=ollama_client,
-                config_source=config,
+            config_source=config,
         )
         worker.process_document(document_id, content)
 
@@ -139,7 +138,7 @@ def test_worker_failure_does_not_block(
         worker = IntelligenceWorker(
             repository=repo,
             ollama_client=ollama_client,
-            )
+        )
         # Should not raise
         worker.process_document(document_id, content)
 
@@ -167,7 +166,7 @@ def test_worker_task_failures_are_swallowed(
         worker = IntelligenceWorker(
             repository=repo,
             ollama_client=ollama_client,
-            )
+        )
         # Must not raise even when entity extraction (and auto-tag) fail
         worker.process_document(document_id, content)
 

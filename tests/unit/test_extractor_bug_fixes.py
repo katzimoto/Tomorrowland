@@ -5,6 +5,7 @@ Each test is named after the bug it prevents regressing.
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -73,9 +74,7 @@ def test_html_extractor_latin1_file_not_empty(tmp_path: Path) -> None:
     """An ISO-8859-1 HTML file must not silently return empty string."""
     p = tmp_path / "latin1.html"
     # Write 'café' as raw latin-1 bytes — NOT valid UTF-8.
-    p.write_bytes(
-        b"<html><body><p>caf\xe9</p></body></html>"
-    )
+    p.write_bytes(b"<html><body><p>caf\xe9</p></body></html>")
     result = HtmlExtractor().extract(p)
     assert result.text != ""
     assert "caf" in result.text  # at minimum the ASCII part must be present
@@ -126,10 +125,7 @@ def test_xml_extractor_strips_tags(tmp_path: Path) -> None:
 def test_xml_extractor_handles_iso8859_encoding(tmp_path: Path) -> None:
     """XML with encoding="iso-8859-1" in the prolog must be extracted."""
     p = tmp_path / "latin.xml"
-    content = (
-        '<?xml version="1.0" encoding="iso-8859-1"?>'
-        "<root><item>caf\xe9</item></root>"
-    )
+    content = '<?xml version="1.0" encoding="iso-8859-1"?><root><item>caf\xe9</item></root>'
     p.write_bytes(content.encode("iso-8859-1"))
     result = XmlExtractor().extract(p)
     assert result.text != ""
@@ -188,9 +184,7 @@ def test_msg_extractor_closes_message_after_extract() -> None:
     mock_msg.date = None
     mock_msg.attachments = []
 
-    with patch(
-        "services.extraction.msg_extractor.extract_msg.Message", return_value=mock_msg
-    ):
+    with patch("services.extraction.msg_extractor.extract_msg.Message", return_value=mock_msg):
         MsgExtractor().extract(FIXTURES / "sample.msg")
 
     mock_msg.close.assert_called_once()
@@ -211,9 +205,7 @@ def test_msg_extractor_closes_message_on_exception() -> None:
     # Iterating attachments raises — triggers the except path inside extract().
     type(mock_msg).attachments = PropertyMock(side_effect=RuntimeError("disk error"))
 
-    with patch(
-        "services.extraction.msg_extractor.extract_msg.Message", return_value=mock_msg
-    ):
+    with patch("services.extraction.msg_extractor.extract_msg.Message", return_value=mock_msg):
         result = MsgExtractor().extract(FIXTURES / "sample.msg")
 
     # Should not raise; extractor returns ExtractionResult(text="") on any exception.
@@ -238,9 +230,7 @@ def test_msg_extractor_returns_attachments_via_extract() -> None:
     mock_msg.date = None
     mock_msg.attachments = [mock_att]
 
-    with patch(
-        "services.extraction.msg_extractor.extract_msg.Message", return_value=mock_msg
-    ):
+    with patch("services.extraction.msg_extractor.extract_msg.Message", return_value=mock_msg):
         result = MsgExtractor().extract(FIXTURES / "sample.msg")
 
     assert len(result.attachments) == 1
@@ -365,16 +355,16 @@ def test_slow_worker_enrich_loop_logs_actual_exception_type(tmp_path: Path) -> N
             raise RuntimeError("disk full")
         raise KeyboardInterrupt  # stop the loop cleanly
 
-    with patch("services.pipeline.slow_worker.run_enrich_once", side_effect=_boom_once):
-        with patch("services.pipeline.slow_worker.logger") as mock_logger:
-            with patch("time.sleep"):
-                try:
-                    run_enrich_loop(MagicMock(), MagicMock())
-                except KeyboardInterrupt:
-                    pass
+    with (
+        patch("services.pipeline.slow_worker.run_enrich_once", side_effect=_boom_once),
+        patch("services.pipeline.slow_worker.logger") as mock_logger,
+        patch("time.sleep"),
+        contextlib.suppress(KeyboardInterrupt),
+    ):
+        run_enrich_loop(MagicMock(), MagicMock())
 
     # Find the exception call; the error_type arg must be "RuntimeError"
-    exception_calls = [c for c in mock_logger.exception.call_args_list]
+    exception_calls = list(mock_logger.exception.call_args_list)
     assert exception_calls, "logger.exception was never called"
     # The second positional arg after the format string should be "RuntimeError"
     logged_error_type = exception_calls[0][0][2]  # format string, worker_id, error_type
@@ -393,11 +383,7 @@ def test_epub_extractor_strips_multiline_tags(tmp_path: Path) -> None:
     import sys
     import types
 
-    multiline_html = (
-        b"<div\n  class=\"chapter\"\n  id=\"ch1\">\n"
-        b"<p>Hello EPUB multiline</p>\n"
-        b"</div>"
-    )
+    multiline_html = b'<div\n  class="chapter"\n  id="ch1">\n<p>Hello EPUB multiline</p>\n</div>'
 
     mock_item = MagicMock()
     mock_item.get_content.return_value = multiline_html
@@ -444,9 +430,7 @@ def test_eml_extract_attachments_prefers_filename_mime_over_default(tmp_path: Pa
         mock_att.get_payload.return_value = b"PDF bytes"
         mock_att.get_content_type.return_value = "text/plain"  # default (no explicit header)
         # Simulate no Content-Type header present
-        mock_att.__contains__ = MagicMock(
-            side_effect=lambda key: key != "Content-Type"
-        )
+        mock_att.__contains__ = MagicMock(side_effect=lambda key: key != "Content-Type")
 
         mock_msg.walk.return_value = [mock_att]
         mock_parse.return_value = mock_msg

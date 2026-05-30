@@ -244,5 +244,3 @@ def test_annotations_list_includes_reply_count_field(migrated_engine: Engine) ->
     for a in resp.json()["annotations"]:
         assert "reply_count" in a
         assert isinstance(a["reply_count"], int)
-
-

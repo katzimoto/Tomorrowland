@@ -452,7 +452,7 @@ def test_slow_worker_processes_pending_high(
             document_repository=doc_repo,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
-                qdrant_client=mock_qdrant,
+            qdrant_client=mock_qdrant,
         )
         worker.process_document(UUID(document_id))
 
@@ -504,7 +504,7 @@ def test_slow_worker_failure_sets_failed(
             document_repository=doc_repo,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
-                qdrant_client=mock_qdrant,
+            qdrant_client=mock_qdrant,
         )
         worker.process_document(UUID(document_id))
 

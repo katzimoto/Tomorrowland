@@ -73,9 +73,7 @@ def run_translation_once(
             # Document has no extractable text (e.g. scanned PDF without OCR,
             # empty file).  Skip translation gracefully — raising here would
             # retry and dead-letter a valid document.
-            logger.info(
-                "translation skipped: empty content_text document_id=%s", document_id
-            )
+            logger.info("translation skipped: empty content_text document_id=%s", document_id)
             job_repo.update_translated_text(document_id, "")
             job_repo.mark_succeeded(job_id)
             try:

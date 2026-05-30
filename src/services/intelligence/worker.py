@@ -404,5 +404,3 @@ class IntelligenceWorker:
 
         truncated = content[:max_chars]
         return f"{base_prompt}\n\n{truncated}"
-
-

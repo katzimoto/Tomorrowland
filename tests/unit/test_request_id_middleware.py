@@ -11,7 +11,8 @@ from shared.config import Settings
 
 def _client() -> TestClient:
     engine = sa.create_engine("sqlite:///:memory:")
-    app = create_app(engine, Settings(_env_file=None, app_env="test", auth_provider="local", jwt_secret="x" * 32))
+    settings = Settings(_env_file=None, app_env="test", auth_provider="local", jwt_secret="x" * 32)
+    app = create_app(engine, settings)
     return TestClient(app)
 
 
@@ -45,7 +46,8 @@ def test_request_id_header_is_echoed_on_auth_errors() -> None:
 
 def test_request_id_header_is_echoed_on_unhandled_errors() -> None:
     engine = sa.create_engine("sqlite:///:memory:")
-    app = create_app(engine, Settings(_env_file=None, app_env="test", auth_provider="local", jwt_secret="x" * 32))
+    settings = Settings(_env_file=None, app_env="test", auth_provider="local", jwt_secret="x" * 32)
+    app = create_app(engine, settings)
 
     @app.get("/boom")
     def boom() -> None:

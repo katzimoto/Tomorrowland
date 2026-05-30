@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import zipfile
 from pathlib import Path
 
@@ -39,7 +40,5 @@ class XlsxExtractor:
             return ExtractionResult(text="")
         finally:
             if wb is not None:
-                try:
+                with contextlib.suppress(Exception):
                     wb.close()
-                except Exception:  # noqa: BLE001
-                    pass

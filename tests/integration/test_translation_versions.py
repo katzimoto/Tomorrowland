@@ -360,7 +360,7 @@ def test_slow_worker_with_version_repository(
             document_repository=doc_repo,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
-                qdrant_client=mock_qdrant,
+            qdrant_client=mock_qdrant,
             version_repository=version_repo,
         )
         worker.process_document(UUID(document_id))
@@ -432,7 +432,7 @@ def test_slow_worker_version_failure_marks_version_failed(
             document_repository=doc_repo,
             translator=mock_translator,
             encoder=DeterministicTestEncoder(),
-                qdrant_client=mock_qdrant,
+            qdrant_client=mock_qdrant,
             version_repository=version_repo,
         )
         worker.process_document(UUID(document_id))

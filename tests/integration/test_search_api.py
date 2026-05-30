@@ -28,18 +28,13 @@ class _FakeMeiliProvider:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
 
-    def search(
-        self, query: DocumentSearchQuery, user: object
-    ) -> SearchResults:
+    def search(self, query: DocumentSearchQuery, user: object) -> SearchResults:
         with self._engine.begin() as conn:
             rows = conn.execute(
                 sa.text("SELECT id, title FROM documents WHERE title LIKE :q LIMIT :limit"),
                 {"q": f"%{query.q}%", "limit": query.limit},
             ).fetchall()
-        results = [
-            SearchResult(document_id=str(row[0]), score=1.0, title=row[1])
-            for row in rows
-        ]
+        results = [SearchResult(document_id=str(row[0]), score=1.0, title=row[1]) for row in rows]
         return SearchResults(results=results, facets={})
 
 

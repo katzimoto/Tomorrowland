@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -6,7 +7,6 @@ import pytest
 
 from services.pipeline.index_worker import IndexConsumer
 from services.search.meili_types import ChunkMetadata, SearchChunkRecord
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -307,7 +307,6 @@ def test_no_elasticsearch_imports_in_module() -> None:
     import services.pipeline.index_worker as iw
 
     importlib.reload(iw)
-    source = open(iw.__file__).read()
-    assert "elastic" not in source.lower(), (
-        "index_worker should not reference Elasticsearch"
-    )
+    with open(iw.__file__) as f:
+        source = f.read()
+    assert "elastic" not in source.lower(), "index_worker should not reference Elasticsearch"

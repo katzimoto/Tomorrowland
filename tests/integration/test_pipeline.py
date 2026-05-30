@@ -77,7 +77,7 @@ def test_sync_now_indexes_document(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             translator=mock_translator,
-                qdrant_client=mock_qdrant,
+            qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)
@@ -145,7 +145,7 @@ def test_sync_now_matches_alert_subscriptions(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             translator=mock_translator,
-                qdrant_client=mock_qdrant,
+            qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)
@@ -181,7 +181,7 @@ def test_sync_now_skips_duplicate(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             translator=mock_translator,
-                qdrant_client=mock_qdrant,
+            qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)
@@ -227,7 +227,7 @@ def test_sync_now_translation_failure_still_indexes(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             translator=mock_translator,
-                qdrant_client=mock_qdrant,
+            qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)
@@ -276,7 +276,7 @@ def test_sync_now_pipeline_failure_sets_failed_status(
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             translator=mock_translator,
-                qdrant_client=mock_qdrant,
+            qdrant_client=mock_qdrant,
         )
     )
     token = _admin_token(client)
@@ -472,7 +472,7 @@ def test_sync_now_with_pre_extracted_text(
                 migrated_engine,
                 Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
                 translator=mock_translator,
-                        qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
             )
         )
         token = _admin_token(client)
@@ -552,7 +552,7 @@ def test_sync_now_middle_item_failure_continues_sync(
                 migrated_engine,
                 Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
                 translator=mock_translator,
-                        qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
             )
         )
         token = _admin_token(client)
@@ -653,7 +653,7 @@ def test_sync_now_document_creation_failure_continues_sync(
                 migrated_engine,
                 Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
                 translator=mock_translator,
-                        qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
             )
         )
         token = _admin_token(client)
@@ -785,7 +785,7 @@ def test_sync_now_smb_preserves_temp_files_for_worker(
                 migrated_engine,
                 Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
                 translator=mock_translator,
-                        qdrant_client=mock_qdrant,
+                qdrant_client=mock_qdrant,
             )
         )
         token = _admin_token(client)
