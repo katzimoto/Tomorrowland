@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ServerIcon, Users, UserCircle, Activity } from "lucide-react";
+import { ServerIcon, Users, UserCircle, Activity, Cpu } from "lucide-react";
 import styles from "./AdminHubPage.module.css";
 
 export function AdminHubPage() {
@@ -44,6 +44,15 @@ export function AdminHubPage() {
           <Activity size={32} className={styles.cardIcon} />
           <span className={styles.cardTitle}>Ingestion</span>
           <span className={styles.cardDesc}>Monitor pipeline job status and per-document traces</span>
+        </button>
+        <button
+          type="button"
+          className={styles.card}
+          onClick={() => navigate({ to: "/admin/model-providers" })}
+        >
+          <Cpu size={32} className={styles.cardIcon} />
+          <span className={styles.cardTitle}>Model Providers</span>
+          <span className={styles.cardDesc}>Manage LLM providers, model descriptors, and task defaults</span>
         </button>
       </div>
     </div>
