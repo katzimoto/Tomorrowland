@@ -61,8 +61,9 @@ class _FakeMeiliProvider:
 class _StubLLM(LLMProvider):
     """LLM provider that returns a deterministic answer for tests."""
 
-    def __init__(self) -> None:
-        self.model = "stub"
+    @property
+    def model(self) -> str:
+        return "stub"
 
     def generate(self, prompt: str, **_: Any) -> str:  # type: ignore[override]
         return "stub answer"
@@ -665,6 +666,304 @@ def test_list_facets_meili_unavailable_returns_empty(migrated_engine: Engine) ->
     )
     assert response.status_code == 200
     assert response.json() == {"facets": {}}
+
+
+# ---------------------------------------------------------------------------
+# Audit logging (#561)
+# ---------------------------------------------------------------------------
+
+
+def test_search_documents_emits_audit_log(
+    migrated_engine: Engine, caplog: pytest.LogCaptureFixture
+) -> None:
+    """search_documents emits a structured audit log line with safe metadata."""
+    _setup_users(migrated_engine)
+    _, doc_id = _create_source_with_doc(migrated_engine, "users", "Audit Doc")
+
+    qdrant = MagicMock(spec=QdrantSearchClient)
+    qdrant.search.return_value = [SearchResult(document_id=doc_id, score=0.9)]
+
+    client = _build_app(
+        migrated_engine,
+        qdrant_client=qdrant,
+        meili_provider=_FakeMeiliProvider(migrated_engine),
+    )
+    token = _login(client, "user@example.com")
+
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="services.api.routers.agent"):
+        response = client.post(
+            "/api/agent/v1/search_documents",
+            json={"query": "audit test query", "top_k": 5},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    audit_lines = [r.message for r in caplog.records if "agent_audit" in r.message]
+    assert audit_lines, "Expected at least one agent_audit log line"
+    line = audit_lines[0]
+    assert "route=search_documents" in line
+    assert "user=" in line
+    assert "query_length=" in line
+    assert "latency_ms=" in line
+    assert "result_count=" in line
+    # Raw query text must not appear in audit log
+    assert "audit test query" not in line
+
+
+def test_ask_corpus_emits_audit_log(
+    migrated_engine: Engine, caplog: pytest.LogCaptureFixture
+) -> None:
+    """ask_corpus emits a structured audit log line; question text is not logged."""
+    _setup_users(migrated_engine)
+    _, doc_id = _create_source_with_doc(migrated_engine, "users", "Corpus Doc")
+
+    qdrant = MagicMock(spec=QdrantSearchClient)
+    qdrant.dimension = 384
+    qdrant.search.return_value = []
+
+    client = _build_app(migrated_engine, qdrant_client=qdrant)
+    token = _login(client, "user@example.com")
+
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="services.api.routers.agent"):
+        response = client.post(
+            "/api/agent/v1/ask_corpus",
+            json={"question": "what is the secret answer to everything"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    audit_lines = [r.message for r in caplog.records if "agent_audit" in r.message]
+    assert audit_lines, "Expected at least one agent_audit log line"
+    line = audit_lines[0]
+    assert "route=ask_corpus" in line
+    assert "what is the secret answer" not in line
+
+
+def test_audit_log_contains_no_auth_header(
+    migrated_engine: Engine, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Authorization header must never appear in audit log output."""
+    _setup_users(migrated_engine)
+    _create_source_with_doc(migrated_engine, "users", "Doc")
+
+    qdrant = MagicMock(spec=QdrantSearchClient)
+    qdrant.search.return_value = []
+
+    client = _build_app(
+        migrated_engine,
+        qdrant_client=qdrant,
+        meili_provider=_FakeMeiliProvider(migrated_engine),
+    )
+    token = _login(client, "user@example.com")
+
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="services.api.routers.agent"):
+        client.post(
+            "/api/agent/v1/search_documents",
+            json={"query": "auth leak test"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    full_log = " ".join(r.message for r in caplog.records)
+    assert "Bearer " not in full_log
+    assert token not in full_log
+
+
+# ---------------------------------------------------------------------------
+# Usage limits / rate limiting (#561)
+# ---------------------------------------------------------------------------
+
+
+def _build_app_with_limit(
+    engine: Engine,
+    *,
+    calls_per_window: int = 100,
+    ask_corpus_calls_per_window: int = 20,
+    qdrant_client: Any = None,
+    meili_provider: Any = None,
+    llm_provider: Any = None,
+) -> TestClient:
+    settings = Settings(
+        auth_provider="local",
+        jwt_secret=TEST_JWT_SECRET,
+        agent_rate_limit_enabled=True,
+        agent_rate_limit_window_seconds=60,
+        agent_rate_limit_calls_per_window=calls_per_window,
+        agent_rate_limit_ask_corpus_calls_per_window=ask_corpus_calls_per_window,
+    )
+    from services.api.main import create_app
+
+    app = create_app(
+        engine,
+        settings,
+        qdrant_client=qdrant_client,
+        meili_provider=meili_provider,
+        llm_provider=llm_provider or _StubLLM(),
+    )
+    return TestClient(app)
+
+
+def test_search_documents_over_limit_returns_429(migrated_engine: Engine) -> None:
+    """Exceed the per-user call limit — REST must return 429."""
+    _setup_users(migrated_engine)
+    _create_source_with_doc(migrated_engine, "users", "Rate Doc")
+
+    qdrant = MagicMock(spec=QdrantSearchClient)
+    qdrant.search.return_value = []
+
+    client = _build_app_with_limit(
+        migrated_engine,
+        calls_per_window=1,
+        qdrant_client=qdrant,
+        meili_provider=_FakeMeiliProvider(migrated_engine),
+    )
+    token = _login(client, "user@example.com")
+
+    r1 = client.post(
+        "/api/agent/v1/search_documents",
+        json={"query": "first"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r1.status_code == 200
+
+    r2 = client.post(
+        "/api/agent/v1/search_documents",
+        json={"query": "second"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r2.status_code == 429
+    assert "Rate limit exceeded" in r2.json()["detail"]
+
+
+def test_ask_corpus_over_limit_returns_429(migrated_engine: Engine) -> None:
+    """Exceed the per-user ask_corpus limit — REST must return 429."""
+    _setup_users(migrated_engine)
+    _create_source_with_doc(migrated_engine, "users", "Ask Doc")
+
+    qdrant = MagicMock(spec=QdrantSearchClient)
+    qdrant.dimension = 384
+    qdrant.search.return_value = []
+
+    client = _build_app_with_limit(
+        migrated_engine,
+        ask_corpus_calls_per_window=1,
+        qdrant_client=qdrant,
+    )
+    token = _login(client, "user@example.com")
+
+    r1 = client.post(
+        "/api/agent/v1/ask_corpus",
+        json={"question": "first question"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r1.status_code == 200
+
+    r2 = client.post(
+        "/api/agent/v1/ask_corpus",
+        json={"question": "second question"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r2.status_code == 429
+
+
+def test_rate_limit_is_per_user(migrated_engine: Engine) -> None:
+    """Two different users share limits independently — user-2 is not blocked by user-1."""
+    _setup_users(migrated_engine)
+    _create_source_with_doc(migrated_engine, "users", "Doc")
+
+    qdrant = MagicMock(spec=QdrantSearchClient)
+    qdrant.search.return_value = []
+
+    client = _build_app_with_limit(
+        migrated_engine,
+        calls_per_window=1,
+        qdrant_client=qdrant,
+        meili_provider=_FakeMeiliProvider(migrated_engine),
+    )
+    token_user = _login(client, "user@example.com")
+    token_admin = _login(client, "admin@example.com")
+
+    # user exhausts their quota
+    client.post(
+        "/api/agent/v1/search_documents",
+        json={"query": "x"},
+        headers={"Authorization": f"Bearer {token_user}"},
+    )
+    assert (
+        client.post(
+            "/api/agent/v1/search_documents",
+            json={"query": "x"},
+            headers={"Authorization": f"Bearer {token_user}"},
+        ).status_code
+        == 429
+    )
+
+    # admin has a fresh bucket
+    assert (
+        client.post(
+            "/api/agent/v1/search_documents",
+            json={"query": "x"},
+            headers={"Authorization": f"Bearer {token_admin}"},
+        ).status_code
+        == 200
+    )
+
+
+def test_rate_limit_disabled_never_blocks(migrated_engine: Engine) -> None:
+    """With rate limiting disabled, unlimited calls must succeed."""
+    _setup_users(migrated_engine)
+    _create_source_with_doc(migrated_engine, "users", "Doc")
+
+    qdrant = MagicMock(spec=QdrantSearchClient)
+    qdrant.search.return_value = []
+
+    settings = Settings(
+        auth_provider="local",
+        jwt_secret=TEST_JWT_SECRET,
+        agent_rate_limit_enabled=False,
+        agent_rate_limit_calls_per_window=1,
+    )
+    from services.api.main import create_app
+
+    app = create_app(
+        migrated_engine,
+        settings,
+        qdrant_client=qdrant,
+        meili_provider=_FakeMeiliProvider(migrated_engine),
+        llm_provider=_StubLLM(),
+    )
+    client = TestClient(app)
+    token = _login(client, "user@example.com")
+
+    for _ in range(3):
+        r = client.post(
+            "/api/agent/v1/search_documents",
+            json={"query": "x"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# MCP 429 inheritance proof (#561)
+# ---------------------------------------------------------------------------
+
+
+def test_mcp_translate_error_handles_429() -> None:
+    """_translate_error must map 429 to a user-safe message (no token leak)."""
+    from services.mcp.client import TomorrowlandClientError
+    from services.mcp.server import _translate_error
+
+    exc = TomorrowlandClientError("Rate limit exceeded. Please retry later.", status_code=429)
+    msg = _translate_error(exc)
+    assert "429" in msg or "Rate limit" in msg
+    assert "Bearer" not in msg
+    assert "token" not in msg.lower()
 
 
 # ---------------------------------------------------------------------------

@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     mcp_host: str = "127.0.0.1"
     mcp_port: int = 8001
 
+    # Researcher API usage limits (#561)
+    # Set AGENT_RATE_LIMIT_ENABLED=false to disable (dev/test only).
+    agent_rate_limit_enabled: bool = True
+    agent_rate_limit_window_seconds: int = Field(default=60, gt=0)
+    agent_rate_limit_calls_per_window: int = Field(default=100, gt=0)
+    agent_rate_limit_ask_corpus_calls_per_window: int = Field(default=20, gt=0)
+
     # LLM generation provider — "ollama" (default), "openai-compatible",
     # "openai", "litellm", or "llama-cpp".
     # LLM_BASE_URL overrides OLLAMA_URL when set; LLM_MODEL overrides OLLAMA_MODEL.

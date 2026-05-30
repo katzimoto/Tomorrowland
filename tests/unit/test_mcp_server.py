@@ -293,6 +293,7 @@ class TestTomorrowlandClient:
             (403, "Access denied"),
             (404, "Resource not found"),
             (422, "Invalid request"),
+            (429, "Rate limit exceeded"),
             (503, "Service unavailable"),
             (504, "timed out"),
         ],

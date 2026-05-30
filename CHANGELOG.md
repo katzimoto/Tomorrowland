@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Issue #561: Audit logging and usage limits for researcher agent queries —
+  all six `/api/agent/v1/*` endpoints emit structured `agent_audit` log
+  lines (safe metadata only: route, user id, correlation id, query length,
+  result count, latency, status; raw query text, document text, JWTs, and
+  auth headers are never logged). Per-user sliding-window rate limiter
+  (`AgentRateLimiter` in `src/shared/rate_limit.py`) enforces configurable
+  call limits with a separate lower limit for the LLM-backed `ask_corpus`
+  endpoint. MCP adapter inherits limits and logging automatically because
+  every tool call proxies through the REST endpoints. `_translate_error`
+  now maps HTTP 429 to a safe user message. Configurable via env vars:
+  `AGENT_RATE_LIMIT_ENABLED` (default `true`),
+  `AGENT_RATE_LIMIT_WINDOW_SECONDS` (default `60`),
+  `AGENT_RATE_LIMIT_CALLS_PER_WINDOW` (default `100`),
+  `AGENT_RATE_LIMIT_ASK_CORPUS_CALLS_PER_WINDOW` (default `20`).
+  Normal search/RAG paths are unaffected. 11 new unit tests + 8 new
+  integration tests.
 - Source profiles: per-source strategy configuration system — new
   `source_profiles` table (migration `c4d5e6f7a8b9`) with configurable
   domain type, chunking strategy, retrieval strategy, and extraction

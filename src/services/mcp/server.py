@@ -72,6 +72,8 @@ def _translate_error(exc: TomorrowlandClientError) -> str:
         return "Resource not found (HTTP 404)."
     if status == 422:
         return f"Invalid request (HTTP 422): {exc}"
+    if status == 429:
+        return "Rate limit exceeded (HTTP 429). Please retry later."
     if status == 503:
         return f"Service unavailable (HTTP 503): {exc}"
     if status == 504:
