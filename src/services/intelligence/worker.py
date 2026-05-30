@@ -20,6 +20,7 @@ from services.intelligence.summary_helpers import (
     normalize_summary_output,
     safe_error_category,
 )
+from services.intelligence.task_defaults import TaskDefaultResolver
 from shared.correlation import get_correlation_id
 from shared.metrics import current_metrics
 
@@ -88,13 +89,20 @@ class IntelligenceWorker:
         ollama_client: LLMProvider,
         config_source: Any | None = None,
         utility_model: str | None = None,
+        resolver: TaskDefaultResolver | None = None,
     ) -> None:
         self._repo = repository
         self._ollama = ollama_client
         self._config = config_source
+        self._resolver = resolver
         # When set, cheap/repeated tasks use this model instead of the main
         # model. None means use the client default (single-model behavior).
         self._utility_model = utility_model or None
+        # If no explicit utility_model but a resolver is available, resolve it.
+        if self._utility_model is None and resolver is not None and resolver.loaded:
+            utility = resolver.resolve("utility")
+            if utility is not None and utility.model_name:
+                self._utility_model = utility.model_name
 
     def process_document(self, document_id: UUID, content: str) -> None:
         """Run enabled intelligence tasks for *document_id*.

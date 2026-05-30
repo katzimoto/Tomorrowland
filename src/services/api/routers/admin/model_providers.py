@@ -571,6 +571,30 @@ def admin_delete_task_default(
 
 
 # ---------------------------------------------------------------------------
+# Reload
+# ---------------------------------------------------------------------------
+
+
+@router.post("/admin/model-providers/reload")
+def admin_reload_providers(
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, bool]:
+    """Reload provider registry and task-default resolver from the database.
+
+    Call this after creating, updating, or deleting providers via the API so
+    in-process resolver state reflects the latest DB configuration without
+    requiring a service restart.
+    """
+    require_admin(user)
+    request.app.state.provider_registry.reload()
+    resolver = getattr(request.app.state, "task_default_resolver", None)
+    if resolver is not None:
+        resolver.reload()
+    return {"reloaded": True}
+
+
+# ---------------------------------------------------------------------------
 # Discover models
 # ---------------------------------------------------------------------------
 

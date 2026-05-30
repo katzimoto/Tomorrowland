@@ -19,6 +19,7 @@ from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
 from services.chat import ChatMessage, ChatRepository, ChatSession, rewrite_query
 from services.chat.models import ChatMessageCreate, ChatScope, ChatSessionCreate, ChatSessionUpdate
+from services.intelligence.task_defaults import TaskDefaultResolver
 from services.rag.reranker import CrossEncoderReranker, NoOpReranker
 from services.rag.service import RagService
 from services.search.factory import build_encoder
@@ -292,13 +293,26 @@ def create_message(
         question = body.content
         rewritten_query: str | None = None
         settings = request.app.state.settings
-        rewrite_client = request.app.state.llm_provider
+        resolver: TaskDefaultResolver | None = getattr(
+            request.app.state, "task_default_resolver", None
+        )
+
+        utility_resolved = resolver.resolve("utility") if resolver and resolver.loaded else None
+        utility_model = (
+            utility_resolved.model_name
+            if utility_resolved and utility_resolved.model_name
+            else settings.effective_utility_model
+        )
+        rewrite_client = (
+            resolver.build_llm_provider("utility") if resolver and resolver.loaded else None
+        )
+        rewrite_client = rewrite_client or request.app.state.llm_provider
         if settings.feature_document_chat_query_rewrite and prior_messages:
             rewritten_query = rewrite_query(
                 question,
                 prior_messages,
                 rewrite_client,
-                model=settings.effective_utility_model,
+                model=utility_model,
             )
             question = rewritten_query
 
@@ -320,7 +334,8 @@ def create_message(
             url=settings.qdrant_url,
             dimension=encoder.dimension,
         )
-        ollama_client = request.app.state.llm_provider
+        chat_llm = resolver.build_llm_provider("chat") if resolver and resolver.loaded else None
+        ollama_client = chat_llm or request.app.state.llm_provider
 
         prompt_row = (
             connection.execute(
@@ -332,13 +347,19 @@ def create_message(
         )
         system_prompt = str(prompt_row["value"]) if prompt_row else None
 
+        reranker_resolved = resolver.resolve("reranking") if resolver and resolver.loaded else None
+        reranker_model = (
+            reranker_resolved.model_name
+            if reranker_resolved and reranker_resolved.model_name
+            else settings.effective_reranker_model
+        )
         reranker: Any = NoOpReranker()
         if settings.feature_document_chat_reranker:
             reranker = CrossEncoderReranker(
                 ollama_client=ollama_client,
                 min_score=3.0,
                 top_n=8,
-                model=settings.effective_reranker_model,
+                model=reranker_model,
             )
         rag = RagService(
             qdrant_client=qdrant_client,
@@ -494,13 +515,26 @@ def create_message_stream(
 
         question = body.content
         rewritten_query: str | None = None
-        rewrite_client = request.app.state.llm_provider
+        resolver: TaskDefaultResolver | None = getattr(
+            request.app.state, "task_default_resolver", None
+        )
+
+        utility_resolved = resolver.resolve("utility") if resolver and resolver.loaded else None
+        utility_model = (
+            utility_resolved.model_name
+            if utility_resolved and utility_resolved.model_name
+            else settings.effective_utility_model
+        )
+        rewrite_client = (
+            resolver.build_llm_provider("utility") if resolver and resolver.loaded else None
+        )
+        rewrite_client = rewrite_client or request.app.state.llm_provider
         if settings.feature_document_chat_query_rewrite and prior_messages:
             rewritten_query = rewrite_query(
                 question,
                 prior_messages,
                 rewrite_client,
-                model=settings.effective_utility_model,
+                model=utility_model,
             )
             question = rewritten_query
 
@@ -520,7 +554,8 @@ def create_message_stream(
             url=settings.qdrant_url,
             dimension=encoder.dimension,
         )
-        ollama_client = request.app.state.llm_provider
+        chat_llm = resolver.build_llm_provider("chat") if resolver and resolver.loaded else None
+        ollama_client = chat_llm or request.app.state.llm_provider
 
         prompt_row = (
             connection.execute(
@@ -532,13 +567,19 @@ def create_message_stream(
         )
         system_prompt = str(prompt_row["value"]) if prompt_row else None
 
+        reranker_resolved = resolver.resolve("reranking") if resolver and resolver.loaded else None
+        reranker_model = (
+            reranker_resolved.model_name
+            if reranker_resolved and reranker_resolved.model_name
+            else settings.effective_reranker_model
+        )
         reranker: Any = NoOpReranker()
         if settings.feature_document_chat_reranker:
             reranker = CrossEncoderReranker(
                 ollama_client=ollama_client,
                 min_score=3.0,
                 top_n=8,
-                model=settings.effective_reranker_model,
+                model=reranker_model,
             )
 
         rag = RagService(

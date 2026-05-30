@@ -7,6 +7,11 @@ from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.provider_registry import ProviderRegistry
 from services.intelligence.repository import IntelligenceRepository
 from services.intelligence.ssrf_validation import validate_provider_url
+from services.intelligence.task_defaults import (
+    TaskDefaultResolver,
+    TaskResolution,
+    build_llm_from_resolution,
+)
 from services.intelligence.worker import IntelligenceWorker
 
 __all__ = [
@@ -15,6 +20,9 @@ __all__ = [
     "LLMProvider",
     "OllamaClient",
     "OpenAICompatibleLLMProvider",
+    "TaskDefaultResolver",
+    "TaskResolution",
+    "build_llm_from_resolution",
     "build_llm_provider",
     "CredentialStore",
     "ProviderRegistry",
