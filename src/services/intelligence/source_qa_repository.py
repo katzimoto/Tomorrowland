@@ -171,4 +171,4 @@ class SourceQARepository:
             .mappings()
             .first()
         )
-        return SourceQACheck.from_row(dict(row)) if row else None
+        return SourceQACheck.from_row(row) if row else None

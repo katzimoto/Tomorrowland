@@ -26,7 +26,7 @@ class PlainExtractor:
 
         # Second pass: detect encoding via charset-normalizer.
         try:
-            from charset_normalizer import from_path  # type: ignore[import-not-found]
+            from charset_normalizer import from_path
 
             result = from_path(path).best()
             if result is not None:

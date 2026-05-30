@@ -29,7 +29,7 @@ class OcrExtractor:
         """
         try:
             import pytesseract  # type: ignore[import-not-found]
-            from PIL import Image  # type: ignore[import-untyped]
+            from PIL import Image
         except ImportError:
             logger.debug("pytesseract / Pillow not installed; OCR unavailable")
             return ExtractionResult(text="")
