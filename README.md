@@ -12,7 +12,7 @@ lives under `docs/`.
 ## What it is
 
 - A private document discovery platform for local and air-gapped environments.
-- A Docker Compose application with FastAPI, React, PostgreSQL, Elasticsearch,
+- A Docker Compose application with FastAPI, React, PostgreSQL, Meilisearch,
   Qdrant, Kafka-compatible event plumbing, LibreTranslate, and optional Ollama.
 - A release artifact workflow that separates a small platform archive from large
   split Docker image parts and optional model bundles.
@@ -152,7 +152,7 @@ unless release notes explicitly say otherwise.
 
 ## Development setup
 
-- Backend: Python 3.11+, FastAPI, SQLAlchemy, PostgreSQL, Elasticsearch, Qdrant.
+- Backend: Python 3.11+, FastAPI, SQLAlchemy, PostgreSQL, Meilisearch, Qdrant.
 - Frontend: React 19, TypeScript, Vite in `frontend/`.
 - Start with [`docs/development/local-dev.md`](docs/development/local-dev.md).
 - Test commands are summarized in [`docs/development/testing.md`](docs/development/testing.md).

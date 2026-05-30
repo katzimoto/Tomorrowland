@@ -14,7 +14,7 @@ code.
 | `api` | `${API_PORT:-8000}` | FastAPI app served by Uvicorn from `services.api.asgi:app`. | `GET /health` |
 | `frontend` | `${FRONTEND_PORT:-8080}` | Nginx-served React frontend that proxies `/api/` to `api:8000`. | `GET /health` |
 | `postgres` | `${POSTGRES_PORT:-5432}` | PostgreSQL metadata database. | `pg_isready` |
-| `elasticsearch` | `${ELASTICSEARCH_PORT:-9200}` | Full-text index storage. | `GET /_cluster/health` |
+| `meilisearch` | `${MEILISEARCH_PORT:-7700}` | Keyword / BM25 index. | `GET /health` |
 | `qdrant` | `${QDRANT_PORT:-6333}` | Vector index storage. | `GET /healthz` |
 | `libretranslate` | `${LIBRETRANSLATE_PORT:-5000}` | Language detection and translation service. | `GET /languages` |
 | `ollama` | `${OLLAMA_PORT:-11434}` | Local LLM runtime for intelligence features. | `GET /api/tags` |
@@ -66,7 +66,7 @@ long-running worker containers only after a real worker entrypoint exists.
    - API health through the frontend proxy: `http://localhost:8080/api/health`
 
 On a clean volume, Compose waits for PostgreSQL, runs the `migrate` job, waits
-for Elasticsearch, Qdrant, LibreTranslate, and Ollama health checks, then starts
+for Meilisearch, Qdrant, LibreTranslate, and Ollama health checks, then starts
 the API and frontend.
 
 
@@ -371,16 +371,16 @@ for the operating system and Docker runtime.
 | Service | CPUs | Memory limit | Memory reservation | PIDs |
 |---------|------|-------------|-------------------|------|
 | `postgres` | 1.00 | 1536m | 512m | 512 |
-| `elasticsearch` | 1.50 | 2g | 1g | 512 |
+| `meilisearch` | 1.00 | 1g | 256m | 512 |
 | `qdrant` | 1.00 | 1536m | 512m | 512 |
 | `meilisearch` | 1.00 | 1g | 256m | 512 |
 | `libretranslate` | 1.00 | 2g | 512m | 512 |
 | `ollama` | 2.00 | 4g | 1g | 1024 |
 | `api` | 1.00 | 1g | 256m | 512 |
-| `pipeline-worker` | 1.00 | 1536m | 256m | 512 |
-| `vector-worker` | 1.00 | 1536m | 256m | 512 |
+| `parse-worker` | 1.00 | 1536m | 256m | 512 |
+| `translate-worker` | 1.00 | 1024m | 256m | 512 |
 
-**Total baseline (all services, 1 replica each): ~15 GB memory limit, ~4 GB reservation.**
+**Total baseline (all services, 1 replica each): ~14 GB memory limit, ~4 GB reservation.**
 
 ### Guidance by host RAM
 
@@ -388,13 +388,11 @@ for the operating system and Docker runtime.
 - Keep at 1 replica for every service.
 - Reduce Ollama: `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_MAX_LOADED_MODELS=1`,
   `OLLAMA_CONTEXT_LENGTH=1024`.
-- Reduce Elasticsearch heap: `ES_JAVA_OPTS="-Xms256m -Xmx256m"`.
-- Do not enable Meilisearch (`FEATURE_MEILISEARCH_SEARCH=false`).
+- Meilisearch at default settings; no heap tuning needed.
 
 **16-32 GB RAM — comfortable single-host:**
-- API and pipeline-worker may scale to 2 replicas if needed.
+- API may scale to 2 replicas if needed.
 - `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_CONTEXT_LENGTH=2048`.
-- Meilisearch can be enabled with caution.
 
 **32 GB+ RAM — operator-tuned only:**
 - Do not automatically raise the defaults above.
@@ -413,16 +411,15 @@ docker stats
 
 # Scale specific services
 docker compose up -d --scale api=2
-docker compose up -d --scale pipeline-worker=2
 
 # Follow logs for overload signals
-docker compose logs -f api pipeline-worker vector-worker ollama
+docker compose logs -f api parse-worker ollama
 ```
 
 ### Capacity warning
 
 > Do not scale API or workers until the combined memory caps for Postgres,
-> search, vector DB, translation, Ollama, API replicas, and worker replicas
+> Meilisearch, Qdrant, translation, Ollama, API replicas, and worker replicas
 > fit within host RAM with at least 2 GB reserved for the host OS.
 
 ### Overload response
@@ -431,13 +428,13 @@ When the server shows signs of overload (OOM kills, swap usage, high p95
 latency, repeated worker retries):
 
 1. **Stop increasing replicas.** Adding more containers makes OOM more likely.
-2. **Reduce worker scale to 1.** `docker compose up -d --scale pipeline-worker=1 --scale vector-worker=1`
+2. **Reduce worker scale to 1.** `docker compose up -d --scale parse-worker=1 --scale translate-worker=1`
 3. **Reduce Ollama queue/parallelism/context length.** Lower
    `OLLAMA_NUM_PARALLEL`, `OLLAMA_MAX_QUEUE`, and `OLLAMA_CONTEXT_LENGTH`.
 4. **Lower embedding/translation/indexing concurrency.** Keep each worker at
    1 replica; do not run additional worker containers.
-5. **Inspect DB pool pressure and queue age.**
-   `docker compose logs --tail=50 pipeline-worker | grep "queue_depth"`
+5. **Inspect RabbitMQ queue depth.**
+   Check `GET /admin/rabbit/queues` or `docker compose logs --tail=50 parse-worker`
 6. **Only then consider larger hardware or distributed deployment.**
 
 ## Startup, Shutdown, And Logs
@@ -475,7 +472,7 @@ docker compose logs -f api frontend migrate
 Follow infrastructure logs while troubleshooting startup:
 
 ```bash
-docker compose logs -f postgres elasticsearch qdrant libretranslate ollama kafka
+docker compose logs -f postgres meilisearch qdrant libretranslate ollama kafka
 ```
 
 Stop services without deleting named volumes:
@@ -528,7 +525,7 @@ configurable through `.env` variables; defaults use the `tomorrowland_` prefix:
 | --- | --- | --- |
 | `files_data` | `tomorrowland_files_data` | `TOMORROWLAND_FILES_VOLUME` |
 | `postgres_data` | `tomorrowland_postgres_data` | `TOMORROWLAND_POSTGRES_VOLUME` |
-| `elasticsearch_data` | `tomorrowland_elasticsearch_data` | `TOMORROWLAND_ELASTICSEARCH_VOLUME` |
+| `meilisearch_data` | `tomorrowland_meilisearch_data` | `TOMORROWLAND_MEILISEARCH_VOLUME` |
 | `qdrant_data` | `tomorrowland_qdrant_data` | `TOMORROWLAND_QDRANT_VOLUME` |
 | `kafka_data` | `tomorrowland_kafka_data` | `TOMORROWLAND_KAFKA_VOLUME` |
 | `libretranslate_data` | `tomorrowland_libretranslate_data` | `TOMORROWLAND_LIBRETRANSLATE_VOLUME` |
@@ -536,10 +533,10 @@ configurable through `.env` variables; defaults use the `tomorrowland_` prefix:
 | `prometheus_data` | `tomorrowland_prometheus_data` | `TOMORROWLAND_PROMETHEUS_VOLUME` |
 | `grafana_data` | `tomorrowland_grafana_data` | `TOMORROWLAND_GRAFANA_VOLUME` |
 
-Back up `postgres_data`, `files_data`, `elasticsearch_data`, and `qdrant_data`
+Back up `postgres_data`, `files_data`, `meilisearch_data`, and `qdrant_data`
 together while the stack is stopped, or from a storage snapshot that captures
 them at the same point in time. PostgreSQL is the source of truth for metadata,
-but the file, full-text, and vector volumes must match it to avoid missing
+but the file, BM25, and vector volumes must match it to avoid missing
 previews, stale search results, or vector hits that refer to deleted chunks.
 
 Run `docker volume ls` to confirm exact volume names before copying or archiving
@@ -558,8 +555,8 @@ docker run --rm -v tomorrowland_postgres_data:/volume -v "$PWD/backups:/backup" 
   alpine sh -c 'tar czf /backup/postgres_data.tgz -C /volume .'
 docker run --rm -v tomorrowland_files_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar czf /backup/files_data.tgz -C /volume .'
-docker run --rm -v tomorrowland_elasticsearch_data:/volume -v "$PWD/backups:/backup" \
-  alpine sh -c 'tar czf /backup/elasticsearch_data.tgz -C /volume .'
+docker run --rm -v tomorrowland_meilisearch_data:/volume -v "$PWD/backups:/backup" \
+  alpine sh -c 'tar czf /backup/meilisearch_data.tgz -C /volume .'
 docker run --rm -v tomorrowland_qdrant_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar czf /backup/qdrant_data.tgz -C /volume .'
 
@@ -573,7 +570,7 @@ custom `TOMORROWLAND_*_VOLUME` values in `.env`, replace the volume names in
 the `docker run` commands with the actual names shown by `docker volume ls`.
 
 For larger deployments, prefer storage-level snapshots taken while services are
-stopped or application writes are paused. If Elasticsearch or Qdrant indexes are
+stopped or application writes are paused. If Meilisearch or Qdrant indexes are
 lost but PostgreSQL and file storage are intact, plan a controlled re-ingestion
 or re-indexing operation rather than mixing indexes from a different backup
 point.
@@ -593,15 +590,15 @@ docker compose down -v
 
 docker volume create tomorrowland_postgres_data
 docker volume create tomorrowland_files_data
-docker volume create tomorrowland_elasticsearch_data
+docker volume create tomorrowland_meilisearch_data
 docker volume create tomorrowland_qdrant_data
 
 docker run --rm -v tomorrowland_postgres_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar xzf /backup/postgres_data.tgz -C /volume'
 docker run --rm -v tomorrowland_files_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar xzf /backup/files_data.tgz -C /volume'
-docker run --rm -v tomorrowland_elasticsearch_data:/volume -v "$PWD/backups:/backup" \
-  alpine sh -c 'tar xzf /backup/elasticsearch_data.tgz -C /volume'
+docker run --rm -v tomorrowland_meilisearch_data:/volume -v "$PWD/backups:/backup" \
+  alpine sh -c 'tar xzf /backup/meilisearch_data.tgz -C /volume'
 docker run --rm -v tomorrowland_qdrant_data:/volume -v "$PWD/backups:/backup" \
   alpine sh -c 'tar xzf /backup/qdrant_data.tgz -C /volume'
 
@@ -618,7 +615,7 @@ docker compose exec -T postgres psql -U "${POSTGRES_USER:-postgres}" \
 docker compose up --build -d
 ```
 
-Do not restore PostgreSQL from one point in time and Elasticsearch or Qdrant from
+Do not restore PostgreSQL from one point in time and Meilisearch or Qdrant from
 another unless you are prepared to rebuild indexes.
 
 ## Health Checks And Service Ports
@@ -629,7 +626,7 @@ Use these commands to inspect runtime health from the host:
 curl -fsS http://localhost:8000/health
 curl -fsS http://localhost:8080/health
 curl -fsS http://localhost:8080/api/health
-curl -fsS http://localhost:9200/_cluster/health
+curl -fsS http://localhost:7700/health
 curl -fsS http://localhost:6333/healthz
 curl -fsS http://localhost:5000/languages
 curl -fsS http://localhost:11434/api/tags
@@ -669,18 +666,18 @@ docker compose down -v
 docker compose up --build
 ```
 
-### Elasticsearch index startup
+### Meilisearch index startup
 
-If the API starts but search fails, check Elasticsearch health and API startup
+If the API starts but search fails, check Meilisearch health and API startup
 logs for index-creation errors:
 
 ```bash
-curl -fsS http://localhost:9200/_cluster/health
-docker compose logs api elasticsearch
+curl -fsS http://localhost:7700/health
+docker compose logs api meilisearch
 ```
 
 The API creates and uses application indexes during startup and ingestion. Fix
-Elasticsearch health or disk issues first, then restart the API:
+Meilisearch health or disk issues first, then restart the API:
 
 ```bash
 docker compose restart api
@@ -910,7 +907,7 @@ backup or `pg_dump` snapshot for rollback, not Alembic downgrade.
 
 ### Reindex caution
 
-If you trigger a full reindex of Elasticsearch or Qdrant after the upgrade,
+If you trigger a full reindex of Meilisearch or Qdrant after the upgrade,
 ensure the migration and backfill have completed first. Reindexing before
 `is_latest` and `version_family_id` are populated may cause older versions to
 be indexed without the `is_latest = false` flag, making them appear in
@@ -946,7 +943,7 @@ files are re-synced with changed content. A retention/deletion policy for old
 versions is not included in this release track and is tracked as future work.
 
 Operators can manually remove old version `documents` rows if needed, but must
-also remove the corresponding Elasticsearch and Qdrant entries by `document_id`
+also remove the corresponding Meilisearch and Qdrant entries by `document_id`
 to avoid stale search results.
 
 ## Current Limitations
@@ -955,12 +952,9 @@ to avoid stale search results.
   `pids_limit`. These are container-level limits; they do not replace cgroup
   configuration, kernel tuning, or swap accounting at the host level. Hosts with
   less than 8 GB RAM are not supported.
-- Long-running worker containers are not present yet; ingestion and intelligence
-  work are synchronous or API-triggered in the current runtime.
 - NiFi event ingestion is release-usable through the bounded Kafka drain in
-  `services.pipeline.kafka_consumer`. This release does not add a long-running
-  worker container; operators wire the drain into an approved scheduler or
-  operational entrypoint and keep live NiFi/Kafka validation outside CI.
+  `services.pipeline.kafka_consumer`. The drain runs in the API container;
+  operators should monitor it through the admin API and RabbitMQ dashboard.
 - Confluence and Jira Server/Data Center connectors are implemented, but
   Atlassian page/project permission synchronization is not present; access is
   governed by Tomorrowland source grants.

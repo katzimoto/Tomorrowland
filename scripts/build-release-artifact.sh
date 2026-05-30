@@ -57,7 +57,6 @@ libretranslate_airgap_image="tomorrowland/libretranslate:airgap"
 third_party_images=(
   "postgres:16-alpine"
   "redpandadata/redpanda:v24.1.9"
-  "docker.elastic.co/elasticsearch/elasticsearch:8.14.3"
   "qdrant/qdrant:v1.10.1"
   "ollama/ollama:latest"
   "getmeili/meilisearch:v1.9"
@@ -240,12 +239,12 @@ $(for image in "${all_images[@]:1}"; do printf ',\n    "%s"' "$image"; done)
   "minimum_compose_version": "2.20",
   "migrations": {"expected": true, "service": "migrate", "command": "alembic upgrade head"},
   "persistent_data": {
-    "volumes": ["files_data", "postgres_data", "kafka_data", "elasticsearch_data", "qdrant_data", "libretranslate_data", "ollama_data", "rabbitmq_data"],
+    "volumes": ["files_data", "postgres_data", "kafka_data", "meilisearch_data", "qdrant_data", "libretranslate_data", "ollama_data", "rabbitmq_data"],
     "volume_env_names": {
       "files_data": "TOMORROWLAND_FILES_VOLUME",
       "postgres_data": "TOMORROWLAND_POSTGRES_VOLUME",
       "kafka_data": "TOMORROWLAND_KAFKA_VOLUME",
-      "elasticsearch_data": "TOMORROWLAND_ELASTICSEARCH_VOLUME",
+      "meilisearch_data": "TOMORROWLAND_MEILISEARCH_VOLUME",
       "qdrant_data": "TOMORROWLAND_QDRANT_VOLUME",
       "libretranslate_data": "TOMORROWLAND_LIBRETRANSLATE_VOLUME",
       "ollama_data": "TOMORROWLAND_OLLAMA_VOLUME",

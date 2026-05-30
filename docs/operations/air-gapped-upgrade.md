@@ -43,7 +43,7 @@ default. This includes:
   comments, annotations, subscriptions, notifications, activity, translations,
   summaries, entities, tags, DLQ, and audit records.
 - `files_data`, containing ingested files and document storage under `FILES_ROOT`.
-- Elasticsearch index data in `elasticsearch_data`.
+- Meilisearch BM25 index data in `meilisearch_data`.
 - Qdrant vector data in `qdrant_data`.
 - Redpanda/Kafka data in `kafka_data`.
 - LibreTranslate and Ollama volumes.
@@ -71,7 +71,7 @@ at build time. When upgrading to a new release artifact:
   cached translations but not document metadata), and restart. Docker will then
   copy the new image's packages into the empty volume.
 - Before removing the volume, confirm that `postgres_data`, `files_data`,
-  `elasticsearch_data`, and `qdrant_data` are all intact. Never use
+  `meilisearch_data`, and `qdrant_data` are all intact. Never use
   `docker compose down -v` during an upgrade.
 - After startup, validate language support with:
 
@@ -199,13 +199,13 @@ by default. It captures:
   version, Compose version, and current volumes metadata.
 - A PostgreSQL custom-format dump from the running `postgres` service.
 - A compressed archive of the `files_data` named volume.
-- Notes describing safe Elasticsearch and Qdrant backup/restore strategy.
+- Notes describing safe Qdrant backup/restore strategy.
 - Notes for optional monitoring data if a monitoring profile or override exists.
 
-Elasticsearch and Qdrant live snapshot repositories are deployment-specific, so
+Qdrant live snapshot repositories are deployment-specific, so
 the script does not attempt to configure them automatically. For high-risk
 upgrades, stop services without deleting volumes and take storage-level snapshots
-or offline archives of `elasticsearch_data` and `qdrant_data` before continuing.
+or offline archives of `meilisearch_data` and `qdrant_data` before continuing.
 
 ## Required commands before upgrade
 
@@ -271,11 +271,11 @@ the script exits non-zero and leaves a partial backup marked with `FAILED.txt`
 for inspection. Do not proceed with the upgrade until a complete backup contains
 `SUCCESS.txt`.
 
-For Elasticsearch and Qdrant, use the backup notes as the safe fallback:
+For Qdrant and Meilisearch, use the backup notes as the safe fallback:
 
 ```bash
 docker compose --env-file .env -f docker-compose.airgap.yml stop
-# take storage-level snapshots or offline archives of elasticsearch_data and qdrant_data
+# take storage-level snapshots or offline archives of meilisearch_data and qdrant_data
 docker compose --env-file .env -f docker-compose.airgap.yml up -d
 ```
 

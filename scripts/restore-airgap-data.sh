@@ -143,5 +143,5 @@ docker run --rm \
   sh -c 'find /data -mindepth 1 -maxdepth 1 -exec rm -rf {} + && cd /data && tar xzf /backup/files/files_data.tar.gz'
 
 log "restore completed for .env, Compose files, PostgreSQL, and files_data"
-log "Before starting the full stack, restore Elasticsearch/Qdrant volume snapshots if you took them. See: $backup_dir/notes/elasticsearch-qdrant-restore-strategy.md"
+log "Before starting the full stack, restore Qdrant volume snapshots if you took them. See: $backup_dir/notes/qdrant-restore-strategy.md"
 log "Start when ready: docker compose --env-file .env ${compose_files[*]/#/-f } up -d"

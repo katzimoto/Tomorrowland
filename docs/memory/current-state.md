@@ -2,28 +2,40 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
-## 2026-05-30 — refactor(runtime): remove DB-poll pipeline entrypoints (#545 S4)
+## 2026-05-30 — docs: canonical MVP runtime cleanup (#545 S5)
 
-Status: Done — PR #580 merged to main
-Source: issue #545, PR #580
+Status: Done
+Source: issue #545 (S5), PR #???
 
-DB-poll pipeline removed from the entire runtime:
+Accurate project docs, smoke assumptions, and memory files for the canonical
+MVP runtime: NiFi → Kafka/Redpanda → NiFiKafkaDrain → RabbitMQ →
+parse/translate/embed/index → Meilisearch/Qdrant.
 
-| Area | Change |
-|---|---|
-| `src/services/pipeline/runner.py` | Deleted (630 lines, DB-poll loop + `__main__`) |
-| `src/services/pipeline/vector_worker.py` | Deleted (419 lines, DB-poll loop + `__main__`) |
-| `docker-compose.yml` | Removed `pipeline-worker` and `vector-worker` services (profiles: `db-poll`) |
-| `src/shared/config.py` | Removed `ingest_mode` field |
-| `.env.example`, `.env.airgap.example`, both Compose files | Removed `INGEST_MODE` env var |
-| `tests/unit/test_pipeline_runner.py` | Deleted (623 lines, entirely DB-poll-specific) |
-| `tests/unit/test_worker_observability.py` | Removed `TestPipelineRunnerMetrics` and `TestVectorWorkerMetrics` |
+Changes:
+- `docs/` — removed stale Elasticsearch, DB-poll, pipeline-worker, vector-worker,
+  runner.py, vector_worker.py, INGEST_MODE references. Updated worker architecture
+  docs to reflect RabbitMQ chain. Updated service tables, health checks, backup
+  guidance, troubleshooting.
+- `README.md` — Elasticsearch → Meilisearch in service lists.
+- `scripts/` — removed ELASTIC_URL, INGEST_MODE, ELASTICSEARCH_VOLUME from
+  setup-env.sh; removed ES from smoke-test.sh diagnostics; updated
+  build-release-artifact.sh to reference meilisearch not ES; updated backup
+  and restore scripts to remove ES guidance.
+- `.github/workflows/smoke.yml` — removed `ES_JAVA_OPTS` env var.
+- `docs/operators/ai-surfaces.md` — Elasticsearch → Meilisearch throughout.
+- `docs/operations/pipeline-workers.md` — full rewrite for RabbitMQ worker chain.
+- `docs/operations/production-compose.md` — removed ES service, volume, health
+  check, backup, and troubleshooting references.
+- `docs/memory/decisions.md` — updated BM25 graceful degradation entry.
 
-`rabbitmq_enabled` preserved — live checks in `scheduler.py`, `admin/ingestion.py`, `publisher.py`.
+Total issue #545 (S1–S5) complete:
+- Legacy comments API removed.
+- Meilisearch is the primary BM25 index.
+- Elasticsearch removed entirely.
+- DB-poll entrypoints and workers removed.
+- Docs, smoke assumptions, and memory files updated.
 
-Canonical pipeline is RabbitMQ-only. #545 S5 (docs/smoke cleanup) remains.
-
-Next action: #544 model-provider adapter and #558 remain out of scope for this slice.
+Next action: #544 and #558 remain out of scope.
 
 ---
 

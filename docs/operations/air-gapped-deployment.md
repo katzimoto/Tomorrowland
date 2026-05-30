@@ -645,9 +645,9 @@ Create a backup (PostgreSQL dump, files volume, config):
 ```
 
 **Never run `docker compose down -v`.** The `-v` flag deletes named volumes,
-including PostgreSQL, Elasticsearch, Qdrant, files, model, and broker data.
+including PostgreSQL, Meilisearch, Qdrant, files, model, and broker data.
 
-Back up `postgres_data`, `files_data`, `elasticsearch_data`, and `qdrant_data`
+Back up `postgres_data`, `files_data`, `meilisearch_data`, and `qdrant_data`
 together while the stack is stopped, or from a storage snapshot that captures
 them at the same point in time. Keep a logical PostgreSQL dump with volume
 backups when possible. For upgrades, prefer `scripts/backup-airgap-data.sh` and
