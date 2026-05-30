@@ -2,6 +2,65 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-30 — refactor(runtime): remove DB-poll pipeline entrypoints (#545 S4)
+
+Status: Done — PR #580 merged to main
+Source: issue #545, PR #580
+
+DB-poll pipeline removed from the entire runtime:
+
+| Area | Change |
+|---|---|
+| `src/services/pipeline/runner.py` | Deleted (630 lines, DB-poll loop + `__main__`) |
+| `src/services/pipeline/vector_worker.py` | Deleted (419 lines, DB-poll loop + `__main__`) |
+| `docker-compose.yml` | Removed `pipeline-worker` and `vector-worker` services (profiles: `db-poll`) |
+| `src/shared/config.py` | Removed `ingest_mode` field |
+| `.env.example`, `.env.airgap.example`, both Compose files | Removed `INGEST_MODE` env var |
+| `tests/unit/test_pipeline_runner.py` | Deleted (623 lines, entirely DB-poll-specific) |
+| `tests/unit/test_worker_observability.py` | Removed `TestPipelineRunnerMetrics` and `TestVectorWorkerMetrics` |
+
+`rabbitmq_enabled` preserved — live checks in `scheduler.py`, `admin/ingestion.py`, `publisher.py`.
+
+Canonical pipeline is RabbitMQ-only. #545 S5 (docs/smoke cleanup) remains.
+
+Next action: #544 model-provider adapter and #558 remain out of scope for this slice.
+
+---
+
+## 2026-05-30 — refactor(search): remove Elasticsearch entirely (#545 S2 + S3)
+
+Status: Done — PR #573 merged to main
+Source: issue #545, OpenCode session
+
+Elasticsearch removed from the entire codebase:
+
+| Area | Change |
+|---|---|
+| `src/services/search/elastic.py` | Deleted (231 lines) |
+| `src/shared/config.py` | Removed `elastic_url` field |
+| `pyproject.toml` | Removed `elasticsearch>=8.14,<9` dep |
+| `docker-compose.yml`, `.airgap.yml` | Removed ES service, volume, ELASTIC_URL |
+| `.env.example`, `.env.airgap.example` | Removed `ELASTIC_URL` |
+| CI workflows (`smoke.yml`, `containers.yml`) | Removed ES from service lists |
+| `src/services/api/main.py` | `create_app()` no longer accepts `es_client` |
+| `src/services/api/readiness.py` | Removed ES probe |
+| `src/services/api/routers/search.py` | Removed ES fallback `else` branch |
+| `src/services/api/routers/admin/intelligence.py` | Removed `es_client` creation |
+| Pipeline workers (`worker.py`, `slow_worker.py`, `runner.py`, `intelligence_consumer.py`) | Removed `es_client` param, ES `index_document` calls |
+| `index_worker.py` | Meilisearch required (not optional); shadow-flag gating removed |
+| `src/services/intelligence/worker.py` | Removed `_update_es_field` / `_update_es_fields` |
+| Test files (15 files across unit/integration) | Removed ES mocks, imports, assertions; deleted `test_search_elastic.py` |
+
+New test file: `tests/unit/test_index_consumer.py` (9 tests, ES-free IndexConsumer).
+
+Key decision: Intelligence worker ES updates removed entirely — canonical data lives in DB via `IntelligenceRepository`; ES sync was a secondary write no longer needed with Meilisearch as primary.
+
+Coverage threshold (90%) is not met — deleting `elastic.py` removed 231 lines of covered code. Pre-existing test failures (`test_admin_jobs_routes`, PostgreSQL uniquq violations) also reduce effective coverage.
+
+Next action: #544 and #558 remain out of scope.
+
+---
+
 ## 2026-05-29 — feat(rag): retrieval trace foundation — issue #537
 
 Status: Done — PR #570 merged to main

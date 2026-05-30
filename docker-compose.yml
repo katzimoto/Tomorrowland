@@ -32,7 +32,6 @@ x-app-environment: &app-environment
   FEATURE_RELATED_DOCS: ${FEATURE_RELATED_DOCS:-true}
   FEATURE_AUTO_TAGGING: ${FEATURE_AUTO_TAGGING:-true}
   AUTO_ENRICH_THRESHOLD: ${AUTO_ENRICH_THRESHOLD:-5}
-  INGEST_MODE: ${INGEST_MODE:-hybrid}
   MEILISEARCH_URL: ${MEILISEARCH_URL:-http://meilisearch:7700}
   MEILISEARCH_MASTER_KEY: ${MEILISEARCH_MASTER_KEY:-dev-meilisearch-master-key}
   FEATURE_MEILISEARCH_SEARCH: ${FEATURE_MEILISEARCH_SEARCH:-true}
@@ -78,62 +77,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
-    logging:
-      driver: json-file
-    volumes:
-      - files_data:/data
-      - ./data:/data/mounted:ro
-
-  pipeline-worker:
-    build:
-      context: .
-      dockerfile: docker/backend.Dockerfile
-    profiles: ["db-poll"]
-    restart: unless-stopped
-    cpus: ${PIPELINE_WORKER_CPUS:-1.00}
-    mem_limit: ${PIPELINE_WORKER_MEM_LIMIT:-1536m}
-    mem_reservation: ${PIPELINE_WORKER_MEM_RESERVATION:-256m}
-    pids_limit: ${PIPELINE_WORKER_PIDS_LIMIT:-512}
-    environment: *app-environment
-    command: python -m services.pipeline.runner
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
-      ollama-llm:
-        condition: service_healthy
-      ollama-embed:
-        condition: service_healthy
-    logging:
-      driver: json-file
-    volumes:
-      - files_data:/data
-      - ./data:/data/mounted:ro
-
-  vector-worker:
-    build:
-      context: .
-      dockerfile: docker/backend.Dockerfile
-    profiles: ["db-poll"]
-    restart: unless-stopped
-    cpus: ${VECTOR_WORKER_CPUS:-1.00}
-    mem_limit: ${VECTOR_WORKER_MEM_LIMIT:-1536m}
-    mem_reservation: ${VECTOR_WORKER_MEM_RESERVATION:-256m}
-    pids_limit: ${VECTOR_WORKER_PIDS_LIMIT:-512}
-    environment: *app-environment
-    command: python -m services.pipeline.vector_worker
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
-      ollama-embed:
-        condition: service_healthy
     logging:
       driver: json-file
     volumes:
