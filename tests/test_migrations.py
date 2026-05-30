@@ -134,3 +134,94 @@ def test_source_permissions_support_source_level_grants(migrated_engine: Engine)
         )
 
     assert rows == [group_id.hex]
+
+
+def test_model_provider_registry_tables_created(migrated_engine: Engine) -> None:
+    inspector = sa.inspect(migrated_engine)
+    tables = set(inspector.get_table_names())
+    assert "model_providers" in tables
+    assert "model_descriptors" in tables
+    assert "model_task_defaults" in tables
+
+
+def test_model_provider_unique_name(migrated_engine: Engine) -> None:
+    provider_id = uuid4()
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                "INSERT INTO model_providers (id, name, provider_type) "
+                "VALUES (:id, 'UniqueName', 'ollama')"
+            ),
+            {"id": provider_id.hex},
+        )
+    with (
+        pytest.raises(sa.exc.IntegrityError),
+        migrated_engine.begin() as connection,
+    ):
+        connection.execute(
+            sa.text(
+                "INSERT INTO model_providers (id, name, provider_type) "
+                "VALUES (:id, 'UniqueName', 'openai-compatible')"
+            ),
+            {"id": uuid4().hex},
+        )
+
+
+def test_model_descriptor_unique_provider_model(migrated_engine: Engine) -> None:
+    provider_id = uuid4()
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                "INSERT INTO model_providers (id, name, provider_type) "
+                "VALUES (:id, 'UniqPM', 'ollama')"
+            ),
+            {"id": provider_id.hex},
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO model_descriptors (id, provider_id, model_name) "
+                "VALUES (:id, :pid, 'mistral')"
+            ),
+            {"id": uuid4().hex, "pid": provider_id.hex},
+        )
+    with (
+        pytest.raises(sa.exc.IntegrityError),
+        migrated_engine.begin() as connection,
+    ):
+        connection.execute(
+            sa.text(
+                "INSERT INTO model_descriptors (id, provider_id, model_name) "
+                "VALUES (:id, :pid, 'mistral')"
+            ),
+            {"id": uuid4().hex, "pid": provider_id.hex},
+        )
+
+
+def test_model_task_default_unique_task_type(migrated_engine: Engine) -> None:
+    provider_id = uuid4()
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                "INSERT INTO model_providers (id, name, provider_type) "
+                "VALUES (:id, 'UniqTT', 'ollama')"
+            ),
+            {"id": provider_id.hex},
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO model_task_defaults (id, task_type, provider_id) "
+                "VALUES (:id, 'chat', :pid)"
+            ),
+            {"id": uuid4().hex, "pid": provider_id.hex},
+        )
+    with (
+        pytest.raises(sa.exc.IntegrityError),
+        migrated_engine.begin() as connection,
+    ):
+        connection.execute(
+            sa.text(
+                "INSERT INTO model_task_defaults (id, task_type, provider_id) "
+                "VALUES (:id, 'chat', :pid)"
+            ),
+            {"id": uuid4().hex, "pid": provider_id.hex},
+        )
