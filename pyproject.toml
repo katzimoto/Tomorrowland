@@ -43,6 +43,7 @@ dev = [
   "pytest-cov>=5.0",
   "ruff>=0.5",
   "testcontainers>=4.0",
+  "types-ldap3>=2.9",
   "types-openpyxl>=3.1",
 ]
 # pip install tomorrowland[ocr] — requires tesseract + poppler in PATH
@@ -93,6 +94,18 @@ files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
 module = ["bcrypt", "openpyxl", "openpyxl.*", "pika", "pika.*", "testcontainers", "testcontainers.*", "xlrd", "xlrd.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["ebooklib", "ebooklib.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["langdetect", "langdetect.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["ldap3", "ldap3.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

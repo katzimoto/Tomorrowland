@@ -15,7 +15,7 @@ _MIN_TEXT_LENGTH = 100
 _MIN_CONFIDENCE = 0.80
 
 try:
-    from langdetect import DetectorFactory, detect_langs  # type: ignore[import-not-found]
+    from langdetect import DetectorFactory, detect_langs
 
     # Pin the random seed so results are reproducible across runs.
     DetectorFactory.seed = 0

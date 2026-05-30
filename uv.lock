@@ -2618,6 +2618,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "testcontainers" },
+    { name = "types-ldap3" },
     { name = "types-openpyxl" },
 ]
 ocr = [
@@ -2671,6 +2672,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "striprtf", specifier = ">=0.0.32" },
     { name = "testcontainers", marker = "extra == 'dev'", specifier = ">=4.0" },
+    { name = "types-ldap3", marker = "extra == 'dev'", specifier = ">=2.9" },
     { name = "types-openpyxl", marker = "extra == 'dev'", specifier = ">=3.1" },
     { name = "uvicorn", specifier = ">=0.30" },
     { name = "xlrd", specifier = ">=2.0" },

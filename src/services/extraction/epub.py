@@ -29,7 +29,7 @@ class EpubExtractor:
     def extract(self, path: Path) -> ExtractionResult:
         """Return concatenated plain text from all spine items."""
         try:
-            import ebooklib  # type: ignore[import-not-found]
+            import ebooklib
             from ebooklib import epub
         except ImportError:
             return ExtractionResult(text="")
