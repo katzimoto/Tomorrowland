@@ -253,6 +253,33 @@ expect_health_json() {
   return 0
 }
 
+# Health check that accepts the static frontend's plain-text "ok" body (served
+# by nginx) as well as a JSON {"status":"ok"} body, for parity with the API.
+expect_health_ok() {
+  local url="$1"
+  local output
+  output="$(curl -sfS "$url" 2>/dev/null)" || {
+    echo "GET ${url} failed (curl exit $?)" >&2
+    return 1
+  }
+  local trimmed
+  trimmed="$(echo "$output" | tr -d '[:space:]')"
+  if [[ "$trimmed" == "ok" ]]; then
+    return 0
+  fi
+  local status
+  status="$(echo "$output" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)" || {
+    echo "Response from ${url} is neither plain 'ok' nor valid health JSON" >&2
+    echo "  Raw: ${output}" >&2
+    return 1
+  }
+  if [[ "$status" != "ok" ]]; then
+    echo "Expected health ok at ${url}, got: ${output}" >&2
+    return 1
+  fi
+  return 0
+}
+
 # Authenticated JSON API call.  Writes the response body to stdout and sets
 # the global CURL_JSON_HTTP_CODE to the HTTP status code.  Always returns 0
 # so that bash `return` truncation (mod 256) cannot misclassify 5xx responses.
@@ -311,7 +338,7 @@ frontend_health() {
   fi
   log_info "Probing ${FRONTEND_URL}/health"
   wait_for_url "frontend" "${FRONTEND_URL}/health" || return 1
-  expect_health_json "${FRONTEND_URL}/health" "frontend" || return 1
+  expect_health_ok "${FRONTEND_URL}/health" || return 1
   log_ok "Frontend health returned status=ok"
 }
 

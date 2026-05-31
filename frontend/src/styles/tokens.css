@@ -7,8 +7,10 @@
   --color-border: #30363d;
 
   --color-text-primary: #e6edf3;
-  --color-text-secondary: #8b949e;
-  --color-text-muted: #6e7681;
+  /* Secondary/muted lightened to meet WCAG 2 AA (4.5:1) on all dark surfaces,
+     including the raised and selected-row backgrounds. */
+  --color-text-secondary: #b1bac4;
+  --color-text-muted: #9da7b3;
 
   --color-primary: #58a6ff;
   --color-primary-hover: #79b8ff;

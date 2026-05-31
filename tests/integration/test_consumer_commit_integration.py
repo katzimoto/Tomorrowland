@@ -21,7 +21,16 @@ class _SimpleWriterConsumer(BaseConsumer):
         self._doc_repo = doc_repo
         self._doc_id = doc_id
 
-    def handle_message(self, job_id, document_id, source_id, attempt, correlation_id):
+    def handle_message(
+        self,
+        job_id,
+        document_id,
+        source_id,
+        attempt,
+        correlation_id,
+        content_text="",
+        translated_text="",
+    ):
         self._doc_repo.update_indexed(self._doc_id, "indexed", "fast")
 
 
