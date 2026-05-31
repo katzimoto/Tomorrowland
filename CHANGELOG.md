@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Issue #548: Harden Confluence service-account sync with optional space filters,
+  streaming attachment downloads, MIME filters, retry/backoff, and real connection
+  validation.
+  - Explicit `auth_mode` config (defaults to `"service_account"`; unsupported
+    modes are rejected with a clear error).
+  - Optional per-source `space_keys` list filter; legacy single `space_key`
+    maps automatically to `space_keys: ["<value>"]`. Empty/omitted means all
+    spaces visible to the service account. Space keys are validated against
+    `^[A-Za-z0-9_]{1,255}$` to avoid unsafe CQL injection.
+  - Streaming attachment downloads with incremental SHA256: bytes are written
+    directly to durable storage (when `storage_root` is provided) or to a temp
+    file, never loaded fully into memory. Configurable `max_attachment_mb`
+    (default 50 MiB) enforced during streaming; partial downloads are cleaned
+    up on size-limit violation.
+  - Configurable MIME allowlist (`attachment_mime_allowlist`) and blocklist
+    (`attachment_mime_blocklist`). Blocklist entries ending in `/` use prefix
+    matching (e.g. `video/` blocks all video subtypes). Blocklist wins over
+    allowlist. Skipped attachments are counted and logged with safe summaries.
+  - Configurable retry with exponential backoff and jitter for transient HTTP
+    errors (429, 5xx) and network failures. Configurable `request_timeout_seconds`
+    (default 30) applied to both API requests and attachment downloads.
+    Permanent auth/config errors (401, 403, 404) are never retried.
+  - Real connection validation via `GET /rest/api/space/{key}` (when space_keys
+    configured) or `GET /rest/api/space?limit=1` (when no space filter).
+    Distinguishes reachable, auth-failed, and config-invalid states.
+  - Skipped attachment counters logged per-page; follow-up to surface through
+    #540 sync lifecycle counters documented as deferred.
+  - 36 new unit tests covering auth_mode defaults/rejection, space_keys
+    validation/precedence/legacy-mapping, streaming SHA256 correctness,
+    max-size enforcement, MIME allow/block/prefix logic, retry/backoff config,
+    connection validation, and backward compatibility with existing Confluence
+    sources. No config changes required for existing sources.
 - Issue #540: canonical connector sync lifecycle and source health model.
   New `sync_runs` and `document_tombstones` tables plus source-health columns on
   `ingestion_sources` (migration `e5f7g9h1i2j3`). Sync runs track an explicit
