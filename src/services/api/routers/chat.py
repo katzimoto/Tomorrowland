@@ -597,6 +597,11 @@ def create_message_stream(
             enable_translated_text=settings.feature_document_chat_translated_text,
         )
 
+        # Persist the user's question durably before streaming starts so a
+        # mid-stream client disconnect cannot discard it. The assistant reply is
+        # written in its own transaction inside event_stream() below.
+        txn.commit()
+
         def _sse_format(event: str, data: dict[str, Any]) -> str:
             return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
@@ -604,6 +609,10 @@ def create_message_stream(
             not_found_answer = (
                 "I could not find any relevant information in the documents you have access to."
             )
+            # The user message is already committed; this transaction covers only
+            # the assistant reply, so a mid-stream disconnect keeps the question
+            # and discards just the partial answer.
+            assistant_txn = connection.begin()
             committed = False
             try:
                 for event, data in rag.answer_stream(
@@ -627,15 +636,14 @@ def create_message_stream(
                             )
                         )
                         data["message_id"] = str(msg.id)
-                        txn.commit()
+                        assistant_txn.commit()
                         committed = True
                     yield _sse_format(event, data)
             except GeneratorExit:
-                # Client disconnected mid-stream. Roll back so the user message
-                # (stored above) remains but partial/incomplete assistant state
-                # is not persisted.
+                # Client disconnected mid-stream: drop the partial assistant
+                # transaction. The user message was committed before streaming.
                 if not committed:
-                    txn.rollback()
+                    assistant_txn.rollback()
                 raise
             except Exception:
                 logger.exception(
@@ -644,8 +652,11 @@ def create_message_stream(
                     get_correlation_id(),
                 )
                 if not committed:
-                    txn.rollback()
+                    assistant_txn.rollback()
+                # Persist a user-visible error message in its own transaction so
+                # it survives even though the answer transaction was rolled back.
                 with contextlib.suppress(Exception):
+                    error_txn = connection.begin()
                     repo.create_message(
                         ChatMessageCreate(
                             session_id=session_id,
@@ -657,10 +668,11 @@ def create_message_stream(
                             citations=[],
                         )
                     )
+                    error_txn.commit()
             finally:
                 if not committed:
                     with contextlib.suppress(Exception):
-                        txn.rollback()
+                        assistant_txn.rollback()
                 connection.close()
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")

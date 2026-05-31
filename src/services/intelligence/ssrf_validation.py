@@ -7,10 +7,15 @@ provider is marked as ``"external"``.
 
 from __future__ import annotations
 
+import logging
+import socket
+import time
 from ipaddress import IPv4Address, IPv6Address, ip_address, ip_network
 from urllib.parse import urlparse
 
 from fastapi import HTTPException
+
+logger = logging.getLogger(__name__)
 
 # RFC 1918 and other private / internal / link-local ranges.
 _PRIVATE_NETWORKS: list[str] = [
@@ -91,64 +96,55 @@ def validate_provider_url(url: str | None, locality: str) -> str | None:
 def _check_private_ip(host: str, locality: str, original_url: str) -> None:
     """Reject private/internal IPs for external locality.
 
-    Performs two sequential DNS resolutions and compares results as a
-    best-effort defence against DNS rebinding attacks where an attacker
-    serves a benign IP during validation and a private IP during the actual
-    connection.  If the two resolutions disagree, the URL is rejected with a
-    warning about potential DNS rebinding.
+    Resolves the host twice and rejects any private address found in *either*
+    result. This is a best-effort guard against DNS rebinding, where an attacker
+    serves a public IP during validation and a private IP moments later. A
+    merely *changed* address set is not rejected — legitimate round-robin / CDN
+    endpoints rotate IPs — only private addresses are rejected.
     """
     if locality != "external":
         return
 
-    import socket
-
-    # Check if the host is already an IP literal
+    # IP literal: cannot be rebound, so a single check is sufficient.
     try:
-        addr = ip_address(host)
-        _reject_if_private(addr, original_url)
-        return  # IP literals can't be rebound
+        _reject_if_private(ip_address(host), original_url)
+        return
     except ValueError:
-        pass  # hostname — will attempt DNS
-
-    import time
+        pass  # hostname — fall through to DNS resolution
 
     def _resolve_all() -> set[str]:
-        """Resolve *host* to all IP addresses, returning a set of strings."""
+        """Resolve *host* to the set of IP address strings."""
         resolved: set[str] = set()
         try:
-            addrs = socket.getaddrinfo(host, None)
-            for _family, _type, _proto, _canon, sockaddr in addrs:
-                raw: str = str(sockaddr[0])
-                resolved.add(raw)
+            for _family, _type, _proto, _canon, sockaddr in socket.getaddrinfo(host, None):
+                resolved.add(str(sockaddr[0]))
         except (socket.gaierror, OSError):
             pass
         return resolved
 
-    # First resolution: reject private IPs
-    first_resolved = _resolve_all()
-    for raw in first_resolved:
-        try:
-            addr = ip_address(raw)
-            _reject_if_private(addr, original_url)
-        except ValueError:
-            continue
+    def _reject_private_in(resolved: set[str]) -> None:
+        for raw in resolved:
+            try:
+                _reject_if_private(ip_address(raw), original_url)
+            except ValueError:
+                continue
 
+    first_resolved = _resolve_all()
+    _reject_private_in(first_resolved)
     if not first_resolved:
         return  # unresolvable — let the health check fail naturally
 
-    # Second resolution after a short delay: detect DNS rebinding
+    # Re-resolve after a short delay and reject private addresses again. The
+    # delay gives a rebinding attacker's record time to flip to a private IP.
     time.sleep(0.1)
     second_resolved = _resolve_all()
+    _reject_private_in(second_resolved)
     if first_resolved != second_resolved:
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "DNS rebinding risk detected for host=%s: "
-            "first resolution=%s second resolution=%s url=%s",
+        logger.debug(
+            "DNS result changed between resolutions for host=%s first=%s second=%s",
             host,
             first_resolved,
             second_resolved,
-            original_url,
         )
 
 

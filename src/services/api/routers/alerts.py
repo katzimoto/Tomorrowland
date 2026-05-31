@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from services.alerts.models import SubscriptionCreateRequest, SubscriptionUpdateRequest
 from services.alerts.repository import AlertRepository
@@ -104,6 +104,8 @@ def list_notifications(
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
     unread_only: bool = True,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
 ) -> list[dict[str, Any]]:
     with request.app.state.engine.begin() as connection:
         require_subscriptions_enabled(connection, request.app.state.settings)
@@ -124,6 +126,8 @@ def list_notifications(
                 unread_only=unread_only,
                 group_ids=effective_groups,
                 allow_all=user.is_admin,
+                limit=limit,
+                offset=offset,
             )
         ]
 

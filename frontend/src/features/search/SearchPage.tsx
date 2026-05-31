@@ -30,6 +30,36 @@ import { FilterPanel } from "./FilterPanel";
 import { ResultRow } from "./ResultRow";
 import styles from "./SearchPage.module.css";
 
+/**
+ * Serialize the full search state into URL query params. Shared by explicit
+ * submit and the debounced instant search so the URL always carries the
+ * complete state (query, mode, filters); otherwise syncing state back from the
+ * URL would wipe filters/mode that were only partially written.
+ */
+function buildSearchParams(
+  q: string,
+  searchMode: SearchMode,
+  searchFilters: SearchFilters,
+): Record<string, string> {
+  const params: Record<string, string> = { q, mode: searchMode };
+  if (searchFilters.file_type?.length) {
+    params.file_type = searchFilters.file_type.join(",");
+  }
+  if (searchFilters.tags?.length) {
+    params.tags = searchFilters.tags.join(",");
+  }
+  if (searchFilters.source?.length) {
+    params.source = searchFilters.source.join(",");
+  }
+  if (searchFilters.file_extension?.length) {
+    params.file_extension = searchFilters.file_extension.join(",");
+  }
+  if (searchFilters.sort_by && searchFilters.sort_by !== "relevance") {
+    params.sort_by = searchFilters.sort_by;
+  }
+  return params;
+}
+
 export function SearchPage() {
   const t = useT();
   const routeSearch = useSearch({ from: "/app/search" });
@@ -43,39 +73,33 @@ export function SearchPage() {
     { value: "semantic", label: t.search.modeSemantic },
   ];
 
-  const [inputValue, setInputValue] = useState("");
-  const [submittedQuery, setSubmittedQuery] = useState("");
-  const [mode, setMode] = useState<SearchMode>("hybrid");
-  const [filters, setFilters] = useState<SearchFilters>({});
+  // Seed state from the URL once on mount. The debounced search and explicit
+  // submit keep the URL in sync afterward (see buildSearchParams), so a refresh
+  // restores the query, mode, and filters.
+  const initialExtra = routeSearch as Record<string, unknown>;
+  const initialQ = typeof routeSearch.q === "string" ? routeSearch.q : "";
+  const initialMode = (routeSearch.mode as SearchMode) ?? "hybrid";
+  const initialFilters: SearchFilters = {};
+  if (typeof initialExtra.file_type === "string" && initialExtra.file_type) {
+    initialFilters.file_type = (initialExtra.file_type as string).split(",");
+  }
+  if (typeof initialExtra.tags === "string" && initialExtra.tags) {
+    initialFilters.tags = (initialExtra.tags as string).split(",");
+  }
+  if (typeof initialExtra.source === "string" && initialExtra.source) {
+    initialFilters.source = (initialExtra.source as string).split(",");
+  }
+  if (typeof initialExtra.file_extension === "string" && initialExtra.file_extension) {
+    initialFilters.file_extension = (initialExtra.file_extension as string).split(",");
+  }
+  if (typeof initialExtra.sort_by === "string") {
+    initialFilters.sort_by = initialExtra.sort_by as SearchFilters["sort_by"];
+  }
 
-  // Sync state from URL params — runs on mount and whenever routeSearch
-  // changes (e.g. navigating to a different search URL externally).
-  useEffect(() => {
-    const q = typeof routeSearch.q === "string" ? routeSearch.q : "";
-    const md = (routeSearch.mode as SearchMode) ?? "hybrid";
-    const extra = routeSearch as Record<string, unknown>;
-    const updatedFilters: SearchFilters = {};
-    if (typeof extra.file_type === "string" && extra.file_type) {
-      updatedFilters.file_type = (extra.file_type as string).split(",");
-    }
-    if (typeof extra.tags === "string" && extra.tags) {
-      updatedFilters.tags = (extra.tags as string).split(",");
-    }
-    if (typeof extra.source === "string" && extra.source) {
-      updatedFilters.source = (extra.source as string).split(",");
-    }
-    if (typeof extra.file_extension === "string" && extra.file_extension) {
-      updatedFilters.file_extension = (extra.file_extension as string).split(",");
-    }
-    if (typeof extra.sort_by === "string") {
-      updatedFilters.sort_by = extra.sort_by as SearchFilters["sort_by"];
-    }
-
-    setInputValue(q);
-    setSubmittedQuery(q);
-    setMode(md);
-    setFilters(updatedFilters);
-  }, [routeSearch.q, routeSearch.mode, routeSearch.file_type, routeSearch.tags, routeSearch.source, routeSearch.file_extension, routeSearch.sort_by]);
+  const [inputValue, setInputValue] = useState(initialQ);
+  const [submittedQuery, setSubmittedQuery] = useState(initialQ);
+  const [mode, setMode] = useState<SearchMode>(initialMode);
+  const [filters, setFilters] = useState<SearchFilters>(initialFilters);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [previewResult, setPreviewResult] = useState<SearchResult | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -107,23 +131,11 @@ export function SearchPage() {
     finishFirstResultTimer.current = q.trim() ? startPerformanceTimer() : null;
     resetSearchWorkflow();
     setSubmittedQuery(q);
-    const params: Record<string, string> = { q, mode: currentMode };
-    if (currentFilters.file_type?.length) {
-      params.file_type = currentFilters.file_type.join(",");
-    }
-    if (currentFilters.tags?.length) {
-      params.tags = currentFilters.tags.join(",");
-    }
-    if (currentFilters.source?.length) {
-      params.source = currentFilters.source.join(",");
-    }
-    if (currentFilters.file_extension?.length) {
-      params.file_extension = currentFilters.file_extension.join(",");
-    }
-    if (currentFilters.sort_by && currentFilters.sort_by !== "relevance") {
-      params.sort_by = currentFilters.sort_by;
-    }
-    void navigate({ to: "/search", search: () => params as { q: string; mode: string } });
+    void navigate({
+      to: "/search",
+      search: () =>
+        buildSearchParams(q, currentMode, currentFilters) as { q: string; mode: string },
+    });
   }
 
   // Debounce instant search — fires 350ms after the user stops typing.
@@ -134,14 +146,16 @@ export function SearchPage() {
     if (q.length < 2) return;
     const id = setTimeout(() => {
       setSubmittedQuery(q);
+      // Write the full state (q + mode + filters) so syncing back from the URL
+      // doesn't drop filters/mode that aren't otherwise persisted there.
       void navigate({
         to: "/search",
-        search: (prev) => ({ ...prev, q }),
+        search: () => buildSearchParams(q, mode, filters) as { q: string; mode: string },
         replace: true,
       });
     }, 350);
     return () => clearTimeout(id);
-  }, [inputValue, navigate]);
+  }, [inputValue, mode, filters, navigate]);
 
   const { data, isLoading, isFetching, isError } = useQuery({
     queryKey: ["search", submittedQuery, mode, filters],
