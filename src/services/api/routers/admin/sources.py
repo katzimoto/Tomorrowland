@@ -136,7 +136,9 @@ def admin_list_sources(
                        schedule,
                        last_sync_status, last_sync_indexed, last_sync_skipped,
                        last_sync_failed, last_sync_error, last_sync_at,
-                       last_validation_status, last_validation_error, last_validated_at
+                       last_validation_status, last_validation_error, last_validated_at,
+                       last_successful_sync_at, last_failed_sync_at,
+                       failure_count, warning_count, last_sync_id
                 FROM ingestion_sources ORDER BY created_at DESC
                 """)
         ).mappings()
@@ -159,6 +161,14 @@ def admin_list_sources(
                 "last_validation_error": row.get("last_validation_error"),
                 "last_validated_at": _fmt_dt(row.get("last_validated_at")),
                 "schedule": row.get("schedule"),
+                # New source health fields
+                "last_successful_sync_at": _fmt_dt(row.get("last_successful_sync_at")),
+                "last_failed_sync_at": _fmt_dt(row.get("last_failed_sync_at")),
+                "failure_count": row.get("failure_count") or 0,
+                "warning_count": row.get("warning_count") or 0,
+                "last_sync_id": (
+                    str(to_uuid(row["last_sync_id"])) if row.get("last_sync_id") else None
+                ),
             }
             for row in rows
         ]
@@ -179,7 +189,9 @@ def admin_get_source(
                        config, schedule,
                        last_sync_status, last_sync_indexed, last_sync_skipped,
                        last_sync_failed, last_sync_error, last_sync_at,
-                       last_validation_status, last_validation_error, last_validated_at
+                       last_validation_status, last_validation_error, last_validated_at,
+                       last_successful_sync_at, last_failed_sync_at,
+                       failure_count, warning_count, last_sync_id
                 FROM ingestion_sources WHERE id = :id
                 """),
                 {"id": source_id.hex},
@@ -233,6 +245,14 @@ def admin_get_source(
             "last_validated_at": _fmt_dt(row.get("last_validated_at")),
             "schedule": row.get("schedule"),
             "groups": [{"id": str(to_uuid(p["id"])), "name": p["name"]} for p in permissions],
+            # New source health fields
+            "last_successful_sync_at": _fmt_dt(row.get("last_successful_sync_at")),
+            "last_failed_sync_at": _fmt_dt(row.get("last_failed_sync_at")),
+            "failure_count": row.get("failure_count") or 0,
+            "warning_count": row.get("warning_count") or 0,
+            "last_sync_id": (
+                str(to_uuid(row["last_sync_id"])) if row.get("last_sync_id") else None
+            ),
         }
 
 

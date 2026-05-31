@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Issue #540: canonical connector sync lifecycle and source health model.
+  New `sync_runs` and `document_tombstones` tables plus source-health columns on
+  `ingestion_sources` (migration `e5f7g9h1i2j3`). Sync runs track an explicit
+  state machine (`queued → running → completed/completed_with_warnings/failed/
+  cancelled`) with validated transitions, `incremental`/`full_resync` modes, and
+  per-document counts. Manual sync-now and the scheduler now create and manage
+  sync runs, guard against concurrent syncs per source, and record failures to
+  source health (including failures that occur before any document is processed,
+  via a separate committed transaction). New admin-only endpoints
+  `GET /admin/sources/{id}/sync-runs` (bounded pagination) and
+  `GET /admin/sources/{id}/health`; source list/get responses now expose
+  `last_successful_sync_at`, `last_failed_sync_at`, `failure_count`,
+  `warning_count`, and `last_sync_id`. Tombstone helpers record upstream
+  deletions and flag documents `status='deleted'`; callers must pass an
+  `index_cleanup` callback to remove a tombstoned document from the Meilisearch/
+  Qdrant indexes (DB status alone does not hide it from search). `ConnectorDocument`
+  gains an optional `last_modified`; `ConnectorSyncResult` is defined as the
+  forward connector contract but is not yet wired into connectors. Wiring
+  deletion detection into the live sync loop and full index exclusion are tracked
+  as #540 follow-ups. 42 unit tests plus integration coverage for sync-now
+  failure recording, the concurrent-sync guard, and admin authorization.
 - Issue #582: LDAP group mapping via live DC search — admin-only endpoints for
   ephemeral LDAP group search (`GET /admin/ldap/groups/search?q=...`) and
   explicit LDAP-group-to-Tomorrowland-group mappings (`GET/POST/DELETE

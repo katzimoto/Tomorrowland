@@ -116,7 +116,10 @@ def _record_source_sync_state(
     skipped: int = 0,
     failed: int = 0,
     error: str | None = None,
+    sync_run_id: UUID | None = None,
 ) -> None:
+    from services.connectors.sync_repository import update_source_health
+
     connection.execute(
         sa.text("""
             UPDATE ingestion_sources
@@ -139,6 +142,29 @@ def _record_source_sync_state(
             "synced_at": datetime.now(UTC),
         },
     )
+
+    # Also update the new source health columns when a sync_run_id is provided.
+    if sync_run_id is not None or status in ("success", "failed", "partial_failure"):
+        mapped_status: str | None = None
+        if status == "success":
+            mapped_status = "completed"
+        elif status == "partial_failure":
+            mapped_status = "completed_with_warnings"
+        elif status == "failed":
+            mapped_status = "failed"
+
+        err = error
+        if mapped_status in ("completed", "completed_with_warnings") and error is None:
+            err = None
+
+        if mapped_status is not None:
+            update_source_health(
+                connection,
+                source_id,
+                sync_run_id=sync_run_id,
+                status=mapped_status,  # type: ignore[arg-type]
+                error_summary=err,
+            )
 
 
 def _audit_log(

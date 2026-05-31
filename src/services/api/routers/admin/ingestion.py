@@ -11,6 +11,8 @@ from services.api._helpers import _record_source_sync_state, _sanitize_source_er
 from services.api.main import current_user
 from services.auth.models import TokenPayload
 from services.connectors.factory import build_connector
+from services.connectors.sync_models import SyncRunCreate, SyncRunUpdate
+from services.connectors.sync_repository import SyncRunRepository
 from services.documents.models import DocumentSource
 from services.documents.repository import DocumentRepository
 from services.permissions.enforcer import require_admin
@@ -22,6 +24,50 @@ from shared.metrics import safe_label_value
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["admin"])
+
+
+class _SyncNowError(Exception):
+    """Internal signal that a manual sync failed before any documents were processed.
+
+    Raised from inside the ingestion transaction so it rolls back cleanly, then
+    caught just outside the transaction where the failure is recorded in a fresh,
+    independently-committed transaction. Recording the failure inside the doomed
+    transaction would be discarded by the rollback (and updating the source row
+    from a nested transaction would deadlock against the outer one).
+    """
+
+    def __init__(self, status_code: int, detail: str) -> None:
+        super().__init__(detail)
+        self.status_code = status_code
+        self.detail = detail
+
+
+def _record_sync_failure(
+    request: Request,
+    source_id: UUID,
+    connector_type: str,
+    detail: str,
+) -> None:
+    """Persist a failed sync run + source health in their own transaction."""
+    with request.app.state.engine.begin() as fail_conn:
+        repo = SyncRunRepository(fail_conn)
+        run = repo.create(
+            SyncRunCreate(
+                source_id=source_id,
+                connector_type=connector_type,
+                sync_mode="incremental",
+            )
+        )
+        repo.start(run.id)
+        repo.complete(run.id, "failed", error_summary=detail)
+        _record_source_sync_state(
+            fail_conn,
+            source_id,
+            status="failed",
+            failed=1,
+            error=detail,
+            sync_run_id=run.id,
+        )
 
 
 def _publish_pending_rabbit_messages(
@@ -79,166 +125,207 @@ def sync_now(
 ) -> dict[str, Any]:
     require_admin(user)
 
-    with request.app.state.engine.begin() as connection:
-        source_row = (
-            connection.execute(
-                sa.text("SELECT * FROM ingestion_sources WHERE id = :id"),
-                {"id": source_id.hex},
+    connector_type = ""
+    try:
+        with request.app.state.engine.begin() as connection:
+            source_row = (
+                connection.execute(
+                    sa.text("SELECT * FROM ingestion_sources WHERE id = :id"),
+                    {"id": source_id.hex},
+                )
+                .mappings()
+                .first()
             )
-            .mappings()
-            .first()
-        )
-        if source_row is None:
-            raise HTTPException(status_code=404, detail="Source not found")
+            if source_row is None:
+                raise HTTPException(status_code=404, detail="Source not found")
 
-        try:
-            connector = build_connector(source_row)
-            connector.validate()
-        except ValueError as exc:
-            detail = _sanitize_source_error(str(exc), source_row)
-            _record_source_sync_state(
-                connection, source_id, status="failed", failed=1, error=detail
-            )
-            raise HTTPException(status_code=400, detail=detail) from exc
+            connector_type = str(source_row["type"])
 
-        doc_repo = DocumentRepository(connection)
-        job_repo = PipelineJobRepository(connection)
+            # Create a sync run record
+            sync_repo = SyncRunRepository(connection)
 
-        results: dict[str, int] = {
-            "discovered": 0,
-            "created": 0,
-            "skipped": 0,
-            "enqueued": 0,
-            "failed_discovery": 0,
-            "failed_enqueue": 0,
-        }
-        pending_rabbit: list[dict[str, Any]] = []
-        source_language = source_row.get("source_language")
-        connector_type = str(source_row["type"])
-        originals_root = request.app.state.settings.files_root / "originals"
-        try:
-            documents = connector.fetch_documents(storage_root=originals_root)
-        except NotImplementedError as exc:
-            detail = _sanitize_source_error(str(exc), source_row)
-            _record_source_sync_state(
-                connection, source_id, status="failed", failed=1, error=detail
-            )
-            raise HTTPException(status_code=400, detail=detail) from exc
-        except Exception as exc:
-            detail = _sanitize_source_error(
-                "Sync failed while reading source documents. "
-                "Check connector settings and source availability.",
-                source_row,
-            )
-            _record_source_sync_state(
-                connection, source_id, status="failed", failed=1, error=detail
-            )
-            raise HTTPException(status_code=502, detail=detail) from exc
+            # Guard against concurrent syncs
+            if sync_repo.has_active_sync(source_id):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Source already has an active sync in progress. "
+                    "Wait for it to complete before starting a new one.",
+                )
 
-        for item in documents:
-            results["discovered"] += 1
-            request.app.state.metrics.ingestion_documents_total.labels(
-                safe_label_value(connector_type), "discovered"
-            ).inc()
+            sync_run = sync_repo.create(
+                SyncRunCreate(
+                    source_id=source_id,
+                    connector_type=connector_type,
+                    sync_mode="incremental",
+                )
+            )
+            sync_run_id = sync_run.id
+            sync_repo.start(sync_run_id)
 
             try:
-                stored_path = item.path
-                moved = move_to_originals(
-                    item.path, item.mime_type, request.app.state.settings.files_root
+                connector = build_connector(source_row)
+                connector.validate()
+            except ValueError as exc:
+                detail = _sanitize_source_error(str(exc), source_row)
+                raise _SyncNowError(400, detail) from exc
+
+            doc_repo = DocumentRepository(connection)
+            job_repo = PipelineJobRepository(connection)
+
+            results: dict[str, int] = {
+                "discovered": 0,
+                "created": 0,
+                "skipped": 0,
+                "enqueued": 0,
+                "failed_discovery": 0,
+                "failed_enqueue": 0,
+                "unchanged": 0,
+            }
+            pending_rabbit: list[dict[str, Any]] = []
+            source_language = source_row.get("source_language")
+            originals_root = request.app.state.settings.files_root / "originals"
+            try:
+                documents = connector.fetch_documents(storage_root=originals_root)
+            except NotImplementedError as exc:
+                detail = _sanitize_source_error(str(exc), source_row)
+                raise _SyncNowError(400, detail) from exc
+            except Exception as exc:
+                detail = _sanitize_source_error(
+                    "Sync failed while reading source documents. "
+                    "Check connector settings and source availability.",
+                    source_row,
                 )
-                if moved is not None:
-                    stored_path = moved
+                raise _SyncNowError(502, detail) from exc
 
-                doc = doc_repo.create(
-                    source_id=source_id,
-                    external_id=item.external_id,
-                    source=cast("DocumentSource", source_row["type"]),
-                    mime_type=item.mime_type,
-                    path=stored_path,
-                    title=item.title,
-                    source_language=item.source_language or source_language,
-                    sha256=item.sha256,
-                    metadata=item.metadata,
-                )
-                if doc is None:
-                    results["skipped"] += 1
-                    request.app.state.metrics.ingestion_documents_total.labels(
-                        safe_label_value(connector_type), "skipped"
-                    ).inc()
-                    continue
+            for item in documents:
+                results["discovered"] += 1
+                request.app.state.metrics.ingestion_documents_total.labels(
+                    safe_label_value(connector_type), "discovered"
+                ).inc()
 
-                effective_lang = item.source_language or source_language
-                if effective_lang is None:
-                    logger.warning(
-                        "document ingested without source_language: source_id=%s "
-                        "external_id=%s mime_type=%s — translation will use LibreTranslate "
-                        "auto-detect which may fail. Set source_language on the ingestion source.",
-                        source_id,
-                        item.external_id,
-                        item.mime_type,
-                    )
-
-                results["created"] += 1
                 try:
-                    job_id = job_repo.enqueue_document(
-                        document_id=doc.id,
+                    stored_path = item.path
+                    moved = move_to_originals(
+                        item.path, item.mime_type, request.app.state.settings.files_root
+                    )
+                    if moved is not None:
+                        stored_path = moved
+
+                    doc = doc_repo.create(
                         source_id=source_id,
-                        content_text=item.text_content,
+                        external_id=item.external_id,
+                        source=cast("DocumentSource", source_row["type"]),
+                        mime_type=item.mime_type,
+                        path=stored_path,
+                        title=item.title,
+                        source_language=item.source_language or source_language,
+                        sha256=item.sha256,
+                        metadata=item.metadata,
                     )
-                    results["enqueued"] += 1
+                    if doc is None:
+                        results["skipped"] += 1
+                        request.app.state.metrics.ingestion_documents_total.labels(
+                            safe_label_value(connector_type), "skipped"
+                        ).inc()
+                        continue
 
-                    pending_rabbit.append(
-                        {
-                            "job_id": job_id,
-                            "document_id": doc.id,
-                            "source_id": source_id,
-                            "content_text": item.text_content,
-                        }
-                    )
+                    effective_lang = item.source_language or source_language
+                    if effective_lang is None:
+                        logger.warning(
+                            "document ingested without source_language: source_id=%s "
+                            "external_id=%s mime_type=%s — translation will use LibreTranslate "
+                            "auto-detect which may fail. Set source_language on the "
+                            "ingestion source.",
+                            source_id,
+                            item.external_id,
+                            item.mime_type,
+                        )
 
-                    request.app.state.metrics.ingestion_documents_total.labels(
-                        safe_label_value(connector_type), "success"
-                    ).inc()
+                    results["created"] += 1
+                    try:
+                        job_id = job_repo.enqueue_document(
+                            document_id=doc.id,
+                            source_id=source_id,
+                            content_text=item.text_content,
+                        )
+                        results["enqueued"] += 1
+
+                        pending_rabbit.append(
+                            {
+                                "job_id": job_id,
+                                "document_id": doc.id,
+                                "source_id": source_id,
+                                "content_text": item.text_content,
+                            }
+                        )
+
+                        request.app.state.metrics.ingestion_documents_total.labels(
+                            safe_label_value(connector_type), "success"
+                        ).inc()
+                    except Exception:
+                        results["failed_enqueue"] += 1
+                        request.app.state.metrics.ingestion_documents_total.labels(
+                            safe_label_value(connector_type), "failure"
+                        ).inc()
+                        connection.execute(
+                            sa.text(
+                                "INSERT INTO dlq (id, document_id, error_message, status) "
+                                "VALUES (:id, :document_id, :error_message, 'pending')"
+                            ),
+                            {
+                                "id": db_uuid(uuid4()),
+                                "document_id": db_uuid(doc.id),
+                                "error_message": "Failed to enqueue document for processing",
+                            },
+                        )
                 except Exception:
-                    results["failed_enqueue"] += 1
+                    results["failed_discovery"] += 1
                     request.app.state.metrics.ingestion_documents_total.labels(
                         safe_label_value(connector_type), "failure"
                     ).inc()
-                    connection.execute(
-                        sa.text(
-                            "INSERT INTO dlq (id, document_id, error_message, status) "
-                            "VALUES (:id, :document_id, :error_message, 'pending')"
-                        ),
-                        {
-                            "id": db_uuid(uuid4()),
-                            "document_id": db_uuid(doc.id),
-                            "error_message": "Failed to enqueue document for processing",
-                        },
-                    )
-            except Exception:
-                results["failed_discovery"] += 1
-                request.app.state.metrics.ingestion_documents_total.labels(
-                    safe_label_value(connector_type), "failure"
-                ).inc()
 
-        if results["discovered"] > 0 and results["failed_discovery"] == results["discovered"]:
-            sync_outcome = "failed"
-        elif results["failed_enqueue"] > 0 or results["failed_discovery"] > 0:
-            sync_outcome = "partial_failure"
-        else:
-            sync_outcome = "success"
-        request.app.state.metrics.ingestion_syncs_total.labels(
-            safe_label_value(connector_type), sync_outcome
-        ).inc()
-        _record_source_sync_state(
-            connection,
-            source_id,
-            status=sync_outcome,
-            indexed=results["enqueued"],
-            skipped=results["skipped"],
-            failed=results["failed_discovery"] + results["failed_enqueue"],
-        )
+            if results["discovered"] > 0 and results["failed_discovery"] == results["discovered"]:
+                sync_outcome = "failed"
+                sync_run_status: str = "failed"
+            elif results["failed_enqueue"] > 0 or results["failed_discovery"] > 0:
+                sync_outcome = "partial_failure"
+                sync_run_status = "completed_with_warnings"
+            else:
+                sync_outcome = "success"
+                sync_run_status = "completed"
+
+            request.app.state.metrics.ingestion_syncs_total.labels(
+                safe_label_value(connector_type), sync_outcome
+            ).inc()
+
+            # Record final counts before completing — complete() sets the terminal status
+            sync_repo.update(
+                sync_run_id,
+                SyncRunUpdate(
+                    documents_discovered=results["discovered"],
+                    documents_created=results["created"],
+                    documents_skipped=results["skipped"],
+                    documents_failed=results["failed_discovery"] + results["failed_enqueue"],
+                ),
+            )
+            sync_repo.complete(sync_run_id, sync_run_status)  # type: ignore[arg-type]
+
+            _record_source_sync_state(
+                connection,
+                source_id,
+                status=sync_outcome,
+                indexed=results["enqueued"],
+                skipped=results["skipped"],
+                failed=results["failed_discovery"] + results["failed_enqueue"],
+                sync_run_id=sync_run_id,
+            )
+    except _SyncNowError as failure:
+        # The ingestion transaction has rolled back; record the failure in a
+        # fresh, independently-committed transaction so source health and the
+        # sync-run history reflect it.
+        _record_sync_failure(request, source_id, connector_type, failure.detail)
+        raise HTTPException(status_code=failure.status_code, detail=failure.detail) from failure
     # Publish to RabbitMQ after transaction commits so consumers see the documents
     _publish_pending_rabbit_messages(request, pending_rabbit)
 
-    return {"status": sync_outcome, **results}
+    return {"status": sync_outcome, "sync_run_id": str(sync_run_id), **results}
