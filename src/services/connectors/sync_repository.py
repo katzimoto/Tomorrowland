@@ -6,6 +6,7 @@ used inside any existing transaction without coupling to a session or engine.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
@@ -590,12 +591,24 @@ def tombstone_missing_documents(
     seen_external_ids: set[str],
     *,
     reason: str = "not_found_in_sync",
+    index_cleanup: Callable[[UUID], None] | None = None,
 ) -> list[DocumentTombstone]:
     """Tombstone documents belonging to a source that were NOT seen during sync.
 
     For full_resync syncs, call this after iterating all connector documents.
     Any document whose ``external_id`` is not in *seen_external_ids* gets a
     tombstone record and its status is set to ``'deleted'``.
+
+    .. important::
+        Setting ``status = 'deleted'`` only flags the document in the database;
+        keyword (Meilisearch) and vector (Qdrant) search read from their own
+        indexes and do **not** filter on document status. To actually hide a
+        tombstoned document from search/RAG/researcher/MCP, the caller MUST
+        pass *index_cleanup* — a callback invoked with each tombstoned
+        ``document_id`` (e.g. wired to ``QdrantSearchClient.delete_by_doc_id``
+        and ``MeiliSearchProvider.delete_documents_by_filter``). Without it the
+        document remains searchable. Deletion detection is not yet wired into
+        the live sync loop; see the #540 follow-up.
 
     Returns the list of created tombstones.
     """
@@ -621,11 +634,17 @@ def tombstone_missing_documents(
                 )
             )
 
-            # Mark the document as deleted so it is excluded from search
+            # Flag the document as deleted in the DB. NOTE: this alone does not
+            # remove it from search — index_cleanup must be supplied for that.
             connection.execute(
                 sa.text("UPDATE documents SET status = 'deleted' WHERE id = :id"),
                 {"id": db_uuid(doc["id"])},
             )
+
+            # Remove the document from the search indexes so it cannot appear in
+            # keyword/vector/RAG/researcher/MCP results.
+            if index_cleanup is not None:
+                index_cleanup(doc["id"])
 
             created.append(ts)
 

@@ -83,9 +83,12 @@ class SyncRunUpdate(BaseModel):
 class DocumentTombstone(BaseModel):
     """Records that an upstream document was deleted/tombstoned.
 
-    Tombstoned documents should be removed or hidden from search/vector
-    indexes.  The underlying documents row is kept (with ``status='deleted'``)
-    so reindex can restore a reappearing upstream item.
+    The underlying documents row is kept (with ``status='deleted'``) so a
+    reindex can restore a reappearing upstream item. Removing the document
+    from the search/vector indexes is the responsibility of the caller that
+    creates the tombstone (see ``tombstone_missing_documents``'s
+    ``index_cleanup`` parameter); a tombstone on its own does not hide a
+    document from search.
     """
 
     id: UUID
