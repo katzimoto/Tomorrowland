@@ -281,10 +281,11 @@ MANIFEST
   printf '\nUpgrade existing deployment (run from the existing deployment directory):\n'
   printf '  ./scripts/tomorrowland-airgap.sh upgrade --artifact-dir ../%s\n' "$release_name"
   printf '\nOther wrapper commands: validate, status, down, backup, help\n'
-  printf '\nRC2 default model bundle (separate optional release asset):\n'
-  printf 'tomorrowland-ollama-bundle-mistral-%s.tar.gz\n' "$safe_version"
-  printf 'Missing model bundle is a warning only; platform starts without it but\n'
-  printf 'offline Q&A/RAG/local intelligence is degraded until a model is loaded.\n'
+  printf '\nOptional Ollama model bundle (separate asset, NOT included in this archive):\n'
+  printf 'tomorrowland-ollama-bundle-<model>-%s.tar.gz\n' "$safe_version"
+  printf 'Missing model bundle is a warning only; the platform starts and keyword\n'
+  printf 'search works without it. Offline Q&A/RAG/local intelligence and semantic\n'
+  printf 'search stay degraded until a model bundle is loaded.\n'
   printf 'Load with: scripts/load-ollama-model-bundle.sh\n'
   printf 'Validate with: scripts/validate-ollama-model.sh\n'
   printf '\nNever run: docker compose down -v  (deletes persistent data volumes)\n'

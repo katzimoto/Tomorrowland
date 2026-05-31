@@ -5,7 +5,7 @@ with a newer release artifact while preserving operator configuration and
 persistent product data.
 
 > **Never run `docker compose down -v` during an upgrade.** The `-v` flag deletes
-> named volumes, including PostgreSQL, Elasticsearch, Qdrant, files, model, and
+> named volumes, including PostgreSQL, Meilisearch, Qdrant, files, model, and
 > broker data.
 
 The upgrade invariant is simple: **replace images and run migrations; never
@@ -23,7 +23,7 @@ replace, delete, or recreate data volumes by default.**
   - the new image bundle,
   - a PostgreSQL dump,
   - a files volume archive,
-  - optional storage-level snapshots of Elasticsearch and Qdrant volumes,
+  - optional storage-level snapshots of Meilisearch and Qdrant volumes,
   - the compressed Ollama model bundle and expanded model blobs when replacing
     the configured model.
 - A maintenance window. Database migrations run before the upgraded API starts.
@@ -395,7 +395,7 @@ Complete this checklist before declaring the upgrade successful:
 - Subscriptions and notifications remain visible if present.
 - PostgreSQL is not unexpectedly empty.
 - Existing files are still present; no volume appears to have been recreated.
-- Elasticsearch and Qdrant indexes are populated or rebuild behavior is understood
+- Meilisearch and Qdrant indexes are populated or rebuild behavior is understood
   and expected.
 
 Useful commands:
@@ -426,7 +426,7 @@ If migration or post-upgrade validation fails:
    scripts/restore-airgap-data.sh --backup-dir ./backups/tomorrowland-airgap-backup-<timestamp> --confirm-restore
    ```
 
-4. Restore Elasticsearch and Qdrant storage snapshots if you created them.
+4. Restore Meilisearch and Qdrant storage snapshots if you created them.
 5. Start the restored stack:
 
    ```bash
@@ -436,7 +436,7 @@ If migration or post-upgrade validation fails:
 The restore script intentionally requires `--confirm-restore`. It restores `.env`,
 backed-up Compose files, the PostgreSQL dump, and the `files_data` archive. It
 prints warnings before replacing database and files-volume contents. It does not
-automate Elasticsearch or Qdrant snapshot restore; follow the notes in the backup
+automate Meilisearch or Qdrant snapshot restore; follow the notes in the backup
 directory for those volumes.
 
 ## Common failure modes
@@ -482,11 +482,11 @@ directory for those volumes.
 - If data appears missing, assume a wrong project name or volume path before
   assuming data loss. Inspect `docker volume ls` and the backup metadata.
 - If validation cannot be repaired quickly, restore the pre-upgrade backup and
-  Elasticsearch/Qdrant snapshots.
+  Meilisearch/Qdrant snapshots.
 
 ## Follow-up limitation text
 
-Elasticsearch and Qdrant snapshot automation remains deployment-specific. A
+Meilisearch and Qdrant snapshot automation remains deployment-specific. A
 follow-up issue should add optional, operator-configured snapshot repository
 support that can validate a repository path, trigger snapshots, and restore them
 without storing credentials or host-specific paths in release artifacts.

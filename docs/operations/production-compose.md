@@ -22,9 +22,10 @@ code.
 | `prometheus` | `127.0.0.1:${PROMETHEUS_PORT:-9090}` | Optional metrics scraper and alert-rule evaluator in the `monitoring` profile. | none |
 | `grafana` | `127.0.0.1:${GRAFANA_PORT:-3000}` | Optional dashboard UI in the `monitoring` profile. | none |
 
-Worker containers are intentionally not included yet. The current backend uses
-synchronous API-triggered pipeline work and direct service classes. Add
-long-running worker containers only after a real worker entrypoint exists.
+The pipeline workers (`parse-worker`, `translate-worker`, `embed-worker`,
+`index-worker`, `intelligence-worker`, `alert-worker`, `enrich-worker`) each run
+the backend image with a stage-specific command and consume their RabbitMQ
+queues. See the resource and scaling tables below for sizing guidance.
 
 ## First-Run Setup
 
@@ -351,11 +352,11 @@ removes product data volumes.
 ### Monitoring limitations and follow-ups
 
 - The profile scrapes only the Tomorrowland API metrics endpoint; it does not add
-  PostgreSQL, Elasticsearch, Qdrant, Kafka, host, container, disk, or node
+  PostgreSQL, Meilisearch, Qdrant, Kafka, host, container, disk, or node
   exporters.
 - Infrastructure dashboards therefore show dependency readiness and API process
   metrics, not dependency-internal saturation metrics such as disk pressure,
-  Elasticsearch shard internals, Qdrant collection size, or Kafka broker
+  Meilisearch shard internals, Qdrant collection size, or Kafka broker
   internals.
 - Alert rules intentionally reference only existing Tomorrowland metrics. Add
   exporter-backed alerts in a follow-up after those exporters are introduced.

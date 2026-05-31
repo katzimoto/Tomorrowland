@@ -49,9 +49,9 @@ Python 3.13; local dev is supported on Python >=3.11.
   `migrated_engine` fixture (`tests/conftest.py`) so `pytest` normally does not
   require Docker services.
 - Coverage: tests enforce a 90% coverage floor (`pyproject.toml`).
-- Docker Compose: standard services include api, frontend, postgres, elasticsearch,
-  qdrant, kafka (Redpanda), libretranslate, ollama. Optional `monitoring` profile
-  adds Prometheus/Grafana on loopback.
+- Docker Compose: standard services include api, frontend, postgres, meilisearch,
+  qdrant, kafka (Redpanda), rabbitmq, libretranslate, ollama, and the pipeline
+  workers. Optional `monitoring` profile adds Prometheus/Grafana on loopback.
 - Air-gapped release: platform archive + split image parts + optional Ollama
   model bundle. Operator wrapper: `scripts/tomorrowland-airgap.sh`.
 

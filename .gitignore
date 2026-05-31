@@ -21,11 +21,20 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+frontend/playwright-report/
+frontend/test-results/
 
 # Docker and local runtime data
 data/
 tmp/
 *.log
+
+# Release artifacts (the build script writes to dist/ by default; these guard
+# against a root-level build being committed accidentally)
+/tomorrowland-release-*.tar.gz
+/tomorrowland-release-*.tar.gz.sha256
+/tomorrowland-images-*.tar.part-*
+/tomorrowland-images-*.tar.parts.sha256
 
 # Editors and OS files
 .DS_Store
