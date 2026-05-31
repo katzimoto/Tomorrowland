@@ -299,6 +299,26 @@ fi
 
 log "MCP adapter service is present and properly configured in the air-gapped Compose file"
 
+# ------------------------------------------------------------------
+# Search backend and pipeline worker validation
+# ------------------------------------------------------------------
+
+# Meilisearch powers keyword/BM25 search. Without it, search returns no results.
+if ! grep -q '^  meilisearch:' docker-compose.airgap.yml; then
+  fail "air-gapped compose configuration must include the meilisearch service"
+fi
+
+# The pipeline workers consume the RabbitMQ stage queues. Without them, uploaded
+# or synced documents are recorded but never parsed, translated, embedded,
+# indexed, or enriched.
+for worker in parse-worker translate-worker embed-worker index-worker intelligence-worker alert-worker enrich-worker; do
+  if ! grep -q "^  ${worker}:" docker-compose.airgap.yml; then
+    fail "air-gapped compose configuration must include the ${worker} service"
+  fi
+done
+
+log "Search backend and all pipeline workers are present in the air-gapped Compose file"
+
 if [[ -z "$model_bundle" ]]; then
   search_parent="$(cd "$artifact_dir/.." && pwd)"
   mapfile -t found_bundles < <(find "$artifact_dir" "$search_parent" -maxdepth 1 -type f -name 'tomorrowland-ollama-bundle-*.tar.gz' 2>/dev/null | sort -u)

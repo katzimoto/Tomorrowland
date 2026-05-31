@@ -24,9 +24,10 @@ _ROUTING_KEYS: dict[str, str] = {
 class DocumentPublisher:
     """Publish a document to the next pipeline stage queue.
 
-    Always writes a DB row first; only publishes to RabbitMQ when the client
-    is enabled. This means the DB-poll workers still function when
-    RABBITMQ_ENABLED=false.
+    Always records pipeline job state in the database first, then publishes to
+    RabbitMQ when the client is enabled. The stage workers
+    (parse/translate/embed/index/intelligence/alert/enrich) consume the queues;
+    with RABBITMQ_ENABLED=false the job row is written but no stage is dispatched.
     """
 
     def __init__(

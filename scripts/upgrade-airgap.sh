@@ -59,7 +59,7 @@ rollback_guidance() {
 [upgrade-airgap]   2. Keep services stopped if validation failed after migration.
 [upgrade-airgap]   3. If a backup was created, review: ${backup_dir:-<backup directory not created>}
 [upgrade-airgap]   4. Restore with: scripts/restore-airgap-data.sh --backup-dir <backup-dir> --confirm-restore
-[upgrade-airgap]   5. Restore Elasticsearch/Qdrant volume snapshots if you took them, then start the previous stack.
+[upgrade-airgap]   5. Restore Meilisearch/Qdrant volume snapshots if you took them, then start the previous stack.
 GUIDANCE
 }
 
