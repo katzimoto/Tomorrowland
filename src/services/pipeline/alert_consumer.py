@@ -46,7 +46,7 @@ class AlertConsumer(BaseConsumer):
             stored = payload or {}
             text = stored.get("translated_text") or stored.get("content_text") or ""
         self._alert_matcher.match_document(doc, text)
-        self._job_repo.mark_running_stage(job_id, "alert_done")
+        self._job_repo.update_stage(job_id, "alert_done")
 
 
 def main() -> None:

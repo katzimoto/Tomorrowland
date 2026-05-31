@@ -42,7 +42,7 @@ class IntelligenceConsumer(BaseConsumer):
             text = stored.get("translated_text") or stored.get("content_text") or ""
         if text:
             self._intelligence.process_document(document_id, text, source_id=source_id)
-        self._job_repo.mark_running_stage(job_id, "intelligence_done")
+        self._job_repo.update_stage(job_id, "intelligence_done")
 
 
 def main() -> None:

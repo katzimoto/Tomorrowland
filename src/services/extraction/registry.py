@@ -59,8 +59,6 @@ _ALIASES: dict[str, str] = {
     "application/vnd.ms-word.document.macroEnabled.12": _DOCX_MIME,
     "application/vnd.ms-word.template.macroEnabled.12": _DOCX_MIME,
     "application/vnd.openxmlformats-officedocument.wordprocessingml.template": _DOCX_MIME,
-    # Some APIs / connectors mislabel DOCX as the legacy binary Word type.
-    "application/msword": _DOCX_MIME,
     # PPTX variants: macro-enabled (.pptm) and template (.potx / .potm)
     "application/vnd.ms-powerpoint.presentation.macroEnabled.12": _PPTX_MIME,
     "application/vnd.ms-powerpoint.template.macroEnabled.12": _PPTX_MIME,
@@ -124,6 +122,11 @@ class ExtractorRegistry:
             _DOCX_MIME: DocxExtractor(),
             _PPTX_MIME: PptxExtractor(),
             _XLSX_MIME: XlsxExtractor(),
+            # Default for application/msword — most connectors that label
+            # binary Word as application/msword actually have DOCX files.
+            # When enable_legacy_office is True, _register_legacy_office
+            # replaces this with LegacyOfficeExtractor.
+            "application/msword": DocxExtractor(),
             # Microsoft Office legacy binary (xlrd — pure Python, no system deps)
             "application/vnd.ms-excel": XlsExtractor(),
             # OpenDocument

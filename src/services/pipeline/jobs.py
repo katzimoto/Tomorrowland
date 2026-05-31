@@ -250,6 +250,28 @@ class PipelineJobRepository:
             },
         )
 
+    def update_stage(self, job_id: UUID, stage: str) -> None:
+        """Update the stage field without requiring a specific status.
+
+        Unlike :meth:`mark_running_stage`, this does not check the current
+        status and does not set ``status = 'running'``. Use this for
+        informational stage updates that should work even after the job
+        has been marked as succeeded (e.g. intelligence/alert consumers
+        that run after the index consumer has finalised the job).
+        """
+        self._connection.execute(
+            sa.text("""
+                UPDATE pipeline_jobs
+                SET stage = :stage, updated_at = :updated_at
+                WHERE id = :id
+            """),
+            {
+                "id": db_uuid(job_id),
+                "stage": stage,
+                "updated_at": datetime.now(UTC),
+            },
+        )
+
     def set_rabbit_message_id(self, job_id: UUID, message_id: str) -> None:
         """Persist the RabbitMQ message ID for observability."""
         self._connection.execute(

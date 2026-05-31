@@ -57,6 +57,7 @@ def search(
 
     bm25_results: list[SearchResult] = []
     meili_facets: dict[str, dict[str, int]] = {}
+    search_degraded = False
     if http_request.app.state.meili_provider is not None:
         try:
             backend_start = time.perf_counter()
@@ -80,6 +81,7 @@ def search(
             bm25_results = meili_results.results
             meili_facets = meili_results.facets
         except Exception:
+            search_degraded = True
             logger.warning(
                 "Meilisearch search degraded route=/search stage=bm25_search correlation_id=%s",
                 get_correlation_id(),
@@ -107,13 +109,15 @@ def search(
             "qdrant", "search"
         ).observe(time.perf_counter() - backend_start)
     except Exception as exc:
+        search_degraded = True
         logger.warning(
             "Vector search degraded route=/search stage=vector_search "
             "error_type=%s correlation_id=%s",
             exc.__class__.__name__,
             get_correlation_id(),
         )
-    http_request.app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
+    if search_degraded:
+        http_request.app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
 
     with http_request.app.state.engine.begin() as connection:
         _weight_rows = connection.execute(
@@ -236,7 +240,7 @@ def search(
             )
         )
 
-    if vector_results:
+    if not search_degraded:
         http_request.app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
     http_request.app.state.metrics.search_results_count.labels("hybrid").observe(len(merged))
     http_request.app.state.metrics.search_duration_seconds.labels("hybrid").observe(
@@ -272,9 +276,12 @@ def _map_filters(raw: dict[str, Any]) -> DocumentSearchFilters:
     if isinstance(raw.get("date_from"), str):
         f.created_after = raw["date_from"]
     if isinstance(raw.get("date_to"), str):
-        f.updated_after = None  # no "before" field in Meili model; applied client-side if needed
+        # date_to is an upper bound — Meilisearch only supports lower-bound
+        # filtering via _gte on *_after fields, so this must be applied
+        # client-side.  Clear any updated_after to avoid semantically
+        # incorrect metadata.updated_at >= date_to filtering.
+        f.updated_after = None
         f.created_after = raw.get("date_from") or None
-        f.updated_after = raw.get("date_to") or None
 
     return f
 

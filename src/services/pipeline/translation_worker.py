@@ -166,7 +166,10 @@ def run_translation_once(
         attempts,
     )
 
-    _publish_downstream(publisher, job_id, document_id, source_id, attempts, content_text, translated)
+    # Use attempt=1 for downstream messages — embed/index are fresh pipeline
+    # stages with their own retry budget, not continuations of the translation
+    # job's retry count.
+    _publish_downstream(publisher, job_id, document_id, source_id, 1, content_text, translated)
 
     return True
 
