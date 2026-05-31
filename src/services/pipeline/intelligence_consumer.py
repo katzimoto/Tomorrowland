@@ -32,8 +32,10 @@ class IntelligenceConsumer(BaseConsumer):
         content_text: str = "",
         translated_text: str = "",
     ) -> None:
-        if content_text:
-            self._intelligence.process_document(document_id, content_text, source_id=source_id)
+        # Prefer translated text when available, fall back to original
+        text = translated_text or content_text
+        if text:
+            self._intelligence.process_document(document_id, text, source_id=source_id)
         else:
             payload = self._job_repo.get_payload(document_id)
             content = (payload.get("content_text", "") if payload else None) or ""

@@ -332,8 +332,8 @@ def test_translation_worker_empty_content_text_skips_gracefully() -> None:
     job_repo.mark_succeeded.assert_called_once()
     job_repo.mark_retry.assert_not_called()
     job_repo.mark_dead_letter.assert_not_called()
-    # Must have enqueued the index job so the pipeline continues
-    job_repo.enqueue_document.assert_called_once()
+    # Must NOT enqueue an orphaned index job (no v1 index worker exists)
+    job_repo.enqueue_document.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

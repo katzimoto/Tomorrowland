@@ -193,7 +193,7 @@ class PipelineWorker:
                 "auto-detect which may fail — configure source_language on the ingestion source",
                 document_id,
             )
-        translated = self._translator.translate(text, source_lang=doc.source_language)
+        translated = self._translator.translate(text, source_lang=doc.source_language, target_lang=doc.target_language or "en")
         # "fast" only when translation produced a non-empty result that differs from the input.
         # Empty or identical output means LibreTranslate returned unchanged / failed auto-detect.
         translation_quality: str | None = "fast" if (translated and translated != text) else None

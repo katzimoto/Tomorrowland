@@ -52,8 +52,6 @@ def run_translation_once(
     job_type: str = claimed["job_type"]
     attempts: int = claimed["attempts"]
     max_attempts: int = claimed["max_attempts"]
-    source_id: UUID = claimed["source_id"]
-
     if metrics is not None:
         metrics.pipeline_jobs_claimed_total.labels(
             worker_type=_WORKER_TYPE, job_type=job_type
@@ -76,22 +74,13 @@ def run_translation_once(
             logger.info("translation skipped: empty content_text document_id=%s", document_id)
             job_repo.update_translated_text(document_id, "")
             job_repo.mark_succeeded(job_id)
-            try:
-                job_repo.enqueue_document(
-                    document_id=document_id,
-                    source_id=source_id,
-                    job_type="index_document",
-                )
-            except Exception:
-                logger.exception(
-                    "failed to enqueue index job after empty translation: "
-                    "worker_id=%s document_id=%s",
-                    worker_id,
-                    document_id,
-                )
             return True
 
-        translated = translator.translate(content_text, source_lang=doc.source_language)
+        translated = translator.translate(
+            content_text,
+            source_lang=doc.source_language,
+            target_lang=doc.target_language or "en",
+        )
         if content_text and translated == content_text:
             logger.warning(
                 "Translation returned unchanged text for document_id=%s source_language=%s — "
@@ -169,23 +158,6 @@ def run_translation_once(
         job_id,
         attempts,
     )
-
-    try:
-        job_repo.enqueue_document(
-            document_id=document_id,
-            source_id=source_id,
-            job_type="index_document",
-        )
-        logger.debug(
-            "index job enqueued: worker_id=%s document_id=%s",
-            worker_id,
-            document_id,
-        )
-    except Exception:
-        logger.exception(
-            "failed to enqueue index job: worker_id=%s error_type=EnqueueError",
-            worker_id,
-        )
 
     return True
 

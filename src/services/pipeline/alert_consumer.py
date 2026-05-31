@@ -39,7 +39,9 @@ class AlertConsumer(BaseConsumer):
         if doc is None:
             raise ValueError(f"Document {document_id} not found")
         payload = self._job_repo.get_payload(document_id)
-        content = (payload.get("content_text", "") if payload else None) or ""
+
+        # Prefer translated text when available, fall back to original
+        content = translated_text or (payload.get("content_text", "") if payload else None) or ""
 
         # Skip empty-content documents to avoid creating zero-vector entries
         if not content.strip():
