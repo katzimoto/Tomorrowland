@@ -48,8 +48,13 @@ class ParseConsumer(BaseConsumer):
         if doc is None:
             raise ValueError(f"Document {document_id} not found")
 
-        payload = self._job_repo.get_payload(document_id)
-        content_text = (payload.get("content_text", "") if payload else None) or ""
+        # Prefer content_text from the queue message first, then fall back to
+        # the payload table (populated by the scheduler or a prior parse run).
+        # This ensures the message-supplied text is used even when the payload
+        # row hasn't been created yet.
+        if not content_text:
+            payload = self._job_repo.get_payload(document_id)
+            content_text = (payload.get("content_text", "") if payload else None) or ""
         location_segments: list[dict[str, Any]] = []
         if not content_text and doc.path:
             result = self._extractor.extract(Path(doc.path), doc.mime_type)
