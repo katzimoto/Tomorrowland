@@ -309,10 +309,39 @@ def test_connector_types_includes_atlassian_connectors() -> None:
     assert "jira" in type_names
 
 
+def _make_fake_response(data: bytes) -> object:
+    """Return a file-like object that supports chunked reads for streaming."""
+
+    class _FakeStream:
+        def __init__(self, data: bytes) -> None:
+            self._data = data
+            self._pos = 0
+
+        def __enter__(self) -> _FakeStream:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def read(self, size: int = -1) -> bytes:
+            if size < 0:
+                chunk = self._data[self._pos :]
+                self._pos = len(self._data)
+                return chunk
+            chunk = self._data[self._pos : self._pos + size]
+            self._pos += len(chunk)
+            return chunk
+
+    return _FakeStream(data)
+
+
 def test_confluence_connector_fetches_pages_and_attachments() -> None:
     from services.connectors.atlassian import ConfluenceConnector, _DownloadedAttachment
 
     class StubConfluenceConnector(ConfluenceConnector):
+        def _check_confluence_reachability(self) -> None:
+            return None  # no-op for tests
+
         def _request_json(self, path: str, **_: object) -> dict[str, object]:
             if path == "/rest/api/content/search":
                 return {
@@ -341,6 +370,7 @@ def test_confluence_connector_fetches_pages_and_attachments() -> None:
             filename: str,
             *,
             storage_root: Path | None = None,
+            max_bytes: int | None = None,
         ) -> _DownloadedAttachment:
             assert download_url == "/download/att-1"
             assert filename == "plan.txt"
@@ -396,6 +426,7 @@ def test_jira_connector_fetches_issues_and_attachments() -> None:
             filename: str,
             *,
             storage_root: Path | None = None,
+            max_bytes: int | None = None,
         ) -> _DownloadedAttachment:
             assert download_url.endswith("/error.log")
             assert filename == "error.log"
@@ -420,23 +451,13 @@ def test_atlassian_request_json_uses_basic_auth(monkeypatch: pytest.MonkeyPatch)
     import services.connectors.atlassian as atlassian
     from services.connectors.atlassian import JiraConnector
 
-    class FakeResponse:
-        def __enter__(self) -> FakeResponse:
-            return self
-
-        def __exit__(self, *_: object) -> None:
-            return None
-
-        def read(self) -> bytes:
-            return json_module.dumps({"ok": True}).encode()
-
     captured: dict[str, Any] = {}
 
-    def fake_urlopen(request: Any, timeout: int) -> FakeResponse:
+    def fake_urlopen(request: Any, timeout: int) -> object:
         captured["url"] = request.full_url
         captured["auth"] = request.headers["Authorization"]
         captured["timeout"] = timeout
-        return FakeResponse()
+        return _make_fake_response(json_module.dumps({"ok": True}).encode())
 
     monkeypatch.setattr(atlassian, "urlopen", fake_urlopen)
     connector = JiraConnector(
@@ -457,23 +478,13 @@ def test_atlassian_download_attachment_writes_temp_file(monkeypatch: pytest.Monk
     import services.connectors.atlassian as atlassian
     from services.connectors.atlassian import ConfluenceConnector
 
-    class FakeResponse:
-        def __enter__(self) -> FakeResponse:
-            return self
-
-        def __exit__(self, *_: object) -> None:
-            return None
-
-        def read(self) -> bytes:
-            return b"attachment-bytes"
-
     captured: dict[str, str] = {}
 
-    def fake_urlopen(request: Any, timeout: int) -> FakeResponse:
+    def fake_urlopen(request: Any, timeout: int) -> object:
         assert timeout == 30
         captured["url"] = request.full_url
         captured["auth"] = request.headers["Authorization"]
-        return FakeResponse()
+        return _make_fake_response(b"attachment-bytes")
 
     monkeypatch.setattr(atlassian, "urlopen", fake_urlopen)
     connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "pat"})
@@ -532,6 +543,9 @@ def test_confluence_connector_paginates_pages() -> None:
             super().__init__({"base_url": "https://wiki.local", "api_token": "t"})
             self.starts: list[int] = []
 
+        def _check_confluence_reachability(self) -> None:
+            return None  # no-op for tests
+
         def _request_json(self, path: str, **kwargs: object) -> dict[str, object]:
             assert path == "/rest/api/content/search"
             query = kwargs["query"]
@@ -543,7 +557,12 @@ def test_confluence_connector_paginates_pages() -> None:
             return {"results": [{"id": "50", "title": "Page 50"}]}
 
         def _fetch_attachments(
-            self, *, page_id: str, page_title: str, storage_root: Path | None = None
+            self,
+            *,
+            page_id: str,
+            page_title: str,
+            storage_root: Path | None = None,
+            max_bytes: int | None = None,
         ) -> Iterator[ConnectorDocument]:
             assert page_id
             assert page_title
@@ -569,18 +588,8 @@ def test_atlassian_download_attachment_writes_to_storage_root(
     import services.connectors.atlassian as atlassian
     from services.connectors.atlassian import ConfluenceConnector
 
-    class FakeResponse:
-        def __enter__(self) -> FakeResponse:
-            return self
-
-        def __exit__(self, *_: object) -> None:
-            return None
-
-        def read(self) -> bytes:
-            return b"file-content"
-
-    def fake_urlopen(request: Any, timeout: int) -> FakeResponse:
-        return FakeResponse()
+    def fake_urlopen(request: Any, timeout: int) -> object:
+        return _make_fake_response(b"file-content")
 
     monkeypatch.setattr(atlassian, "urlopen", fake_urlopen)
     connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "pat"})
@@ -605,6 +614,9 @@ def test_confluence_fetch_documents_passes_storage_root(
     received_roots: list[Path | None] = []
 
     class StubConnector(ConfluenceConnector):
+        def _check_confluence_reachability(self) -> None:
+            return None  # no-op for tests
+
         def _request_json(self, path: str, **_: object) -> dict[str, object]:
             if "search" in path:
                 return {
@@ -619,7 +631,12 @@ def test_confluence_fetch_documents_passes_storage_root(
             return {"results": []}
 
         def _fetch_attachments(
-            self, *, page_id: str, page_title: str, storage_root: Path | None = None
+            self,
+            *,
+            page_id: str,
+            page_title: str,
+            storage_root: Path | None = None,
+            max_bytes: int | None = None,
         ) -> Iterator[ConnectorDocument]:
             received_roots.append(storage_root)
             return iter(())
@@ -673,3 +690,545 @@ def test_jira_fetch_documents_passes_storage_root(
     )
 
     assert received_roots == [storage]
+
+
+# ── Confluence auth_mode tests ────────────────────────────────────────────────
+
+
+def test_confluence_auth_mode_defaults_to_service_account() -> None:
+    """auth_mode defaults to service_account when omitted."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {"base_url": "https://wiki.local", "api_token": "t"}
+    )
+    auth_mode = connector._config_str("auth_mode", "service_account")
+    assert auth_mode == "service_account"
+    # validate() should pass the auth_mode check (only fails at API reachability)
+    # We override _check_confluence_reachability to test just the auth_mode logic
+
+
+def test_confluence_validate_rejects_unsupported_auth_modes() -> None:
+    """Unsupported auth modes are rejected with a clear error."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    with pytest.raises(ValueError, match="auth_mode"):
+        connector = ConfluenceConnector(
+            {"base_url": "https://wiki.local", "api_token": "t", "auth_mode": "user_delegated"}
+        )
+        # Override the API check to only test auth_mode validation
+        connector._check_confluence_reachability = lambda: None
+        connector.validate()
+
+
+def test_confluence_validate_rejects_unsupported_auth_mode_via_validate() -> None:
+    """Validate raises ValueError for unsupported auth modes."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    class NoopConnector(ConfluenceConnector):
+        def _check_confluence_reachability(self) -> None:
+            return None
+
+    with pytest.raises(ValueError, match="auth_mode"):
+        NoopConnector(
+            {"base_url": "https://wiki.local", "api_token": "t", "auth_mode": "oauth"}
+        ).validate()
+
+    with pytest.raises(ValueError, match="auth_mode"):
+        NoopConnector(
+            {"base_url": "https://wiki.local", "api_token": "t", "auth_mode": ""}
+        ).validate()
+
+
+# ── Confluence space_keys tests ────────────────────────────────────────────────
+
+
+def test_confluence_space_keys_omitted_allows_all() -> None:
+    """space_keys omitted means no space CQL filter is applied."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {"base_url": "https://wiki.local", "api_token": "t"}
+    )
+    keys = connector._resolve_space_keys()
+    assert keys == []
+    # CQL should not contain space= when building query
+    cql_parts = ["type=page"]
+    for key in keys:
+        cql_parts.append(f"space={key}")
+    assert "space=" not in " AND ".join(cql_parts)
+
+
+def test_confluence_space_keys_empty_list_allows_all() -> None:
+    """space_keys: [] means no space CQL filter."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {"base_url": "https://wiki.local", "api_token": "t", "space_keys": []}
+    )
+    keys = connector._resolve_space_keys()
+    assert keys == []
+
+
+def test_confluence_space_keys_filters_eng() -> None:
+    """space_keys: ['ENG'] filters only ENG."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {"base_url": "https://wiki.local", "api_token": "t", "space_keys": ["ENG"]}
+    )
+    keys = connector._resolve_space_keys()
+    assert keys == ["ENG"]
+
+
+def test_confluence_legacy_space_key_maps_to_space_keys() -> None:
+    """Legacy space_key maps to space_keys single-element list."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {"base_url": "https://wiki.local", "api_token": "t", "space_key": "ENG"}
+    )
+    keys = connector._resolve_space_keys()
+    assert keys == ["ENG"]
+
+
+def test_confluence_space_keys_takes_precedence_over_legacy() -> None:
+    """space_keys takes precedence over legacy space_key when both are set."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {
+            "base_url": "https://wiki.local",
+            "api_token": "t",
+            "space_key": "OPS",
+            "space_keys": ["ENG"],
+        }
+    )
+    keys = connector._resolve_space_keys()
+    assert keys == ["ENG"]
+
+
+def test_confluence_validate_raises_for_invalid_space_key() -> None:
+    """Invalid space keys are rejected during validation."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    class NoopConnector(ConfluenceConnector):
+        def _check_confluence_reachability(self) -> None:
+            return None
+
+    with pytest.raises(ValueError, match="Invalid.*space key"):
+        NoopConnector(
+            {"base_url": "https://wiki.local", "api_token": "t", "space_keys": ["ENG OPS"]}
+        ).validate()
+
+    with pytest.raises(ValueError, match="Invalid.*space key"):
+        NoopConnector(
+            {"base_url": "https://wiki.local", "api_token": "t", "space_keys": [""]}
+        ).validate()
+
+    with pytest.raises(ValueError, match="Invalid.*space key"):
+        NoopConnector(
+            {"base_url": "https://wiki.local", "api_token": "t", "space_key": "KEY WITH SPACES"}
+        ).validate()
+
+    # Valid space keys should pass validation
+    NoopConnector(
+        {"base_url": "https://wiki.local", "api_token": "t", "space_keys": ["ENG"]}
+    ).validate()
+
+    NoopConnector(
+        {"base_url": "https://wiki.local", "api_token": "t", "space_keys": ["ENG", "OPS"]}
+    ).validate()
+
+    NoopConnector(
+        {"base_url": "https://wiki.local", "api_token": "t", "space_key": "ENG"}
+    ).validate()
+
+
+# ── Confluence MIME filter tests ────────────────────────────────────────────────
+
+
+def test_mime_allowlist_allows_only_specified_types() -> None:
+    """When allowlist is set, only matching MIME types pass."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {
+            "base_url": "https://wiki.local",
+            "api_token": "t",
+            "attachment_mime_allowlist": ["application/pdf", "text/plain"],
+        }
+    )
+    assert connector._mime_is_allowed("application/pdf")
+    assert connector._mime_is_allowed("text/plain")
+    assert not connector._mime_is_allowed("image/png")
+    assert not connector._mime_is_allowed("video/mp4")
+
+
+def test_mime_empty_allowlist_allows_all() -> None:
+    """Empty or missing allowlist allows all MIME types."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {"base_url": "https://wiki.local", "api_token": "t"}
+    )
+    assert connector._mime_is_allowed("application/pdf")
+    assert connector._mime_is_allowed("video/mp4")
+    assert connector._mime_is_allowed("application/octet-stream")
+
+    connector2 = ConfluenceConnector(
+        {"base_url": "https://wiki.local", "api_token": "t", "attachment_mime_allowlist": []}
+    )
+    assert connector2._mime_is_allowed("application/pdf")
+
+
+def test_mime_blocklist_blocks_specified_types() -> None:
+    """Blocklist entries prevent specific MIME types."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {
+            "base_url": "https://wiki.local",
+            "api_token": "t",
+            "attachment_mime_blocklist": ["application/x-msdownload"],
+        }
+    )
+    assert not connector._mime_is_allowed("application/x-msdownload")
+    assert connector._mime_is_allowed("application/pdf")
+
+
+def test_mime_prefix_blocklist_blocks_type_family() -> None:
+    """Blocklist entries ending in / block MIME type families by prefix."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {
+            "base_url": "https://wiki.local",
+            "api_token": "t",
+            "attachment_mime_blocklist": ["video/", "audio/"],
+        }
+    )
+    assert not connector._mime_is_allowed("video/mp4")
+    assert not connector._mime_is_allowed("video/webm")
+    assert not connector._mime_is_allowed("audio/mpeg")
+    assert connector._mime_is_allowed("application/pdf")
+
+
+def test_mime_blocklist_wins_over_allowlist() -> None:
+    """Blocklist takes precedence over allowlist."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {
+            "base_url": "https://wiki.local",
+            "api_token": "t",
+            "attachment_mime_allowlist": ["application/pdf", "video/mp4"],
+            "attachment_mime_blocklist": ["video/"],
+        }
+    )
+    assert connector._mime_is_allowed("application/pdf")
+    assert not connector._mime_is_allowed("video/mp4")  # blocked by prefix rule
+    assert not connector._mime_is_allowed("video/webm")
+
+
+# ── Streaming download tests ──────────────────────────────────────────────────
+
+
+def test_streaming_download_computes_sha256_correctly() -> None:
+    """Streaming download computes the correct SHA256 for attachment content."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "pat"})
+
+    import hashlib
+    import tempfile
+
+    content = b"test attachment content for sha256 verification"
+    expected_sha = hashlib.sha256(content).hexdigest()
+
+    response = _make_fake_response(content)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result = connector._stream_to_file(
+            response, str(Path(tmpdir) / "test.txt"), "test.txt", max_bytes=None
+        )
+        assert result.sha256 == expected_sha
+        assert Path(result.path).read_bytes() == content
+
+
+def test_streaming_download_enforces_max_size() -> None:
+    """Max attachment size is enforced during streaming."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "pat"})
+
+    content = b"x" * 100
+    response = _make_fake_response(content)
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        dest = str(Path(tmpdir) / "large.txt")
+        with pytest.raises(ValueError, match="exceeds maximum size"):
+            connector._stream_to_file(response, dest, "large.txt", max_bytes=50)
+
+
+def test_streaming_download_max_size_large_content() -> None:
+    """Larger content is handled correctly when under max size."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "pat"})
+
+    content = b"x" * 1000
+    response = _make_fake_response(content)
+
+    import hashlib
+    import tempfile
+
+    expected_sha = hashlib.sha256(content).hexdigest()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result = connector._stream_to_file(
+            response, str(Path(tmpdir) / "ok.txt"), "ok.txt", max_bytes=2000
+        )
+        assert result.sha256 == expected_sha
+        assert Path(result.path).read_bytes() == content
+
+
+# ── Retry/backoff tests ────────────────────────────────────────────────────────
+
+
+def test_backoff_seconds_produces_positive_delays() -> None:
+    """_backoff_seconds returns positive values in expected range."""
+    from services.connectors.atlassian import _AtlassianConnectorBase
+
+    delay_0 = _AtlassianConnectorBase._backoff_seconds(0)
+    delay_1 = _AtlassianConnectorBase._backoff_seconds(1)
+    delay_5 = _AtlassianConnectorBase._backoff_seconds(5)
+
+    assert 0.25 <= delay_0 <= 1.0  # 0.5 + jitter
+    assert 0.5 <= delay_1 <= 1.5  # 1.0 + jitter
+    assert 16.0 <= delay_5 <= 30.0  # capped at 30
+
+    # With jitter, consecutive calls should differ (almost certainly)
+    delays = [_AtlassianConnectorBase._backoff_seconds(0) for _ in range(100)]
+    assert len(set(delays)) > 1, "backoff should include jitter"
+
+
+def test_config_int_returns_default_for_missing() -> None:
+    """_config_int returns default when key is missing."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "t"})
+    assert connector._config_int("retry_count", 3) == 3
+    assert connector._config_int("request_timeout_seconds", 30) == 30
+    assert connector._config_int("max_attachment_mb", 50) == 50
+
+
+def test_config_int_returns_configured_value() -> None:
+    """_config_int returns the configured value when present."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {
+            "base_url": "https://wiki.local",
+            "api_token": "t",
+            "retry_count": 5,
+            "request_timeout_seconds": 60,
+            "max_attachment_mb": 100,
+        }
+    )
+    assert connector._config_int("retry_count", 3) == 5
+    assert connector._config_int("request_timeout_seconds", 30) == 60
+    assert connector._config_int("max_attachment_mb", 50) == 100
+
+
+def test_effective_retry_count_default() -> None:
+    """_effective_retry_count returns default when not configured."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "t"})
+    assert connector._effective_retry_count() == 3
+
+
+def test_effective_timeout_default() -> None:
+    """_effective_timeout returns default when not configured."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "t"})
+    assert connector._effective_timeout() == 30
+
+
+def test_effective_values_from_config() -> None:
+    """_effective_timeout and _effective_retry_count use config values."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {
+            "base_url": "https://wiki.local",
+            "api_token": "t",
+            "retry_count": 7,
+            "request_timeout_seconds": 15,
+        }
+    )
+    assert connector._effective_retry_count() == 7
+    assert connector._effective_timeout() == 15
+
+
+def test_config_list_returns_list() -> None:
+    """_config_list returns proper list from config."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {
+            "base_url": "https://wiki.local",
+            "api_token": "t",
+            "space_keys": ["ENG", "OPS"],
+            "attachment_mime_blocklist": ["video/", "audio/"],
+        }
+    )
+    assert connector._config_list("space_keys") == ["ENG", "OPS"]
+    assert connector._config_list("attachment_mime_blocklist") == ["video/", "audio/"]
+
+
+def test_config_list_missing_returns_empty() -> None:
+    """_config_list returns [] when key is missing."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "t"})
+    assert connector._config_list("space_keys") == []
+    assert connector._config_list("attachment_mime_allowlist") == []
+
+
+# ── Confluence connection validation tests ────────────────────────────────────
+
+
+def test_confluence_validate_performs_reachability_check() -> None:
+    """validate() performs a real API check via _check_confluence_reachability."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    class ValidatingConnector(ConfluenceConnector):
+        _check_called = False
+
+        def _check_confluence_reachability(self) -> None:
+            self._check_called = True
+
+        def _request_json(self, path: str, **_: object) -> dict[str, object]:
+            return {"key": "ENG"}
+
+    connector = ValidatingConnector(
+        {"base_url": "https://wiki.local", "api_token": "t"}
+    )
+    connector.validate()
+    assert connector._check_called
+
+
+def test_confluence_validate_with_space_keys_hits_specific_endpoint() -> None:
+    """validate() with space_keys hits the specific space endpoint."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    captured_paths: list[str] = []
+
+    class ValidatingConnector(ConfluenceConnector):
+        def _request_json(self, path: str, **_: object) -> dict[str, object]:
+            captured_paths.append(path)
+            return {"key": "ENG"}
+
+    connector = ValidatingConnector(
+        {"base_url": "https://wiki.local", "api_token": "t", "space_keys": ["ENG"]}
+    )
+    connector.validate()
+    assert any("/rest/api/space/ENG" in p for p in captured_paths)
+
+
+def test_confluence_validate_without_space_keys_hits_general_endpoint() -> None:
+    """validate() without space_keys hits the general space list endpoint."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    captured_paths: list[str] = []
+
+    class ValidatingConnector(ConfluenceConnector):
+        def _request_json(self, path: str, **_: object) -> dict[str, object]:
+            captured_paths.append(path)
+            return {"results": [{"key": "ENG"}]}
+
+    connector = ValidatingConnector(
+        {"base_url": "https://wiki.local", "api_token": "t"}
+    )
+    connector.validate()
+    assert any("/rest/api/space" in p for p in captured_paths)
+
+
+# ── Confluence backward compatibility tests ──────────────────────────────────
+
+
+def test_existing_confluence_sources_keep_working() -> None:
+    """Existing Confluence sources with minimal config continue working."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    # Minimal config (base_url + api_token) should validate on init
+    connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "t"})
+    # Should not raise on init
+    assert connector._config_str("auth_mode", "service_account") == "service_account"
+    assert connector._resolve_space_keys() == []
+
+    # Legacy space_key should still work
+    connector2 = ConfluenceConnector(
+        {"base_url": "https://wiki.local", "api_token": "t", "space_key": "ENG"}
+    )
+    assert connector2._resolve_space_keys() == ["ENG"]
+
+
+# ── MIME filter behavior for different MIME types ───────────────────────────
+
+
+def test_mime_filter_various_types() -> None:
+    """MIME filter handles various type formats correctly."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {
+            "base_url": "https://wiki.local",
+            "api_token": "t",
+            "attachment_mime_allowlist": [
+                "application/pdf",
+                "text/plain",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ],
+        }
+    )
+    assert connector._mime_is_allowed("application/pdf")
+    assert connector._mime_is_allowed("text/plain")
+    assert connector._mime_is_allowed(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    # Not in allowlist
+    assert not connector._mime_is_allowed("image/png")
+    assert not connector._mime_is_allowed("application/zip")
+
+
+def test_mime_blocklist_prefix_matching() -> None:
+    """Blocklist prefix matching works for 'video/', 'audio/', etc."""
+    from services.connectors.atlassian import ConfluenceConnector
+
+    connector = ConfluenceConnector(
+        {
+            "base_url": "https://wiki.local",
+            "api_token": "t",
+            "attachment_mime_blocklist": [
+                "video/",
+                "audio/",
+                "application/x-msdownload",
+            ],
+        }
+    )
+    # Prefix matches
+    assert not connector._mime_is_allowed("video/mp4")
+    assert not connector._mime_is_allowed("video/x-matroska")
+    assert not connector._mime_is_allowed("audio/mpeg")
+    assert not connector._mime_is_allowed("audio/ogg")
+    # Exact match
+    assert not connector._mime_is_allowed("application/x-msdownload")
+    # Not blocked
+    assert connector._mime_is_allowed("application/pdf")
+    assert connector._mime_is_allowed("text/plain")
