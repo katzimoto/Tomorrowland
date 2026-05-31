@@ -6,24 +6,33 @@ runtime internet access. For details, use
 
 ## Files you need
 
-Required:
+Required (the platform starts with only these):
 
 ```text
-tomorrowland-release-<version>.tar.gz
+tomorrowland-release-<version>.tar.gz              platform archive (small, no model weights)
 tomorrowland-release-<version>.tar.gz.sha256
-tomorrowland-images-<version>.tar.part-*
+tomorrowland-images-<version>.tar.part-*           split Docker image parts
 tomorrowland-images-<version>.tar.parts.sha256
 ```
 
-Optional for offline Q&A/RAG/local intelligence:
+Optional (only for offline Q&A/RAG/local intelligence):
 
 ```text
-tomorrowland-ollama-bundle-<model>-<version>.tar.gz
+tomorrowland-ollama-bundle-<model>-<version>.tar.gz  local AI model weights
 tomorrowland-ollama-bundle-<model>-<version>.tar.gz.sha256
 ```
 
 Keep the split image parts beside the platform archive. The wrapper script loads
 parts directly; do not concatenate them by hand.
+
+## How local AI works
+
+The platform archive includes the Ollama runtime Docker image but does **not**
+include any model weights. The platform starts without local AI. A missing model
+bundle is a warning, not an error. Transfer and load a model bundle only when
+offline Q&A/RAG/local intelligence is required. Without a bundle, AI features
+are degraded but the base platform (search, preview, permissions, translation)
+works normally.
 
 ## Quick start
 
@@ -97,7 +106,7 @@ Open the frontend at the configured frontend host and port, usually
   `docker-compose.airgap.yml` through `scripts/tomorrowland-airgap.sh`.
 - Ollama model missing: platform startup can continue, but Q&A/RAG/local
   intelligence is degraded until the optional model bundle is loaded and
-  validated.
+  validated. This is a warning, not a startup failure.
 
 ## Safety notes
 

@@ -9,7 +9,11 @@ management so operators do not need to run lower-level scripts directly.
 
 ## Required release files
 
-Download all four files (and optionally the Ollama model bundle):
+The platform starts with only the files below. Local AI model weights are never
+bundled in the platform archive or Docker image bundle. The Ollama runtime
+Docker image is bundled, but no models are pre-loaded.
+
+Required (four file types):
 
 ```text
 tomorrowland-release-<version>.tar.gz        platform archive (small)
@@ -20,11 +24,11 @@ tomorrowland-images-<version>.tar.part-001
 tomorrowland-images-<version>.tar.parts.sha256
 ```
 
-Optional (for offline Q&A/RAG/local intelligence):
+Optional (for offline Q&A/RAG/local intelligence — not required for startup):
 
 ```text
-tomorrowland-ollama-bundle-mistral-<version>.tar.gz
-tomorrowland-ollama-bundle-mistral-<version>.tar.gz.sha256
+tomorrowland-ollama-bundle-<model>-<version>.tar.gz   local AI model weights
+tomorrowland-ollama-bundle-<model>-<version>.tar.gz.sha256
 ```
 
 The platform archive is small. The Docker image bundle is large and distributed
@@ -32,9 +36,9 @@ as split parts so each file stays within GitHub Release asset size limits.
 Operators do not need to manually reassemble the parts; the wrapper script
 handles streaming them into Docker.
 
-A missing Ollama model bundle is a warning only. The platform starts and runs
-without it, but offline Q&A/RAG/local intelligence is degraded until a model
-bundle is loaded.
+A missing Ollama model bundle is a warning only — not an error. The platform
+starts and runs without it, but offline Q&A/RAG/local intelligence is degraded
+until a model bundle is loaded.
 
 ## Happy path (quick reference)
 
@@ -216,6 +220,8 @@ This command:
 - loads images into the local Docker daemon
 - confirms all images referenced by the air-gapped Compose file are present
 - does not require internet access
+- warns (but does not fail) if no Ollama model bundle is found; local AI is
+  optional and the platform is valid without it
 
 If the image parts are in a non-default location, pass `--image-parts-dir`:
 

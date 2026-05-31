@@ -58,7 +58,7 @@ third_party_images=(
   "postgres:16-alpine"
   "redpandadata/redpanda:v24.1.9"
   "qdrant/qdrant:v1.10.1"
-  "ollama/ollama:latest"
+  "ollama/ollama:0.5.13"
   "getmeili/meilisearch:v1.9"
   "rabbitmq:3.13-management-alpine"
 )
