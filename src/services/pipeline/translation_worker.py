@@ -92,6 +92,14 @@ def run_translation_once(
             return True
 
         translated = translator.translate(content_text, source_lang=doc.source_language)
+        if content_text and translated == content_text:
+            logger.warning(
+                "Translation returned unchanged text for document_id=%s source_language=%s — "
+                "LibreTranslate may have failed auto-detect or the document is already in "
+                "the target language. No translation version will be created.",
+                document_id,
+                doc.source_language,
+            )
         job_repo.update_translated_text(document_id, translated)
 
     except Exception as exc:

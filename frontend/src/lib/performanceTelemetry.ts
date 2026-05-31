@@ -50,8 +50,14 @@ function readInitialDebugFlag(): boolean {
   if (typeof window === "undefined") return false;
   try {
     const params = new URLSearchParams(window.location.search);
+    if (params.get("perf") === "0") {
+      // ?perf=0 explicitly disables debug logging and clears any stored flag
+      window.localStorage?.removeItem(DEBUG_STORAGE_KEY);
+      return false;
+    }
     if (params.get("perf") === "1") {
-      window.localStorage?.setItem(DEBUG_STORAGE_KEY, "1");
+      // Enable console debug for this session only — do NOT persist to
+      // localStorage so a one-time ?perf=1 visit doesn't spam the console forever.
       return true;
     }
     return window.localStorage?.getItem(DEBUG_STORAGE_KEY) === "1";

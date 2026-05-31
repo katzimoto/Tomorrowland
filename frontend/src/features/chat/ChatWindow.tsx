@@ -61,6 +61,33 @@ export function ChatWindow({
   }, [sessionData, session.id]);
 
   const sendingRef = useRef(false);
+  // Throttle streaming state updates to avoid token-by-token re-renders.
+  const streamContentRef = useRef("");
+  const streamFlushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const streamStateRef = useRef<{
+    optimistic: ChatMessage;
+    streamId: string;
+    userMsg: ChatMessage;
+  } | null>(null);
+
+  function flushStreamContent() {
+    streamFlushTimer.current = null;
+    const s = streamStateRef.current;
+    if (!s) return;
+    setMessages((prev) => {
+      const withoutOptimistic = prev.filter(
+        (m) => m.id !== s.optimistic.id && !m.id.startsWith("stream-"),
+      );
+      const streaming: ChatMessage = {
+        id: s.streamId,
+        session_id: session.id,
+        role: "assistant",
+        content: streamContentRef.current,
+        created_at: new Date().toISOString(),
+      };
+      return [...withoutOptimistic, s.userMsg, streaming];
+    });
+  }
 
   async function handleSubmit(overrideContent?: string) {
     const text = typeof overrideContent === "string" ? overrideContent : input;
@@ -82,7 +109,12 @@ export function ChatWindow({
     setInput("");
 
     const streamId = `stream-${Date.now()}`;
-    let content = "";
+    streamContentRef.current = "";
+    streamStateRef.current = {
+      optimistic,
+      streamId,
+      userMsg: { ...optimistic, id: `user-${optimisticId}` },
+    };
 
     try {
       await sendChatMessageStream(
@@ -92,22 +124,16 @@ export function ChatWindow({
           if (event.type === "phase") {
             setStreamPhase(event.phase ?? null);
           } else if (event.type === "token" && event.token) {
-            content += event.token;
-            setMessages((prev) => {
-              const withoutOptimistic = prev.filter(
-                (m) => m.id !== optimisticId && !m.id.startsWith("stream-"),
-              );
-              const userMsg: ChatMessage = { ...optimistic, id: `user-${optimisticId}` };
-              const streaming: ChatMessage = {
-                id: streamId,
-                session_id: session.id,
-                role: "assistant",
-                content,
-                created_at: new Date().toISOString(),
-              };
-              return [...withoutOptimistic, userMsg, streaming];
-            });
+            streamContentRef.current += event.token;
+            // Throttle state updates to ~50ms intervals to reduce re-renders.
+            if (!streamFlushTimer.current) {
+              streamFlushTimer.current = setTimeout(flushStreamContent, 50);
+            }
           } else if (event.type === "done") {
+            if (streamFlushTimer.current) {
+              clearTimeout(streamFlushTimer.current);
+              streamFlushTimer.current = null;
+            }
             setStreamPhase(null);
             setMessages((prev) => {
               const withoutOptimistic = prev.filter(
@@ -118,7 +144,7 @@ export function ChatWindow({
                 id: event.message_id ?? streamId,
                 session_id: session.id,
                 role: "assistant",
-                content: event.answer ?? content,
+                content: event.answer ?? streamContentRef.current,
                 citations: event.citations,
                 model: event.model,
                 latency_ms: event.latency_ms,
@@ -126,6 +152,7 @@ export function ChatWindow({
               };
               return [...withoutOptimistic, userMsg, done];
             });
+            streamStateRef.current = null;
           }
         },
       );
@@ -135,6 +162,12 @@ export function ChatWindow({
       );
       showToast("error", t.chat.sendError);
     } finally {
+      if (streamFlushTimer.current) {
+        clearTimeout(streamFlushTimer.current);
+        streamFlushTimer.current = null;
+      }
+      streamContentRef.current = "";
+      streamStateRef.current = null;
       sendingRef.current = false;
       setIsSending(false);
       setStreamPhase(null);

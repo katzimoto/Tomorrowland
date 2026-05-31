@@ -50,7 +50,14 @@ class VaultExportService:
             """),
             {"group_id": db_uuid(group_id)},
         ).mappings()
-        return {str(row["title"]).casefold(): str(row["id"]) for row in rows}
+        cache: dict[str, str] = {}
+        for row in rows:
+            key = str(row["title"]).casefold()
+            # On casefold collision: prefer exact-match title, otherwise keep
+            # the first entry so wikilinks resolve deterministically.
+            if key not in cache:
+                cache[key] = str(row["id"])
+        return cache
 
     @staticmethod
     def _resolve_wikilinks(text: str, title_cache: dict[str, str]) -> str:

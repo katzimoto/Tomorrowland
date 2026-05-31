@@ -58,7 +58,6 @@ third_party_images=(
   "postgres:16-alpine"
   "redpandadata/redpanda:v24.1.9"
   "qdrant/qdrant:v1.10.1"
-  "ollama/ollama:0.5.13"
   "getmeili/meilisearch:v1.9"
   "rabbitmq:3.13-management-alpine"
 )
@@ -79,8 +78,6 @@ required_files=(
   "scripts/tomorrowland-airgap.sh"
   "scripts/load-airgap-images.sh"
   "scripts/validate-airgap-artifact.sh"
-  "scripts/load-ollama-model-bundle.sh"
-  "scripts/validate-ollama-model.sh"
   "scripts/validate-translation-languages.sh"
   "scripts/preflight-upgrade-check.sh"
   "scripts/backup-airgap-data.sh"
@@ -199,8 +196,6 @@ sed \
 cp scripts/tomorrowland-airgap.sh "$release_dir/scripts/tomorrowland-airgap.sh"
 cp scripts/load-airgap-images.sh "$release_dir/scripts/load-airgap-images.sh"
 cp scripts/validate-airgap-artifact.sh "$release_dir/scripts/validate-airgap-artifact.sh"
-cp scripts/load-ollama-model-bundle.sh "$release_dir/scripts/load-ollama-model-bundle.sh"
-cp scripts/validate-ollama-model.sh "$release_dir/scripts/validate-ollama-model.sh"
 cp scripts/validate-translation-languages.sh "$release_dir/scripts/validate-translation-languages.sh"
 cp scripts/preflight-upgrade-check.sh "$release_dir/scripts/preflight-upgrade-check.sh"
 cp scripts/backup-airgap-data.sh "$release_dir/scripts/backup-airgap-data.sh"
@@ -239,7 +234,7 @@ $(for image in "${all_images[@]:1}"; do printf ',\n    "%s"' "$image"; done)
   "minimum_compose_version": "2.20",
   "migrations": {"expected": true, "service": "migrate", "command": "alembic upgrade head"},
   "persistent_data": {
-    "volumes": ["files_data", "postgres_data", "kafka_data", "meilisearch_data", "qdrant_data", "libretranslate_data", "ollama_data", "rabbitmq_data"],
+    "volumes": ["files_data", "postgres_data", "kafka_data", "meilisearch_data", "qdrant_data", "libretranslate_data", "rabbitmq_data"],
     "volume_env_names": {
       "files_data": "TOMORROWLAND_FILES_VOLUME",
       "postgres_data": "TOMORROWLAND_POSTGRES_VOLUME",
@@ -247,7 +242,6 @@ $(for image in "${all_images[@]:1}"; do printf ',\n    "%s"' "$image"; done)
       "meilisearch_data": "TOMORROWLAND_MEILISEARCH_VOLUME",
       "qdrant_data": "TOMORROWLAND_QDRANT_VOLUME",
       "libretranslate_data": "TOMORROWLAND_LIBRETRANSLATE_VOLUME",
-      "ollama_data": "TOMORROWLAND_OLLAMA_VOLUME",
       "rabbitmq_data": "TOMORROWLAND_RABBITMQ_VOLUME"
     },
     "paths": ["TOMORROWLAND_FOLDER_SOURCE_HOST_PATH"]
@@ -281,12 +275,6 @@ MANIFEST
   printf '\nUpgrade existing deployment (run from the existing deployment directory):\n'
   printf '  ./scripts/tomorrowland-airgap.sh upgrade --artifact-dir ../%s\n' "$release_name"
   printf '\nOther wrapper commands: validate, status, down, backup, help\n'
-  printf '\nRC2 default model bundle (separate optional release asset):\n'
-  printf 'tomorrowland-ollama-bundle-mistral-%s.tar.gz\n' "$safe_version"
-  printf 'Missing model bundle is a warning only; platform starts without it but\n'
-  printf 'offline Q&A/RAG/local intelligence is degraded until a model is loaded.\n'
-  printf 'Load with: scripts/load-ollama-model-bundle.sh\n'
-  printf 'Validate with: scripts/validate-ollama-model.sh\n'
   printf '\nNever run: docker compose down -v  (deletes persistent data volumes)\n'
 } > "$release_dir/README-airgap.txt"
 
@@ -298,8 +286,6 @@ checksum_inputs=(
   scripts/tomorrowland-airgap.sh
   scripts/load-airgap-images.sh
   scripts/validate-airgap-artifact.sh
-  scripts/load-ollama-model-bundle.sh
-  scripts/validate-ollama-model.sh
   scripts/validate-translation-languages.sh
   scripts/preflight-upgrade-check.sh
   scripts/backup-airgap-data.sh

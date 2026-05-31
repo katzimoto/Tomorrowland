@@ -210,14 +210,24 @@ class AlertRepository:
         unread_only: bool = True,
         group_ids: list[UUID] | None = None,
         allow_all: bool = False,
+        limit: int = 50,
+        offset: int = 0,
     ) -> list[dict[str, Any]]:
-        """List notifications for a user.
+        """List notifications for a user with pagination.
 
         When *allow_all* is False and *group_ids* is provided, only
         notifications whose target document is still accessible via the
         caller's current group memberships are returned.  This prevents
         stale notification rows from leaking documents to users whose group
         access has since been revoked.
+
+        Args:
+            user_id: The user to list notifications for.
+            unread_only: When True, only return unread notifications.
+            group_ids: Effective group IDs for ACL re-check.
+            allow_all: Bypass ACL check when True.
+            limit: Maximum number of notifications to return (page size).
+            offset: Number of notifications to skip (for pagination).
         """
         read_filter = "AND n.read = false" if unread_only else ""
         if allow_all or not group_ids:
@@ -240,8 +250,13 @@ class AlertRepository:
                     WHERE n.user_id = :user_id
                       {read_filter}
                     ORDER BY n.created_at DESC
+                    LIMIT :limit OFFSET :offset
                     """),
-                {"user_id": db_uuid(user_id)},
+                {
+                    "user_id": db_uuid(user_id),
+                    "limit": limit,
+                    "offset": offset,
+                },
             ).mappings()
         else:
             rows = self._connection.execute(
@@ -265,10 +280,13 @@ class AlertRepository:
                       AND sp.group_id IN :group_ids
                       {read_filter}
                     ORDER BY n.created_at DESC
+                    LIMIT :limit OFFSET :offset
                     """).bindparams(sa.bindparam("group_ids", expanding=True)),
                 {
                     "user_id": db_uuid(user_id),
                     "group_ids": [db_uuid(g) for g in group_ids],
+                    "limit": limit,
+                    "offset": offset,
                 },
             ).mappings()
         return [dict(row) for row in rows]

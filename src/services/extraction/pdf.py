@@ -54,25 +54,36 @@ class PdfExtractor:
         """Return concatenated text from all pages with page-number segments."""
         try:
             reader = PdfReader(str(path))
-            pages_text: list[str] = []
-            segments: list[LocationSegment] = []
-            offset = 0
-            for i, page in enumerate(reader.pages, 1):
-                page_text = page.extract_text() or ""
-                if page_text:
-                    pages_text.append(page_text)
-                    end = offset + len(page_text)
-                    segments.append(
-                        LocationSegment(
-                            start_char=offset,
-                            end_char=end,
-                            page_number=i,
-                        )
-                    )
-                    offset = end + 1  # +1 for the newline separator
-            text = "\n".join(pages_text)
-        except (OSError, ValueError, PdfStreamError, FileNotDecryptedError):
+        except (OSError, ValueError, PdfStreamError, FileNotDecryptedError) as exc:
+            logger.debug("PDF reader failed for path=%s: %s", path, exc)
             return ExtractionResult(text="")
+
+        pages_text: list[str] = []
+        segments: list[LocationSegment] = []
+        offset = 0
+        for i, page in enumerate(reader.pages, 1):
+            try:
+                page_text = page.extract_text() or ""
+            except (OSError, ValueError, PdfStreamError) as exc:
+                logger.debug(
+                    "PDF page %d extraction failed for path=%s: %s; continuing",
+                    i,
+                    path,
+                    exc,
+                )
+                page_text = ""
+            if page_text:
+                pages_text.append(page_text)
+                end = offset + len(page_text)
+                segments.append(
+                    LocationSegment(
+                        start_char=offset,
+                        end_char=end,
+                        page_number=i,
+                    )
+                )
+                offset = end + 1  # +1 for the newline separator
+        text = "\n".join(pages_text)
 
         if text.strip():
             return ExtractionResult(text=text, location_segments=segments)

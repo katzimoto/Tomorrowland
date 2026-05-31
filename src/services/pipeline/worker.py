@@ -37,14 +37,19 @@ def _maybe_delete_connector_temp(path: str) -> None:
     after extraction.  Folder and NiFi staged files live outside the system
     temp directory and are intentionally left untouched.
 
-    Errors are silently suppressed — a failed cleanup is never fatal.
+    Errors are logged but never fatal — a failed cleanup is not worth
+    interrupting the pipeline for.
     """
     try:
         p = Path(path)
         if p.is_relative_to(Path(tempfile.gettempdir())):
             p.unlink(missing_ok=True)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "Failed to delete connector temp file path=%s error_type=%s",
+            path,
+            exc.__class__.__name__,
+        )
 
 
 class ProcessResult(NamedTuple):

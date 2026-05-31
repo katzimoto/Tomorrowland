@@ -239,8 +239,8 @@ def _map_agent_filters(filters: AgentSearchFilters) -> DocumentSearchFilters:
         f.tags = list(filters.tags)
     if filters.date_from:
         f.created_after = filters.date_from
-    if filters.date_to:
-        f.updated_after = filters.date_to
+    # date_to is intentionally not mapped here — upper-bound date filtering
+    # is handled at the client/query level.
     return f
 
 
@@ -285,10 +285,11 @@ def search_documents(
                     query=meili_query, user=user
                 )
                 bm25_results = meili_results.results
-            except Exception:
+            except Exception as exc:
                 logger.warning(
                     "Agent meilisearch degraded route=/api/agent/v1/search_documents "
-                    "correlation_id=%s",
+                    "error_type=%s correlation_id=%s",
+                    exc.__class__.__name__,
                     get_correlation_id(),
                 )
 
@@ -504,10 +505,20 @@ def get_passages(
         result_count=len(passages),
         latency_ms=(time.perf_counter() - t0) * 1000,
     )
+    # Get total count via Qdrant count API for proper pagination metadata
+    try:
+        total_count = qdrant_client.count_chunks_by_document(
+            document_id=str(document_id),
+            group_ids=group_ids,
+            allow_all=is_admin,
+        )
+    except Exception:
+        total_count = len(passages)
+
     return AgentPassagesResponse(
         document_id=str(document_id),
         passages=passages,
-        total=len(passages),
+        total=total_count,
     )
 
 

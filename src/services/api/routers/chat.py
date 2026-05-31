@@ -604,6 +604,7 @@ def create_message_stream(
             not_found_answer = (
                 "I could not find any relevant information in the documents you have access to."
             )
+            committed = False
             try:
                 for event, data in rag.answer_stream(
                     question=question,
@@ -626,13 +627,24 @@ def create_message_stream(
                             )
                         )
                         data["message_id"] = str(msg.id)
+                        txn.commit()
+                        committed = True
                     yield _sse_format(event, data)
+            except GeneratorExit:
+                # Client disconnected mid-stream. Roll back so the user message
+                # (stored above) remains but partial/incomplete assistant state
+                # is not persisted.
+                if not committed:
+                    txn.rollback()
+                raise
             except Exception:
                 logger.exception(
                     "SSE stream failed session_id=%s correlation_id=%s",
                     session_id,
                     get_correlation_id(),
                 )
+                if not committed:
+                    txn.rollback()
                 with contextlib.suppress(Exception):
                     repo.create_message(
                         ChatMessageCreate(
@@ -646,7 +658,9 @@ def create_message_stream(
                         )
                     )
             finally:
-                txn.commit()
+                if not committed:
+                    with contextlib.suppress(Exception):
+                        txn.rollback()
                 connection.close()
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")

@@ -43,31 +43,39 @@ export function SearchPage() {
     { value: "semantic", label: t.search.modeSemantic },
   ];
 
-  const initialQ = typeof routeSearch.q === "string" ? routeSearch.q : "";
-  const initialMode = (routeSearch.mode as SearchMode) ?? "hybrid";
+  const [inputValue, setInputValue] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [mode, setMode] = useState<SearchMode>("hybrid");
+  const [filters, setFilters] = useState<SearchFilters>({});
 
-  const initialFilters: SearchFilters = {};
-  const extra = routeSearch as Record<string, unknown>;
-  if (typeof extra.file_type === "string" && extra.file_type) {
-    initialFilters.file_type = (extra.file_type as string).split(",");
-  }
-  if (typeof extra.tags === "string" && extra.tags) {
-    initialFilters.tags = (extra.tags as string).split(",");
-  }
-  if (typeof extra.source === "string" && extra.source) {
-    initialFilters.source = (extra.source as string).split(",");
-  }
-  if (typeof extra.file_extension === "string" && extra.file_extension) {
-    initialFilters.file_extension = (extra.file_extension as string).split(",");
-  }
-  if (typeof extra.sort_by === "string") {
-    initialFilters.sort_by = extra.sort_by as SearchFilters["sort_by"];
-  }
+  // Sync state from URL params — runs on mount and whenever routeSearch
+  // changes (e.g. navigating to a different search URL externally).
+  useEffect(() => {
+    const q = typeof routeSearch.q === "string" ? routeSearch.q : "";
+    const md = (routeSearch.mode as SearchMode) ?? "hybrid";
+    const extra = routeSearch as Record<string, unknown>;
+    const updatedFilters: SearchFilters = {};
+    if (typeof extra.file_type === "string" && extra.file_type) {
+      updatedFilters.file_type = (extra.file_type as string).split(",");
+    }
+    if (typeof extra.tags === "string" && extra.tags) {
+      updatedFilters.tags = (extra.tags as string).split(",");
+    }
+    if (typeof extra.source === "string" && extra.source) {
+      updatedFilters.source = (extra.source as string).split(",");
+    }
+    if (typeof extra.file_extension === "string" && extra.file_extension) {
+      updatedFilters.file_extension = (extra.file_extension as string).split(",");
+    }
+    if (typeof extra.sort_by === "string") {
+      updatedFilters.sort_by = extra.sort_by as SearchFilters["sort_by"];
+    }
 
-  const [inputValue, setInputValue] = useState(initialQ);
-  const [submittedQuery, setSubmittedQuery] = useState(initialQ);
-  const [mode, setMode] = useState<SearchMode>(initialMode);
-  const [filters, setFilters] = useState<SearchFilters>(initialFilters);
+    setInputValue(q);
+    setSubmittedQuery(q);
+    setMode(md);
+    setFilters(updatedFilters);
+  }, [routeSearch.q, routeSearch.mode, routeSearch.file_type, routeSearch.tags, routeSearch.source, routeSearch.file_extension, routeSearch.sort_by]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [previewResult, setPreviewResult] = useState<SearchResult | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -119,15 +127,21 @@ export function SearchPage() {
   }
 
   // Debounce instant search — fires 350ms after the user stops typing.
-  // Does NOT navigate or reset preview; explicit submit (Enter/button) handles those.
+  // Also syncs URL so refreshing the page preserves search state.
+  // Does NOT reset preview; explicit submit (Enter/button) handles those.
   useEffect(() => {
     const q = inputValue.trim();
     if (q.length < 2) return;
     const id = setTimeout(() => {
       setSubmittedQuery(q);
+      void navigate({
+        to: "/search",
+        search: (prev) => ({ ...prev, q }),
+        replace: true,
+      });
     }, 350);
     return () => clearTimeout(id);
-  }, [inputValue]);
+  }, [inputValue, navigate]);
 
   const { data, isLoading, isFetching, isError } = useQuery({
     queryKey: ["search", submittedQuery, mode, filters],

@@ -40,6 +40,12 @@ class AlertConsumer(BaseConsumer):
             raise ValueError(f"Document {document_id} not found")
         payload = self._job_repo.get_payload(document_id)
         content = (payload.get("content_text", "") if payload else None) or ""
+
+        # Skip empty-content documents to avoid creating zero-vector entries
+        if not content.strip():
+            self._job_repo.mark_running_stage(job_id, "alert_done")
+            return
+
         self._alert_matcher.match_document(doc, content)
         self._job_repo.mark_running_stage(job_id, "alert_done")
 

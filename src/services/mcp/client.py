@@ -67,6 +67,9 @@ class TomorrowlandClient:
         self._api_key = api_key
         self._timeout = timeout
         self._client = httpx.Client(timeout=timeout)
+        import weakref
+
+        weakref.finalize(self, self._client.close)
 
     # ------------------------------------------------------------------
     # Internal helpers

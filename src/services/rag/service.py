@@ -179,8 +179,10 @@ class RagService:
                 )
             stages.append(self._build_stage_trace("rerank", len(chunks), phase_start))
 
-        # 3. Truncate to top_k (E6: candidate pool → final context size)
+        # 3. Filter by score threshold (after reranker has re-scored), then truncate to top_k
         t_final = time.perf_counter()
+        if self._score_threshold > 0.0:
+            chunks = [c for c in chunks if c["score"] >= self._score_threshold]
         chunks = chunks[:effective_top_k]
         stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
 
@@ -300,6 +302,8 @@ class RagService:
             chunks = self._reranker.rerank(chunks, question)
             stages.append(self._build_stage_trace("rerank", len(chunks), phase_start))
         t_final = time.perf_counter()
+        if self._score_threshold > 0.0:
+            chunks = [c for c in chunks if c["score"] >= self._score_threshold]
         chunks = chunks[:effective_top_k]
         stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
 
@@ -489,6 +493,9 @@ class RagService:
                 stages.append(self._build_stage_trace("metadata", len(meta_results), t3))
 
                 t4 = time.perf_counter()
+                # Metadata search is inherently text/label matching — BM25's exact-match
+                # signal is more reliable than vector similarity for document metadata
+                # fields (tags, labels, names, etc.), so weight BM25 heavily (0.8).
                 results = merge_results(
                     bm25_results=meta_results,
                     vector_results=results,
@@ -512,6 +519,10 @@ class RagService:
                 stages.append(self._build_stage_trace("translated", len(trans_results), t5))
 
                 t6 = time.perf_counter()
+                # Translated text favours BM25 (0.8) because the translated chunks are
+                # exact keyword matches of the query in the target language, which is
+                # better served by lexical search than by vector similarity on translated
+                # embeddings that may drift from the original semantic space.
                 results = merge_results(
                     bm25_results=trans_results,
                     vector_results=results,
@@ -526,13 +537,11 @@ class RagService:
         seen_chunk_ids: set[str] = set()
         unique_results = []
         for r in results:
-            if r.score < self._score_threshold:
-                continue
             chunk_id = (r.metadata or {}).get("chunk_id") or f"{r.document_id}-unknown"
             if chunk_id not in seen_chunk_ids:
                 seen_chunk_ids.add(chunk_id)
                 unique_results.append(r)
-        stages.append(self._build_stage_trace("dedup_filter", len(unique_results), t7))
+        stages.append(self._build_stage_trace("dedup", len(unique_results), t7))
 
         # Look up doc titles once, keyed by document_id
         doc_repo = DocumentRepository(self._connection)
