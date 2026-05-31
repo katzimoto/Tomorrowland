@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Simplified air-gapped release to not require local AI for startup. `ollama/ollama`
+  image pinned to `0.5.13`; Ollama removed from `api` depends_on health check in
+  `docker-compose.airgap.yml`. Docs, env template, and READMEs updated to clearly
+  separate required (platform archive + image parts) from optional (Ollama model
+  bundle) components. Missing model bundle produces a warning only, not a startup
+  failure.
+
 ### Added
 - Issue #550: Harden Jira service-account sync with rich issue metadata, optional
   project filters, JQL override, streaming attachments, MIME filters, retry/backoff,

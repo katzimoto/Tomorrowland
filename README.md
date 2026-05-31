@@ -69,19 +69,22 @@ runtime. The preferred operator entrypoint is:
 ./scripts/tomorrowland-airgap.sh
 ```
 
+The platform starts with only the files below. Local AI is optional and
+degraded until a model bundle is loaded.
+
 Required release files:
 
 ```text
-tomorrowland-release-<version>.tar.gz              platform archive
+tomorrowland-release-<version>.tar.gz              platform archive (small, no model weights)
 tomorrowland-release-<version>.tar.gz.sha256
 tomorrowland-images-<version>.tar.part-*           split Docker image parts
 tomorrowland-images-<version>.tar.parts.sha256
 ```
 
-Optional release files:
+Optional release files (not required for platform startup):
 
 ```text
-tomorrowland-ollama-bundle-<model>-<version>.tar.gz
+tomorrowland-ollama-bundle-<model>-<version>.tar.gz     local AI model weights
 tomorrowland-ollama-bundle-<model>-<version>.tar.gz.sha256
 ```
 
@@ -102,7 +105,8 @@ nano .env
 ./scripts/tomorrowland-airgap.sh status
 ```
 
-For the complete offline install guide, read
+The platform starts without local AI. Missing model bundle is a warning, not
+an error. For the complete offline install guide, read
 [`README-airgap.md`](README-airgap.md) first, then
 [`docs/operations/air-gapped-deployment.md`](docs/operations/air-gapped-deployment.md).
 
@@ -144,11 +148,12 @@ Terminology used across the docs:
 | --- | --- |
 | Platform archive | Small `tomorrowland-release-<version>.tar.gz` archive containing Compose files, env templates, docs, scripts, manifests, and checksums. |
 | Image parts | Required `tomorrowland-images-<version>.tar.part-*` files. The wrapper streams them into Docker; operators do not manually concatenate them. |
-| Optional model bundle | Optional `tomorrowland-ollama-bundle-<model>-<version>.tar.gz` with Ollama model weights. Needed for offline Q&A/RAG/local intelligence, not for platform startup. |
+| Local AI models | Optional `tomorrowland-ollama-bundle-<model>-<version>.tar.gz` with Ollama model weights. Needed for offline Q&A/RAG/local intelligence, not for platform startup. The platform starts and functions without them. |
 | Legacy names | Earlier `neverland-*` release asset names may appear in historical notes only. `tomorrowland-*` is canonical for new operator-facing examples. |
 
 Future OCR or additional model packs should remain optional add-on artifacts
-unless release notes explicitly say otherwise.
+unless release notes explicitly say otherwise. The base platform ships without
+local AI model weights; AI features are degraded until a model bundle is loaded.
 
 ## Development setup
 
