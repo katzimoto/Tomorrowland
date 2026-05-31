@@ -9,6 +9,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from services.api._helpers import _fmt_dt
 from services.api.main import current_user
 from services.auth.models import TokenPayload
 from services.permissions.enforcer import require_admin
@@ -29,8 +30,8 @@ def _row_to_job(row: Any) -> dict[str, Any]:
         "max_attempts": row["max_attempts"],
         "last_error": row["last_error"],
         "rabbit_message_id": row["rabbit_message_id"],
-        "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-        "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+        "created_at": _fmt_dt(row["created_at"]),
+        "updated_at": _fmt_dt(row["updated_at"]),
     }
 
 

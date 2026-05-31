@@ -20,6 +20,7 @@ from services.search.meili_types import (
 from services.search.models import SearchResults
 from services.search.qdrant import QdrantSearchClient
 from shared.config import Settings
+from shared.db import db_uuid, to_uuid
 
 TEST_JWT_SECRET = "x" * 32
 
@@ -29,12 +30,41 @@ class _FakeMeiliProvider:
         self._engine = engine
 
     def search(self, query: DocumentSearchQuery, user: object) -> SearchResults:
+        # The real Meilisearch provider enforces document ACLs via a permission
+        # filter, and the search route trusts the provider to do so (it does not
+        # re-filter BM25 results). Replicate that here: non-admins only see
+        # documents whose source is granted to one of their groups.
+        is_admin = bool(getattr(user, "is_admin", False))
+        group_ids = [db_uuid(to_uuid(g)) for g in getattr(user, "groups", [])]
+        params: dict[str, object] = {"q": f"%{query.q}%", "limit": query.limit}
         with self._engine.begin() as conn:
-            rows = conn.execute(
-                sa.text("SELECT id, title FROM documents WHERE title LIKE :q LIMIT :limit"),
-                {"q": f"%{query.q}%", "limit": query.limit},
-            ).fetchall()
-        results = [SearchResult(document_id=str(row[0]), score=1.0, title=row[1]) for row in rows]
+            if is_admin:
+                rows = conn.execute(
+                    sa.text(
+                        "SELECT id, title FROM documents WHERE title LIKE :q LIMIT :limit"
+                    ),
+                    params,
+                ).fetchall()
+            elif not group_ids:
+                rows = []
+            else:
+                placeholders = ", ".join(f":g{i}" for i in range(len(group_ids)))
+                params.update({f"g{i}": gid for i, gid in enumerate(group_ids)})
+                rows = conn.execute(
+                    sa.text(
+                        "SELECT d.id, d.title FROM documents d "
+                        "JOIN source_permissions sp ON sp.source_id = d.source_id "
+                        f"WHERE d.title LIKE :q AND sp.group_id IN ({placeholders}) "
+                        "LIMIT :limit"
+                    ),
+                    params,
+                ).fetchall()
+        # Normalise the DB id to a canonical dashed UUID string so it matches the
+        # search route's document lookup keys (SQLite stores UUIDs without dashes).
+        results = [
+            SearchResult(document_id=str(to_uuid(row[0])), score=1.0, title=row[1])
+            for row in rows
+        ]
         return SearchResults(results=results, facets={})
 
 
@@ -213,8 +243,12 @@ def test_search_pagination(
         _, extra_id = _create_source_with_doc(migrated_engine, "users", f"Doc {i}")
         doc_ids.append(extra_id)
 
+    # Vector search returns all 5 documents so pagination can be exercised.
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_qdrant.search.return_value = []
+    mock_qdrant.search.return_value = [
+        SearchResult(document_id=doc_id, score=0.9 - i * 0.1, chunk_text=f"chunk {i}")
+        for i, doc_id in enumerate(doc_ids)
+    ]
 
     client = TestClient(
         create_app(

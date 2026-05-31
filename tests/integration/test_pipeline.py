@@ -451,7 +451,7 @@ def test_sync_now_with_pre_extracted_text(
         def validate(self) -> None:
             pass
 
-        def fetch_documents(self):  # type: ignore[override]
+        def fetch_documents(self, storage_root=None):  # type: ignore[override]
             yield ConnectorDocument(
                 external_id="nifi:doc-001",
                 title="NL-001",
@@ -513,7 +513,7 @@ def test_sync_now_middle_item_failure_continues_sync(
         def validate(self) -> None:
             pass
 
-        def fetch_documents(self):  # type: ignore[override]
+        def fetch_documents(self, storage_root=None):  # type: ignore[override]
             from services.connectors.base import ConnectorDocument
 
             yield ConnectorDocument(
@@ -599,7 +599,7 @@ def test_sync_now_document_creation_failure_continues_sync(
         def validate(self) -> None:
             pass
 
-        def fetch_documents(self):  # type: ignore[override]
+        def fetch_documents(self, storage_root=None):  # type: ignore[override]
             from services.connectors.base import ConnectorDocument
 
             yield ConnectorDocument(
@@ -695,7 +695,7 @@ def test_sync_now_connector_enumeration_failure_returns_safe_error(
         def validate(self) -> None:
             pass
 
-        def fetch_documents(self):  # type: ignore[override]
+        def fetch_documents(self, storage_root=None):  # type: ignore[override]
             raise RuntimeError("cannot authenticate to source")
 
     _ingestion = "services.api.routers.admin.ingestion"
@@ -752,7 +752,7 @@ def test_sync_now_smb_preserves_temp_files_for_worker(
         def validate(self) -> None:
             pass
 
-        def fetch_documents(self):  # type: ignore[override]
+        def fetch_documents(self, storage_root=None):  # type: ignore[override]
             from services.connectors.base import ConnectorDocument
 
             yield ConnectorDocument(
