@@ -74,9 +74,6 @@ class TranslateConsumer(BaseConsumer):
         self._job_repo.mark_running_stage(job_id, "translated")
 
         did_translate = translated != content_text
-        quality = "fast" if did_translate else None
-        if self._doc_repo and translated:
-            self._doc_repo.update_indexed(document_id, "indexed", quality)
 
         if self._version_repo and did_translate:
             existing = self._version_repo.find_pending_or_running(document_id, target_lang)

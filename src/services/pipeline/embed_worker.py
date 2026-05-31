@@ -73,7 +73,7 @@ class EmbedConsumer(BaseConsumer):
             )
         ):
             chunk_texts.append(chunk)
-            chunk_meta.append({"lang": doc.target_language, "suffix": "tr", "idx": idx})
+            chunk_meta.append({"lang": doc.target_language, "suffix": "trans", "idx": idx})
 
         vectors = self._encoder.encode_batch(chunk_texts)
 
@@ -99,14 +99,8 @@ class EmbedConsumer(BaseConsumer):
 
         self._job_repo.mark_running_stage(job_id, "embedded")
         self._job_repo.commit()
-        self._publisher.publish_index(
-            job_id=job_id,
-            document_id=document_id,
-            source_id=source_id,
-            attempt=attempt,
-            content_text=content_text,
-            translated_text=translated_text,
-        )
+        # Note: TranslateConsumer already publishes publish_index — no need to
+        # publish it again here.
 
 
 def main() -> None:

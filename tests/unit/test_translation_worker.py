@@ -84,6 +84,18 @@ class _FakeDoc:
         self.source_language = source_language
 
 
+class _FakePublisher:
+    def __init__(self) -> None:
+        self.embed_calls: list[dict] = []
+        self.index_calls: list[dict] = []
+
+    def publish_embed(self, **kwargs: object) -> None:
+        self.embed_calls.append(dict(kwargs))
+
+    def publish_index(self, **kwargs: object) -> None:
+        self.index_calls.append(dict(kwargs))
+
+
 class _FakeTranslator:
     def __init__(self, translated: str = "translated text") -> None:
         self._translated = translated
@@ -142,21 +154,42 @@ def test_translates_and_persists_text() -> None:
     assert job_repo.succeeded == [job["id"]]
 
 
-def test_enqueues_index_document_after_success() -> None:
+def test_publishes_downstream_after_success() -> None:
+    """After a successful translation, embed + index messages are published."""
     source_id = uuid4()
     document_id = uuid4()
+    job_id = uuid4()  # not job["id"] — translation_worker creates a new UUID for job_id
     job = _make_job(document_id=document_id, source_id=source_id)
+    # Override the job id so we can assert on it
+    job["id"] = job_id
     payload = {"content_text": "some text", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=_FakeDoc())
     translator = _FakeTranslator()
+    publisher = _FakePublisher()
 
-    run_translation_once(job_repo, doc_repo, translator)
+    run_translation_once(job_repo, doc_repo, translator, publisher=publisher)
 
-    assert len(job_repo.enqueued) == 1
-    assert job_repo.enqueued[0]["job_type"] == "index_document"
-    assert job_repo.enqueued[0]["document_id"] == document_id
-    assert job_repo.enqueued[0]["source_id"] == source_id
+    # Must NOT enqueue orphan database jobs
+    assert job_repo.enqueued == []
+
+    # Must publish embed
+    assert len(publisher.embed_calls) == 1
+    embed = publisher.embed_calls[0]
+    assert embed["job_id"] == job_id
+    assert embed["document_id"] == document_id
+    assert embed["source_id"] == source_id
+    assert embed["content_text"] == "some text"
+    assert embed["translated_text"] == "translated text"
+
+    # Must publish index
+    assert len(publisher.index_calls) == 1
+    index = publisher.index_calls[0]
+    assert index["job_id"] == job_id
+    assert index["document_id"] == document_id
+    assert index["source_id"] == source_id
+    assert index["content_text"] == "some text"
+    assert index["translated_text"] == "translated text"
 
 
 def test_retries_when_document_not_found() -> None:
@@ -178,15 +211,17 @@ def test_skips_gracefully_when_content_text_missing() -> None:
 
     Documents with no extractable text (e.g. scanned PDFs without OCR) used to
     cause the job to be retried up to max_attempts times and then dead-lettered.
-    After the fix the job succeeds immediately and the index stage is enqueued.
+    After the fix the job succeeds immediately and the downstream pipeline is
+    triggered via the publisher.
     """
     job = _make_job()
     payload = {"content_text": "", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=_FakeDoc())
     translator = _FakeTranslator()
+    publisher = _FakePublisher()
 
-    result = run_translation_once(job_repo, doc_repo, translator)
+    result = run_translation_once(job_repo, doc_repo, translator, publisher=publisher)
 
     assert result is True
     # Must NOT retry or dead-letter
@@ -194,11 +229,17 @@ def test_skips_gracefully_when_content_text_missing() -> None:
     assert job_repo.dead_lettered == []
     # Must have stored empty translated text so index worker has a payload row
     assert job_repo.translated_text_updates == [(job["document_id"], "")]
-    # Must have succeeded and enqueued the index stage
+    # Must have succeeded
     assert job_repo.succeeded == [job["id"]]
-    assert len(job_repo.enqueued) == 1
-    assert job_repo.enqueued[0]["document_id"] == job["document_id"]
-    assert job_repo.enqueued[0]["job_type"] == "index_document"
+    # Must NOT enqueue orphan database jobs
+    assert job_repo.enqueued == []
+    # Must publish downstream with empty content/translated text
+    assert len(publisher.embed_calls) == 1
+    assert publisher.embed_calls[0]["content_text"] == ""
+    assert publisher.embed_calls[0]["translated_text"] == ""
+    assert len(publisher.index_calls) == 1
+    assert publisher.index_calls[0]["content_text"] == ""
+    assert publisher.index_calls[0]["translated_text"] == ""
 
 
 def test_dead_letters_only_when_translation_itself_fails() -> None:
@@ -235,12 +276,37 @@ def test_marks_running_stage_before_work(caplog: pytest.LogCaptureFixture) -> No
     assert job_repo.stages == [(job["id"], "translate")]
 
 
-def test_no_enqueue_when_translation_fails() -> None:
+def test_no_downstream_when_translation_fails() -> None:
+    """No downstream messages are published when translation itself fails."""
     job = _make_job()
     job_repo = _FakeJobRepo(job=job, payload=None)
     doc_repo = _FakeDocRepo(doc=None)
     translator = _FakeTranslator()
+    publisher = _FakePublisher()
 
-    run_translation_once(job_repo, doc_repo, translator)
+    run_translation_once(job_repo, doc_repo, translator, publisher=publisher)
 
     assert job_repo.enqueued == []
+    assert publisher.embed_calls == []
+    assert publisher.index_calls == []
+
+
+def test_succeeds_without_publisher() -> None:
+    """When no publisher is provided, translation succeeds and logs a warning.
+
+    This preserves backward compatibility: the translated text is persisted
+    even if RabbitMQ is not available.
+    """
+    job = _make_job()
+    payload = {"content_text": "some text", "translated_text": None}
+    job_repo = _FakeJobRepo(job=job, payload=payload)
+    doc_repo = _FakeDocRepo(doc=_FakeDoc())
+    translator = _FakeTranslator(translated="translated text")
+
+    # No publisher passed — should succeed without publishing
+    result = run_translation_once(job_repo, doc_repo, translator)
+
+    assert result is True
+    assert job_repo.succeeded == [job["id"]]
+    assert job_repo.enqueued == []
+    assert job_repo.translated_text_updates == [(job["document_id"], "translated text")]

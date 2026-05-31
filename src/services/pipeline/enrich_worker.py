@@ -53,6 +53,7 @@ class EnrichConsumer(BaseConsumer):
 
         self._job_repo.mark_running_stage(job_id, "enrich")
         self._worker.process_document(document_id, content_text=text)
+        self._job_repo.mark_succeeded(job_id)
 
 
 def main() -> None:
