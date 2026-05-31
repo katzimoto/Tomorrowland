@@ -271,6 +271,50 @@ class TestSyncRunRepository:
         assert completed_runs[0].id == run_done.id
         assert len(queued_runs) == 0  # all were started
 
+    def test_validate_transition_rejects_invalid(self) -> None:
+        """Invalid status transitions raise ValueError; terminal states are final."""
+        import pytest
+
+        # Cannot resurrect a terminal run.
+        with pytest.raises(ValueError, match="Invalid sync run status transition"):
+            SyncRunRepository.validate_transition("completed", "running")
+        # Cannot go backwards from running to queued.
+        with pytest.raises(ValueError, match="Invalid sync run status transition"):
+            SyncRunRepository.validate_transition("running", "queued")
+        # A valid transition does not raise.
+        SyncRunRepository.validate_transition("queued", "running")
+        SyncRunRepository.validate_transition("running", "completed")
+
+    def test_update_rejects_invalid_status_transition(self, migrated_engine: Engine) -> None:
+        """update() enforces the transition rules against the persisted status."""
+        import pytest
+
+        source_id = _insert_source(migrated_engine)
+        with migrated_engine.begin() as connection:
+            repo = SyncRunRepository(connection)
+            run = repo.create(SyncRunCreate(source_id=source_id, connector_type="folder"))
+            repo.start(run.id)
+            repo.complete(run.id, "completed")
+            # completed -> running is not allowed
+            with pytest.raises(ValueError, match="Invalid sync run status transition"):
+                repo.update(run.id, SyncRunUpdate(status="running"))
+
+    def test_has_active_sync_guard(self, migrated_engine: Engine) -> None:
+        """has_active_sync is True for queued/running and False once terminal."""
+        source_id = _insert_source(migrated_engine)
+        with migrated_engine.begin() as connection:
+            repo = SyncRunRepository(connection)
+            assert repo.has_active_sync(source_id) is False
+
+            run = repo.create(SyncRunCreate(source_id=source_id, connector_type="folder"))
+            # queued counts as active
+            assert repo.has_active_sync(source_id) is True
+            repo.start(run.id)
+            assert repo.has_active_sync(source_id) is True
+            repo.complete(run.id, "completed")
+            # terminal -> no longer blocks a new sync
+            assert repo.has_active_sync(source_id) is False
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  TombstoneRepository
@@ -585,6 +629,41 @@ class TestTombstoneCleanup:
             cleared = clear_tombstone_and_reactivate(connection, source_id, "never-tombstoned")
 
         assert cleared is False
+
+    def test_index_cleanup_called_for_each_tombstoned_doc(self, migrated_engine: Engine) -> None:
+        """The index_cleanup callback receives every tombstoned document_id.
+
+        This is what actually removes a deleted document from the Meilisearch /
+        Qdrant indexes — DB status alone leaves it searchable.
+        """
+        source_id = _insert_source(migrated_engine)
+        seen_id = _insert_document(migrated_engine, source_id=source_id, external_id="seen")
+        gone_id = _insert_document(migrated_engine, source_id=source_id, external_id="gone")
+
+        cleaned: list[UUID] = []
+
+        with migrated_engine.begin() as connection:
+            tombstones = tombstone_missing_documents(
+                connection,
+                source_id,
+                seen_external_ids={"seen"},
+                index_cleanup=cleaned.append,
+            )
+
+        assert len(tombstones) == 1
+        # Only the deleted doc's id is sent to index cleanup; the seen doc is untouched.
+        assert cleaned == [gone_id]
+        assert seen_id not in cleaned
+
+    def test_no_index_cleanup_when_callback_absent(self, migrated_engine: Engine) -> None:
+        """Omitting index_cleanup still tombstones, but does not raise."""
+        source_id = _insert_source(migrated_engine)
+        _insert_document(migrated_engine, source_id=source_id, external_id="gone")
+
+        with migrated_engine.begin() as connection:
+            tombstones = tombstone_missing_documents(connection, source_id, set())
+
+        assert len(tombstones) == 1
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

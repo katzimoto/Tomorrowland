@@ -2,6 +2,31 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-05-31 — feat(auth): LDAP group mapping via live DC search — #582, PR #601
+
+Status: Done — squash-merged to main (branch deleted), issue #582 closed
+Source: issue #582, PR #601, Claude Code session
+
+Live LDAP group search and explicit LDAP→Tomorrowland group mappings. Review found 3 blocking bugs; all fixed before merge.
+
+| Area | Detail |
+|---|---|
+| LdapClient | `search_groups()` — service-account bind, RFC 4515 filter escaping, timeout/limit, ephemeral (no DB writes) |
+| Repository | `LdapGroupMappingRepository` — CRUD with duplicate DN rejection and target group validation |
+| Admin API | `GET /admin/ldap/groups/search`, `GET/POST/DELETE /admin/ldap/group-mappings`; admin-only; audit events on create/delete |
+| Auth | `upsert_ldap_user()` resolves groups through explicit mappings only; unmapped LDAP groups silently dropped |
+| Migration | `l1m2n3o4p5q6` — `ldap_group_mappings` table, DN uniqueness, FK to groups (RESTRICT), FK to users (SET NULL) |
+| Config | `LDAP_GROUP_SEARCH_BASE_DNS`, `LDAP_GROUP_SEARCH_FILTER`, `LDAP_GROUP_SEARCH_LIMIT`, `LDAP_GROUP_SEARCH_TIMEOUT`, `LDAP_GROUP_EXTERNAL_ID_ATTR`, `LDAP_GROUP_DISPLAY_NAME_ATTR` |
+| Frontend | `AdminLdapPage` at `/admin/ldap` — ephemeral search, map-to-group dialog, delete confirmation; EN + HE i18n |
+| Tests | 14 unit tests: repo CRUD, duplicate rejection, missing target group, filter escaping, auth integration |
+
+Review bugs fixed in commit c845406 before merge:
+- `setup-env.sh`: missing newline collapsed `LDAP_BIND_PASSWORD=""` and `if` onto one line (broken bash)
+- `distinguished_name` → `dn` in schema + `ldap_client.py` dict key (frontend type expected `dn`; DN column was blank and POST sent `ldap_dn: undefined`)
+- Removed dead `Limit` TextInput in `AdminLdapPage` (frontend sent `?limit=N` but backend only reads `q`)
+
+---
+
 ## 2026-05-30 — test(agents): permission regression tests for researcher queries — #562, PR #598
 
 Status: Done — PR #598 squash-merged to main (commit 0462d30), branch deleted
