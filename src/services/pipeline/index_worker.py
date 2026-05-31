@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -118,6 +119,7 @@ class IndexConsumer(BaseConsumer):
                         source=doc.source,
                         mime_type=doc.mime_type,
                         language=doc.source_language,
+                        file_name=Path(doc.path).name if doc.path else None,
                     ),
                     content_en=translated_chunks[idx],
                 )
@@ -136,6 +138,7 @@ class IndexConsumer(BaseConsumer):
                         source=doc.source,
                         mime_type=doc.mime_type,
                         language=doc.source_language,
+                        file_name=Path(doc.path).name if doc.path else None,
                     ),
                     content_en=None,
                 )

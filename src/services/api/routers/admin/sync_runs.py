@@ -49,6 +49,9 @@ def admin_list_sync_runs(
 ) -> list[dict[str, Any]]:
     """List sync runs for a source, most recent first."""
     require_admin(user)
+    # Bound the page size and offset so a client cannot request an unbounded set.
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
     with request.app.state.engine.connect() as connection:
         repo = SyncRunRepository(connection)
         runs = repo.list_for_source(source_id, limit=limit, offset=offset)

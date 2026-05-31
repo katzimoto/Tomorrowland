@@ -32,14 +32,17 @@ class IntelligenceConsumer(BaseConsumer):
         content_text: str = "",
         translated_text: str = "",
     ) -> None:
-        if content_text:
-            self._intelligence.process_document(document_id, content_text, source_id=source_id)
-        else:
+        # Prefer translated_text for analysis when available — users view/search
+        # the translated version, so intelligence (entities, summaries) should
+        # reflect the translated content. Falls back to content_text.
+        text = translated_text or content_text
+        if not text:
             payload = self._job_repo.get_payload(document_id)
-            content = (payload.get("content_text", "") if payload else None) or ""
-            if content:
-                self._intelligence.process_document(document_id, content, source_id=source_id)
-        self._job_repo.mark_running_stage(job_id, "intelligence_done")
+            stored = payload or {}
+            text = stored.get("translated_text") or stored.get("content_text") or ""
+        if text:
+            self._intelligence.process_document(document_id, text, source_id=source_id)
+        self._job_repo.update_stage(job_id, "intelligence_done")
 
 
 def main() -> None:

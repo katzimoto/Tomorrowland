@@ -166,10 +166,22 @@ class SlowWorker:
             target_lang=doc.target_language or "en",
         )
 
-        # 3. Chunk and index
+        # 3. No-op guard: translation returned the same text (document already
+        #    in the target language, or LibreTranslate failed auto-detect).
+        #    Skip re-indexing and leave quality unchanged.
+        _is_no_op = bool(text) and translated == text
+        if _is_no_op or not translated:
+            logger.info(
+                "Enrichment no-op for document_id=%s: %s",
+                doc.id,
+                "Document already in target language" if _is_no_op else "Empty translation",
+            )
+            return
+
+        # 4. Chunk and index
         self._index_document(doc, translated, original=text)
 
-        # 4. Update quality and status
+        # 5. Update quality and status
         self._doc_repo.update_indexed(doc.id, "indexed", "high")
 
     def _index_document(self, doc: Any, translated: str, original: str = "") -> None:

@@ -4,6 +4,12 @@ Claims durable translation jobs from the queue, reads raw ``content_text``
 from ``document_payloads``, translates via LibreTranslate, and persists
 ``translated_text`` back to the payload table so the index-worker can
 consume it without re-running translation.
+
+After a successful translation the worker publishes embed and index messages
+to RabbitMQ so the async pipeline (EmbedConsumer → IndexConsumer) picks them
+up. The previous behaviour of enqueuing an orphan ``index_document`` database
+job has been removed — no worker processed those jobs, leaving translated
+documents permanently unindexed.
 """
 
 from __future__ import annotations
@@ -14,6 +20,7 @@ from uuid import UUID
 
 from services.documents.repository import DocumentRepository
 from services.pipeline.jobs import PipelineJobRepository
+from services.pipeline.publisher import DocumentPublisher
 from services.translation.client import LibreTranslateClient
 from shared.metrics import MetricsRegistry
 
@@ -30,8 +37,13 @@ def run_translation_once(
     translator: LibreTranslateClient,
     worker_id: str = "translation-worker",
     metrics: MetricsRegistry | None = None,
+    publisher: DocumentPublisher | None = None,
 ) -> bool:
     """Claim one ``translate_document`` job, translate, and persist result.
+
+    After a successful translation the embed + index stages are triggered via
+    the RabbitMQ publisher (when available) rather than enqueuing an orphan
+    ``index_document`` database job that no worker processes.
 
     Args:
         job_repo: Queue repository for claiming and updating jobs.
@@ -39,6 +51,10 @@ def run_translation_once(
         translator: LibreTranslate client.
         worker_id: Identifier stamped on claimed jobs (for stale-lock tracking).
         metrics: Optional metrics registry; pass ``None`` to disable instrumentation.
+        publisher: Optional RabbitMQ publisher. When provided, embed + index
+            messages are published after translation. When ``None``, a warning
+            is logged and downstream processing is skipped (legacy
+            ``index_document`` database jobs are no longer enqueued).
 
     Returns:
         ``True`` if a job was claimed and processed, ``False`` if none available.
@@ -76,19 +92,7 @@ def run_translation_once(
             logger.info("translation skipped: empty content_text document_id=%s", document_id)
             job_repo.update_translated_text(document_id, "")
             job_repo.mark_succeeded(job_id)
-            try:
-                job_repo.enqueue_document(
-                    document_id=document_id,
-                    source_id=source_id,
-                    job_type="index_document",
-                )
-            except Exception:
-                logger.exception(
-                    "failed to enqueue index job after empty translation: "
-                    "worker_id=%s document_id=%s",
-                    worker_id,
-                    document_id,
-                )
+            _publish_downstream(publisher, job_id, document_id, source_id, 1, "", "")
             return True
 
         translated = translator.translate(content_text, source_lang=doc.source_language)
@@ -162,22 +166,10 @@ def run_translation_once(
         attempts,
     )
 
-    try:
-        job_repo.enqueue_document(
-            document_id=document_id,
-            source_id=source_id,
-            job_type="index_document",
-        )
-        logger.debug(
-            "index job enqueued: worker_id=%s document_id=%s",
-            worker_id,
-            document_id,
-        )
-    except Exception:
-        logger.exception(
-            "failed to enqueue index job: worker_id=%s error_type=EnqueueError",
-            worker_id,
-        )
+    # Use attempt=1 for downstream messages — embed/index are fresh pipeline
+    # stages with their own retry budget, not continuations of the translation
+    # job's retry count.
+    _publish_downstream(publisher, job_id, document_id, source_id, 1, content_text, translated)
 
     return True
 
@@ -189,6 +181,7 @@ def run_translation_loop(
     worker_id: str = "translation-worker",
     poll_interval: float = 1.0,
     metrics: MetricsRegistry | None = None,
+    publisher: DocumentPublisher | None = None,
 ) -> None:
     """Run ``run_translation_once`` in a loop until interrupted."""
     logger.info(
@@ -230,6 +223,7 @@ def run_translation_loop(
                     translator,
                     worker_id=worker_id,
                     metrics=metrics,
+                    publisher=publisher,
                 )
             except Exception as exc:
                 error_type = type(exc).__name__
@@ -251,10 +245,66 @@ def run_translation_loop(
         logger.info("translation worker shutting down: worker_id=%s", worker_id)
 
 
+def _publish_downstream(
+    publisher: DocumentPublisher | None,
+    job_id: UUID,
+    document_id: UUID,
+    source_id: UUID,
+    attempt: int,
+    content_text: str,
+    translated_text: str,
+) -> None:
+    """Publish embed + index messages after translation completes.
+
+    This replaces the legacy ``enqueue_document("index_document")`` pattern
+    which created orphan database jobs that no worker processed.
+    """
+    if publisher is None:
+        logger.warning(
+            "no publisher available — downstream pipeline (embed/index) not "
+            "triggered for document_id=%s. Translated text is persisted but "
+            "will not be indexed until another pipeline run.",
+            document_id,
+        )
+        return
+
+    try:
+        publisher.publish_embed(
+            job_id=job_id,
+            document_id=document_id,
+            source_id=source_id,
+            attempt=attempt,
+            content_text=content_text,
+            translated_text=translated_text,
+        )
+        publisher.publish_index(
+            job_id=job_id,
+            document_id=document_id,
+            source_id=source_id,
+            attempt=attempt,
+            content_text=content_text,
+            translated_text=translated_text,
+        )
+        logger.debug(
+            "downstream pipeline triggered: worker_id=translation-worker "
+            "document_id=%s job_id=%s",
+            document_id,
+            job_id,
+        )
+    except Exception:
+        logger.exception(
+            "failed to publish downstream messages for document_id=%s — "
+            "translated text is persisted but embed/index may not run",
+            document_id,
+        )
+
+
 if __name__ == "__main__":
     from sqlalchemy import create_engine
 
+    from services.pipeline.publisher import DocumentPublisher
     from shared.config import Settings
+    from shared.rabbit import RabbitClient
 
     settings = Settings()
     engine = create_engine(settings.postgres_url)
@@ -263,5 +313,13 @@ if __name__ == "__main__":
         job_repo = PipelineJobRepository(conn)
         doc_repo = DocumentRepository(conn)
         translator = LibreTranslateClient(base_url=settings.libretranslate_url)
+        rabbit = RabbitClient(settings.rabbitmq_url, enabled=True)
+        publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
 
-        run_translation_loop(job_repo, doc_repo, translator, worker_id="translation-worker")
+        run_translation_loop(
+            job_repo,
+            doc_repo,
+            translator,
+            worker_id="translation-worker",
+            publisher=publisher,
+        )

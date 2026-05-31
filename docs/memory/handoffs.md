@@ -2,6 +2,40 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-05-31 — feat(auth): LDAP group mapping via live DC search — #582, PR #601
+
+Status: Done — squash-merged to main (commit ea7f65d), branch deleted, issue #582 closed
+Source: issue #582, PR #601, Claude Code session
+
+**Goal:** Allow admins to search LDAP/DC groups live and explicitly map selected groups to existing Tomorrowland groups, without mirroring all LDAP groups or using raw LDAP groups in source/document ACLs.
+
+**Changed files:**
+- `src/services/auth/ldap_client.py` (new) — `LdapClient` + `search_groups()`; RFC 4515 escaping, service-account bind, timeout/limit, ephemeral results
+- `src/services/auth/ldap_group_mapping_repository.py` (new) — CRUD; `get_mapped_tomorrowland_group_ids()` for auth integration
+- `src/services/api/routers/admin/ldap.py` (new) — 4 admin-only endpoints with audit logging
+- `src/services/auth/repository.py` — `upsert_ldap_user()` resolves groups via explicit mappings only; raw LDAP DNs no longer reach `set_user_groups()`
+- `src/services/api/schemas.py` — `LdapGroupSearchResult` (field `dn`), `CreateLdapGroupMappingRequest`, `LdapGroupMappingResponse`
+- `src/shared/config.py` — 6 new LDAP group search settings
+- `migrations/versions/l1m2n3o4p5q6_add_ldap_group_mappings.py` (new)
+- `frontend/src/features/admin/AdminLdapPage.tsx` (new) — search, map dialog, mappings table, delete confirmation; EN + HE i18n
+- `tests/unit/test_ldap_group_mapping.py` (new) — 14 tests
+
+**Review bugs fixed (commit c845406) before merge:**
+- `setup-env.sh`: `LDAP_BIND_PASSWORD=""` and `if [[ ... ]]` collapsed onto one line — broken bash
+- Schema/client: `distinguished_name` → `dn` — frontend expected `dn`; DN column was blank and POST sent `ldap_dn: undefined` → 422
+- `AdminLdapPage`: removed dead Limit TextInput — backend ignores `?limit=N`
+
+**Key invariants:**
+- `search_groups()` makes zero DB writes — results are ephemeral
+- Only explicit `ldap_group_mappings` rows grant Tomorrowland group membership at login
+- Raw LDAP group DNs never appear in source/document ACL tables
+- Deleting a mapping does not cascade to the Tomorrowland group (`ondelete="RESTRICT"`)
+
+**Next agent prompt:**
+> #582 is on main (PR #601, commit ea7f65d). LDAP group mapping is live at `/admin/ldap`. Pick up the next issue from the release queue in AGENTS.md.
+
+---
+
 ## 2026-05-30 — test(agents): permission regression tests for researcher queries — #562, PR #598
 
 Status: Done — PR #598 squash-merged to main (commit 0462d30), branch deleted

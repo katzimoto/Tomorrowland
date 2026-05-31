@@ -38,10 +38,15 @@ class AlertConsumer(BaseConsumer):
         doc = self._doc_repo.get_by_id(document_id)
         if doc is None:
             raise ValueError(f"Document {document_id} not found")
-        payload = self._job_repo.get_payload(document_id)
-        content = (payload.get("content_text", "") if payload else None) or ""
-        self._alert_matcher.match_document(doc, content)
-        self._job_repo.mark_running_stage(job_id, "alert_done")
+        # Prefer translated_text for matching when available — alerts should
+        # match against the content users actually see and search.
+        text = translated_text or content_text
+        if not text:
+            payload = self._job_repo.get_payload(document_id)
+            stored = payload or {}
+            text = stored.get("translated_text") or stored.get("content_text") or ""
+        self._alert_matcher.match_document(doc, text)
+        self._job_repo.update_stage(job_id, "alert_done")
 
 
 def main() -> None:

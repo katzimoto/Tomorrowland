@@ -39,6 +39,7 @@ def mock_doc_repo() -> MagicMock:
     doc.target_language = "en"
     doc.translation_quality = None
     doc.source_id = uuid4()
+    doc.path = None
     repo.get_by_id.return_value = doc
     repo.source_group_ids.return_value = ["group-1"]
     return repo

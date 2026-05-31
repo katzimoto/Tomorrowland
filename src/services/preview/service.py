@@ -394,7 +394,7 @@ class PreviewService:
             job_type="enrich_document",
         )
 
-        if getattr(self, "_rabbit", None) is not None and self._rabbit._enabled:
+        if self._rabbit is not None and self._rabbit._enabled:
             from services.pipeline.publisher import DocumentPublisher
 
             publisher = DocumentPublisher(job_repo=job_repo, rabbit=self._rabbit)
