@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Issue #550: Harden Jira service-account sync with rich issue metadata, optional
+  project filters, JQL override, streaming attachments, MIME filters, retry/backoff,
+  and real connection validation.
+  - Explicit `auth_mode` config (defaults to `"service_account"`; unsupported
+    modes are rejected with a clear error).
+  - Optional per-source `project_keys` list filter; legacy single `project_key`
+    maps automatically to `project_keys: ["<value>"]`. Empty/omitted means all
+    issues visible to the service account. Project keys are validated against
+    `^[A-Za-z0-9_]{1,255}$` to avoid unsafe JQL injection.
+  - Explicit `jql` override field. When set, wins over `project_keys`,
+    `project_key`, and `updated_since`. Default JQL always appends
+    `ORDER BY updated ASC` for deterministic pagination; custom JQL preserves
+    existing ordering when present.
+  - Rich structured issue ingestion: 22 fields requested via Jira API
+    (summary, description, project, issuetype, status, priority, resolution,
+    labels, components, fixVersions, versions, created, updated, resolutiondate,
+    assignee, reporter, creator, parent, subtasks, issuelinks, attachment,
+    comment). Machine-readable versions stored in document metadata;
+    human-readable versions rendered into searchable issue text.
+  - People fields (assignee, reporter, creator) preserved with stable
+    identifiers (key, name, display_name, email, active). Searchable text
+    includes readable lines like `Assignee: Alice Cohen`.
+  - Comments included by default with inline rendering (author + timestamp +
+    body). Configurable via `include_comments`, `comments_mode`,
+    `max_comments_per_issue`, `comment_body_format`. Comment metadata preserves
+    author, update_author, created, updated, and visibility fields. Restricted
+    comment visibility is captured as metadata but not enforced per user
+    (deferred to future Jira DLS/user-delegated work).
+  - Related issues and hierarchy: issue links (blocks/blocked by/relates
+    to/etc.), parent issue, and subtasks indexed as metadata and searchable
+    text with relationship type, direction, linked key/summary/status.
+  - Changelog/worklog config placeholders (`include_changelog`,
+    `include_worklogs`) default to `False`; no changelog/worklog ingestion by
+    default.
+  - Streaming attachment downloads with incremental SHA256 (shared
+    `_AtlassianConnectorBase` implementation from #548). Configurable
+    `max_attachment_mb` (default 50 MiB) enforced during streaming.
+  - Configurable MIME allowlist (`attachment_mime_allowlist`) and blocklist
+    (`attachment_mime_blocklist`) with prefix matching for blocklist entries.
+  - Configurable retry with exponential backoff and jitter for transient HTTP
+    errors (429, 5xx) and network failures. Configurable
+    `request_timeout_seconds` (default 30). Permanent auth/config errors
+    (401, 403, 404) are never retried.
+  - Real connection validation via `GET /rest/api/2/myself` (auth check) +
+    `GET /rest/api/2/project/{key}` (when project_keys configured) or
+    `POST /rest/api/2/search?maxResults=1` (general reachability).
+  - 50+ new unit tests covering auth_mode defaults/rejection, project_keys
+    validation/precedence/legacy-mapping, JQL override and ordering, rich
+    metadata extraction, people fields, comments rendering and metadata,
+    parent/subtasks/issuelinks, changelog/worklog defaults, attachment MIME
+    filtering, connection validation, backward compatibility, and edge cases.
+    Existing Jira sources continue working without config changes.
 - Issue #548: Harden Confluence service-account sync with optional space filters,
   streaming attachment downloads, MIME filters, retry/backoff, and real connection
   validation.

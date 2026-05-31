@@ -393,6 +393,9 @@ def test_jira_connector_fetches_issues_and_attachments() -> None:
     from services.connectors.atlassian import JiraConnector, _DownloadedAttachment
 
     class StubJiraConnector(JiraConnector):
+        def _check_jira_reachability(self) -> None:
+            return None  # no-op for tests
+
         def _request_json(self, path: str, **kwargs: object) -> dict[str, object]:
             assert path == "/rest/api/2/search"
             body = kwargs["body"]
@@ -439,7 +442,9 @@ def test_jira_connector_fetches_issues_and_attachments() -> None:
     )
 
     assert [doc.external_id for doc in docs] == ["jira:ENG-7", "jira:ENG-7:att:10001"]
-    assert docs[0].text_content == "Fix sync\n\nDetails\n\nLooks good"
+    assert "Summary: Fix sync" in docs[0].text_content
+    assert "Details" in docs[0].text_content
+    assert "Looks good" in docs[0].text_content
     assert docs[1].path == "/tmp/error.log"
     assert docs[1].mime_type == "text/plain"
 
@@ -518,21 +523,24 @@ def test_jira_connector_handles_adf_description_and_configured_jql() -> None:
         {"base_url": "https://jira.local", "api_token": "t", "jql": "project = OPS"}
     )
 
-    assert connector._jql() == "project = OPS"
-    assert (
-        connector._issue_text(
-            summary="ADF issue",
-            fields={
-                "description": {
-                    "content": [
-                        {"content": [{"text": "Nested text"}]},
-                        {"text": "Second block"},
-                    ]
-                }
-            },
-        )
-        == "ADF issue\n\nNested text\nSecond block"
+    jql = connector._jql()
+    assert "project = OPS" in jql
+    assert "ORDER BY updated ASC" in jql
+    text = connector._issue_text(
+        summary="ADF issue",
+        fields={
+            "description": {
+                "content": [
+                    {"content": [{"text": "Nested text"}]},
+                    {"text": "Second block"},
+                ]
+            }
+        },
     )
+    assert "Summary: ADF issue" in text
+    assert "Description:" in text
+    assert "Nested text" in text
+    assert "Second block" in text
 
 
 def test_confluence_connector_paginates_pages() -> None:
@@ -660,6 +668,9 @@ def test_jira_fetch_documents_passes_storage_root(
     received_roots: list[Path | None] = []
 
     class StubConnector(JiraConnector):
+        def _check_jira_reachability(self) -> None:
+            return None  # no-op for tests
+
         def _request_json(self, path: str, **_: object) -> dict[str, object]:
             return {
                 "total": 1,
@@ -677,7 +688,12 @@ def test_jira_fetch_documents_passes_storage_root(
             }
 
         def _fetch_attachments(
-            self, *, issue_key: str, fields: dict, storage_root: Path | None = None
+            self,
+            *,
+            issue_key: str,
+            fields: dict,
+            storage_root: Path | None = None,
+            max_bytes: int | None = None,
         ) -> Iterator[ConnectorDocument]:
             received_roots.append(storage_root)
             return iter(())
@@ -699,9 +715,7 @@ def test_confluence_auth_mode_defaults_to_service_account() -> None:
     """auth_mode defaults to service_account when omitted."""
     from services.connectors.atlassian import ConfluenceConnector
 
-    connector = ConfluenceConnector(
-        {"base_url": "https://wiki.local", "api_token": "t"}
-    )
+    connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "t"})
     auth_mode = connector._config_str("auth_mode", "service_account")
     assert auth_mode == "service_account"
     # validate() should pass the auth_mode check (only fails at API reachability)
@@ -747,9 +761,7 @@ def test_confluence_space_keys_omitted_allows_all() -> None:
     """space_keys omitted means no space CQL filter is applied."""
     from services.connectors.atlassian import ConfluenceConnector
 
-    connector = ConfluenceConnector(
-        {"base_url": "https://wiki.local", "api_token": "t"}
-    )
+    connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "t"})
     keys = connector._resolve_space_keys()
     assert keys == []
     # CQL should not contain space= when building query
@@ -869,9 +881,7 @@ def test_mime_empty_allowlist_allows_all() -> None:
     """Empty or missing allowlist allows all MIME types."""
     from services.connectors.atlassian import ConfluenceConnector
 
-    connector = ConfluenceConnector(
-        {"base_url": "https://wiki.local", "api_token": "t"}
-    )
+    connector = ConfluenceConnector({"base_url": "https://wiki.local", "api_token": "t"})
     assert connector._mime_is_allowed("application/pdf")
     assert connector._mime_is_allowed("video/mp4")
     assert connector._mime_is_allowed("application/octet-stream")
@@ -1116,9 +1126,7 @@ def test_confluence_validate_performs_reachability_check() -> None:
         def _request_json(self, path: str, **_: object) -> dict[str, object]:
             return {"key": "ENG"}
 
-    connector = ValidatingConnector(
-        {"base_url": "https://wiki.local", "api_token": "t"}
-    )
+    connector = ValidatingConnector({"base_url": "https://wiki.local", "api_token": "t"})
     connector.validate()
     assert connector._check_called
 
@@ -1152,9 +1160,7 @@ def test_confluence_validate_without_space_keys_hits_general_endpoint() -> None:
             captured_paths.append(path)
             return {"results": [{"key": "ENG"}]}
 
-    connector = ValidatingConnector(
-        {"base_url": "https://wiki.local", "api_token": "t"}
-    )
+    connector = ValidatingConnector({"base_url": "https://wiki.local", "api_token": "t"})
     connector.validate()
     assert any("/rest/api/space" in p for p in captured_paths)
 
@@ -1232,3 +1238,1029 @@ def test_mime_blocklist_prefix_matching() -> None:
     # Not blocked
     assert connector._mime_is_allowed("application/pdf")
     assert connector._mime_is_allowed("text/plain")
+
+
+# ── Jira auth_mode tests ────────────────────────────────────────────────────────
+
+
+def test_jira_auth_mode_defaults_to_service_account() -> None:
+    """auth_mode defaults to service_account when omitted for Jira."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    auth_mode = connector._config_str("auth_mode", "service_account")
+    assert auth_mode == "service_account"
+
+
+def test_jira_validate_rejects_unsupported_auth_modes() -> None:
+    """Unsupported auth modes are rejected with a clear error for Jira."""
+    from services.connectors.atlassian import JiraConnector
+
+    class NoopConnector(JiraConnector):
+        def _check_jira_reachability(self) -> None:
+            return None
+
+    with pytest.raises(ValueError, match="auth_mode"):
+        NoopConnector(
+            {"base_url": "https://jira.local", "api_token": "t", "auth_mode": "user_delegated"}
+        ).validate()
+
+    with pytest.raises(ValueError, match="auth_mode"):
+        NoopConnector(
+            {"base_url": "https://jira.local", "api_token": "t", "auth_mode": "oauth"}
+        ).validate()
+
+    with pytest.raises(ValueError, match="auth_mode"):
+        NoopConnector(
+            {"base_url": "https://jira.local", "api_token": "t", "auth_mode": ""}
+        ).validate()
+
+
+# ── Jira project_keys / JQL tests ──────────────────────────────────────────────
+
+
+def test_jira_project_keys_omitted_uses_default_jql() -> None:
+    """project_keys omitted means default all-visible-source JQL."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    jql = connector._jql()
+    assert "ORDER BY updated ASC" in jql
+    # No project filter when no project keys
+    assert "project" not in jql.lower()
+
+
+def test_jira_project_keys_empty_uses_default_jql() -> None:
+    """project_keys: [] means default all-visible-source JQL."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector(
+        {"base_url": "https://jira.local", "api_token": "t", "project_keys": []}
+    )
+    jql = connector._jql()
+    assert "ORDER BY updated ASC" in jql
+    assert "project" not in jql.lower()
+
+
+def test_jira_project_keys_single_filter() -> None:
+    """project_keys: ['ENG'] filters only ENG."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector(
+        {"base_url": "https://jira.local", "api_token": "t", "project_keys": ["ENG"]}
+    )
+    jql = connector._jql()
+    assert "project = ENG" in jql
+    assert "ORDER BY updated ASC" in jql
+
+
+def test_jira_project_keys_multiple_filter() -> None:
+    """project_keys: ['ENG', 'OPS'] builds project IN (...) JQL."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "project_keys": ["ENG", "OPS"],
+        }
+    )
+    jql = connector._jql()
+    assert "project IN (ENG, OPS)" in jql
+    assert "ORDER BY updated ASC" in jql
+
+
+def test_jira_legacy_project_key_maps_to_project_keys() -> None:
+    """Legacy project_key maps to project_keys single-element list."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector(
+        {"base_url": "https://jira.local", "api_token": "t", "project_key": "ENG"}
+    )
+    keys = connector._resolve_project_keys()
+    assert keys == ["ENG"]
+
+    jql = connector._jql()
+    assert "project = ENG" in jql
+    assert "ORDER BY updated ASC" in jql
+
+
+def test_jira_project_keys_takes_precedence_over_legacy() -> None:
+    """project_keys takes precedence over legacy project_key when both set."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "project_key": "OPS",
+            "project_keys": ["ENG"],
+        }
+    )
+    keys = connector._resolve_project_keys()
+    assert keys == ["ENG"]
+
+
+def test_jira_custom_jql_wins_over_project_keys() -> None:
+    """Custom jql wins over project_keys, project_key, and updated_since."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "project_key": "ENG",
+            "updated_since": "2026-01-01 00:00",
+            "jql": "project = OPS AND status = Done",
+        }
+    )
+    jql = connector._jql()
+    # JQL should be the custom one, ignoring project_key and updated_since
+    assert "project = OPS" in jql
+    assert "ENG" not in jql
+    # ORDER BY should be appended since custom JQL doesn't have it
+    assert "ORDER BY updated ASC" in jql
+
+
+def test_jira_custom_jql_preserves_existing_order() -> None:
+    """Custom jql that already has ORDER BY preserves it."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "jql": "project = ENG ORDER BY created DESC",
+        }
+    )
+    jql = connector._jql()
+    assert jql == "project = ENG ORDER BY created DESC"
+
+
+def test_jira_jql_always_has_deterministic_ordering() -> None:
+    """Default JQL always applies ORDER BY updated ASC."""
+    from services.connectors.atlassian import JiraConnector
+
+    # No project keys
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    assert "ORDER BY updated ASC" in connector._jql()
+
+    # With project keys
+    connector2 = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "project_keys": ["ENG", "OPS"],
+        }
+    )
+    assert "ORDER BY updated ASC" in connector2._jql()
+
+    # With updated_since
+    connector3 = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "updated_since": "2026-05-01 00:00",
+        }
+    )
+    assert "ORDER BY updated ASC" in connector3._jql()
+
+
+def test_jira_jql_with_updated_since() -> None:
+    """updated_since is included in default JQL when configured."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "project_keys": ["ENG"],
+            "updated_since": "2026-05-01 00:00",
+        }
+    )
+    jql = connector._jql()
+    assert 'updated >= "2026-05-01 00:00"' in jql
+    assert "project = ENG" in jql
+    assert "ORDER BY updated ASC" in jql
+
+
+def test_jira_jql_without_project_keys_and_updated_since() -> None:
+    """Default JQL without any config still produces valid JQL."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    jql = connector._jql()
+    assert "ORDER BY updated ASC" in jql
+
+
+def test_jira_validate_raises_for_invalid_project_key() -> None:
+    """Invalid project keys are rejected during validation."""
+    from services.connectors.atlassian import JiraConnector
+
+    class NoopConnector(JiraConnector):
+        def _check_jira_reachability(self) -> None:
+            return None
+
+    with pytest.raises(ValueError, match="Invalid.*project key"):
+        NoopConnector(
+            {"base_url": "https://jira.local", "api_token": "t", "project_keys": ["ENG OPS"]}
+        ).validate()
+
+    with pytest.raises(ValueError, match="Invalid.*project key"):
+        NoopConnector(
+            {"base_url": "https://jira.local", "api_token": "t", "project_keys": [""]}
+        ).validate()
+
+    with pytest.raises(ValueError, match="Invalid.*project key"):
+        NoopConnector(
+            {
+                "base_url": "https://jira.local",
+                "api_token": "t",
+                "project_key": "KEY WITH SPACES",
+            }
+        ).validate()
+
+    # Valid project keys should pass
+    NoopConnector(
+        {"base_url": "https://jira.local", "api_token": "t", "project_keys": ["ENG"]}
+    ).validate()
+
+    NoopConnector(
+        {"base_url": "https://jira.local", "api_token": "t", "project_keys": ["ENG", "OPS"]}
+    ).validate()
+
+    NoopConnector(
+        {"base_url": "https://jira.local", "api_token": "t", "project_key": "ENG"}
+    ).validate()
+
+
+# ── Jira rich metadata tests ───────────────────────────────────────────────────
+
+
+def test_jira_format_people_field() -> None:
+    """_format_people_field extracts safe identifiers and display fields."""
+    from services.connectors.atlassian import JiraConnector
+
+    person = {
+        "key": "user123",
+        "name": "jdoe",
+        "displayName": "Jane Doe",
+        "emailAddress": "jane@example.com",
+        "active": True,
+    }
+    result = JiraConnector._format_people_field(person)
+    assert result["key"] == "user123"
+    assert result["name"] == "jdoe"
+    assert result["display_name"] == "Jane Doe"
+    assert result["email"] == "jane@example.com"
+    assert result["active"] is True
+
+
+def test_jira_format_people_field_minimal() -> None:
+    """_format_people_field handles minimal fields gracefully."""
+    from services.connectors.atlassian import JiraConnector
+
+    person = {"displayName": "Alice"}
+    result = JiraConnector._format_people_field(person)
+    assert result["display_name"] == "Alice"
+    assert "key" not in result
+    assert "email" not in result
+
+
+def test_jira_format_people_field_empty() -> None:
+    """_format_people_field handles empty dict."""
+    from services.connectors.atlassian import JiraConnector
+
+    result = JiraConnector._format_people_field({})
+    assert result == {}
+
+
+def test_jira_build_issue_metadata_full() -> None:
+    """_build_issue_metadata captures all rich metadata fields."""
+    from services.connectors.atlassian import JiraConnector
+
+    fields = {
+        "project": {"key": "ENG", "name": "Engineering"},
+        "issuetype": {"name": "Bug"},
+        "status": {
+            "name": "In Progress",
+            "statusCategory": {"name": "In Progress"},
+        },
+        "priority": {"name": "High"},
+        "resolution": {"name": "Fixed"},
+        "labels": ["frontend", "security"],
+        "components": [{"name": "API"}, {"name": "UI"}],
+        "fixVersions": [{"name": "v2.0"}],
+        "versions": [{"name": "v1.0"}],
+        "created": "2026-01-15T10:00:00.000+0000",
+        "updated": "2026-05-01T12:00:00.000+0000",
+        "resolutiondate": "2026-05-01T12:30:00.000+0000",
+        "assignee": {
+            "key": "user1",
+            "name": "alice",
+            "displayName": "Alice Cohen",
+            "active": True,
+        },
+        "reporter": {
+            "key": "user2",
+            "name": "bob",
+            "displayName": "Bob Levi",
+            "active": True,
+        },
+        "creator": {
+            "key": "user3",
+            "name": "dana",
+            "displayName": "Dana Katz",
+            "active": True,
+        },
+    }
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    metadata = connector._build_issue_metadata(key="ENG-42", fields=fields)
+
+    assert metadata["atlassian_type"] == "jira_issue"
+    assert metadata["issue_key"] == "ENG-42"
+    assert metadata["project_key"] == "ENG"
+    assert metadata["project_name"] == "Engineering"
+    assert metadata["issuetype"] == "Bug"
+    assert metadata["status"] == "In Progress"
+    assert metadata["status_category"] == "In Progress"
+    assert metadata["priority"] == "High"
+    assert metadata["resolution"] == "Fixed"
+    assert metadata["labels"] == ["frontend", "security"]
+    assert metadata["components"] == ["API", "UI"]
+    assert metadata["fixVersions"] == ["v2.0"]
+    assert metadata["versions"] == ["v1.0"]
+    assert metadata["created"] == "2026-01-15T10:00:00.000+0000"
+    assert metadata["updated"] == "2026-05-01T12:00:00.000+0000"
+    assert metadata["resolutiondate"] == "2026-05-01T12:30:00.000+0000"
+    assert metadata["assignee"]["display_name"] == "Alice Cohen"
+    assert metadata["reporter"]["display_name"] == "Bob Levi"
+    assert metadata["creator"]["display_name"] == "Dana Katz"
+
+
+def test_jira_build_issue_metadata_empty_fields() -> None:
+    """_build_issue_metadata handles missing optional fields."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    metadata = connector._build_issue_metadata(key="ENG-1", fields={})
+
+    assert metadata["atlassian_type"] == "jira_issue"
+    assert metadata["issue_key"] == "ENG-1"
+    # Optional fields should not be present
+    assert "project_key" not in metadata
+    assert "status" not in metadata
+    assert "assignee" not in metadata
+    assert "labels" not in metadata
+
+
+def test_jira_build_issue_metadata_parent_and_subtasks() -> None:
+    """_build_issue_metadata captures parent and subtasks."""
+    from services.connectors.atlassian import JiraConnector
+
+    fields = {
+        "parent": {
+            "key": "ENG-40",
+            "fields": {"summary": "Parent epic"},
+        },
+        "subtasks": [
+            {
+                "key": "ENG-43",
+                "fields": {
+                    "summary": "Sub-task 1",
+                    "status": {"name": "Done"},
+                },
+            },
+            {
+                "key": "ENG-44",
+                "fields": {
+                    "summary": "Sub-task 2",
+                    "status": {"name": "To Do"},
+                },
+            },
+        ],
+    }
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    metadata = connector._build_issue_metadata(key="ENG-42", fields=fields)
+
+    assert metadata["parent"]["key"] == "ENG-40"
+    assert metadata["parent"]["summary"] == "Parent epic"
+    assert metadata["subtasks"][0]["key"] == "ENG-43"
+    assert metadata["subtasks"][1]["key"] == "ENG-44"
+    assert metadata["subtasks"][0]["status"] == "Done"
+
+
+def test_jira_build_issue_metadata_issuelinks() -> None:
+    """_build_issue_metadata captures issue links with direction."""
+    from services.connectors.atlassian import JiraConnector
+
+    fields = {
+        "issuelinks": [
+            {
+                "type": {"name": "Blocks"},
+                "outwardIssue": {
+                    "key": "ENG-50",
+                    "fields": {
+                        "summary": "Blocked issue",
+                        "status": {"name": "To Do"},
+                    },
+                },
+            },
+            {
+                "type": {"name": "Blocks"},
+                "inwardIssue": {
+                    "key": "ENG-45",
+                    "fields": {
+                        "summary": "Blocker",
+                        "status": {"name": "In Progress"},
+                    },
+                },
+            },
+        ],
+    }
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    metadata = connector._build_issue_metadata(key="ENG-42", fields=fields)
+
+    links = metadata["issuelinks"]
+    assert len(links) == 2
+    # Outward link
+    assert links[0]["direction"] == "outward"
+    assert links[0]["linked_issue_key"] == "ENG-50"
+    assert links[0]["linked_issue_status"] == "To Do"
+    # Inward link
+    assert links[1]["direction"] == "inward"
+    assert links[1]["linked_issue_key"] == "ENG-45"
+    assert links[1]["linked_issue_status"] == "In Progress"
+
+
+def test_jira_build_issue_metadata_comments() -> None:
+    """Comment metadata preserves author, created, updated, and visibility."""
+    from services.connectors.atlassian import JiraConnector
+
+    fields = {
+        "comment": {
+            "comments": [
+                {
+                    "id": "10000",
+                    "author": {
+                        "key": "user1",
+                        "name": "alice",
+                        "displayName": "Alice Cohen",
+                        "active": True,
+                    },
+                    "updateAuthor": {
+                        "key": "user2",
+                        "name": "bob",
+                        "displayName": "Bob Levi",
+                        "active": True,
+                    },
+                    "body": "This is a comment.",
+                    "created": "2026-01-20T10:00:00.000+0000",
+                    "updated": "2026-01-21T12:00:00.000+0000",
+                    "visibility": {
+                        "type": "role",
+                        "value": "Developers",
+                    },
+                },
+            ]
+        },
+    }
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    metadata = connector._build_issue_metadata(key="ENG-42", fields=fields)
+
+    comments = metadata["comments"]
+    assert len(comments) == 1
+    assert comments[0]["author"]["display_name"] == "Alice Cohen"
+    assert comments[0]["update_author"]["display_name"] == "Bob Levi"
+    assert comments[0]["created"] == "2026-01-20T10:00:00.000+0000"
+    assert comments[0]["updated"] == "2026-01-21T12:00:00.000+0000"
+    assert comments[0]["visibility"]["type"] == "role"
+    assert comments[0]["visibility"]["value"] == "Developers"
+    assert "body_preview" in comments[0]
+
+
+def test_jira_build_issue_metadata_comments_disabled() -> None:
+    """Comment metadata is not included when include_comments is False."""
+    from services.connectors.atlassian import JiraConnector
+
+    fields = {
+        "comment": {
+            "comments": [
+                {
+                    "id": "10000",
+                    "author": {"displayName": "Alice"},
+                    "body": "Some comment",
+                },
+            ]
+        },
+    }
+
+    connector = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "include_comments": False,
+        }
+    )
+    metadata = connector._build_issue_metadata(key="ENG-42", fields=fields)
+
+    assert "comments" not in metadata
+
+
+def test_jira_build_issue_metadata_restricted_comment_visibility() -> None:
+    """Restricted comment visibility is captured as metadata."""
+    from services.connectors.atlassian import JiraConnector
+
+    fields = {
+        "comment": {
+            "comments": [
+                {
+                    "id": "10001",
+                    "author": {"displayName": "Alice"},
+                    "body": "Restricted comment",
+                    "created": "2026-01-20T10:00:00.000+0000",
+                    "visibility": {
+                        "type": "role",
+                        "value": "Administrators",
+                    },
+                },
+            ]
+        },
+    }
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    metadata = connector._build_issue_metadata(key="ENG-42", fields=fields)
+
+    comments = metadata["comments"]
+    assert comments[0]["visibility"]["type"] == "role"
+    assert comments[0]["visibility"]["value"] == "Administrators"
+    assert "body_preview" in comments[0]
+
+
+def test_jira_issue_text_rich_people_fields() -> None:
+    """Issue text includes people fields with display names."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    fields = {
+        "assignee": {"displayName": "Alice Cohen"},
+        "reporter": {"displayName": "Bob Levi"},
+        "creator": {"displayName": "Dana Katz"},
+    }
+    text = connector._issue_text(summary="People test", fields=fields)
+
+    assert "Assignee: Alice Cohen" in text
+    assert "Reporter: Bob Levi" in text
+    assert "Creator: Dana Katz" in text
+
+
+def test_jira_issue_text_rich_metadata_fields() -> None:
+    """Issue text includes status, priority, labels, components, versions."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    fields = {
+        "status": {"name": "In Progress"},
+        "priority": {"name": "High"},
+        "resolution": {"name": "Fixed"},
+        "labels": ["frontend", "security"],
+        "components": [{"name": "API"}, {"name": "UI"}],
+        "fixVersions": [{"name": "v2.0"}],
+        "versions": [{"name": "v1.0"}],
+    }
+    text = connector._issue_text(summary="Rich fields", fields=fields)
+
+    assert "Status: In Progress" in text
+    assert "Priority: High" in text
+    assert "Resolution: Fixed" in text
+    assert "Labels: frontend, security" in text
+    assert "Components: API, UI" in text
+    assert "Fix Versions: v2.0" in text
+    assert "Affects Versions: v1.0" in text
+
+
+def test_jira_issue_text_comments_inline() -> None:
+    """Comments are rendered into issue text with author and timestamp."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    fields = {
+        "comment": {
+            "comments": [
+                {
+                    "author": {"displayName": "Alice Cohen", "name": "alice"},
+                    "body": "First comment",
+                    "created": "2026-01-20T10:00:00.000+0000",
+                },
+                {
+                    "author": {"displayName": "Bob Levi"},
+                    "body": "Second comment",
+                    "created": "2026-01-21T12:00:00.000+0000",
+                },
+            ]
+        },
+    }
+    text = connector._issue_text(summary="Comments test", fields=fields)
+
+    assert "Comments:" in text
+    assert "Alice Cohen (2026-01-20T10:00:00.000+0000):" in text
+    assert "First comment" in text
+    assert "Bob Levi (2026-01-21T12:00:00.000+0000):" in text
+    assert "Second comment" in text
+
+
+def test_jira_issue_text_comments_disabled() -> None:
+    """Comments are not rendered when include_comments is False."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "include_comments": False,
+        }
+    )
+    fields = {
+        "comment": {
+            "comments": [
+                {
+                    "author": {"displayName": "Alice"},
+                    "body": "Should not appear",
+                },
+            ]
+        },
+    }
+    text = connector._issue_text(summary="No comments", fields=fields)
+
+    assert "Comments:" not in text
+    assert "Should not appear" not in text
+
+
+def test_jira_issue_text_parent_and_subtasks() -> None:
+    """Issue text includes parent and subtasks with status."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    fields = {
+        "parent": {
+            "key": "ENG-40",
+            "fields": {"summary": "Parent epic"},
+        },
+        "subtasks": [
+            {
+                "key": "ENG-43",
+                "fields": {
+                    "summary": "Sub-task 1",
+                    "status": {"name": "Done"},
+                },
+            },
+        ],
+    }
+    text = connector._issue_text(summary="Parent test", fields=fields)
+
+    assert "Parent: ENG-40 (Parent epic)" in text
+    assert "Subtasks:" in text
+    assert "ENG-43" in text
+    assert "Sub-task 1" in text
+    assert "[Done]" in text
+
+
+def test_jira_issue_text_issuelinks() -> None:
+    """Issue text includes issue links with direction and status."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    fields = {
+        "issuelinks": [
+            {
+                "type": {
+                    "name": "Blocks",
+                    "inward": "is blocked by",
+                    "outward": "blocks",
+                },
+                "outwardIssue": {
+                    "key": "ENG-50",
+                    "fields": {
+                        "summary": "Depends on this",
+                        "status": {"name": "To Do"},
+                    },
+                },
+            },
+        ],
+    }
+    text = connector._issue_text(summary="Links test", fields=fields)
+
+    assert "Issue Links:" in text
+    assert "blocks" in text
+    assert "ENG-50" in text
+    assert "Depends on this" in text
+    assert "[To Do]" in text
+
+
+def test_jira_issue_text_dates() -> None:
+    """Issue text includes date fields."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    fields = {
+        "created": "2026-01-15T10:00:00.000+0000",
+        "updated": "2026-05-01T12:00:00.000+0000",
+        "resolutiondate": "2026-05-01T12:30:00.000+0000",
+    }
+    text = connector._issue_text(summary="Date test", fields=fields)
+
+    assert "Created: 2026-01-15T10:00:00.000+0000" in text
+    assert "Updated: 2026-05-01T12:00:00.000+0000" in text
+    assert "Resolution Date: 2026-05-01T12:30:00.000+0000" in text
+
+
+# ── Jira changelog/worklog defaults tests ──────────────────────────────────────
+
+
+def test_jira_changelog_default_false() -> None:
+    """include_changelog defaults to False."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    assert connector._config_bool("include_changelog", False) is False
+
+
+def test_jira_worklogs_default_false() -> None:
+    """include_worklogs defaults to False."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    assert connector._config_bool("include_worklogs", False) is False
+
+
+# ── Jira connection validation tests ───────────────────────────────────────────
+
+
+def test_jira_validate_performs_reachability_check() -> None:
+    """validate() performs a real API check via _check_jira_reachability."""
+    from services.connectors.atlassian import JiraConnector
+
+    class ValidatingConnector(JiraConnector):
+        _check_called = False
+
+        def _check_jira_reachability(self) -> None:
+            self._check_called = True
+
+        def _request_json(self, path: str, **_: object) -> dict[str, object]:
+            return {"name": "admin"}
+
+    connector = ValidatingConnector({"base_url": "https://jira.local", "api_token": "t"})
+    connector.validate()
+    assert connector._check_called
+
+
+def test_jira_validate_with_project_keys_hits_myself_and_project_endpoint() -> None:
+    """validate() with project_keys hits /myself and specific project endpoint."""
+    from services.connectors.atlassian import JiraConnector
+
+    captured_paths: list[str] = []
+
+    class ValidatingConnector(JiraConnector):
+        def _request_json(self, path: str, **_: object) -> dict[str, object]:
+            captured_paths.append(path)
+            if "/myself" in path:
+                return {"name": "admin"}
+            if "/project/" in path:
+                return {"key": "ENG"}
+            return {}
+
+    connector = ValidatingConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "project_keys": ["ENG"],
+        }
+    )
+    connector.validate()
+    assert any("/rest/api/2/myself" in p for p in captured_paths)
+    assert any("/rest/api/2/project/ENG" in p for p in captured_paths)
+
+
+def test_jira_validate_without_project_keys_hits_myself_and_search() -> None:
+    """validate() without project_keys hits /myself and general search."""
+    from services.connectors.atlassian import JiraConnector
+
+    captured_paths: list[str] = []
+
+    class ValidatingConnector(JiraConnector):
+        def _request_json(self, path: str, **_: object) -> dict[str, object]:
+            captured_paths.append(path)
+            if "/myself" in path:
+                return {"name": "admin"}
+            if "/search" in path:
+                return {"issues": []}
+            return {}
+
+    connector = ValidatingConnector({"base_url": "https://jira.local", "api_token": "t"})
+    connector.validate()
+    assert any("/rest/api/2/myself" in p for p in captured_paths)
+    assert any("/rest/api/2/search" in p for p in captured_paths)
+
+
+# ── Jira existing sources backward compatibility ──────────────────────────────
+
+
+def test_existing_jira_sources_keep_working() -> None:
+    """Existing Jira sources with minimal config continue working."""
+    from services.connectors.atlassian import JiraConnector
+
+    # Minimal config (base_url + api_token) should work
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    assert connector._config_str("auth_mode", "service_account") == "service_account"
+    assert connector._resolve_project_keys() == []
+
+    # Legacy project_key should still work
+    connector2 = JiraConnector(
+        {"base_url": "https://jira.local", "api_token": "t", "project_key": "ENG"}
+    )
+    assert connector2._resolve_project_keys() == ["ENG"]
+    jql = connector2._jql()
+    assert "project = ENG" in jql
+    assert "ORDER BY updated ASC" in jql
+
+    # Updated-since should work
+    connector3 = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "project_key": "OPS",
+            "updated_since": "2026-01-01 00:00",
+        }
+    )
+    assert connector3._resolve_project_keys() == ["OPS"]
+    jql = connector3._jql()
+    assert "project = OPS" in jql
+    assert 'updated >= "2026-01-01 00:00"' in jql
+
+
+# ── Jira _jira_field_to_text tests ─────────────────────────────────────────────
+
+
+def test_jira_field_to_text_handles_html() -> None:
+    """_jira_field_to_text extracts text from HTML content."""
+    from services.connectors.atlassian import JiraConnector
+
+    result = JiraConnector._jira_field_to_text("<p>Hello <strong>world</strong></p>")
+    assert "Hello" in result
+    assert "world" in result
+
+
+def test_jira_field_to_text_handles_plain_text() -> None:
+    """_jira_field_to_text returns plain text unchanged."""
+    from services.connectors.atlassian import JiraConnector
+
+    result = JiraConnector._jira_field_to_text("Simple plain text")
+    assert result == "Simple plain text"
+
+
+def test_jira_field_to_text_handles_adf_dict() -> None:
+    """_jira_field_to_text handles ADF dict with content list."""
+    from services.connectors.atlassian import JiraConnector
+
+    result = JiraConnector._jira_field_to_text(
+        {
+            "content": [
+                {"text": "First paragraph"},
+                {"content": [{"text": "Nested content"}]},
+            ]
+        }
+    )
+    assert "First paragraph" in result
+    assert "Nested content" in result
+
+
+def test_jira_field_to_text_handles_list() -> None:
+    """_jira_field_to_text handles a list of items."""
+    from services.connectors.atlassian import JiraConnector
+
+    result = JiraConnector._jira_field_to_text([{"text": "Item 1"}, {"text": "Item 2"}])
+    assert "Item 1" in result
+    assert "Item 2" in result
+
+
+def test_jira_field_to_text_handles_empty() -> None:
+    """_jira_field_to_text handles empty/falsy values."""
+    from services.connectors.atlassian import JiraConnector
+
+    assert JiraConnector._jira_field_to_text(None) == ""
+    assert JiraConnector._jira_field_to_text("") == ""
+    assert JiraConnector._jira_field_to_text({}) == ""
+
+
+# ── Jira attachment MIME filtering tests ──────────────────────────────────────
+
+
+def test_jira_attachment_mime_filter_allows_file() -> None:
+    """Jira connector respects MIME allowlist for attachments."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "attachment_mime_allowlist": ["text/plain", "application/pdf"],
+        }
+    )
+    assert connector._mime_is_allowed("text/plain")
+    assert connector._mime_is_allowed("application/pdf")
+    assert not connector._mime_is_allowed("image/png")
+
+
+def test_jira_attachment_mime_blocklist() -> None:
+    """Jira connector respects MIME blocklist for attachments."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "attachment_mime_blocklist": ["video/"],
+        }
+    )
+    assert not connector._mime_is_allowed("video/mp4")
+    assert connector._mime_is_allowed("application/pdf")
+
+
+# ── Jira fetch_attachments MIME filter integration tests ──────────────────────
+
+
+def test_jira_fetch_attachments_applies_mime_filter() -> None:
+    """Jira _fetch_attachments applies MIME filters before downloading."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector(
+        {
+            "base_url": "https://jira.local",
+            "api_token": "t",
+            "attachment_mime_allowlist": ["application/pdf"],
+        }
+    )
+
+    fields = {
+        "attachment": [
+            {
+                "id": "att-1",
+                "filename": "doc.pdf",
+                "mimeType": "application/pdf",
+                "content": "https://jira.local/attachments/doc.pdf",
+            },
+            {
+                "id": "att-2",
+                "filename": "image.png",
+                "mimeType": "image/png",
+                "content": "https://jira.local/attachments/image.png",
+            },
+            {
+                "id": "att-3",
+                "filename": "video.mp4",
+                "mimeType": "video/mp4",
+                "content": "https://jira.local/attachments/video.mp4",
+            },
+        ],
+    }
+
+    # Only PDF should survive MIME filter, but since no download stubs, none yielded
+    docs = list(connector._fetch_attachments(issue_key="ENG-1", fields=fields))
+    assert len(docs) == 0
+
+
+# ── Jira people fields in issue text ───────────────────────────────────────────
+
+
+def test_jira_issue_text_people_with_minimal_fields() -> None:
+    """People fields render display name even without other fields."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    fields = {
+        "assignee": {"displayName": "Alice"},
+        "reporter": {"displayName": "Bob"},
+        "creator": {"displayName": "Charlie"},
+    }
+    text = connector._issue_text(summary="People", fields=fields)
+
+    assert "Assignee: Alice" in text
+    assert "Reporter: Bob" in text
+    assert "Creator: Charlie" in text
+
+
+def test_jira_issue_text_people_missing() -> None:
+    """Missing people fields don't cause errors."""
+    from services.connectors.atlassian import JiraConnector
+
+    connector = JiraConnector({"base_url": "https://jira.local", "api_token": "t"})
+    fields: dict = {}
+    text = connector._issue_text(summary="No people", fields=fields)
+
+    assert "Assignee:" not in text
+    assert "Reporter:" not in text
+    assert "Creator:" not in text

@@ -46,6 +46,22 @@ _CFG_MAX_ATTACHMENT_MB = "max_attachment_mb"
 _CFG_ATTACHMENT_MIME_ALLOWLIST = "attachment_mime_allowlist"
 _CFG_ATTACHMENT_MIME_BLOCKLIST = "attachment_mime_blocklist"
 
+# Jira-specific config key defaults
+_CFG_PROJECT_KEYS = "project_keys"
+_CFG_PROJECT_KEY = "project_key"
+_CFG_JQL = "jql"
+_CFG_INCLUDE_COMMENTS = "include_comments"
+_CFG_COMMENTS_MODE = "comments_mode"
+_CFG_MAX_COMMENTS_PER_ISSUE = "max_comments_per_issue"
+_CFG_COMMENT_BODY_FORMAT = "comment_body_format"
+_CFG_INCLUDE_CHANGELOG = "include_changelog"
+_CFG_CHANGELOG_FIELDS = "changelog_fields"
+_CFG_INCLUDE_WORKLOGS = "include_worklogs"
+_CFG_UPDATED_SINCE = "updated_since"
+
+# Jira project key validation: alphanumeric and underscores only, 1-255 chars
+_VALID_PROJECT_KEY_RE = re.compile(r"^[A-Za-z0-9_]{1,255}$")
+
 
 class _ConfigHelperMixin:
     """Helper methods for reading typed config values from a connector's config dict."""
@@ -140,7 +156,7 @@ class _AtlassianConnectorBase(_ConfigHelperMixin):
     @staticmethod
     def _backoff_seconds(attempt: int) -> float:
         """Exponential backoff with jitter: 0.5s, 1.0s, 2.0s, ... capped at 30s."""
-        delay = min(_BACKOFF_BASE * (2.0 ** attempt), _BACKOFF_MAX)
+        delay = min(_BACKOFF_BASE * (2.0**attempt), _BACKOFF_MAX)
         return delay + random.uniform(0, 0.5 * _BACKOFF_BASE)
 
     @staticmethod
@@ -191,9 +207,7 @@ class _AtlassianConnectorBase(_ConfigHelperMixin):
                     )
                     time.sleep(delay)
                     continue
-                raise ValueError(
-                    f"Atlassian request failed with HTTP {exc.code}: {url}"
-                ) from exc
+                raise ValueError(f"Atlassian request failed with HTTP {exc.code}: {url}") from exc
             except URLError as exc:
                 if attempt < max_retries:
                     delay = self._backoff_seconds(attempt)
@@ -233,7 +247,7 @@ class _AtlassianConnectorBase(_ConfigHelperMixin):
                 if max_bytes is not None and bytes_written > max_bytes:
                     raise ValueError(
                         f"Attachment {filename} exceeds maximum size of "
-                        f"{max_bytes} bytes ({max_bytes / (1024*1024):.0f} MiB)"
+                        f"{max_bytes} bytes ({max_bytes / (1024 * 1024):.0f} MiB)"
                     )
         return _DownloadedAttachment(path=dest_path, sha256=digest.hexdigest())
 
@@ -542,9 +556,7 @@ class ConfluenceConnector(_AtlassianConnectorBase):
         except ValueError:
             raise
         except Exception as exc:
-            raise ValueError(
-                f"Confluence connection validation failed: {exc}"
-            ) from exc
+            raise ValueError(f"Confluence connection validation failed: {exc}") from exc
 
     def _resolve_space_keys(self) -> list[str]:
         """Resolve the effective space keys list.
@@ -710,7 +722,58 @@ class ConfluenceConnector(_AtlassianConnectorBase):
 
 
 class JiraConnector(_AtlassianConnectorBase):
-    """Poll Jira Server/Data Center issues and attachments."""
+    """Poll Jira Server/Data Center issues and attachments with rich metadata.
+
+    Config options:
+        auth_mode (str): Must be ``"service_account"`` (default when omitted).
+        project_keys (list[str]): Restrict sync to specific project keys. Omitted
+            or empty means all issues visible to the service account.
+        project_key (str): Legacy single-project config; behaves like
+            ``project_keys: ["<value>"]``.
+        jql (str): Advanced JQL override. When set, wins over ``project_keys``,
+            ``project_key``, and ``updated_since``.
+        updated_since (str): RFC-3339 or Jira-friendly datetime string.
+        include_comments (bool): Include comments in issue text (default True).
+        comments_mode (str): ``"inline"`` (default) — render into issue text.
+        max_comments_per_issue (int): Max comments to include (default 200).
+        comment_body_format (str): ``"plain"`` (default) — plain text extracted.
+        max_attachment_mb (int): Max attachment size in MiB (default 50).
+        attachment_mime_allowlist (list[str]): If non-empty, only these MIME
+            types are downloaded.
+        attachment_mime_blocklist (list[str]): MIME types to skip. Entries
+            ending in ``/`` are prefix-matched.
+        retry_count (int): Max retries for transient HTTP errors (default 3).
+        request_timeout_seconds (int): HTTP request timeout (default 30).
+        include_changelog (bool): Include changelog in metadata (default False).
+        changelog_fields (list[str]): Changelog fields to track (default:
+            ``["status", "assignee", "priority", "resolution"]``).
+        include_worklogs (bool): Include worklogs (default False).
+    """
+
+    _JIRA_SEARCH_FIELDS: list[str] = [
+        "summary",
+        "description",
+        "comment",
+        "attachment",
+        "project",
+        "issuetype",
+        "status",
+        "priority",
+        "resolution",
+        "labels",
+        "components",
+        "fixVersions",
+        "versions",
+        "created",
+        "updated",
+        "resolutiondate",
+        "assignee",
+        "reporter",
+        "creator",
+        "parent",
+        "subtasks",
+        "issuelinks",
+    ]
 
     @classmethod
     def fields(cls) -> list[ConnectorField]:
@@ -729,25 +792,159 @@ class JiraConnector(_AtlassianConnectorBase):
             ),
         ]
 
+    # ── Validation ────────────────────────────────────────────────────────
+
+    def validate(self) -> None:
+        """Validate Jira connector configuration and perform a real API check.
+
+        Steps:
+        1. Validate base config (base_url, api_token, no cloud URLs).
+        2. Validate auth_mode is ``"service_account"`` (default when omitted).
+        3. Validate and normalize project_keys / project_key.
+        4. Perform a lightweight API request to confirm connectivity and auth.
+        """
+        # Step 1: Base config validation
+        super().validate()
+
+        # Step 2: auth_mode validation
+        auth_mode = self._config_str(_CFG_AUTH_MODE, "service_account")
+        if auth_mode != "service_account":
+            raise ValueError(
+                f"Unsupported Jira auth_mode: {auth_mode!r}. Only 'service_account' is supported."
+            )
+
+        # Step 3: Validate project keys
+        self._validate_project_keys()
+
+        # Step 4: Real API check — authenticate and query projects/issues
+        self._check_jira_reachability()
+
+    def _validate_project_keys(self) -> None:
+        """Validate and normalize project key config.
+
+        Legacy ``project_key`` is mapped to ``project_keys``. Each key must
+        match the pattern ``^[A-Za-z0-9_]{{1,255}}$``.
+
+        Note: raw config values are read directly rather than via
+        ``_config_list`` so that explicit empty strings are not silently
+        dropped before validation.
+        """
+        raw_keys = self._config.get(_CFG_PROJECT_KEYS)
+        project_keys: list[str] = []
+        if isinstance(raw_keys, list):
+            for v in raw_keys:
+                if isinstance(v, str):
+                    project_keys.append(v.strip())
+
+        legacy_key = self._config_str(_CFG_PROJECT_KEY)
+        if not project_keys and legacy_key:
+            project_keys = [legacy_key]
+
+        for key in project_keys:
+            if not key or not _VALID_PROJECT_KEY_RE.match(key):
+                raise ValueError(
+                    f"Invalid Jira project key: {key!r}. "
+                    f"Project keys must be alphanumeric (underscores allowed), "
+                    f"1-255 characters."
+                )
+
+    def _resolve_project_keys(self) -> list[str]:
+        """Resolve the effective project keys list.
+
+        Supports legacy ``project_key`` for backward compatibility:
+        - ``project_keys`` takes precedence over ``project_key`` when both are set.
+        - If ``project_keys`` is omitted/empty and ``project_key`` is set, use
+          ``project_key`` as a single-element list.
+        - If both are omitted or empty, return an empty list (all projects).
+        """
+        project_keys = self._config_list(_CFG_PROJECT_KEYS)
+        legacy_key = self._config_str(_CFG_PROJECT_KEY)
+
+        if project_keys:
+            return project_keys
+        if legacy_key:
+            logger.warning(
+                "Jira config uses legacy 'project_key' field. "
+                "Consider migrating to 'project_keys' (a list). "
+                "Legacy project_key=%r is treated as project_keys=[%r].",
+                legacy_key,
+                legacy_key,
+            )
+            return [legacy_key]
+        return []
+
+    def _check_jira_reachability(self) -> None:
+        """Perform a lightweight API check against the Jira instance.
+
+        Makes a small query to verify:
+        - The server is reachable
+        - Authentication succeeds
+        - The service account has access to configured projects (if any)
+        """
+        try:
+            # First verify basic auth by calling /rest/api/2/myself
+            myself = self._request_json("/rest/api/2/myself")
+            if not isinstance(myself, dict) or not myself.get("name"):
+                raise ValueError(
+                    "Jira authentication succeeded but returned an unexpected response."
+                )
+
+            # If project_keys are configured, verify they exist and are accessible
+            project_keys = self._resolve_project_keys()
+            if project_keys:
+                for project_key in project_keys:
+                    payload = self._request_json(
+                        f"/rest/api/2/project/{quote(project_key)}",
+                    )
+                    if not isinstance(payload, dict) or not payload.get("key"):
+                        raise ValueError(
+                            f"Could not access Jira project {project_key!r}. "
+                            f"Check the project key and service account permissions."
+                        )
+            else:
+                # No specific projects — just verify we can search at least one issue
+                payload = self._request_json(
+                    "/rest/api/2/search",
+                    method="POST",
+                    body={
+                        "jql": "ORDER BY updated ASC",
+                        "maxResults": 1,
+                        "fields": ["summary"],
+                    },
+                )
+                if not isinstance(payload, dict):
+                    raise ValueError("Jira search returned an unexpected response.")
+        except ValueError:
+            raise
+        except Exception as exc:
+            raise ValueError(f"Jira connection validation failed: {exc}") from exc
+
+    # ── Document fetching ─────────────────────────────────────────────────
+
     def fetch_documents(self, *, storage_root: Path | None = None) -> Iterator[ConnectorDocument]:
-        """Yield updated Jira issues and their attachments."""
+        """Yield updated Jira issues and their attachments with rich metadata."""
         self.validate()
+        max_bytes = self._config_int(_CFG_MAX_ATTACHMENT_MB, 50) * 1024 * 1024
         for issue in self._fetch_issues():
             key = str(issue.get("key", ""))
             fields = issue.get("fields", {}) if isinstance(issue.get("fields"), dict) else {}
             summary = str(fields.get("summary") or key)
             text = self._issue_text(summary=summary, fields=fields)
+            metadata = self._build_issue_metadata(key=key, fields=fields)
             yield ConnectorDocument(
                 external_id=f"jira:{key}",
                 title=summary,
                 mime_type="text/plain",
                 sha256=self._sha256_text(text),
                 source_language=None,
-                metadata={"atlassian_type": "jira_issue", "issue_key": key},
+                metadata=metadata,
                 text_content=text,
             )
             yield from self._fetch_attachments(
-                issue_key=key, fields=fields, storage_root=storage_root
+                issue_key=key,
+                fields=fields,
+                storage_root=storage_root,
+                max_bytes=max_bytes,
             )
 
     def _fetch_issues(self) -> Iterator[dict[str, Any]]:
@@ -758,7 +955,7 @@ class JiraConnector(_AtlassianConnectorBase):
                 method="POST",
                 body={
                     "jql": self._jql(),
-                    "fields": ["summary", "description", "comment", "attachment", "updated"],
+                    "fields": self._JIRA_SEARCH_FIELDS,
                     "startAt": start_at,
                     "maxResults": _DEFAULT_LIMIT,
                 },
@@ -772,33 +969,518 @@ class JiraConnector(_AtlassianConnectorBase):
                 break
 
     def _jql(self) -> str:
-        configured = str(self._config.get("jql", "")).strip()
+        """Build the JQL query string.
+
+        Rules:
+        - If ``jql`` is configured and non-empty, it wins over everything.
+        - Otherwise build safe default JQL from ``project_keys`` / ``project_key``
+          and ``updated_since`` / ``last_sync_at``.
+        - Always apply ``ORDER BY updated ASC`` unless a custom query already
+          defines ordering (check for ``ORDER BY`` in the configured JQL).
+        """
+        configured = self._config_str(_CFG_JQL)
         if configured:
+            # If a custom JQL already has ordering, leave it; otherwise append
+            if "ORDER BY" not in configured.upper():
+                return f"{configured} ORDER BY updated ASC"
             return configured
+
         parts: list[str] = []
-        project_key = str(self._config.get("project_key", "")).strip()
-        if project_key:
-            parts.append(f"project = {project_key}")
-        updated_since = str(
-            self._config.get("updated_since") or self._config.get("last_sync_at") or ""
-        ).strip()
+        project_keys = self._resolve_project_keys()
+        if project_keys:
+            if len(project_keys) == 1:
+                parts.append(f"project = {project_keys[0]}")
+            else:
+                keys = ", ".join(project_keys)
+                parts.append(f"project IN ({keys})")
+
+        updated_since = self._config_str(
+            _CFG_UPDATED_SINCE,
+            default=str(self._config.get("last_sync_at") or ""),
+        )
         if updated_since:
             parts.append(f'updated >= "{updated_since}"')
+
         parts.append("ORDER BY updated ASC")
         return " AND ".join(parts[:-1] or ["updated is not EMPTY"]) + f" {parts[-1]}"
 
+    # ── Issue text and metadata ───────────────────────────────────────────
+
     def _issue_text(self, *, summary: str, fields: dict[str, Any]) -> str:
-        chunks = [summary]
+        """Build rich searchable issue text from Jira issue fields."""
+        lines: list[str] = []
+
+        # Summary line
+        lines.append(f"Summary: {summary}")
+
+        # Description
         description = fields.get("description")
         if description:
-            chunks.append(self._jira_field_to_text(description))
-        comments = fields.get("comment", {})
-        comment_list = comments.get("comments", []) if isinstance(comments, dict) else []
-        if isinstance(comment_list, list):
-            for comment in comment_list:
-                if isinstance(comment, dict) and comment.get("body"):
-                    chunks.append(self._jira_field_to_text(comment["body"]))
-        return "\n\n".join(chunk for chunk in chunks if chunk)
+            desc_text = self._jira_field_to_text(description)
+            if desc_text:
+                lines.append("")
+                lines.append("Description:")
+                lines.append(desc_text)
+
+        # Project
+        project = fields.get("project")
+        if isinstance(project, dict):
+            pkey = project.get("key", "")
+            pname = project.get("name", "")
+            if pkey or pname:
+                lines.append("")
+                lines.append(f"Project: {pkey or pname}{f' ({pname})' if pkey and pname else ''}")
+
+        # Issue type
+        issuetype = fields.get("issuetype")
+        if isinstance(issuetype, dict):
+            it_name = issuetype.get("name", "")
+            if it_name:
+                lines.append(f"Issue Type: {it_name}")
+
+        # Status
+        status = fields.get("status")
+        if isinstance(status, dict):
+            s_name = status.get("name", "")
+            if s_name:
+                lines.append(f"Status: {s_name}")
+
+        # Priority
+        priority = fields.get("priority")
+        if isinstance(priority, dict):
+            p_name = priority.get("name", "")
+            if p_name:
+                lines.append(f"Priority: {p_name}")
+
+        # Resolution
+        resolution = fields.get("resolution")
+        if isinstance(resolution, dict):
+            r_name = resolution.get("name", "")
+            if r_name:
+                lines.append(f"Resolution: {r_name}")
+
+        # Labels
+        labels = fields.get("labels")
+        if isinstance(labels, list) and labels:
+            lines.append(f"Labels: {', '.join(labels)}")
+
+        # Components
+        components = fields.get("components")
+        if isinstance(components, list):
+            comp_names = [c.get("name", "") for c in components if isinstance(c, dict)]
+            if comp_names:
+                lines.append(f"Components: {', '.join(comp_names)}")
+
+        # Fix versions
+        fix_versions = fields.get("fixVersions")
+        if isinstance(fix_versions, list):
+            fv_names = [v.get("name", "") for v in fix_versions if isinstance(v, dict)]
+            if fv_names:
+                lines.append(f"Fix Versions: {', '.join(fv_names)}")
+
+        # Affects versions
+        versions = fields.get("versions")
+        if isinstance(versions, list):
+            v_names = [v.get("name", "") for v in versions if isinstance(v, dict)]
+            if v_names:
+                lines.append(f"Affects Versions: {', '.join(v_names)}")
+
+        # Dates
+        created = fields.get("created")
+        if created:
+            lines.append(f"Created: {created}")
+        updated = fields.get("updated")
+        if updated:
+            lines.append(f"Updated: {updated}")
+        resolutiondate = fields.get("resolutiondate")
+        if resolutiondate:
+            lines.append(f"Resolution Date: {resolutiondate}")
+
+        # People fields
+        assignee = fields.get("assignee")
+        if isinstance(assignee, dict) and assignee.get("displayName"):
+            lines.append(f"Assignee: {assignee['displayName']}")
+        reporter = fields.get("reporter")
+        if isinstance(reporter, dict) and reporter.get("displayName"):
+            lines.append(f"Reporter: {reporter['displayName']}")
+        creator = fields.get("creator")
+        if isinstance(creator, dict) and creator.get("displayName"):
+            lines.append(f"Creator: {creator['displayName']}")
+
+        # Parent
+        parent = fields.get("parent")
+        if isinstance(parent, dict):
+            parent_key = parent.get("key", "")
+            parent_fields = parent.get("fields", {})
+            if not isinstance(parent_fields, dict):
+                parent_fields = {}
+            parent_summary = parent_fields.get("summary", "")
+            if parent_key:
+                parent_label = parent_key
+                if parent_summary:
+                    parent_label += f" ({parent_summary})"
+                lines.append(f"Parent: {parent_label}")
+
+        # Subtasks
+        subtasks = fields.get("subtasks")
+        if isinstance(subtasks, list) and subtasks:
+            sub_lines: list[str] = []
+            for sub in subtasks:
+                if isinstance(sub, dict):
+                    sub_key = sub.get("key", "")
+                    sub_fields = sub.get("fields", {})
+                    if not isinstance(sub_fields, dict):
+                        sub_fields = {}
+                    sub_summary = sub_fields.get("summary", "")
+                    sub_status = sub_fields.get("status", {})
+                    if not isinstance(sub_status, dict):
+                        sub_status = {}
+                    sub_status_name = sub_status.get("name", "")
+                    part = sub_key
+                    if sub_summary:
+                        part += f" ({sub_summary})"
+                    if sub_status_name:
+                        part += f" [{sub_status_name}]"
+                    sub_lines.append(f"  - {part}")
+            if sub_lines:
+                lines.append("Subtasks:")
+                lines.extend(sub_lines)
+
+        # Issue links
+        issuelinks = fields.get("issuelinks")
+        if isinstance(issuelinks, list) and issuelinks:
+            link_lines: list[str] = []
+            for link in issuelinks:
+                if not isinstance(link, dict):
+                    continue
+                link_type = link.get("type", {})
+                if not isinstance(link_type, dict):
+                    continue
+                type_name = link_type.get("name", "related to")
+
+                inward_issue = link.get("inwardIssue")
+                outward_issue = link.get("outwardIssue")
+
+                if isinstance(inward_issue, dict):
+                    linked_key = inward_issue.get("key", "")
+                    linked_fields = inward_issue.get("fields", {})
+                    linked_summary = ""
+                    linked_status = ""
+                    if isinstance(linked_fields, dict):
+                        linked_summary = linked_fields.get("summary", "")
+                        linked_status_obj = linked_fields.get("status", {})
+                        linked_status = ""
+                        if isinstance(linked_status_obj, dict):
+                            linked_status = linked_status_obj.get("name", "")
+                    direction = link_type.get("inward", type_name)
+                    part = linked_key
+                    if linked_summary:
+                        part += f" ({linked_summary})"
+                    if linked_status:
+                        part += f" [{linked_status}]"
+                    link_lines.append(f"  - {direction}  {part}")
+
+                if isinstance(outward_issue, dict):
+                    linked_key = outward_issue.get("key", "")
+                    linked_fields = outward_issue.get("fields", {})
+                    linked_summary = ""
+                    linked_status = ""
+                    if isinstance(linked_fields, dict):
+                        linked_summary = linked_fields.get("summary", "")
+                        linked_status_obj = linked_fields.get("status", {})
+                        linked_status = ""
+                        if isinstance(linked_status_obj, dict):
+                            linked_status = linked_status_obj.get("name", "")
+                    direction = link_type.get("outward", type_name)
+                    part = linked_key
+                    if linked_summary:
+                        part += f" ({linked_summary})"
+                    if linked_status:
+                        part += f" [{linked_status}]"
+                    link_lines.append(f"  - {direction}  {part}")
+
+            if link_lines:
+                lines.append("Issue Links:")
+                lines.extend(link_lines)
+
+        # Comments
+        include_comments = self._config_bool(_CFG_INCLUDE_COMMENTS, True)
+        max_comments = self._config_int(_CFG_MAX_COMMENTS_PER_ISSUE, 200)
+
+        if include_comments:
+            comments = fields.get("comment", {})
+            comment_list = comments.get("comments", []) if isinstance(comments, dict) else []
+            if isinstance(comment_list, list) and comment_list:
+                rendered_comments: list[str] = []
+                for comment in comment_list[:max_comments]:
+                    if not isinstance(comment, dict):
+                        continue
+                    body = comment.get("body")
+                    if not body:
+                        continue
+                    # Author
+                    author = comment.get("author", {})
+                    author_name = ""
+                    if isinstance(author, dict):
+                        author_name = author.get("displayName", "") or author.get("name", "")
+                    # Timestamp
+                    created_ts = comment.get("created", "")
+                    if not author_name:
+                        author_name = "Unknown"
+                    header = author_name
+                    if created_ts:
+                        header += f" ({created_ts})"
+
+                    body_text = self._jira_field_to_text(body)
+
+                    rendered_comments.append(f"---\n{header}:\n{body_text}")
+
+                if rendered_comments:
+                    lines.append("")
+                    lines.append("Comments:")
+                    lines.extend(rendered_comments)
+
+        return "\n".join(lines)
+
+    def _build_issue_metadata(self, key: str, fields: dict[str, Any]) -> dict[str, Any]:
+        """Build structured metadata dict from Jira issue fields."""
+        metadata: dict[str, Any] = {
+            "atlassian_type": "jira_issue",
+            "issue_key": key,
+        }
+
+        # Project
+        project = fields.get("project")
+        if isinstance(project, dict):
+            metadata["project_key"] = project.get("key")
+            metadata["project_name"] = project.get("name")
+
+        # Issue type
+        issuetype = fields.get("issuetype")
+        if isinstance(issuetype, dict):
+            metadata["issuetype"] = issuetype.get("name")
+
+        # Status
+        status = fields.get("status")
+        if isinstance(status, dict):
+            metadata["status"] = status.get("name")
+            status_category = status.get("statusCategory", {})
+            if isinstance(status_category, dict):
+                metadata["status_category"] = status_category.get("name")
+
+        # Priority
+        priority = fields.get("priority")
+        if isinstance(priority, dict):
+            metadata["priority"] = priority.get("name")
+
+        # Resolution
+        resolution = fields.get("resolution")
+        if isinstance(resolution, dict):
+            metadata["resolution"] = resolution.get("name")
+
+        # Labels
+        labels = fields.get("labels")
+        if isinstance(labels, list):
+            metadata["labels"] = labels
+
+        # Components
+        components = fields.get("components")
+        if isinstance(components, list):
+            metadata["components"] = [c.get("name") for c in components if isinstance(c, dict)]
+
+        # Fix versions
+        fix_versions = fields.get("fixVersions")
+        if isinstance(fix_versions, list):
+            metadata["fixVersions"] = [v.get("name") for v in fix_versions if isinstance(v, dict)]
+
+        # Affects versions
+        versions = fields.get("versions")
+        if isinstance(versions, list):
+            metadata["versions"] = [v.get("name") for v in versions if isinstance(v, dict)]
+
+        # Dates
+        created = fields.get("created")
+        if created:
+            metadata["created"] = str(created)
+        updated = fields.get("updated")
+        if updated:
+            metadata["updated"] = str(updated)
+        resolutiondate = fields.get("resolutiondate")
+        if resolutiondate:
+            metadata["resolutiondate"] = str(resolutiondate)
+
+        # People fields
+        assignee = fields.get("assignee")
+        if isinstance(assignee, dict):
+            metadata["assignee"] = self._format_people_field(assignee)
+        reporter = fields.get("reporter")
+        if isinstance(reporter, dict):
+            metadata["reporter"] = self._format_people_field(reporter)
+        creator = fields.get("creator")
+        if isinstance(creator, dict):
+            metadata["creator"] = self._format_people_field(creator)
+
+        # Parent
+        parent = fields.get("parent")
+        if isinstance(parent, dict):
+            parent_fields = parent.get("fields", {})
+            if not isinstance(parent_fields, dict):
+                parent_fields = {}
+            metadata["parent"] = {
+                "key": parent.get("key"),
+                "summary": parent_fields.get("summary"),
+            }
+
+        # Subtasks
+        subtasks = fields.get("subtasks")
+        if isinstance(subtasks, list):
+            metadata["subtasks"] = [
+                {
+                    "key": s.get("key"),
+                    "summary": (
+                        s.get("fields", {}).get("summary")
+                        if isinstance(s.get("fields"), dict)
+                        else None
+                    ),
+                    "status": (
+                        s.get("fields", {}).get("status", {}).get("name")
+                        if isinstance(s.get("fields"), dict)
+                        and isinstance(s.get("fields", {}).get("status"), dict)
+                        else None
+                    ),
+                }
+                for s in subtasks
+                if isinstance(s, dict)
+            ]
+
+        # Issue links
+        issuelinks = fields.get("issuelinks")
+        if isinstance(issuelinks, list):
+            links_meta: list[dict[str, Any]] = []
+            for link in issuelinks:
+                if not isinstance(link, dict):
+                    continue
+                link_type = link.get("type", {})
+                if not isinstance(link_type, dict):
+                    continue
+
+                entry: dict[str, Any] = {
+                    "type": link_type.get("name"),
+                }
+
+                inward = link.get("inwardIssue")
+                if isinstance(inward, dict):
+                    entry["direction"] = "inward"
+                    inward_fields = inward.get("fields", {})
+                    if not isinstance(inward_fields, dict):
+                        inward_fields = {}
+                    entry["linked_issue_key"] = inward.get("key")
+                    entry["linked_issue_summary"] = inward_fields.get("summary")
+                    inward_status = inward_fields.get("status", {})
+                    entry["linked_issue_status"] = (
+                        inward_status.get("name") if isinstance(inward_status, dict) else None
+                    )
+                    links_meta.append(entry)
+                    entry = {"type": link_type.get("name")}
+
+                outward = link.get("outwardIssue")
+                if isinstance(outward, dict):
+                    entry["direction"] = "outward"
+                    outward_fields = outward.get("fields", {})
+                    if not isinstance(outward_fields, dict):
+                        outward_fields = {}
+                    entry["linked_issue_key"] = outward.get("key")
+                    entry["linked_issue_summary"] = outward_fields.get("summary")
+                    outward_status = outward_fields.get("status", {})
+                    entry["linked_issue_status"] = (
+                        outward_status.get("name") if isinstance(outward_status, dict) else None
+                    )
+                    links_meta.append(entry)
+
+            if links_meta:
+                metadata["issuelinks"] = links_meta
+
+        # Comments metadata
+        include_comments = self._config_bool(_CFG_INCLUDE_COMMENTS, True)
+        if include_comments:
+            comments = fields.get("comment", {})
+            comment_list = comments.get("comments", []) if isinstance(comments, dict) else []
+            if isinstance(comment_list, list):
+                max_comments = self._config_int(_CFG_MAX_COMMENTS_PER_ISSUE, 200)
+                comments_meta: list[dict[str, Any]] = []
+                for comment in comment_list[:max_comments]:
+                    if not isinstance(comment, dict):
+                        continue
+                    comment_entry: dict[str, Any] = {}
+
+                    # Author
+                    author = comment.get("author", {})
+                    if isinstance(author, dict):
+                        comment_entry["author"] = self._format_people_field(author)
+
+                    # Update author
+                    update_author = comment.get("updateAuthor", {})
+                    if isinstance(update_author, dict) and update_author:
+                        comment_entry["update_author"] = self._format_people_field(update_author)
+
+                    # Timestamps
+                    created_ts = comment.get("created")
+                    if created_ts:
+                        comment_entry["created"] = str(created_ts)
+                    updated_ts = comment.get("updated")
+                    if updated_ts:
+                        comment_entry["updated"] = str(updated_ts)
+
+                    # Visibility
+                    visibility = comment.get("visibility")
+                    if isinstance(visibility, dict):
+                        comment_entry["visibility"] = {
+                            "type": visibility.get("type"),
+                            "value": visibility.get("value"),
+                        }
+
+                    # Body (stripped to text for metadata, but not searchable)
+                    body = comment.get("body")
+                    if body:
+                        body_text = self._jira_field_to_text(body)
+                        if body_text:
+                            comment_entry["body_preview"] = body_text[:500]
+
+                    if comment_entry:
+                        comments_meta.append(comment_entry)
+
+                if comments_meta:
+                    metadata["comments"] = comments_meta
+
+        return metadata
+
+    @staticmethod
+    def _format_people_field(person: dict[str, Any]) -> dict[str, Any]:
+        """Extract safe stable identifiers and display fields from a Jira people field.
+
+        Captures:
+        - key (Jira user key, stable identifier)
+        - name (username)
+        - display_name (full display name)
+        - email (if available)
+        - active (account status)
+        """
+        result: dict[str, Any] = {}
+        for src_key, dst_key in [
+            ("key", "key"),
+            ("name", "name"),
+            ("displayName", "display_name"),
+            ("emailAddress", "email"),
+        ]:
+            val = person.get(src_key)
+            if val is not None:
+                result[dst_key] = val
+        active = person.get("active")
+        if active is not None:
+            result["active"] = bool(active)
+        return result
+
+    # ── Attachment handling ───────────────────────────────────────────────
 
     def _fetch_attachments(
         self,
@@ -806,10 +1488,12 @@ class JiraConnector(_AtlassianConnectorBase):
         issue_key: str,
         fields: dict[str, Any],
         storage_root: Path | None = None,
+        max_bytes: int | None = None,
     ) -> Iterator[ConnectorDocument]:
         attachments = fields.get("attachment", [])
         if not isinstance(attachments, list):
             return
+        skipped_count = 0
         for attachment in attachments:
             if not isinstance(attachment, dict):
                 continue
@@ -817,9 +1501,34 @@ class JiraConnector(_AtlassianConnectorBase):
             filename = str(attachment.get("filename") or attachment_id)
             content_url = attachment.get("content")
             if not isinstance(content_url, str) or not content_url:
+                skipped_count += 1
                 continue
-            downloaded = self._download_attachment(content_url, filename, storage_root=storage_root)
+
+            # MIME type check (before download)
             mime_type = str(attachment.get("mimeType") or "application/octet-stream")
+            if not self._mime_is_allowed(mime_type):
+                skipped_count += 1
+                logger.info(
+                    "Skipped Jira attachment %s (MIME type %s blocked by filter)",
+                    filename,
+                    mime_type,
+                )
+                continue
+
+            try:
+                downloaded = self._download_attachment(
+                    content_url, filename, storage_root=storage_root, max_bytes=max_bytes
+                )
+            except ValueError as exc:
+                skipped_count += 1
+                logger.warning(
+                    "Skipping Jira attachment %s (issue %s): %s",
+                    filename,
+                    issue_key,
+                    str(exc),
+                )
+                continue
+
             yield ConnectorDocument(
                 external_id=f"jira:{issue_key}:att:{attachment_id}",
                 title=f"{issue_key} / {filename}",
@@ -832,6 +1541,13 @@ class JiraConnector(_AtlassianConnectorBase):
                     "attachment_id": attachment_id,
                 },
                 path=downloaded.path,
+            )
+
+        if skipped_count > 0:
+            logger.info(
+                "Skipped %d attachment(s) for issue %s",
+                skipped_count,
+                issue_key,
             )
 
     @classmethod
