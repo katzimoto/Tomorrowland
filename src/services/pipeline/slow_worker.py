@@ -176,8 +176,9 @@ class SlowWorker:
         # 3. Chunk and index
         self._index_document(doc, translated, original=text)
 
-        # 4. Update quality and status
-        self._doc_repo.update_indexed(doc.id, "indexed", "high")
+        # 4. Update quality only — indexing status transitions happen in
+        #    index_worker.py/worker.py after successful vector/keyword insert.
+        self._doc_repo.update_translation_quality(doc.id, "high")
 
     def _index_document(self, doc: Any, translated: str, original: str = "") -> None:
         """Chunk, embed, and index a document (both original and translated)."""
@@ -315,7 +316,13 @@ class SlowWorker:
         # Intelligence (best-effort, never blocking)
         if self._intelligence is not None:
             try:
-                self._intelligence.process_document(doc.id, translated)
+                results = self._intelligence.process_document(doc.id, translated)
+                if results.get("succeeded", 0) == 0:
+                    logger.warning(
+                        "All intelligence tasks failed for document_id=%s correlation=%s",
+                        document_id,
+                        get_correlation_id(),
+                    )
             except Exception:
                 logger.exception(
                     "Intelligence failed during enrichment for document_id=%s correlation=%s",

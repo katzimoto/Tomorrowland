@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import xlrd
 
 from services.extraction.base import ExtractionResult
+
+logger = logging.getLogger(__name__)
 
 
 class XlsExtractor:
@@ -40,4 +43,5 @@ class XlsExtractor:
                             texts.append(str(val))
             return ExtractionResult(text="\n".join(texts))
         except Exception:  # noqa: BLE001
+            logger.debug("xls extraction failed for path=%s", path, exc_info=True)
             return ExtractionResult(text="")

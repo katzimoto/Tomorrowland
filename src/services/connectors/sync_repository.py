@@ -6,6 +6,7 @@ used inside any existing transaction without coupling to a session or engine.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -25,6 +26,8 @@ from services.connectors.sync_models import (
     TombstoneCreate,
 )
 from shared.db import db_uuid, to_uuid
+
+logger = logging.getLogger(__name__)
 
 # ── Status transition validation ─────────────────────────────────────────
 
@@ -652,6 +655,45 @@ def tombstone_missing_documents(
             created.append(ts)
 
     return created
+
+
+def build_index_cleanup(
+    qdrant_client: Any = None,
+    meili_provider: Any = None,
+) -> Callable[[UUID], None]:
+    """Return a callback that removes a document from keyword + vector indexes.
+
+    Pass the returned callback as the ``index_cleanup`` argument to
+    :func:`tombstone_missing_documents` so tombstoned documents are hidden
+    from search, RAG, and MCP results.
+
+    Both *qdrant_client* and *meili_provider* are optional — when provided,
+    the callback deletes from them.  Individual deletion failures are logged
+    and swallowed so a transient search-index error does not block the sync.
+    """
+
+    def _cleanup(document_id: UUID) -> None:
+        doc_id_str = str(document_id)
+        if qdrant_client is not None:
+            try:
+                qdrant_client.delete_by_doc_id(doc_id_str)
+            except Exception:
+                logger.warning(
+                    "qdrant delete_by_doc_id failed for %s",
+                    doc_id_str,
+                    exc_info=True,
+                )
+        if meili_provider is not None:
+            try:
+                meili_provider.delete_documents_by_filter(f"document_id = {doc_id_str}")
+            except Exception:
+                logger.warning(
+                    "meili delete failed for %s",
+                    doc_id_str,
+                    exc_info=True,
+                )
+
+    return _cleanup
 
 
 def clear_tombstone_and_reactivate(

@@ -118,16 +118,17 @@ def _publish_scheduled_rabbit_messages(
 
     if rabbit is None:
         rabbit = RabbitClient(settings.rabbitmq_url, enabled=True)
-    try:
-        rabbit.connect()
-        rabbit.declare_topology()
-    except RabbitConnectionError:
-        logger.warning(
-            "RabbitMQ unreachable — %d scheduled sync job(s) not published to queue; "
-            "poll-mode workers will still pick them up via pipeline_jobs",
-            len(pending),
-        )
-        return rabbit
+    if not getattr(rabbit, "_connected", False):
+        try:
+            rabbit.connect()
+            rabbit.declare_topology()
+        except RabbitConnectionError:
+            logger.warning(
+                "RabbitMQ unreachable — %d scheduled sync job(s) not published to queue; "
+                "poll-mode workers will still pick them up via pipeline_jobs",
+                len(pending),
+            )
+            return rabbit
 
     message_ids: dict[str, str] = {}
     with engine.begin() as conn:
@@ -187,6 +188,12 @@ def _sync_source(
     )
     sync_run_id = sync_run.id
     sync_repo.start(sync_run_id)
+
+    # NOTE: tombstone detection (tombstone_missing_documents) is not yet
+    # wired into scheduled syncs because they always run in incremental
+    # mode.  Once the scheduler supports full_resync (e.g. via a
+    # schedule-level toggle), add seen_external_ids tracking and a
+    # tombstone call here mirroring the sync_now API route.
 
     source_language = source_row.get("source_language")
 

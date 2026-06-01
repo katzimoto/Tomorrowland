@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
@@ -113,7 +114,7 @@ class IntelligenceWorker:
 
     def process_document(
         self, document_id: UUID, content: str, source_id: UUID | None = None
-    ) -> None:
+    ) -> dict[str, int]:
         """Run enabled intelligence tasks for *document_id*.
 
         Tasks (summarize, extract_entities, auto_tag, key_points) run
@@ -126,8 +127,9 @@ class IntelligenceWorker:
         exists, current default behavior is preserved exactly.
 
         Failures in individual tasks are logged and swallowed so that LLM
-        enrichment never blocks ingestion.  The pipeline job always succeeds
-        from this method's perspective.
+        enrichment never blocks ingestion.
+
+        Returns a dict with ``succeeded`` and ``failed`` counts.
         """
         # Resolve active SourceProfile for strategy routing
         profile: dict[str, Any] | None = None
@@ -156,11 +158,17 @@ class IntelligenceWorker:
 
         tasks = self._enabled_tasks()
         if not tasks:
-            return
+            return {"succeeded": 0, "failed": 0}
 
         # Capture metrics reference before submitting to threads —
         # ContextVar does not propagate to ThreadPoolExecutor workers.
         _metrics = current_metrics()
+
+        # Track per-task outcomes so callers can decide whether enrichment
+        # produced useful results.  Guarded by _outcomes_lock because _run
+        # executes in multiple ThreadPoolExecutor threads concurrently.
+        outcomes: dict[str, int] = {"succeeded": 0, "failed": 0}
+        _outcomes_lock = threading.Lock()
 
         def _run(task: str) -> None:
             start = time.perf_counter()
@@ -178,12 +186,16 @@ class IntelligenceWorker:
                     _metrics.intelligence_task_duration_seconds.labels(task).observe(
                         time.perf_counter() - start
                     )
+                with _outcomes_lock:
+                    outcomes["succeeded"] += 1
             except Exception:
                 if _metrics is not None:
                     _metrics.intelligence_tasks_total.labels(task, "failure").inc()
                     _metrics.intelligence_task_duration_seconds.labels(task).observe(
                         time.perf_counter() - start
                     )
+                with _outcomes_lock:
+                    outcomes["failed"] += 1
                 logger.exception(
                     "Intelligence task %s failed for document_id=%s correlation=%s",
                     task,
@@ -194,7 +206,25 @@ class IntelligenceWorker:
         with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
             futures = [pool.submit(_run, task) for task in tasks]
             for future in as_completed(futures):
-                future.result()
+                try:
+                    future.result(timeout=120)
+                except TimeoutError:
+                    # NOTE: future.cancel() returns False for threads
+                    # that are already executing — those continue
+                    # running in the pool after we move on and their
+                    # outcomes are not captured in the returned dict.
+                    # This is acceptable best-effort behavior.
+                    logger.error(
+                        "Intelligence task timed out after 120s for document_id=%s correlation=%s",
+                        document_id,
+                        get_correlation_id(),
+                    )
+                    future.cancel()
+                    for f in futures:
+                        f.cancel()
+                    break
+
+        return outcomes
 
     def _enabled_tasks(self) -> list[str]:
         """Return list of enabled task names from system_config."""

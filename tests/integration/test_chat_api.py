@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
@@ -851,6 +852,19 @@ def test_folder_scope_returns_400(migrated_engine: Engine) -> None:
     )
     assert resp.status_code == 400
     assert "folder" in resp.json()["detail"].lower()
+
+
+@pytest.mark.skip(
+    reason="Blocked: folder_id not yet indexed in Qdrant + Meilisearch vector payloads"
+)
+def test_folder_scope_happy_path(migrated_engine: Engine) -> None:
+    """When folder_id is indexed in vector payloads, folder-scoped chat
+    should filter results to the specified folder.
+
+    Placeholder: create a document with folder_id metadata, index it in
+    Qdrant and Meilisearch, then query with folder scope and verify results
+    are filtered.
+    """
 
 
 def test_revoked_document_access_returns_409(migrated_engine: Engine) -> None:

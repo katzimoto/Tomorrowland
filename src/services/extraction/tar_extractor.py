@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import mimetypes
 import tarfile
 from pathlib import Path
 
 from services.extraction.base import AttachmentData, ExtractionResult
+
+logger = logging.getLogger(__name__)
 
 
 class TarExtractor:
@@ -40,5 +43,6 @@ class TarExtractor:
         except (OSError, tarfile.TarError):
             return ExtractionResult(text="")
         except Exception:  # noqa: BLE001
+            logger.debug("tar extraction failed for path=%s", path, exc_info=True)
             return ExtractionResult(text="")
         return ExtractionResult(text="\n".join(names), attachments=attachments)
