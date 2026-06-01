@@ -149,7 +149,7 @@ def _sniff_zip_office(path: Path) -> str | None:
                 if odf_mime:
                     return odf_mime
     except Exception:  # noqa: BLE001
-        pass
+        logger.debug("ZIP office sniff failed for path=%s", path, exc_info=True)
     return None
 
 

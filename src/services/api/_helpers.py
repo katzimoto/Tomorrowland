@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -11,6 +12,8 @@ from fastapi import HTTPException
 
 from shared.db import to_uuid
 from shared.metrics import current_metrics, safe_label_value
+
+logger = logging.getLogger(__name__)
 
 _SENSITIVE_CONFIG_KEYS = frozenset(
     {
@@ -68,6 +71,7 @@ def _source_config(value: Any) -> dict[str, Any]:
 
 
 def _sanitize_source_error(message: str, source_row: Any | None = None) -> str:
+    logger.debug("source_error_raw: %s", message)
     sanitized = message or "Source operation failed"
     if source_row is not None:
         config = _source_config(source_row.get("config"))

@@ -276,6 +276,7 @@ class LdapClient(LdapAuthenticator):
                 time_limit=3,
             )
         except Exception:
+            logger.debug("LDAP display name read failed for %s", user_dn, exc_info=True)
             return None
 
         if not conn.entries:
@@ -299,6 +300,7 @@ class LdapClient(LdapAuthenticator):
                 time_limit=3,
             )
         except Exception:
+            logger.debug("LDAP group DNs read failed for %s", user_dn, exc_info=True)
             return []
 
         if not conn.entries:

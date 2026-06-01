@@ -11,8 +11,12 @@ from services.api._helpers import _record_source_sync_state, _sanitize_source_er
 from services.api.main import current_user
 from services.auth.models import TokenPayload
 from services.connectors.factory import build_connector
-from services.connectors.sync_models import SyncRunCreate, SyncRunUpdate
-from services.connectors.sync_repository import SyncRunRepository
+from services.connectors.sync_models import SyncMode, SyncRunCreate, SyncRunUpdate
+from services.connectors.sync_repository import (
+    SyncRunRepository,
+    build_index_cleanup,
+    tombstone_missing_documents,
+)
 from services.documents.models import DocumentSource
 from services.documents.repository import DocumentRepository
 from services.permissions.enforcer import require_admin
@@ -122,8 +126,15 @@ def sync_now(
     source_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
+    sync_mode: str = "incremental",
 ) -> dict[str, Any]:
     require_admin(user)
+
+    if sync_mode not in ("incremental", "full_resync"):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid sync_mode '{sync_mode}'. Must be 'incremental' or 'full_resync'.",
+        )
 
     connector_type = ""
     try:
@@ -156,7 +167,7 @@ def sync_now(
                 SyncRunCreate(
                     source_id=source_id,
                     connector_type=connector_type,
-                    sync_mode="incremental",
+                    sync_mode=cast("SyncMode", sync_mode),
                 )
             )
             sync_run_id = sync_run.id
@@ -182,6 +193,7 @@ def sync_now(
                 "unchanged": 0,
             }
             pending_rabbit: list[dict[str, Any]] = []
+            seen_external_ids: set[str] = set()
             source_language = source_row.get("source_language")
             originals_root = request.app.state.settings.files_root / "originals"
             try:
@@ -199,6 +211,7 @@ def sync_now(
 
             for item in documents:
                 results["discovered"] += 1
+                seen_external_ids.add(item.external_id)
                 request.app.state.metrics.ingestion_documents_total.labels(
                     safe_label_value(connector_type), "discovered"
                 ).inc()
@@ -283,6 +296,26 @@ def sync_now(
                     request.app.state.metrics.ingestion_documents_total.labels(
                         safe_label_value(connector_type), "failure"
                     ).inc()
+
+            # --- Tombstone detection (full_resync only) ---
+            # IMPORTANT: index_cleanup deletes from Qdrant/Meili which
+            # are external, non-transactional services.  If the DB commit
+            # fails after the index entries are already deleted the app
+            # enters an orphaned state.  Because this is the last
+            # operation before the ``with connection.begin()`` block exits
+            # (and auto-commits), the window is extremely narrow.
+            if sync_mode == "full_resync":
+                _cleanup = build_index_cleanup(
+                    qdrant_client=getattr(request.app.state, "qdrant_client", None),
+                    meili_provider=getattr(request.app.state, "meili_provider", None),
+                )
+                tombstone_missing_documents(
+                    connection,
+                    source_id,
+                    seen_external_ids,
+                    reason="not_found_in_sync",
+                    index_cleanup=_cleanup,
+                )
 
             if results["discovered"] > 0 and results["failed_discovery"] == results["discovered"]:
                 sync_outcome = "failed"

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import mimetypes
 import zipfile
 from pathlib import Path
 
 from services.extraction.base import AttachmentData, ExtractionResult
+
+logger = logging.getLogger(__name__)
 
 
 class ZipExtractor:
@@ -37,5 +40,6 @@ class ZipExtractor:
         except (OSError, zipfile.BadZipFile):
             return ExtractionResult(text="")
         except Exception:  # noqa: BLE001
+            logger.debug("zip extraction failed for path=%s", path, exc_info=True)
             return ExtractionResult(text="")
         return ExtractionResult(text="\n".join(names), attachments=attachments)
