@@ -203,26 +203,27 @@ class IntelligenceWorker:
                     get_correlation_id(),
                 )
 
-        with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
-            futures = [pool.submit(_run, task) for task in tasks]
-            for future in as_completed(futures):
-                try:
-                    future.result(timeout=120)
-                except TimeoutError:
-                    # NOTE: future.cancel() returns False for threads
-                    # that are already executing — those continue
-                    # running in the pool after we move on and their
-                    # outcomes are not captured in the returned dict.
-                    # This is acceptable best-effort behavior.
-                    logger.error(
-                        "Intelligence task timed out after 120s for document_id=%s correlation=%s",
-                        document_id,
-                        get_correlation_id(),
-                    )
-                    future.cancel()
-                    for f in futures:
-                        f.cancel()
-                    break
+        # Bound the total time spent waiting on enrichment so a stuck task can't
+        # hang ingestion. The budget lives on as_completed (which only yields
+        # already-finished futures, so a per-future result(timeout=...) would
+        # never fire); it raises once 120s pass without all tasks completing.
+        pool = ThreadPoolExecutor(max_workers=len(tasks))
+        futures = [pool.submit(_run, task) for task in tasks]
+        try:
+            for future in as_completed(futures, timeout=120):
+                future.result()
+        except TimeoutError:
+            logger.error(
+                "Intelligence tasks exceeded 120s budget for document_id=%s correlation=%s",
+                document_id,
+                get_correlation_id(),
+            )
+        finally:
+            # A thread already running can't be cancelled in Python
+            # (cancel() returns False), so don't block on it: cancel pending
+            # tasks and return without waiting. A stuck task keeps running in
+            # the background; its outcome is simply not reflected in `outcomes`.
+            pool.shutdown(wait=False, cancel_futures=True)
 
         return outcomes
 

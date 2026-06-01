@@ -262,15 +262,11 @@ class SlowWorker:
 
             for idx, chunk_text_content in enumerate(original_chunks):
                 all_chunk_texts.append(chunk_text_content)
-                all_chunk_meta.append(
-                    {"lang": doc.source_language, "suffix": "orig", "idx": idx}
-                )
+                all_chunk_meta.append({"lang": doc.source_language, "suffix": "orig", "idx": idx})
 
             for idx, chunk_text_content in enumerate(translated_chunks):
                 all_chunk_texts.append(chunk_text_content)
-                all_chunk_meta.append(
-                    {"lang": doc.target_language, "suffix": "trans", "idx": idx}
-                )
+                all_chunk_meta.append({"lang": doc.target_language, "suffix": "trans", "idx": idx})
 
             # Batch-encode all chunks in a single call
             vectors = self._encoder.encode_batch(all_chunk_texts)
