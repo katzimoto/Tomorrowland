@@ -137,6 +137,11 @@ class SlowWorker:
                     reason,
                 )
                 self._version_repo.update_version_status(version_id, "failed", error_summary=reason)
+                # Bump translation_quality to "high" so enrichment stops
+                # retrying this document.  The document already has a "fast"
+                # translation and the enrichment attempt proved no further
+                # improvement is possible.
+                self._doc_repo.update_translation_quality(doc.id, "high")
                 return
 
             # 4. Store translated text on version
@@ -245,42 +250,45 @@ class SlowWorker:
                     get_correlation_id(),
                 )
 
-        # Build Qdrant points for both original and translated chunks
+        # Build Qdrant points for both original and translated chunks.
+        # Batch-encode all chunks in a single call to reduce Ollama round-trips.
         try:
             qdrant_chunks: list[dict[str, Any]] = []
 
-            def _build_chunk(
-                chunk_text_content: str,
-                idx: int,
-                *,
-                lang: str | None,
-                suffix: str,
-            ) -> dict[str, Any]:
-                vector = self._encoder.encode(chunk_text_content)
+            # Collect all chunk texts
+            all_chunk_texts: list[str] = []
+            all_chunk_meta: list[dict[str, Any]] = []
+
+            for idx, chunk_text_content in enumerate(original_chunks):
+                all_chunk_texts.append(chunk_text_content)
+                all_chunk_meta.append(
+                    {"lang": doc.source_language, "suffix": "orig", "idx": idx}
+                )
+
+            for idx, chunk_text_content in enumerate(translated_chunks):
+                all_chunk_texts.append(chunk_text_content)
+                all_chunk_meta.append(
+                    {"lang": doc.target_language, "suffix": "trans", "idx": idx}
+                )
+
+            # Batch-encode all chunks in a single call
+            vectors = self._encoder.encode_batch(all_chunk_texts)
+
+            for i, meta in enumerate(all_chunk_meta):
                 entry: dict[str, Any] = {
-                    "chunk_id": f"{document_id}-{suffix}-{idx}",
+                    "chunk_id": f"{document_id}-{meta['suffix']}-{meta['idx']}",
                     "document_id": str(document_id),
                     "group_id": allowed_group_ids,
-                    "chunk_index": idx,
-                    "text": chunk_text_content,
-                    "vector": vector,
+                    "chunk_index": meta["idx"],
+                    "text": all_chunk_texts[i],
+                    "vector": vectors[i],
                     "source_id": str(doc.source_id),
                 }
                 if doc.title:
                     entry["title"] = doc.title
-                if lang:
-                    entry["language"] = lang
-                return entry
-
-            for idx, chunk_text_content in enumerate(original_chunks):
-                qdrant_chunks.append(
-                    _build_chunk(chunk_text_content, idx, lang=doc.source_language, suffix="orig")
-                )
-
-            for idx, chunk_text_content in enumerate(translated_chunks):
-                qdrant_chunks.append(
-                    _build_chunk(chunk_text_content, idx, lang=doc.target_language, suffix="trans")
-                )
+                if meta["lang"]:
+                    entry["language"] = meta["lang"]
+                qdrant_chunks.append(entry)
 
             if qdrant_chunks:
                 self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)

@@ -204,7 +204,7 @@ class PipelineJobRepository:
             return None
 
         now = datetime.now(UTC)
-        self._connection.execute(
+        result = self._connection.execute(
             sa.text("""
                 UPDATE pipeline_jobs
                 SET status = 'running',
@@ -221,6 +221,13 @@ class PipelineJobRepository:
                 "updated_at": now,
             },
         )
+
+        # On SQLite, multiple workers can SELECT the same row because there
+        # is no row-level locking.  If the UPDATE affected zero rows, another
+        # worker already claimed this job — return None so this worker
+        # moves on to the next candidate.
+        if result.rowcount == 0:
+            return None
 
         return {
             "id": to_uuid(row["id"]),

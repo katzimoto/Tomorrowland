@@ -100,16 +100,24 @@ def _publish_scheduled_rabbit_messages(
     engine: Engine,
     settings: Settings,
     pending: list[dict[str, Any]],
-) -> None:
+    rabbit: Any | None = None,
+) -> Any | None:
     """Publish pipeline-job queue messages for a completed scheduled sync.
 
     Mirrors the post-commit publish in the ``sync-now`` API route.  The DB
     transaction commits before this call so workers can see the
     ``pipeline_jobs`` rows as soon as the message arrives on the queue.
+
+    When *rabbit* is None a new connection is created; callers that process
+    multiple sources in a tick should pass a shared client to avoid
+    connection churn.
+
+    Returns the RabbitClient so callers can reuse it across invocations.
     """
     from shared.rabbit import RabbitClient, RabbitConnectionError
 
-    rabbit = RabbitClient(settings.rabbitmq_url, enabled=True)
+    if rabbit is None:
+        rabbit = RabbitClient(settings.rabbitmq_url, enabled=True)
     try:
         rabbit.connect()
         rabbit.declare_topology()
@@ -119,7 +127,7 @@ def _publish_scheduled_rabbit_messages(
             "poll-mode workers will still pick them up via pipeline_jobs",
             len(pending),
         )
-        return
+        return rabbit
 
     message_ids: dict[str, str] = {}
     with engine.begin() as conn:
@@ -140,6 +148,8 @@ def _publish_scheduled_rabbit_messages(
         if p.get("content_text"):
             body["content_text"] = p["content_text"]
         rabbit.publish_with_id("document.parse.requested", body, message_ids[str(p["job_id"])])
+
+    return rabbit
 
 
 def _sync_source(
@@ -393,6 +403,7 @@ def _run_scheduled_syncs(engine: Engine, settings: Settings | None = None) -> in
         )
 
     synced = 0
+    _rabbit: Any | None = None
     for row in rows:
         schedule = str(row["schedule"]).strip()
         if not schedule or not _cron_matches(schedule, now):
@@ -418,8 +429,16 @@ def _run_scheduled_syncs(engine: Engine, settings: Settings | None = None) -> in
 
         # Publish to RabbitMQ after the DB transaction commits so consumers
         # see the pipeline_jobs rows before receiving the queue message.
+        # Reuse a single RabbitClient across all syncs in this tick.
         if pending and settings is not None and getattr(settings, "rabbitmq_enabled", False):
-            _publish_scheduled_rabbit_messages(engine, settings, pending)
+            _rabbit = _publish_scheduled_rabbit_messages(engine, settings, pending, _rabbit)
+
+    # Close the shared RabbitClient reused across this tick's syncs.
+    if _rabbit is not None:
+        try:
+            _rabbit.close()
+        except Exception:
+            logger.debug("Failed to close scheduler RabbitClient", exc_info=True)
 
     return synced
 

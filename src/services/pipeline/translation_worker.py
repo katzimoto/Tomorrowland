@@ -14,6 +14,7 @@ from uuid import UUID
 
 from services.documents.repository import DocumentRepository
 from services.pipeline.jobs import PipelineJobRepository
+from services.pipeline.publisher import DocumentPublisher
 from services.translation.client import LibreTranslateClient
 from shared.metrics import MetricsRegistry
 
@@ -30,6 +31,7 @@ def run_translation_once(
     translator: LibreTranslateClient,
     worker_id: str = "translation-worker",
     metrics: MetricsRegistry | None = None,
+    publisher: DocumentPublisher | None = None,
 ) -> bool:
     """Claim one ``translate_document`` job, translate, and persist result.
 
@@ -90,6 +92,28 @@ def run_translation_once(
                 doc.source_language,
             )
         job_repo.update_translated_text(document_id, translated)
+
+        # Publish downstream embed + index messages so the async pipeline
+        # continues past translation.  When publisher is None (no RabbitMQ),
+        # poll-mode embed/index workers pick up the translated payload from
+        # document_payloads on their own.
+        if publisher is not None:
+            publisher.publish_embed(
+                job_id=job_id,
+                document_id=document_id,
+                source_id=doc.source_id,
+                attempt=attempts,
+                content_text=content_text,
+                translated_text=translated,
+            )
+            publisher.publish_index(
+                job_id=job_id,
+                document_id=document_id,
+                source_id=doc.source_id,
+                attempt=attempts,
+                content_text=content_text,
+                translated_text=translated,
+            )
 
     except Exception as exc:
         elapsed = time.monotonic() - start
