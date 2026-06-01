@@ -433,6 +433,13 @@ def _run_scheduled_syncs(engine: Engine, settings: Settings | None = None) -> in
         if pending and settings is not None and getattr(settings, "rabbitmq_enabled", False):
             _rabbit = _publish_scheduled_rabbit_messages(engine, settings, pending, _rabbit)
 
+    # Close the shared RabbitClient reused across this tick's syncs.
+    if _rabbit is not None:
+        try:
+            _rabbit.close()
+        except Exception:
+            logger.debug("Failed to close scheduler RabbitClient", exc_info=True)
+
     return synced
 
 

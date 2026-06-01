@@ -37,6 +37,28 @@ def _maybe_delete_connector_temp(path: str) -> None:
         )
 
 
+# Maximum attachment nesting depth before we stop expanding child documents.
+# Bounds resource use on deeply nested (e.g. zip-in-zip) archives even when no
+# exact content cycle is present.
+_MAX_ATTACHMENT_NESTING = 10
+
+
+def _attachment_cycle_or_depth_skip(parent_external_id: str, sha256_hex: str) -> bool:
+    """Return True when processing this attachment would loop or nest too deep.
+
+    Each ancestor attachment's sha256 prefix is encoded in the document's
+    ``external_id`` (``...::attachment::<name>::<sha12>``). If this attachment's
+    prefix already appears in the chain it's a content cycle; if the chain is
+    already ``_MAX_ATTACHMENT_NESTING`` deep we stop regardless. Both prevent the
+    unbounded child-document/job expansion a cyclic or deeply nested archive
+    would otherwise trigger (the async pipeline cannot pass a recursion ``_seen``
+    set, so the chain is reconstructed from ``external_id``).
+    """
+    if sha256_hex[:12] in parent_external_id:
+        return True
+    return parent_external_id.count("::attachment::") >= _MAX_ATTACHMENT_NESTING
+
+
 class ParseConsumer(BaseConsumer):
     queue_name = "document.parse.requested"
     worker_type = "parse-worker"
@@ -99,14 +121,29 @@ class ParseConsumer(BaseConsumer):
         for att in _extraction_attachments:
             try:
                 sha256 = hashlib.sha256(att.data).hexdigest()
+                if _attachment_cycle_or_depth_skip(doc.external_id or "", sha256):
+                    logger.warning(
+                        "Skipping attachment (cycle or max nesting depth) parent_id=%s filename=%s",
+                        document_id,
+                        att.filename,
+                    )
+                    continue
+                # Skip attachments whose MIME type cannot yield text (images,
+                # audio, video) so we don't spawn no-op child documents/jobs.
+                if not self._extractor.has_extractor(att.mime_type):
+                    logger.debug(
+                        "Skipping unextractable attachment mime_type=%s filename=%s parent_id=%s",
+                        att.mime_type,
+                        att.filename,
+                        document_id,
+                    )
+                    continue
                 suffix = Path(att.filename).suffix or ".bin"
                 with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
                     tmp.write(att.data)
                     tmp_path = tmp.name
 
-                child_external_id = (
-                    f"{doc.external_id}::attachment::{att.filename}::{sha256[:12]}"
-                )
+                child_external_id = f"{doc.external_id}::attachment::{att.filename}::{sha256[:12]}"
                 child_doc = self._doc_repo.create(
                     source_id=source_id,
                     external_id=child_external_id,
@@ -127,9 +164,7 @@ class ParseConsumer(BaseConsumer):
                     if doc.mime_type in ("message/rfc822", "application/vnd.ms-outlook")
                     else "archive_child"
                 )
-                rel_repo.create_relationship(
-                    document_id, child_doc.id, rel_type, att.filename
-                )
+                rel_repo.create_relationship(document_id, child_doc.id, rel_type, att.filename)
 
                 child_job_id = self._job_repo.enqueue_document(
                     document_id=child_doc.id,
