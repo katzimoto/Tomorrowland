@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from services.chunking.splitter import chunk_text
+from services.chunking.splitter import chunk_text, resolve_chunk_locations
 from services.documents.repository import DocumentRepository
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
@@ -50,30 +50,58 @@ class EmbedConsumer(BaseConsumer):
         if doc is None:
             raise ValueError(f"Document {document_id} not found")
 
+        payload = self._job_repo.get_payload(document_id)
+        extraction_metadata = payload.get("extraction_metadata") if payload else None
+
         allowed_group_ids = [str(gid) for gid in self._doc_repo.source_group_ids(source_id)]
 
-        chunk_texts: list[str] = []
-        chunk_meta: list[dict[str, Any]] = []
-
-        for idx, chunk in enumerate(
+        # Chunk original text
+        original_chunks = list(
             chunk_text(
                 content_text,
                 language=doc.source_language,
                 max_tokens=self._embedding_max_tokens,
             )
-        ):
-            chunk_texts.append(chunk)
-            chunk_meta.append({"lang": doc.source_language, "suffix": "orig", "idx": idx})
+        )
 
-        for idx, chunk in enumerate(
-            chunk_text(
-                translated_text,
-                language=doc.target_language,
-                max_tokens=self._embedding_max_tokens,
-            )
-        ):
+        # Resolve page/section location metadata for original chunks
+        orig_locations = resolve_chunk_locations(
+            content_text, original_chunks, extraction_metadata or []
+        )
+
+        chunk_texts: list[str] = []
+        chunk_meta: list[dict[str, Any]] = []
+
+        for idx, chunk in enumerate(original_chunks):
             chunk_texts.append(chunk)
-            chunk_meta.append({"lang": doc.target_language, "suffix": "tr", "idx": idx})
+            loc = orig_locations[idx] if idx < len(orig_locations) else {}
+            chunk_meta.append({
+                "lang": doc.source_language,
+                "suffix": "orig",
+                "idx": idx,
+                "page_number": loc.get("page_number"),
+                "section_heading": loc.get("section_heading"),
+            })
+
+        # Only chunk+embed translated text when it differs from the original.
+        # Embedding identical text produces duplicate vectors that pollute
+        # the vector space without adding retrieval value.
+        if translated_text and translated_text != content_text:
+            for idx, chunk in enumerate(
+                chunk_text(
+                    translated_text,
+                    language=doc.target_language,
+                    max_tokens=self._embedding_max_tokens,
+                )
+            ):
+                chunk_texts.append(chunk)
+                chunk_meta.append({
+                    "lang": doc.target_language,
+                    "suffix": "tr",
+                    "idx": idx,
+                    "page_number": None,
+                    "section_heading": None,
+                })
 
         vectors = self._encoder.encode_batch(chunk_texts)
 
@@ -92,6 +120,10 @@ class EmbedConsumer(BaseConsumer):
                 entry["title"] = doc.title
             if meta["lang"]:
                 entry["language"] = meta["lang"]
+            if meta.get("page_number") is not None:
+                entry["page_number"] = meta["page_number"]
+            if meta.get("section_heading") is not None:
+                entry["section_heading"] = meta["section_heading"]
             qdrant_chunks.append(entry)
 
         if qdrant_chunks:

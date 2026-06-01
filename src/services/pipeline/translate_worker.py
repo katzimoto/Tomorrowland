@@ -75,8 +75,6 @@ class TranslateConsumer(BaseConsumer):
 
         did_translate = translated != content_text
         quality = "fast" if did_translate else None
-        if self._doc_repo and translated:
-            self._doc_repo.update_indexed(document_id, "indexed", quality)
 
         if self._version_repo and did_translate:
             existing = self._version_repo.find_pending_or_running(document_id, target_lang)
@@ -97,6 +95,11 @@ class TranslateConsumer(BaseConsumer):
                 )
 
         self._job_repo.commit()
+        # Defer document indexing status to the IndexConsumer — do not call
+        # update_indexed here so the document only transitions to "indexed"
+        # after Meilisearch indexing has actually succeeded.
+        if self._doc_repo and translated and quality is not None:
+            self._doc_repo.update_translation_quality(document_id, quality)
         self._publisher.publish_index(
             job_id=job_id,
             document_id=document_id,

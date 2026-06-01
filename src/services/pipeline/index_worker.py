@@ -65,7 +65,6 @@ class IndexConsumer(BaseConsumer):
             logger.debug("meilisearch skipped: empty content_text for document_id=%s", document_id)
 
         self._job_repo.mark_running_stage(job_id, "indexed")
-        self._doc_repo.update_indexed(document_id, "indexed", doc.translation_quality)
         self._job_repo.commit()
         self._publisher.publish_intelligence(
             job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
@@ -74,6 +73,7 @@ class IndexConsumer(BaseConsumer):
             job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
         )
         self._job_repo.mark_succeeded(job_id)
+        self._doc_repo.update_indexed(document_id, "indexed", doc.translation_quality)
 
     def _index_meili(
         self,

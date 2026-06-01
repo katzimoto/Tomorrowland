@@ -58,11 +58,15 @@ class LibreTranslateClient:
                 return str(data["translatedText"])
             except (httpx.TimeoutException, httpx.HTTPStatusError) as exc:
                 last_exc = exc
+                extra = ""
+                if hasattr(exc, "response") and exc.response is not None:
+                    extra = f" body={exc.response.text[:500]}"
                 if attempt < self._max_retries:
                     logger.warning(
-                        "Translation attempt %d failed (%s), retrying",
+                        "Translation attempt %d failed (%s)%s, retrying",
                         attempt + 1,
                         exc,
+                        extra,
                     )
                     continue
             except httpx.RequestError as exc:
