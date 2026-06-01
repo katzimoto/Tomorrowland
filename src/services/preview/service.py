@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import tarfile
@@ -19,6 +20,31 @@ from shared.db import db_uuid, to_uuid
 logger = logging.getLogger(__name__)
 
 SNIPPET_LENGTH = 2000
+
+# Attributes that carry a URL and therefore need scheme validation.
+_URL_ATTRS = frozenset({"href", "src", "action"})
+
+
+def _is_safe_attr(name: str, value: str | None) -> bool:
+    """Whitelist gate for an HTML attribute kept by the preview sanitizer.
+
+    Drops event handlers (``on*``) and any attribute whose name is not a simple
+    token (so a malformed name cannot break out of the tag). For URL-bearing
+    attributes it rejects ``javascript:``/``data:``/``vbscript:`` schemes,
+    collapsing embedded whitespace first so e.g. ``java\\tscript:`` cannot slip
+    through. Values are escaped separately at render time.
+    """
+    key = name.lower()
+    if key.startswith("on"):
+        return False
+    if not key or not all(c.isalnum() or c == "-" for c in key):
+        return False
+    if key in _URL_ATTRS:
+        if not value:
+            return False
+        scheme = "".join(value.split()).lower()
+        return not scheme.startswith(("javascript:", "data:", "vbscript:"))
+    return True
 
 
 def _parse_metadata(value: Any) -> dict[str, Any]:
@@ -433,13 +459,40 @@ class PreviewService:
         """
         from html.parser import HTMLParser
 
-        _SAFE_TAGS = frozenset(
-            {"b", "i", "em", "strong", "p", "br", "ul", "ol", "li",
-             "h1", "h2", "h3", "h4", "h5", "h6", "code", "pre", "mark",
-             "blockquote", "span", "div", "a", "table", "thead", "tbody",
-             "tr", "td", "th", "hr"}
+        safe_tags = frozenset(
+            {
+                "b",
+                "i",
+                "em",
+                "strong",
+                "p",
+                "br",
+                "ul",
+                "ol",
+                "li",
+                "h1",
+                "h2",
+                "h3",
+                "h4",
+                "h5",
+                "h6",
+                "code",
+                "pre",
+                "mark",
+                "blockquote",
+                "span",
+                "div",
+                "a",
+                "table",
+                "thead",
+                "tbody",
+                "tr",
+                "td",
+                "th",
+                "hr",
+            }
         )
-        _DANGEROUS_TAGS = frozenset({"script", "style", "iframe", "object", "embed", "noscript"})
+        dangerous_tags = frozenset({"script", "style", "iframe", "object", "embed", "noscript"})
 
         class _SafeHTMLStripper(HTMLParser):
             def __init__(self) -> None:
@@ -448,45 +501,39 @@ class PreviewService:
                 self._skip_depth: int = 0
 
             def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-                if tag in _DANGEROUS_TAGS:
+                if tag in dangerous_tags:
                     self._skip_depth += 1
                     return
                 if self._skip_depth > 0:
                     return
-                if tag in _SAFE_TAGS:
-                    safe_attrs = [
-                        (k, v) for k, v in attrs
-                        if not k.lower().startswith("on")
-                        and k.lower() not in {"href", "src", "action"}
-                        or (
-                            k.lower() in {"href", "src", "action"}
-                            and v
-                            and not v.lower().lstrip().startswith(
-                                ("javascript:", "data:", "vbscript:")
-                            )
-                        )
-                    ]
+                if tag in safe_tags:
+                    # Escape values so an attribute cannot break out of its
+                    # quotes and inject new attributes / event handlers.
                     attr_str = "".join(
-                        f' {k}="{v}"' for k, v in safe_attrs if v is not None
+                        f' {k}="{html.escape(v, quote=True)}"'
+                        for k, v in attrs
+                        if v is not None and _is_safe_attr(k, v)
                     )
                     self._result.append(f"<{tag}{attr_str}>")
 
             def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-                if tag in _SAFE_TAGS and self._skip_depth == 0:
+                if tag in safe_tags and self._skip_depth == 0:
                     self._result.append(f"<{tag} />")
 
             def handle_endtag(self, tag: str) -> None:
-                if tag in _DANGEROUS_TAGS and self._skip_depth > 0:
+                if tag in dangerous_tags and self._skip_depth > 0:
                     self._skip_depth -= 1
                     return
                 if self._skip_depth > 0:
                     return
-                if tag in _SAFE_TAGS:
+                if tag in safe_tags:
                     self._result.append(f"</{tag}>")
 
             def handle_data(self, data: str) -> None:
                 if self._skip_depth == 0:
-                    self._result.append(data)
+                    # Escape text so entity-encoded markup decoded by the parser
+                    # (convert_charrefs) cannot be re-emitted as live HTML.
+                    self._result.append(html.escape(data))
 
             def text(self) -> str:
                 return "".join(self._result)

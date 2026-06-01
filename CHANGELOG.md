@@ -12,6 +12,12 @@ All notable changes to this project will be documented in this file.
   bundle) components. Missing model bundle produces a warning only, not a startup
   failure.
 
+### Removed
+- Removed the unused legacy QA UI (`frontend/src/features/qa/*` and
+  `frontend/src/api/qa.ts`). It was orphaned dead code — not registered in
+  `routes.tsx`, not imported anywhere, and superseded by Full Document Chat
+  (#492), which provides the same question-answering with citations.
+
 ### Fixed
 - Air-gapped Compose now includes the Meilisearch keyword-search service and the
   seven pipeline workers (`parse`, `translate`, `embed`, `index`, `intelligence`,
