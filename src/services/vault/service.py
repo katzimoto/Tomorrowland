@@ -47,10 +47,18 @@ class VaultExportService:
                 WHERE sp.group_id = :group_id
                   AND d.title IS NOT NULL
                   AND d.title != ''
+                ORDER BY d.title, d.id
             """),
             {"group_id": db_uuid(group_id)},
         ).mappings()
-        return {str(row["title"]).casefold(): str(row["id"]) for row in rows}
+        cache: dict[str, str] = {}
+        for row in rows:
+            key = str(row["title"]).casefold()
+            # On a casefold collision keep the first row; the ORDER BY above
+            # makes that choice deterministic across requests.
+            if key not in cache:
+                cache[key] = str(row["id"])
+        return cache
 
     @staticmethod
     def _resolve_wikilinks(text: str, title_cache: dict[str, str]) -> str:

@@ -403,22 +403,30 @@ class TranslationVersionRepository:
         requested_by_id: UUID | None = None,
         target_language: str = "en",
         request_note: str | None = None,
+        translated_text: str | None = None,
     ) -> dict[str, Any]:
-        """Create a pending translation version and return its record."""
+        """Create a translation version and return its record.
+
+        When *translated_text* is provided the version is created with
+        ``status='available'`` and the translated text stored immediately.
+        Otherwise the version starts as ``'pending'`` for later processing.
+        """
         version_number = self._get_next_version_number(document_id)
         version_id = uuid4()
+        status = "available" if translated_text is not None else "pending"
         row = (
             self._connection.execute(
                 sa.text("""
                     INSERT INTO document_translation_versions (
                         id, document_id, version_number, label, quality, request_type,
-                        status, source_language, target_language, requested_by_id, request_note
+                        status, source_language, target_language, requested_by_id,
+                        request_note, translated_text
                     )
                     VALUES (
                         :id, :document_id, :version_number, :label, :quality, :request_type,
-                        'pending',
+                        :status,
                         (SELECT source_language FROM documents WHERE id = :document_id),
-                        :target_language, :requested_by_id, :request_note
+                        :target_language, :requested_by_id, :request_note, :translated_text
                     )
                     RETURNING id, document_id, version_number, label, source_language,
                               target_language, quality, request_type, status,
@@ -431,9 +439,11 @@ class TranslationVersionRepository:
                     "label": label,
                     "quality": quality,
                     "request_type": request_type,
+                    "status": status,
                     "target_language": target_language,
                     "requested_by_id": (db_uuid(requested_by_id) if requested_by_id else None),
                     "request_note": request_note,
+                    "translated_text": translated_text,
                 },
             )
             .mappings()

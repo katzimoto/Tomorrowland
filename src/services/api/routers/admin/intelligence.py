@@ -31,6 +31,7 @@ def trigger_intelligence(
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, Any]:
     require_admin(user)
+    success = True
     with request.app.state.engine.begin() as connection:
         doc_repo = DocumentRepository(connection)
         doc = doc_repo.get_by_id(document_id)
@@ -54,6 +55,7 @@ def trigger_intelligence(
             )
             worker.process_document(document_id, text)
         except Exception as exc:
+            success = False
             logger.warning(
                 "Intelligence trigger degraded route=/admin/intelligence/%s/trigger "
                 "error_type=%s correlation_id=%s",
@@ -62,7 +64,7 @@ def trigger_intelligence(
                 get_correlation_id(),
             )
 
-        return {"document_id": str(document_id), "triggered": True}
+    return {"document_id": str(document_id), "triggered": success}
 
 
 @router.post("/admin/intelligence/{document_id}/summary/regenerate")
@@ -73,6 +75,7 @@ def regenerate_summary(
 ) -> dict[str, Any]:
     """Regenerate the summary for a document. Admin-only, idempotent."""
     require_admin(user)
+    success = True
     with request.app.state.engine.begin() as connection:
         doc_repo = DocumentRepository(connection)
         doc = doc_repo.get_by_id(document_id)
@@ -102,6 +105,7 @@ def regenerate_summary(
                 get_correlation_id(),
             )
         except Exception as exc:
+            success = False
             logger.warning(
                 "Summary regeneration degraded route=/admin/intelligence/%s/summary/regenerate "
                 "error_type=%s correlation_id=%s",
@@ -110,7 +114,7 @@ def regenerate_summary(
                 get_correlation_id(),
             )
 
-        return {"document_id": str(document_id), "regenerated": True}
+    return {"document_id": str(document_id), "regenerated": success}
 
 
 @router.get("/admin/enrichment-queue")

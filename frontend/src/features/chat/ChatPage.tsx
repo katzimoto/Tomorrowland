@@ -45,7 +45,7 @@ export function ChatPage() {
 
   const [selectedSession, setSelectedSession] = useState<ChatSession | null>(null);
   const [selectedCitation, setSelectedCitation] = useState<DocumentChatCitation | null>(null);
-  const scopeSessionCreated = useRef(false);
+  const lastScopeKey = useRef<string | null>(null);
 
   const createMutation = useMutation({
     mutationFn: (args: { scope_type: ChatScopeType; scope_ids: string[] }) =>
@@ -62,13 +62,18 @@ export function ChatPage() {
     },
   });
 
-  // Auto-create a scoped session when scope params are present in the URL
+  // Auto-create a scoped session when scope params are present in the URL.
+  // Re-runs when URL params change so re-navigating with different scope/ids works.
   useEffect(() => {
-    if (!urlScope || scopeSessionCreated.current) return;
-    scopeSessionCreated.current = true;
+    if (!urlScope) {
+      lastScopeKey.current = null;
+      return;
+    }
+    const key = `${urlScope}:${urlIds.join(",")}`;
+    if (lastScopeKey.current === key) return;
+    lastScopeKey.current = key;
     createMutation.mutate({ scope_type: urlScope, scope_ids: urlIds });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [urlScope, urlIds, createMutation]);
 
   // Clear selected citation when switching sessions
   useEffect(() => {

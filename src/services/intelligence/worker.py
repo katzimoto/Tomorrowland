@@ -158,8 +158,11 @@ class IntelligenceWorker:
         if not tasks:
             return
 
+        # Capture metrics reference before submitting to threads —
+        # ContextVar does not propagate to ThreadPoolExecutor workers.
+        _metrics = current_metrics()
+
         def _run(task: str) -> None:
-            metrics = current_metrics()
             start = time.perf_counter()
             try:
                 if task == "summarize":
@@ -170,15 +173,15 @@ class IntelligenceWorker:
                     self._auto_tag(document_id, content)
                 elif task == "key_points":
                     self._extract_key_points(document_id, content)
-                if metrics is not None:
-                    metrics.intelligence_tasks_total.labels(task, "success").inc()
-                    metrics.intelligence_task_duration_seconds.labels(task).observe(
+                if _metrics is not None:
+                    _metrics.intelligence_tasks_total.labels(task, "success").inc()
+                    _metrics.intelligence_task_duration_seconds.labels(task).observe(
                         time.perf_counter() - start
                     )
             except Exception:
-                if metrics is not None:
-                    metrics.intelligence_tasks_total.labels(task, "failure").inc()
-                    metrics.intelligence_task_duration_seconds.labels(task).observe(
+                if _metrics is not None:
+                    _metrics.intelligence_tasks_total.labels(task, "failure").inc()
+                    _metrics.intelligence_task_duration_seconds.labels(task).observe(
                         time.perf_counter() - start
                     )
                 logger.exception(
@@ -251,20 +254,35 @@ class IntelligenceWorker:
             else:
                 chunks = chunk_content(stripped, SUMMARY_CHUNK_CHARS)
 
-                def _summarize_chunk(chunk: str) -> str:
+                def _summarize_chunk(chunk: str, chunk_index: int) -> tuple[int, str]:
                     chunk_prompt = self._build_prompt(
                         "llm.summarization_prompt", chunk, SUMMARY_CHUNK_CHARS
                     )
                     # Map phase: use utility model (cheap, repeated)
-                    chunk_raw = self._ollama.generate(chunk_prompt, model=self._utility_model)
-                    parsed = normalize_summary_output(chunk_raw)
-                    return parsed["summary"] or chunk
+                    try:
+                        chunk_raw = self._ollama.generate(chunk_prompt, model=self._utility_model)
+                        parsed = normalize_summary_output(chunk_raw)
+                        return chunk_index, parsed["summary"] or chunk
+                    except Exception:
+                        logger.warning(
+                            "Chunk summary failed for chunk_index=%d document_id=%s; "
+                            "using raw chunk text as fallback",
+                            chunk_index,
+                            document_id,
+                        )
+                        return chunk_index, chunk  # Degrade gracefully with raw text
 
-                chunk_summaries: list[str] = []
+                # Collect chunk summaries with their original indices so order
+                # is preserved regardless of completion order.
                 with ThreadPoolExecutor(max_workers=min(len(chunks), 4)) as pool:
-                    futures = [pool.submit(_summarize_chunk, chunk) for chunk in chunks]
+                    futures = [
+                        pool.submit(_summarize_chunk, chunk, idx)
+                        for idx, chunk in enumerate(chunks)
+                    ]
+                    ordered: list[tuple[int, str]] = []
                     for future in as_completed(futures):
-                        chunk_summaries.append(future.result())
+                        ordered.append(future.result())
+                    chunk_summaries = [text for _, text in sorted(ordered, key=lambda x: x[0])]
 
                 reduce_prompt = build_reduce_prompt(chunk_summaries)
                 # Reduce phase: use main model for quality final output

@@ -93,14 +93,8 @@ class TranslateConsumer(BaseConsumer):
                     quality="fast",
                     request_type="ingestion",
                     target_language=target_lang,
+                    translated_text=translated,
                 )
-                created = self._version_repo.find_pending_or_running(document_id, target_lang)
-                if created is not None:
-                    self._version_repo.update_version_status(
-                        UUID(str(created["id"])),
-                        "available",
-                        translated_text=translated,
-                    )
 
         self._job_repo.commit()
         self._publisher.publish_index(

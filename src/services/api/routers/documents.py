@@ -311,11 +311,14 @@ def list_translation_versions(
         # documents were already in the target language or had a failed
         # auto-detect, so showing a translation tab would mislead the user
         # into thinking they are viewing a real translation.
+        # Legacy payloads were always translated to English ("en"), so we
+        # hardcode that here rather than reading d.target_language which
+        # may have been changed since the translation was performed.
         payload_row = (
             connection.execute(
                 sa.text("""
                 SELECT dp.translated_text, dp.updated_at,
-                       d.translation_quality, d.target_language
+                       d.translation_quality
                 FROM document_payloads dp
                 JOIN documents d ON d.id = dp.document_id
                 WHERE dp.document_id = :document_id
@@ -336,7 +339,7 @@ def list_translation_versions(
                     "label": "Ingestion",
                     "quality": payload_row["translation_quality"] or "fast",
                     "status": "available",
-                    "target_language": payload_row["target_language"] or "en",
+                    "target_language": "en",
                     "requested_at": _fmt_dt(payload_row["updated_at"]),
                 }
             ]

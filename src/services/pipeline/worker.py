@@ -37,14 +37,19 @@ def _maybe_delete_connector_temp(path: str) -> None:
     after extraction.  Folder and NiFi staged files live outside the system
     temp directory and are intentionally left untouched.
 
-    Errors are silently suppressed — a failed cleanup is never fatal.
+    Errors are logged but never fatal — a failed cleanup is not worth
+    interrupting the pipeline for.
     """
     try:
         p = Path(path)
         if p.is_relative_to(Path(tempfile.gettempdir())):
             p.unlink(missing_ok=True)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "Failed to delete connector temp file path=%s error_type=%s",
+            path,
+            exc.__class__.__name__,
+        )
 
 
 class ProcessResult(NamedTuple):
@@ -188,7 +193,9 @@ class PipelineWorker:
                 "auto-detect which may fail — configure source_language on the ingestion source",
                 document_id,
             )
-        translated = self._translator.translate(text, source_lang=doc.source_language)
+        translated = self._translator.translate(
+            text, source_lang=doc.source_language, target_lang=doc.target_language or "en"
+        )
         # "fast" only when translation produced a non-empty result that differs from the input.
         # Empty or identical output means LibreTranslate returned unchanged / failed auto-detect.
         translation_quality: str | None = "fast" if (translated and translated != text) else None

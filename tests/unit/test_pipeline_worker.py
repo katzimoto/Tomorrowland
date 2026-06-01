@@ -108,7 +108,9 @@ class _FakeTranslator:
     def __init__(self, translated: str | None = None) -> None:
         self._translated = translated
 
-    def translate(self, text: str, *, source_lang: str | None = None) -> str:
+    def translate(
+        self, text: str, *, source_lang: str | None = None, target_lang: str = "en"
+    ) -> str:
         return self._translated if self._translated is not None else text
 
 

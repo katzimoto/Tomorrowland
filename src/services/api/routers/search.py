@@ -71,12 +71,15 @@ def search(
                 ),
                 user=user,
             )
-            logger.info(f"""Using Meilisearch provider results for search, \
-                    query is {request.query} results are {meili_results.results}""")
+            logger.info(
+                "Using Meilisearch provider results for search, query=%s results=%s",
+                request.query,
+                meili_results.results,
+            )
             http_request.app.state.metrics.search_backend_duration_seconds.labels(
                 "meilisearch", "search"
             ).observe(time.perf_counter() - backend_start)
-            logger.debug(f"The Meilisearch provider returned {meili_results.results}")
+            logger.debug("The Meilisearch provider returned results=%s", meili_results.results)
             bm25_results = meili_results.results
             meili_facets = meili_results.facets
         except Exception:
@@ -102,7 +105,7 @@ def search(
         vector_results = qdrant_client.search(
             vector=query_vector, group_ids=search_group_ids, limit=50, allow_all=is_admin
         )
-        logger.debug(f"The word vector returned {vector_results}")
+        logger.debug("The word vector returned results=%s", vector_results)
         http_request.app.state.metrics.search_backend_duration_seconds.labels(
             "qdrant", "search"
         ).observe(time.perf_counter() - backend_start)
@@ -113,7 +116,7 @@ def search(
             exc.__class__.__name__,
             get_correlation_id(),
         )
-    http_request.app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
+        http_request.app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
 
     with http_request.app.state.engine.begin() as connection:
         _weight_rows = connection.execute(
@@ -170,7 +173,7 @@ def search(
     start = (request.page - 1) * request.page_size
     end = start + request.page_size
     page = merged[start:end]
-    logger.info(f"The search result are {page}")
+    logger.info("The search results are page=%s", page)
 
     # Resolve family current doc IDs for non-latest docs in this page (small set, conditional).
     family_current: dict[UUID, UUID] = {}
@@ -256,7 +259,13 @@ def search(
 
 
 def _map_filters(raw: dict[str, Any]) -> DocumentSearchFilters:
-    """Convert the generic frontend filters dict to DocumentSearchFilters."""
+    """Convert the generic frontend filters dict to DocumentSearchFilters.
+
+    Note: Meilisearch's filter model supports ``created_after`` and
+    ``updated_after`` but has no ``created_before`` field. Date-range
+    upper bounds (``date_to``) are applied client-side; we only map
+    ``date_from`` as the lower-bound filter here.
+    """
     f = DocumentSearchFilters()
 
     if isinstance(raw.get("source"), list):
@@ -271,10 +280,7 @@ def _map_filters(raw: dict[str, Any]) -> DocumentSearchFilters:
         f.language = [raw["language"]]
     if isinstance(raw.get("date_from"), str):
         f.created_after = raw["date_from"]
-    if isinstance(raw.get("date_to"), str):
-        f.updated_after = None  # no "before" field in Meili model; applied client-side if needed
-        f.created_after = raw.get("date_from") or None
-        f.updated_after = raw.get("date_to") or None
+    # date_to is handled client-side — no created_before field in Meilisearch
 
     return f
 

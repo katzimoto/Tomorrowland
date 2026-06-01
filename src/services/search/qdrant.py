@@ -320,6 +320,35 @@ class QdrantSearchClient:
         )
         return results[offset : offset + limit]
 
+    def count_chunks_by_document(
+        self,
+        document_id: str,
+        group_ids: list[str],
+        allow_all: bool = False,
+    ) -> int:
+        """Return total count of chunks for *document_id* matching group filter.
+
+        Uses Qdrant's ``count`` API for efficient total without fetching points.
+        """
+        if not group_ids and not allow_all:
+            return 0
+
+        if not self._client.collection_exists(collection_name=self._collection_name):
+            return 0
+
+        must_conditions: list[Any] = [
+            FieldCondition(key="document_id", match=MatchValue(value=document_id)),
+        ]
+        if group_ids:
+            must_conditions.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
+        count_filter = Filter(must=must_conditions)
+
+        count_result = self._client.count(
+            collection_name=self._collection_name,
+            count_filter=count_filter,
+        )
+        return count_result.count
+
     def delete_by_doc_id(self, document_id: str) -> None:
         """Remove all chunks belonging to *document_id*."""
         if not self._client.collection_exists(collection_name=self._collection_name):

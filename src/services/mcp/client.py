@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import weakref
 from typing import Any, cast
 
 import httpx
@@ -67,6 +68,7 @@ class TomorrowlandClient:
         self._api_key = api_key
         self._timeout = timeout
         self._client = httpx.Client(timeout=timeout)
+        weakref.finalize(self, self._client.close)
 
     # ------------------------------------------------------------------
     # Internal helpers

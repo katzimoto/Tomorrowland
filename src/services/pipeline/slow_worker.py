@@ -79,6 +79,7 @@ class SlowWorker:
             # only the version is marked failed.
             if self._version_repo is None:
                 self._doc_repo.update_status(document_id, "failed")
+            raise
 
     def _run(self, document_id: UUID, content_text: str = "") -> None:
         doc = self._doc_repo.get_by_id(document_id)
