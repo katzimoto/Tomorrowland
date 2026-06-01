@@ -183,6 +183,8 @@ class PipelineJobRepository:
 
         lock_clause = "FOR UPDATE SKIP LOCKED" if not _is_sqlite(self._connection) else ""
 
+        # Safe: `type_filter` and `lock_clause` are either fixed strings
+        # or contain only hardcoded parameter placeholders.
         stmt = sa.text(f"""
             SELECT id, document_id, source_id, job_type, priority, attempts,
                    max_attempts, stage, last_error, run_after
@@ -442,6 +444,7 @@ class PipelineJobRepository:
             params["error_prefix"] = error_prefix + "%"
 
         where = " AND ".join(filters)
+        # Safe: `filters` list contains only hardcoded column-name strings.
         result = self._connection.execute(
             sa.text(f"""
                 UPDATE pipeline_jobs
@@ -500,6 +503,7 @@ class PipelineJobRepository:
 
         where_clause = ("WHERE " + " AND ".join(filters)) if filters else ""
 
+        # Safe: `filters` list contains only hardcoded column-name strings.
         total = self._connection.execute(
             sa.text(f"SELECT COUNT(*) FROM pipeline_jobs pj {where_clause}"),
             {k: v for k, v in params.items() if k not in ("limit", "offset")},
@@ -515,6 +519,7 @@ class PipelineJobRepository:
         ).fetchall()
         summary = {str(row[0]): int(row[1]) for row in summary_rows}
 
+        # Safe: `filters` list contains only hardcoded column-name strings.
         rows = (
             self._connection.execute(
                 sa.text(f"""

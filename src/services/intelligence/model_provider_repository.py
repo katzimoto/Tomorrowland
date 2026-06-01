@@ -154,6 +154,8 @@ class ModelProviderRepository:
             return existing
         update_data["updated_at"] = _now()
         update_data["id"] = db_uuid(provider_id)
+        # Safe: `sets` keys come from a Pydantic model's field names
+        # (not user input).  Values go through bound parameters.
         sets = ", ".join(f"{k} = :{k}" for k in update_data)
         self._connection.execute(
             sa.text(f"UPDATE model_providers SET {sets} WHERE id = :id"),
@@ -272,6 +274,7 @@ class ModelProviderRepository:
         if "capabilities" in update_data:
             cap = update_data["capabilities"]
             update_data["capabilities"] = json.dumps(cap) if cap else None
+        # Safe: `sets` keys come from a Pydantic model's field names.
         sets = ", ".join(f"{k} = :{k}" for k in update_data)
         self._connection.execute(
             sa.text(f"UPDATE model_descriptors SET {sets} WHERE id = :id"),
@@ -369,6 +372,7 @@ class ModelProviderRepository:
         for key in ("provider_id", "model_descriptor_id"):
             if key in update_data and update_data[key] is not None:
                 update_data[key] = db_uuid(update_data[key])
+        # Safe: `sets` keys come from a Pydantic model's field names.
         sets = ", ".join(f"{k} = :{k}" for k in update_data)
         self._connection.execute(
             sa.text(f"UPDATE model_task_defaults SET {sets} WHERE task_type = :task_type"),

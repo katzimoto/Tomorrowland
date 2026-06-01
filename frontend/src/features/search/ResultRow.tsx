@@ -1,15 +1,17 @@
 import { FileText, Image, Archive, Mail, File, Info, Eye } from "lucide-react";
 import { Badge } from "@/components/primitives/Badge";
 import { VersionBadge } from "@/features/documents/VersionBadge";
+import DOMPurify from "dompurify";
 import type { SearchResult } from "@/api/search";
 import styles from "./ResultRow.module.css";
 
 /**
- * Strip all HTML tags except <mark> and </mark> to safely render
- * Meilisearch highlight snippets with dangerouslySetInnerHTML.
+ * Safely render Meilisearch highlight snippets.
+ * DOMPurify strips all non-<mark> tags; the regex pre-strip is kept as
+ * defence-in-depth in case Meilisearch injects unexpected markup.
  */
 function highlightHtml(raw: string): string {
-  return raw.replace(/<(?!\/?mark\b)[^>]*>/gi, "");
+  return DOMPurify.sanitize(raw, { ALLOWED_TAGS: ["mark"] });
 }
 
 function MimeIcon({ mimeType }: { mimeType: string }) {

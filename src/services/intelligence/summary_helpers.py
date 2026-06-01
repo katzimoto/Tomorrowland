@@ -86,7 +86,7 @@ def parse_summary_json(raw: str) -> dict[str, Any] | None:
         if isinstance(parsed, dict):
             return parsed
     except json.JSONDecodeError:
-        pass
+        logger.debug("Failed to parse summary JSON output")
     return None
 
 

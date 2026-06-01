@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from services.extraction.base import ExtractionResult
+
+logger = logging.getLogger(__name__)
 
 
 class GenericExtractor:
@@ -22,7 +25,7 @@ class GenericExtractor:
         try:
             return ExtractionResult(text=path.read_text(encoding="utf-8"))
         except UnicodeDecodeError:
-            pass
+            logger.debug("File is not valid UTF-8, trying charset detection: %s", path)
         except OSError:
             return ExtractionResult(text="")
 
@@ -33,7 +36,7 @@ class GenericExtractor:
             if result is not None:
                 return ExtractionResult(text=str(result))
         except Exception:
-            pass
+            logger.debug("Charset detection failed for generic file: %s", path)
 
         # Do NOT fall back to latin-1 here — that would decode any binary
         # file and return garbage to the indexing pipeline.

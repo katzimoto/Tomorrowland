@@ -195,6 +195,7 @@ class AnnotationRepository:
 
         fields.append("updated_at = CURRENT_TIMESTAMP")
 
+        # Safe: `fields` list contains only hardcoded column-name strings.
         self._connection.execute(
             sa.text(f"""
                 UPDATE annotations

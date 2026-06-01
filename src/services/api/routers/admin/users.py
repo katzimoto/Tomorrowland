@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -22,6 +23,8 @@ from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.permissions.enforcer import require_admin
 from shared.db import db_uuid, to_uuid
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["admin"])
 
@@ -195,6 +198,9 @@ def admin_update_user(
         if not updates:
             return _format_user_row(row, connection)
 
+        # Safe: `updates` list contains only hardcoded column-name strings
+        # (e.g. "display_name = :display_name").  User values go through
+        # `params` via bound parameters — no SQL injection surface.
         connection.execute(
             sa.text(f"UPDATE users SET {', '.join(updates)} WHERE id = :id"),
             params,
@@ -420,7 +426,11 @@ def admin_add_user_to_group(
                     {"user_id": db_uuid(user_id), "group_id": db_uuid(group_id)},
                 )
         except sa.exc.IntegrityError:
-            pass
+            logger.warning(
+                "Ignoring duplicate user-to-group membership: user_id=%s group_id=%s",
+                str(user_id),
+                str(group_id),
+            )
         _audit_log(
             connection,
             user.sub,
@@ -527,7 +537,11 @@ def admin_add_child_group(
                     {"parent": db_uuid(group_id), "child": db_uuid(child_id)},
                 )
         except sa.exc.IntegrityError:
-            pass
+            logger.warning(
+                "Ignoring duplicate child-group membership: parent=%s child=%s",
+                str(group_id),
+                str(child_id),
+            )
         _audit_log(
             connection,
             user.sub,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import tarfile
 import zipfile
@@ -15,6 +16,8 @@ import sqlalchemy as sa
 from services.extraction.registry import ExtractorRegistry
 from services.pipeline.jobs import PipelineJobRepository
 from shared.db import db_uuid, to_uuid
+
+logger = logging.getLogger(__name__)
 
 SNIPPET_LENGTH = 2000
 
@@ -417,7 +420,7 @@ class PreviewService:
                     names = [m.name for m in tf.getmembers() if m.isfile()]
                     return "\n".join(names[:50])
         except Exception:
-            pass
+            logger.debug("Failed to read archive file listing: %s", path)
         return ""
 
     @staticmethod

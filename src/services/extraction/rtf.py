@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from striprtf.striprtf import rtf_to_text
 
 from services.extraction.base import ExtractionResult
+
+logger = logging.getLogger(__name__)
 
 
 class RtfExtractor:
@@ -22,7 +25,7 @@ class RtfExtractor:
         try:
             raw = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
-            pass
+            logger.debug("RTF file is not valid UTF-8, falling back to latin-1: %s", path)
         except OSError:
             return ExtractionResult(text="")
 

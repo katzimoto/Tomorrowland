@@ -166,6 +166,8 @@ class SyncRunRepository:
             params["error_summary"] = updates.error_summary
 
         set_clause = ", ".join(fields)
+        # Safe: `fields` list contains only hardcoded column-name strings
+        # (e.g. "status = :status").  User values go through `params`.
         self._connection.execute(
             sa.text(f"UPDATE sync_runs SET {set_clause} WHERE id = :id"),
             params,
@@ -509,6 +511,7 @@ def update_source_health(
 
     if updates:
         set_clause = ", ".join(updates)
+        # Safe: `updates` list contains only hardcoded column-name strings.
         connection.execute(
             sa.text(f"UPDATE ingestion_sources SET {set_clause} WHERE id = :id"),
             params,

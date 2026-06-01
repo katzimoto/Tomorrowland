@@ -127,6 +127,9 @@ class LdapGroupMappingRepository:
         placeholders = ", ".join(f":dn{i}" for i in range(len(ldap_group_dns)))
         params: dict[str, object] = {f"dn{i}": dn for i, dn in enumerate(ldap_group_dns)}
 
+        # Safe: `placeholders` are generated parameter names (:dn0, :dn1, ...)
+        # from a fixed-length list — no user-controlled SQL fragments.
+
         rows = self._connection.execute(
             sa.text(f"""
                 SELECT target_group_id

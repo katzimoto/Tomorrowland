@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from html.parser import HTMLParser
 from pathlib import Path
 
 from services.extraction.base import ExtractionResult
+
+logger = logging.getLogger(__name__)
 
 _SKIP_TAGS = {"script", "style", "nav", "footer"}
 
@@ -61,7 +64,7 @@ class HtmlExtractor:
         try:
             raw = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
-            pass
+            logger.debug("HTML file is not valid UTF-8, falling back to latin-1: %s", path)
         except OSError:
             return ExtractionResult(text="")
 
