@@ -2,11 +2,28 @@
 
 ## Release identity
 
-- Version/tag: `1.0-rc2`.
-- Commit SHA: `5685bcc58775e65052bce03c877c1b51855a22a3`.
-- Artifacts: small platform archive, split Docker image parts, and optional Ollama model bundle from the release workflow or release-manager build.
+- Version/tag: `1.0-rc5`.
+- Commit SHA: set to the tagged commit when `v1.0-rc5` is cut.
+- Artifacts: small platform archive and split Docker image parts. The Ollama
+  model bundle is a separate, optional asset and is NOT built or attached
+  automatically on a release tag; enable it explicitly with the
+  `build_ollama_bundle` workflow input only when a bundle is wanted.
 - Validation: #91 accepted as **Ready with limitations**.
 - Branding: technical identifiers still use `tomorrowland`; Tomorrowland visible branding/logo remains optional unless #103/#104 are merged before tagging.
+
+## Changes since rc4
+
+- Air-gapped Compose now ships the Meilisearch keyword-search service and the
+  seven pipeline workers (`parse`, `translate`, `embed`, `index`,
+  `intelligence`, `alert`, `enrich`) with full `MEILISEARCH_*`/`RABBITMQ_*`
+  wiring. The stack ingests and searches documents out of the box; the embed and
+  intelligence stages stay degraded until an optional model bundle is loaded.
+- RabbitMQ AMQP/management ports are bound to `127.0.0.1` like every other
+  service.
+- A release tag no longer auto-builds the Ollama model bundle; it is opt-in.
+- Packaged scripts and docs updated: stale `Elasticsearch` references corrected
+  to `Meilisearch`, and the deployment/production-compose docs no longer claim
+  the pipeline workers are absent.
 
 ## Included capabilities
 
@@ -134,7 +151,7 @@ Carry-forward validation facts:
 - Direct non-English translation pairs may pivot through English, which can reduce translation quality.
 - Translation worker architecture remains a follow-up area tracked by #110.
 - NTFS ACL sync for SMB is deferred; SMB access uses source-level permissions.
-- Elasticsearch/Qdrant backup/restore may remain operator-guided where full snapshots are not automated.
+- Meilisearch/Qdrant backup/restore may remain operator-guided where full snapshots are not automated.
 - Live NiFi/Kafka validation depends on the operator environment.
 - Native Hebrew copy review is recommended if not already completed before tagging.
 - Optional open polish PRs are not part of the RC unless deliberately merged before tagging.

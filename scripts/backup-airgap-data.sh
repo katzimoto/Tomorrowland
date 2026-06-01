@@ -34,7 +34,7 @@ Backs up:
   - current image references, Compose config, service state, Docker metadata
   - PostgreSQL dump from the running postgres Compose service
   - files_data named volume archive
-  - Elasticsearch/Qdrant/monitoring restore strategy notes
+  - Meilisearch/Qdrant/monitoring restore strategy notes
 
 Options:
   --output-dir DIR     Parent backup directory (default: ./backups).
@@ -192,7 +192,7 @@ cat > "$backup_dir/notes/monitoring-backup-guidance.md" <<'NOTES'
 
 If a monitoring Compose profile is present in this deployment, back up Prometheus
 and Grafana named volumes or bind-mounted data directories with the same offline
-storage snapshot process used for Elasticsearch and Qdrant. Do not place Grafana
+storage snapshot process used for Meilisearch and Qdrant. Do not place Grafana
 admin passwords, API tokens, or private keys in backup notes or manifests.
 NOTES
 

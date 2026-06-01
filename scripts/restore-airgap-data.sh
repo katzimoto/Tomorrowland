@@ -82,7 +82,7 @@ command -v docker >/dev/null 2>&1 || fail "docker is required"
 docker compose version >/dev/null 2>&1 || fail "Docker Compose plugin is required"
 
 log "WARNING: this restore will overwrite .env, restore backed-up Compose files, replace PostgreSQL contents, and replace files volume contents."
-log "WARNING: Elasticsearch and Qdrant restore is guided in backup notes and is not automated by this script."
+log "WARNING: Meilisearch and Qdrant restore is guided in backup notes and is not automated by this script."
 log "Safety invariant: this script will not delete Docker volumes and will not run docker compose down -v."
 
 cp "$backup_dir/config/.env" .env

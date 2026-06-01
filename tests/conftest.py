@@ -19,6 +19,22 @@ os.environ.setdefault("RABBITMQ_ENABLED", "false")
 _USE_POSTGRES = os.environ.get("PGTEST", "").lower() in ("1", "true", "yes")
 
 
+@pytest.fixture(autouse=True)
+def _writable_files_root(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Point FILES_ROOT at a writable, per-test directory.
+
+    The ``Settings.files_root`` default is ``/data`` (the production container
+    mount), which is not writable in CI or local test runs. Connector tests that
+    move ingested files into ``<files_root>/originals`` would otherwise fail with
+    zero documents enqueued. We use ``tmp_path`` itself (not a subdir) so that
+    folder-source fixtures created under ``tmp_path`` are seen as already inside
+    ``files_root`` — mirroring production, where folder sources live under the
+    files mount and are not moved. Tests that pass ``files_root=`` explicitly
+    still win.
+    """
+    monkeypatch.setenv("FILES_ROOT", str(tmp_path))
+
+
 @pytest.fixture()
 def migrated_engine(tmp_path) -> Iterator[Engine]:  # type: ignore[no-untyped-def]
     if _USE_POSTGRES:

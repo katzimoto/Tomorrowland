@@ -117,7 +117,11 @@ jobs:
   build-ollama-model-bundle:
     name: Build default Ollama model bundle
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.build_ollama_bundle
+    # Opt-in only. The Ollama model bundle is never built automatically on a tag
+    # push; air-gapped releases ship the platform archive + split image parts and
+    # treat the model bundle as a separate, optional asset. Enable it explicitly
+    # with the build_ollama_bundle workflow_dispatch input when a bundle is wanted.
+    if: inputs.build_ollama_bundle
     steps:
       - uses: actions/checkout@v6
 

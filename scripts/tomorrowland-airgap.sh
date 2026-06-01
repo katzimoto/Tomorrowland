@@ -83,7 +83,7 @@ Options:
                          platform archive after extraction).
 
 Never run docker compose down -v. The -v flag deletes named volumes including
-PostgreSQL, Elasticsearch, Qdrant, files, and Ollama data.
+PostgreSQL, Meilisearch, Qdrant, files, and Ollama data.
 USAGE
 }
 

@@ -148,7 +148,7 @@ Install on the air-gapped host before extracting the artifact:
 - Docker Engine 24 or newer.
 - Docker Compose plugin 2.20 or newer.
 - Enough local disk for the image parts, extracted Docker images, named
-  volumes, Elasticsearch/Qdrant indexes, uploaded files, translation cache,
+  volumes, Meilisearch/Qdrant indexes, uploaded files, translation cache,
   and Ollama model cache.
 - Host firewall rules that expose only the intended frontend port. The
   air-gapped Compose file binds the direct API port and infrastructure ports
@@ -252,6 +252,14 @@ To load images separately after validation:
 
 This starts the stack with no build and no internet pull using the air-gapped
 Compose file. It requires `.env` to exist and never overwrites it.
+
+The stack includes the API, frontend, MCP adapter, PostgreSQL, Meilisearch
+(keyword search), Qdrant (vector search), Redpanda, RabbitMQ, LibreTranslate,
+Ollama, and the seven pipeline workers (`parse`, `translate`, `embed`, `index`,
+`intelligence`, `alert`, `enrich`). The workers process uploaded and synced
+documents. The `parse`, `translate`, and `index` stages keep keyword search
+working without any local model; the `embed` and `intelligence` stages stay
+degraded until an optional Ollama model bundle is loaded.
 
 Check service state and logs:
 
@@ -412,7 +420,7 @@ rollback but are not automatically deleted.
 If the embedding provider is unavailable or no embedding model is configured:
 
 - **Semantic search mode** returns zero results.
-- **Keyword and hybrid search** continue to work via Elasticsearch.
+- **Keyword and hybrid search** continue to work via Meilisearch.
 - **RAG retrieval** is degraded (no vector-based similarity).
 - **Ingestion** still indexes documents for keyword search; vector indexing is
   skipped gracefully.
@@ -693,7 +701,7 @@ backups when possible. For upgrades, prefer `scripts/backup-airgap-data.sh` and
 `docs/air-gapped-upgrade.md` inside an extracted release artifact.
 
 Restore all consistency-sensitive volumes from the same backup set. Do not mix a
-PostgreSQL backup from one point in time with Elasticsearch or Qdrant indexes
+PostgreSQL backup from one point in time with Meilisearch or Qdrant indexes
 from another unless you are prepared to rebuild indexes.
 
 ## Legacy neverland-* asset names
@@ -777,9 +785,8 @@ or marked unavailable by the application.
   embedded in the platform archive. Model bundles are optional add-on artifacts. Operators may omit or replace the
   default `mistral` bundle; local Q&A/RAG features are degraded until a matching
   model is loaded into `ollama_data`.
-- Long-running worker containers are not part of the current Compose runtime.
 - NiFi event ingestion requires operator-provided drain invocation; no
-  long-running worker container or live NiFi/Kafka CI validation is included.
+  dedicated NiFi drain worker or live NiFi/Kafka CI validation is included.
 - Atlassian-native permission synchronization is not present; use Tomorrowland
   source grants and groups.
 - Direct non-English translation pairs are not installed; non-English-to-non-English

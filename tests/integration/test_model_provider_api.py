@@ -275,7 +275,9 @@ class TestCredentialHandling:
         assert resp.status_code == 201
         data = resp.json()
         assert data["credential_set"] is True
-        assert data["api_key_ref"] is not None
+        # api_key_ref (the internal credential reference) is intentionally never
+        # exposed in the API response — only the credential_set flag is.
+        assert data["api_key_ref"] is None
         assert "credential_value" not in data
         assert "sk-test123" not in str(data)
 

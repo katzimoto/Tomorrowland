@@ -12,6 +12,26 @@ All notable changes to this project will be documented in this file.
   bundle) components. Missing model bundle produces a warning only, not a startup
   failure.
 
+### Fixed
+- Air-gapped Compose now includes the Meilisearch keyword-search service and the
+  seven pipeline workers (`parse`, `translate`, `embed`, `index`, `intelligence`,
+  `alert`, `enrich`), plus the `MEILISEARCH_*` and `RABBITMQ_*` environment wiring
+  they require. Previously `docker-compose.airgap.yml` shipped without them, so an
+  air-gapped deployment started but could not ingest or search documents. Keyword
+  search and ingestion now work out of the box without any local model; the embed
+  and intelligence stages stay degraded until an optional Ollama model bundle is
+  loaded.
+- Bound RabbitMQ's AMQP (`5672`) and management (`15672`) ports to `127.0.0.1` in
+  the air-gapped Compose file, matching every other service and preventing
+  external exposure of the broker and its management UI with default credentials.
+- Replaced stale `Elasticsearch` references with `Meilisearch` across the packaged
+  air-gapped scripts and operations docs (search backend migrated in #545), and
+  corrected the "workers not included" notes in the deployment and
+  production-compose docs.
+- `validate-airgap-artifact.sh` now asserts the Meilisearch service and all seven
+  pipeline workers are present in the air-gapped Compose file, guarding against
+  this regression.
+
 ### Added
 - Issue #550: Harden Jira service-account sync with rich issue metadata, optional
   project filters, JQL override, streaming attachments, MIME filters, retry/backoff,

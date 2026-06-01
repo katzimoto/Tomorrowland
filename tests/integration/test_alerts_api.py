@@ -13,6 +13,7 @@ from services.api.main import create_app
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.documents.repository import DocumentRepository
+from services.pipeline.jobs import PipelineJobRepository
 from shared.config import Settings
 
 TEST_JWT_SECRET = "x" * 32
@@ -75,6 +76,13 @@ def _create_doc(engine: Engine, group_name: str, path: str) -> UUID:
             path=path,
         )
         assert doc is not None
+        # Alert matching reads extracted text from document_payloads, not the raw
+        # file, so seed the payload with the file's content.
+        try:
+            content_text = Path(path).read_text(encoding="utf-8")
+        except OSError:
+            content_text = ""
+        PipelineJobRepository(connection).update_content_text(doc.id, content_text)
         return doc.id
 
 
