@@ -143,7 +143,10 @@ def admin_create_profile(
         )
 
         profile = repo.get_profile(profile_id)
-        assert profile is not None
+        if profile is None:
+            raise RuntimeError(
+                f"SourceProfile not found after create: profile_id={profile_id}"
+            )
         return profile
 
 
@@ -220,7 +223,10 @@ def admin_update_profile(
         )
 
         updated = repo.get_profile(profile_id)
-        assert updated is not None
+        if updated is None:
+            raise RuntimeError(
+                f"SourceProfile not found after update: profile_id={profile_id}"
+            )
         return updated
 
 
@@ -260,7 +266,10 @@ def admin_activate_profile(
         )
 
         updated = repo.get_profile(profile_id)
-        assert updated is not None
+        if updated is None:
+            raise RuntimeError(
+                f"SourceProfile not found after activate: profile_id={profile_id}"
+            )
         return updated
 
 
@@ -298,7 +307,10 @@ def admin_deprecate_profile(
         )
 
         updated = repo.get_profile(profile_id)
-        assert updated is not None
+        if updated is None:
+            raise RuntimeError(
+                f"SourceProfile not found after deprecate: profile_id={profile_id}"
+            )
         return updated
 
 

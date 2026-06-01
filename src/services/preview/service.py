@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import tarfile
 import zipfile
 from pathlib import Path
@@ -425,36 +424,76 @@ class PreviewService:
 
     @staticmethod
     def _sanitize_html(raw: str) -> str:
-        """Strip dangerous tags and attributes from HTML."""
-        # Remove script and style tags with content
-        raw = re.sub(r"<script[^>]*>.*?</script>", "", raw, flags=re.DOTALL | re.IGNORECASE)
-        raw = re.sub(r"<style[^>]*>.*?</style>", "", raw, flags=re.DOTALL | re.IGNORECASE)
-        # Remove event handlers
-        raw = re.sub(r"\s*on\w+\s*=\s*['\"][^'\"]*['\"]", "", raw, flags=re.IGNORECASE)
-        raw = re.sub(r"\s*on\w+\s*=\s*[^\s>]+", "", raw, flags=re.IGNORECASE)
-        # Remove javascript: URLs
-        raw = re.sub(
-            r"\s*(href|src|action)\s*=\s*['\"]javascript:[^'\"]*['\"]",
-            r' \1=""',
-            raw,
-            flags=re.IGNORECASE,
+        """Extract visible text from HTML using a whitelist parser.
+
+        Uses html.parser to safely extract text content while stripping
+        dangerous tags (script, style, iframe, object, embed) and all
+        event-handler attributes.  Safe inline tags like <b>, <i>, <em>,
+        <strong>, <mark>, <code> are preserved for preview formatting.
+        """
+        from html.parser import HTMLParser
+
+        _SAFE_TAGS = frozenset(
+            {"b", "i", "em", "strong", "p", "br", "ul", "ol", "li",
+             "h1", "h2", "h3", "h4", "h5", "h6", "code", "pre", "mark",
+             "blockquote", "span", "div", "a", "table", "thead", "tbody",
+             "tr", "td", "th", "hr"}
         )
-        # Remove data: URLs
-        raw = re.sub(
-            r"\s*(href|src|action)\s*=\s*['\"]data:[^'\"]*['\"]",
-            r' \1=""',
-            raw,
-            flags=re.IGNORECASE,
-        )
-        # Remove iframe, object, embed tags
-        raw = re.sub(
-            r"<(iframe|object|embed)[^>]*>.*?</\1>",
-            "",
-            raw,
-            flags=re.DOTALL | re.IGNORECASE,
-        )
-        raw = re.sub(r"<(iframe|object|embed)[^/]*/?>", "", raw, flags=re.IGNORECASE)
-        return raw.strip()
+        _DANGEROUS_TAGS = frozenset({"script", "style", "iframe", "object", "embed", "noscript"})
+
+        class _SafeHTMLStripper(HTMLParser):
+            def __init__(self) -> None:
+                super().__init__()
+                self._result: list[str] = []
+                self._skip_depth: int = 0
+
+            def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                if tag in _DANGEROUS_TAGS:
+                    self._skip_depth += 1
+                    return
+                if self._skip_depth > 0:
+                    return
+                if tag in _SAFE_TAGS:
+                    safe_attrs = [
+                        (k, v) for k, v in attrs
+                        if not k.lower().startswith("on")
+                        and k.lower() not in {"href", "src", "action"}
+                        or (
+                            k.lower() in {"href", "src", "action"}
+                            and v
+                            and not v.lower().lstrip().startswith(
+                                ("javascript:", "data:", "vbscript:")
+                            )
+                        )
+                    ]
+                    attr_str = "".join(
+                        f' {k}="{v}"' for k, v in safe_attrs if v is not None
+                    )
+                    self._result.append(f"<{tag}{attr_str}>")
+
+            def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                if tag in _SAFE_TAGS and self._skip_depth == 0:
+                    self._result.append(f"<{tag} />")
+
+            def handle_endtag(self, tag: str) -> None:
+                if tag in _DANGEROUS_TAGS and self._skip_depth > 0:
+                    self._skip_depth -= 1
+                    return
+                if self._skip_depth > 0:
+                    return
+                if tag in _SAFE_TAGS:
+                    self._result.append(f"</{tag}>")
+
+            def handle_data(self, data: str) -> None:
+                if self._skip_depth == 0:
+                    self._result.append(data)
+
+            def text(self) -> str:
+                return "".join(self._result)
+
+        parser = _SafeHTMLStripper()
+        parser.feed(raw)
+        return parser.text().strip()
 
     def get_user_activity(
         self,

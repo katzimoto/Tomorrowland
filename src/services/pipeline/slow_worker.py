@@ -96,7 +96,8 @@ class SlowWorker:
 
     def _run_versioned(self, doc: Any, content_text: str = "") -> None:
         """Process the oldest pending version for a document."""
-        assert self._version_repo is not None
+        if self._version_repo is None:
+            raise RuntimeError("version_repo required for _run_versioned")
         pending = self._version_repo.get_pending_versions(doc.id)
         if not pending:
             # Fallback to legacy behavior if no pending versions exist
