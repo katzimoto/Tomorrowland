@@ -290,6 +290,9 @@ def admin_update_source(
             updates.append("schedule = :schedule")
             params["schedule"] = body.schedule
         if updates:
+            # Safe: `updates` list contains only hardcoded column-name strings
+            # (e.g. "name = :name").  User values go through `params` via
+            # bound parameters — no SQL injection surface.
             connection.execute(
                 sa.text(f"UPDATE ingestion_sources SET {', '.join(updates)} WHERE id = :id"),
                 params,

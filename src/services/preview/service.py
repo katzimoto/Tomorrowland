@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import html
 import json
-import re
+import logging
 import tarfile
 import zipfile
 from pathlib import Path
@@ -16,7 +17,34 @@ from services.extraction.registry import ExtractorRegistry
 from services.pipeline.jobs import PipelineJobRepository
 from shared.db import db_uuid, to_uuid
 
+logger = logging.getLogger(__name__)
+
 SNIPPET_LENGTH = 2000
+
+# Attributes that carry a URL and therefore need scheme validation.
+_URL_ATTRS = frozenset({"href", "src", "action"})
+
+
+def _is_safe_attr(name: str, value: str | None) -> bool:
+    """Whitelist gate for an HTML attribute kept by the preview sanitizer.
+
+    Drops event handlers (``on*``) and any attribute whose name is not a simple
+    token (so a malformed name cannot break out of the tag). For URL-bearing
+    attributes it rejects ``javascript:``/``data:``/``vbscript:`` schemes,
+    collapsing embedded whitespace first so e.g. ``java\\tscript:`` cannot slip
+    through. Values are escaped separately at render time.
+    """
+    key = name.lower()
+    if key.startswith("on"):
+        return False
+    if not key or not all(c.isalnum() or c == "-" for c in key):
+        return False
+    if key in _URL_ATTRS:
+        if not value:
+            return False
+        scheme = "".join(value.split()).lower()
+        return not scheme.startswith(("javascript:", "data:", "vbscript:"))
+    return True
 
 
 def _parse_metadata(value: Any) -> dict[str, Any]:
@@ -417,41 +445,102 @@ class PreviewService:
                     names = [m.name for m in tf.getmembers() if m.isfile()]
                     return "\n".join(names[:50])
         except Exception:
-            pass
+            logger.debug("Failed to read archive file listing: %s", path)
         return ""
 
     @staticmethod
     def _sanitize_html(raw: str) -> str:
-        """Strip dangerous tags and attributes from HTML."""
-        # Remove script and style tags with content
-        raw = re.sub(r"<script[^>]*>.*?</script>", "", raw, flags=re.DOTALL | re.IGNORECASE)
-        raw = re.sub(r"<style[^>]*>.*?</style>", "", raw, flags=re.DOTALL | re.IGNORECASE)
-        # Remove event handlers
-        raw = re.sub(r"\s*on\w+\s*=\s*['\"][^'\"]*['\"]", "", raw, flags=re.IGNORECASE)
-        raw = re.sub(r"\s*on\w+\s*=\s*[^\s>]+", "", raw, flags=re.IGNORECASE)
-        # Remove javascript: URLs
-        raw = re.sub(
-            r"\s*(href|src|action)\s*=\s*['\"]javascript:[^'\"]*['\"]",
-            r' \1=""',
-            raw,
-            flags=re.IGNORECASE,
+        """Extract visible text from HTML using a whitelist parser.
+
+        Uses html.parser to safely extract text content while stripping
+        dangerous tags (script, style, iframe, object, embed) and all
+        event-handler attributes.  Safe inline tags like <b>, <i>, <em>,
+        <strong>, <mark>, <code> are preserved for preview formatting.
+        """
+        from html.parser import HTMLParser
+
+        safe_tags = frozenset(
+            {
+                "b",
+                "i",
+                "em",
+                "strong",
+                "p",
+                "br",
+                "ul",
+                "ol",
+                "li",
+                "h1",
+                "h2",
+                "h3",
+                "h4",
+                "h5",
+                "h6",
+                "code",
+                "pre",
+                "mark",
+                "blockquote",
+                "span",
+                "div",
+                "a",
+                "table",
+                "thead",
+                "tbody",
+                "tr",
+                "td",
+                "th",
+                "hr",
+            }
         )
-        # Remove data: URLs
-        raw = re.sub(
-            r"\s*(href|src|action)\s*=\s*['\"]data:[^'\"]*['\"]",
-            r' \1=""',
-            raw,
-            flags=re.IGNORECASE,
-        )
-        # Remove iframe, object, embed tags
-        raw = re.sub(
-            r"<(iframe|object|embed)[^>]*>.*?</\1>",
-            "",
-            raw,
-            flags=re.DOTALL | re.IGNORECASE,
-        )
-        raw = re.sub(r"<(iframe|object|embed)[^/]*/?>", "", raw, flags=re.IGNORECASE)
-        return raw.strip()
+        dangerous_tags = frozenset({"script", "style", "iframe", "object", "embed", "noscript"})
+
+        class _SafeHTMLStripper(HTMLParser):
+            def __init__(self) -> None:
+                super().__init__()
+                self._result: list[str] = []
+                self._skip_depth: int = 0
+
+            def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                if tag in dangerous_tags:
+                    self._skip_depth += 1
+                    return
+                if self._skip_depth > 0:
+                    return
+                if tag in safe_tags:
+                    # Escape values so an attribute cannot break out of its
+                    # quotes and inject new attributes / event handlers.
+                    attr_str = "".join(
+                        f' {k}="{html.escape(v, quote=True)}"'
+                        for k, v in attrs
+                        if v is not None and _is_safe_attr(k, v)
+                    )
+                    self._result.append(f"<{tag}{attr_str}>")
+
+            def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                if tag in safe_tags and self._skip_depth == 0:
+                    self._result.append(f"<{tag} />")
+
+            def handle_endtag(self, tag: str) -> None:
+                if tag in dangerous_tags and self._skip_depth > 0:
+                    self._skip_depth -= 1
+                    return
+                if self._skip_depth > 0:
+                    return
+                if tag in safe_tags:
+                    self._result.append(f"</{tag}>")
+
+            def handle_data(self, data: str) -> None:
+                if self._skip_depth == 0:
+                    # Escape text so entity-encoded markup decoded by the parser
+                    # (convert_charrefs) cannot be re-emitted as live HTML.
+                    self._result.append(html.escape(data))
+
+            def text(self) -> str:
+                return "".join(self._result)
+
+        parser = _SafeHTMLStripper()
+        parser.feed(raw)
+        return parser.text().strip()
 
     def get_user_activity(
         self,

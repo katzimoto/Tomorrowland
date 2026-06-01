@@ -30,6 +30,7 @@ class CommentRepository:
         Excludes soft-deleted comments. Sorts by *sort* (newest or oldest).
         """
         order = "DESC" if sort == "newest" else "ASC"
+        # Safe: `order` is a controlled binary choice, not user-controlled SQL.
         rows = self._connection.execute(
             sa.text(f"""
                 SELECT

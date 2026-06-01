@@ -47,7 +47,6 @@ export function InsightPane({ docId, preview }: InsightPaneProps) {
     { id: "chat", label: t.insight.tabChat },
     { id: "related", label: t.insight.tabRelated },
     { id: "annotations", label: t.insight.tabAnnotations },
-    { id: "subscriptions", label: t.insight.tabSubscriptions },
     { id: "versions", label: t.insight.tabVersions },
     { id: "details", label: t.insight.tabDetails },
   ];
@@ -65,7 +64,6 @@ export function InsightPane({ docId, preview }: InsightPaneProps) {
         {activeTab === "chat" && <DocumentChatPanel docId={docId} docTitle={preview?.title} />}
         {activeTab === "related" && <RelatedTab docId={docId} />}
         {activeTab === "annotations" && <AnnotationsTab docId={docId} />}
-        {activeTab === "subscriptions" && <SubscriptionsStub />}
         {activeTab === "versions" && <VersionsTab docId={docId} />}
         {activeTab === "details" && preview && <DetailsTab preview={preview} docId={docId} />}
       </div>
@@ -127,7 +125,20 @@ function EntitiesSection({ docId }: { docId: string }) {
     retry: false,
   });
 
-  if (isLoading || isError || !data?.entities.length) return null;
+  if (isLoading)
+    return (
+      <div className={styles.loadingStack}>
+        <SkeletonRow compact count={2} />
+      </div>
+    );
+  if (isError)
+    return (
+      <div className={styles.section}>
+        <h3 className={styles.sectionHeading}>{t.insight.entities}</h3>
+        <p className={styles.muted}>{t.insight.entitiesFailed}</p>
+      </div>
+    );
+  if (!data?.entities.length) return null;
 
   return (
     <div className={styles.section}>
@@ -153,7 +164,20 @@ function TagsSection({ docId }: { docId: string }) {
     retry: false,
   });
 
-  if (isLoading || isError || !data?.tags.length) return null;
+  if (isLoading)
+    return (
+      <div className={styles.loadingStack}>
+        <SkeletonRow compact count={2} />
+      </div>
+    );
+  if (isError)
+    return (
+      <div className={styles.section}>
+        <h3 className={styles.sectionHeading}>{t.insight.tags}</h3>
+        <p className={styles.muted}>{t.insight.tagsFailed}</p>
+      </div>
+    );
+  if (!data?.tags.length) return null;
 
   return (
     <div className={styles.section}>
@@ -417,16 +441,6 @@ function AnnotationsTab({ docId }: { docId: string }) {
         </Button>
       </div>
     </div>
-  );
-}
-
-function SubscriptionsStub() {
-  const t = useT();
-  return (
-    <EmptyState
-      title={t.insight.subscriptionsTitle}
-      body={t.insight.subscriptionsBody}
-    />
   );
 }
 

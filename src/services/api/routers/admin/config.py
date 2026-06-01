@@ -98,6 +98,13 @@ def admin_reset_config(
     from shared.feature_flags import SYSTEM_CONFIG_DEFAULTS
 
     with request.app.state.engine.begin() as connection:
+        # Verify at least one config key exists before blindly resetting all.
+        existing_count = connection.execute(
+            sa.text("SELECT COUNT(*) FROM system_config")
+        ).scalar()
+        if not existing_count:
+            raise HTTPException(status_code=409, detail="No config rows to reset")
+
         for key, value in SYSTEM_CONFIG_DEFAULTS.items():
             connection.execute(
                 sa.text("""

@@ -92,6 +92,7 @@ class AuthRepository:
         if mapped_ids:
             placeholders = ", ".join(f":gid{i}" for i in range(len(mapped_ids)))
             params = {f"gid{i}": db_uuid(gid) for i, gid in enumerate(mapped_ids)}
+            # Safe: `placeholders` are generated parameter names, not user input.
             rows = self._connection.execute(
                 sa.text(f"SELECT name FROM groups WHERE id IN ({placeholders})"),
                 params,
@@ -249,6 +250,7 @@ class AuthRepository:
             return []
         placeholders = ", ".join(f":g{i}" for i in range(len(group_ids)))
         params: dict[str, object] = {f"g{i}": db_uuid(g) for i, g in enumerate(group_ids)}
+        # Safe: `placeholders` are generated parameter names, not user input.
         rows = self._connection.execute(
             sa.text(f"""
                 WITH RECURSIVE ancestors(id, depth) AS (

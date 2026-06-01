@@ -61,6 +61,9 @@ def admin_list_jobs(
     if source_id:
         filters.append("source_id = :source_id")
         params["source_id"] = source_id.hex
+    # Safe: `filters` list contains only hardcoded column-name strings
+    # (e.g. "status = :status").  User values go through `params` via
+    # bound parameters — no SQL injection surface.
     where = ("WHERE " + " AND ".join(filters)) if filters else ""
     with request.app.state.engine.begin() as conn:
         rows = (

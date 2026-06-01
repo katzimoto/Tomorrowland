@@ -58,6 +58,8 @@ class RelatedRepository:
         if not doc_ids:
             return {}
         params, placeholders = _uuid_params(doc_ids)
+        # Safe: `_uuid_params` generates only parameter placeholder names
+        # (e.g. ":id_0, :id_1"), never user-controlled SQL.
         result: dict[str, dict[str, set[str]]] = {
             doc_id: {"tags": set(), "entities": set()} for doc_id in doc_ids
         }

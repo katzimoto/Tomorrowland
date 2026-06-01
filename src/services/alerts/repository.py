@@ -121,6 +121,7 @@ class AlertRepository:
             params["enabled"] = enabled
         if fields:
             fields.append("updated_at = CURRENT_TIMESTAMP")
+            # Safe: `fields` list contains only hardcoded column-name strings.
             self._connection.execute(
                 sa.text(f"""
                     UPDATE alert_subscriptions

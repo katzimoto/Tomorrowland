@@ -81,7 +81,10 @@ class BaseConsumer(ABC):
                 self._rabbit.connect()
                 self._rabbit.declare_topology()
                 self._channel = self._rabbit._channel
-                assert self._channel is not None
+                if self._channel is None:
+                    raise RuntimeError(
+                        f"RabbitMQ channel is None after connect: worker_type={self.worker_type}"
+                    )
                 self._channel.basic_qos(prefetch_count=1)
                 self._channel.basic_consume(
                     queue=self.queue_name,

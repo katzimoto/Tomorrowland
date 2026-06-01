@@ -113,7 +113,7 @@ function SourceDocumentsSection({ sourceId }: { sourceId: string }) {
   };
 
   if (isLoading) return <div className={styles.section}><SkeletonRow count={4} /></div>;
-  if (isError) return null;
+  if (isError) return <div className={styles.section}><EmptyState title="Failed to load documents" body="Could not retrieve source documents." /></div>;
 
   const docs = data?.documents ?? [];
   if (docs.length === 0) {
@@ -309,7 +309,7 @@ function DocumentRow({
           <a
             onClick={(e) => {
               e.stopPropagation();
-              window.open(`/doc/${doc.id}`, "_blank");
+              window.open(`/doc/${doc.id}`, "_blank", "noopener,noreferrer");
             }}
           >
             {doc.title || doc.external_id || doc.id.slice(0, 8)}

@@ -28,6 +28,26 @@ _VALID_EXTRACTION_STRATEGIES = frozenset(
 )
 _VALID_STATUSES = frozenset({"draft", "active", "needs_review", "deprecated"})
 
+_ALLOWED_COLUMNS = frozenset(
+    [
+        "source_id",
+        "name",
+        "domain_type",
+        "chunking_strategy",
+        "retrieval_strategy",
+        "extraction_strategy",
+        "status",
+        "model_policy_provider_id",
+        "description",
+        "config",
+        "created_by",
+        "approved_by",
+        "version",
+        "updated_at",
+        "id",
+    ]
+)
+
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -245,6 +265,10 @@ class ProfileRepository:
 
         fields["updated_at"] = _now()
         fields["id"] = db_uuid(profile_id)
+
+        unknown = set(fields) - _ALLOWED_COLUMNS
+        if unknown:
+            raise ValueError(f"Unknown columns in update: {', '.join(sorted(unknown))}")
 
         sets = ", ".join(f"{k} = :{k}" for k in fields)
         self._connection.execute(

@@ -93,13 +93,11 @@ export function PreviewPane({
   const text = preview.snippet;
   const dl = downloadUrl(preview.document_id);
 
-  // In extracted/translation mode, all non-image types (including HTML) render as text.
-  // In original mode, HTML also renders as text to show the original source content.
+  // In extracted/translation mode, all non-image types render as text.
   if (
     !mime.startsWith("image/") &&
     (activeMode === "extracted" ||
-      activeMode === "translation" ||
-      (activeMode === "original" && mime === "text/html"))
+      activeMode === "translation")
   ) {
     return (
       <div className={styles.pane}>

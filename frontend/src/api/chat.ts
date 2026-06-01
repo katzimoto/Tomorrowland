@@ -133,7 +133,9 @@ export async function sendChatMessageStream(
     try {
       const body = (await res.json()) as { detail?: string };
       if (body.detail) message = body.detail;
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.warn("Failed to parse error response body", err);
+    }
     throw new Error(message);
   }
 
@@ -172,7 +174,7 @@ export async function sendChatMessageStream(
               latency_ms: data.latency_ms,
             });
           }
-        } catch { /* skip malformed JSON */ }
+        } catch { /* skip malformed JSON line */ }
         currentEvent = "";
       }
     }

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from services.extraction.base import ExtractionResult
+
+logger = logging.getLogger(__name__)
 
 
 class PlainExtractor:
@@ -20,7 +23,7 @@ class PlainExtractor:
         try:
             return ExtractionResult(text=path.read_text(encoding="utf-8"))
         except UnicodeDecodeError:
-            pass
+            logger.debug("Plain file is not valid UTF-8, trying charset detection: %s", path)
         except OSError:
             return ExtractionResult(text="")
 
@@ -32,7 +35,7 @@ class PlainExtractor:
             if result is not None:
                 return ExtractionResult(text=str(result))
         except Exception:
-            pass
+            logger.debug("Charset detection failed, falling back to latin-1: %s", path)
 
         # Final fallback: latin-1 never raises on binary input.
         try:

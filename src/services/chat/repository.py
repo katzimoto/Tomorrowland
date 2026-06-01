@@ -107,6 +107,7 @@ class ChatRepository:
         if not archived:
             where += " AND archived_at IS NULL"
 
+        # Safe: `where` clause is built from hardcoded strings only.
         count = self._connection.execute(
             sa.text(f"SELECT COUNT(*) FROM chat_sessions WHERE {where}"),
             params,
@@ -179,6 +180,7 @@ class ChatRepository:
             sets.append("archived_at = :archived_at")
             params["archived_at"] = update.archived_at
 
+        # Safe: `sets` list contains only hardcoded column-name strings.
         result = self._connection.execute(
             sa.text(f"""
                 UPDATE chat_sessions

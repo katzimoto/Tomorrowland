@@ -124,7 +124,9 @@ export const he: Translations = {
     generatedBy: (model: string, date: string) =>
       `נוצר על ידי ${model} · ${date}`,
     entities: "ישויות",
+    entitiesFailed: "לא ניתן לגשת לשרת.",
     tags: "תגיות",
+    tagsFailed: "לא ניתן לגשת לשרת.",
     relatedLoading: "טוען…",
     relatedFailedTitle: "טעינת המסמכים הקשורים נכשלה",
     relatedFailedBody: "לא ניתן לגשת לשרת.",

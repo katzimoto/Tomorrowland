@@ -95,3 +95,35 @@ def test_generate_snippet_returns_empty_when_no_payload_and_file_missing() -> No
     snippet = svc._generate_snippet(document_id, "/nonexistent/path/file.pptx", "text/plain")
 
     assert snippet == ""
+
+
+def test_sanitize_html_escapes_attribute_value_breakout() -> None:
+    """A quote inside an attribute value must not break out and inject a handler."""
+    raw = "<a title='x\" onmouseover=\"alert(1)'>hi</a>"
+    out = PreviewService._sanitize_html(raw)
+    assert 'onmouseover="alert(1)"' not in out
+    assert "&quot;" in out
+
+
+def test_sanitize_html_escapes_entity_smuggled_markup() -> None:
+    """Entity-encoded markup decoded by the parser is re-escaped, not made live."""
+    out = PreviewService._sanitize_html("&lt;img src=x onerror=alert(1)&gt;")
+    assert "<img" not in out
+    assert "&lt;img" in out
+
+
+def test_sanitize_html_strips_javascript_and_obfuscated_urls() -> None:
+    assert "javascript:" not in PreviewService._sanitize_html('<a href="javascript:alert(1)">x</a>')
+    # Whitespace inside the scheme must not bypass the check.
+    assert "href" not in PreviewService._sanitize_html('<a href="java\tscript:alert(1)">x</a>')
+
+
+def test_sanitize_html_removes_dangerous_tags_keeps_safe_formatting() -> None:
+    out = PreviewService._sanitize_html(
+        '<p>hello<script>alert(1)</script> <strong onclick="x()">world</strong></p>'
+    )
+    assert "<script" not in out
+    assert "alert(1)" not in out
+    assert "onclick" not in out
+    assert "<strong>world</strong>" in out
+    assert "hello" in out
