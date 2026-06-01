@@ -2,6 +2,22 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-06-01 — Legacy QA UI removed; async pipeline ports need explicit cycle guards
+
+Status: Active
+Source: PRs #623 (49d7470), #624 (cec926d)
+
+Decision:
+- **Legacy QA UI removed** (`frontend/src/features/qa/*`, `frontend/src/api/qa.ts`). It was orphaned dead code — unrouted in `routes.tsx`, unimported, superseded by Full Document Chat (#492: streaming + citations + starter questions). Document Chat is the question-answering surface; do not reintroduce a separate QA page.
+- **Async/RabbitMQ pipeline feature ports must re-add cycle/depth guards.** The job queue cannot carry the sync path's recursion `_seen` set, so attachment processing reconstructs the ancestor chain from `external_id`: `parse_worker._attachment_cycle_or_depth_skip` skips an attachment whose sha256 prefix is already in the chain (cycle) or once nesting ≥ `_MAX_ATTACHMENT_NESTING` (depth), and a `has_extractor()` filter skips unextractable attachments.
+
+Reason:
+- QA's only consumer was its own components; chat fully covers the use case.
+- Sync `worker.py._process_attachments` guards cycles via a passed-down `_seen` set; the async consumer has no shared recursion state, and `external_id` *grows* per nesting level so `create()` dedup can't catch a cycle → unbounded child-document/job expansion (DoS) without an explicit guard.
+
+Impact:
+- Any feature ported from sync `worker.py` to a consumer must re-verify safety guards survive the port; reviewers should check for missing cycle/depth/limit logic.
+
 ## 2026-05-29 — BM25 source-scope filtering: Meilisearch filter + post-filter fallback
 
 Status: Active

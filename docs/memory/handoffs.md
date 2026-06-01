@@ -2,6 +2,22 @@
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
 
+## 2026-06-01 — review+fix+merge of #622, #623, #624 (bug-bounty + pipeline)
+
+Status: Done — all three squash-merged to main; 2 watch items carry forward
+Source: PRs #622 (d3abd92), #623 (49d7470), #624 (cec926d) — Claude Code session
+
+**Done:** reviewed each PR, fixed the blocking findings, verified (ruff/mypy + targeted tests), squash-merged. Details + review fixes in `current-state.md` (same date); durable decisions (QA removal, async cycle-guard convention) in `decisions.md` (same date).
+
+**Watch (carry forward):**
+- Branch `fix/bug-bounty-rounds-1-3` (katzimoto) reverted the airgap Ollama setup (reverts #621) in BOTH #622 and #623, undocumented each time, and omitted its largest changes from both descriptions. On any further PR from this branch: reset `docker-compose.airgap.yml` + `scripts/{build-release,validate}-airgap*.sh` to main; verify the diff, not the description.
+- Open question: is the `translate*→index` + `embed→index` double-publish intentional (index-resilience when embed is skipped) or a double-fire bug? Unresolved; left intact in #624.
+
+**Next agent prompt:**
+> #622/#623/#624 are on main (d3abd92 / 49d7470 / cec926d). Local `main` may be behind — `git pull`. Reviewing another PR from `fix/bug-bounty-rounds-1-3`? Re-check the airgap files against main first. Then resolve the double-index question or pick the next issue from the release queue in AGENTS.md.
+
+---
+
 ## 2026-05-31 — feat(auth): LDAP group mapping via live DC search — #582, PR #601
 
 Status: Done — squash-merged to main (commit ea7f65d), branch deleted, issue #582 closed

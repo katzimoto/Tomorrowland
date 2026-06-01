@@ -2,6 +2,22 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-06-01 — bug-bounty + pipeline hardening merged (#622, #623, #624)
+
+Status: Done — all three squash-merged to main; 2 Watch items below
+Source: PRs #622 (d3abd92), #623 (49d7470), #624 (cec926d) — Claude Code review+fix sessions
+
+Three review-and-fix passes merged the same day:
+- **#622** bug-bounty rounds 1-3. Review fixes: chat SSE keeps the user message on client disconnect (own txn), `/notifications` pagination wired through the endpoint, SSRF rejects private IPs on *both* DNS resolutions, vault deterministic `ORDER BY`, search seeds URL state once.
+- **#623** SQL-safety + sanitizer. `profile_repository._ALLOWED_COLUMNS` whitelist before `UPDATE ... SET` interpolation. Review fix: `preview/service.py` HTML sanitizer now `html.escape`s attribute values + text — the rewrite had attribute-breakout + entity-smuggle XSS; kept dependency-free (no nh3/bleach) for air-gap. Removed orphaned legacy QA UI.
+- **#624** 15 ingest→embed pipeline bugs (claim_next double-claim race, consumer_base retry rewrite, attachments as child docs, embed citation metadata). Review fix: async attachment processing has a cycle/depth guard + `has_extractor()` filter.
+
+**Watch:**
+- **Recurring airgap revert (branch `fix/bug-bounty-rounds-1-3`, author katzimoto):** re-introduced the Ollama removal in `docker-compose.airgap.yml` (reverting #621) in BOTH #622 and #623 — never in the PR description. Both PRs also omitted their largest changes (#623 silently deleted the QA UI). On any PR from this branch, reset `docker-compose.airgap.yml` + `scripts/{build-release,validate}-airgap*.sh` to main and don't trust its "validation passed" claims against the diff.
+- **Double-index (unverified):** `translate_worker` + `translation_worker` both `publish_index`, and `embed_worker` also `publish_index`, so index → intelligence/alert may double-fire per translated doc. Pre-existing; left in #624. Needs a holistic DAG fix or confirmation it's intentional index-resilience for the embed-skipped path.
+
+---
+
 ## 2026-05-31 — feat(auth): LDAP group mapping via live DC search — #582, PR #601
 
 Status: Done — squash-merged to main (branch deleted), issue #582 closed
