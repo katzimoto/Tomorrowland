@@ -2,6 +2,22 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-06-02 — verified: tag-cut RC ships no Ollama model bundle (workflow + build-script + static proof)
+
+Status: Active
+Source: Claude Code session 2026-06-02; commits cc6e203 + static build proof
+
+**Verified the next tag-cut RC excludes the Ollama model-weights bundle** (user goal: ship RC without the local-LLM bundle, run on LiteLLM). Three independent confirmations:
+1. `.github/workflows/release-artifact.yml`: the `build-ollama-model-bundle` job is `if: inputs.build_ollama_bundle` (default false); on a `push: tags` event `inputs.*` is empty → job skipped. The `build-artifact` job attaches ONLY `tomorrowland-release-*.tar.gz` + `tomorrowland-images-*.tar.part-*` — never a bundle.
+2. `scripts/build-release-artifact.sh`: archive is an explicit allow-list (no `*ollama-bundle*` copied in); model weights live in the `ollama_data` Docker VOLUME, never in an image, so `docker save` of the runtime images cannot capture them. The `ollama/ollama:0.5.13` RUNTIME image stays bundled so the service still starts.
+3. Static proof: `RELEASE_DIST_DIR=/tmp SKIP_DOCKER_BUILD=1 SPLIT_IMAGE_BUNDLE=0 bash scripts/build-release-artifact.sh v1.0-rc6` → archive file list clean of bundle/weights/blobs/.gguf; ollama runtime present in manifest.
+
+**Doc follow-up (committed cc6e203):** README-airgap.md + generated README-airgap.txt now state the no-bundle path — external LLM (LiteLLM/openai-compatible via LLM_PROVIDER) OR optional bundle; keyword search + ingest work with no model at all.
+
+**Note:** `validate-airgap-artifact.sh` auto-discovers any stray `tomorrowland-ollama-bundle-*.tar.gz` in the artifact dir or its parent `dist/` and validates it (warning-only, never attached). CI runs on a clean checkout so this is a no-op there; only matters for LOCAL builds where old bundles sit in `dist/`. See [[project_airgap_compose_parity]].
+
+---
+
 ## 2026-06-02 — air-gapped LiteLLM / external-LLM enabled (compose passthrough) + RC state
 
 Status: Active
