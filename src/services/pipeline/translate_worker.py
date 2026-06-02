@@ -27,7 +27,7 @@ class TranslateConsumer(BaseConsumer):
         translator: LibreTranslateClient | None = None,
         version_repo: TranslationVersionRepository | None = None,
         doc_repo: DocumentRepository | None = None,
-        health_port: int = 8080,
+        health_port: int = 8082,
     ) -> None:
         super().__init__(rabbit, job_repo, health_port)
         self._publisher = publisher

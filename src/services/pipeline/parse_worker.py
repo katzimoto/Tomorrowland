@@ -70,7 +70,7 @@ class ParseConsumer(BaseConsumer):
         doc_repo: DocumentRepository,
         publisher: DocumentPublisher,
         extractor: ExtractorRegistry | None = None,
-        health_port: int = 8080,
+        health_port: int = 8081,
     ) -> None:
         super().__init__(rabbit, job_repo, health_port)
         self._doc_repo = doc_repo

@@ -29,7 +29,7 @@ class IndexConsumer(BaseConsumer):
         publisher: DocumentPublisher,
         meili: MeilisearchSearchProvider,
         embedding_max_tokens: int | None = None,
-        health_port: int = 8080,
+        health_port: int = 8084,
     ) -> None:
         super().__init__(rabbit, job_repo, health_port)
         self._doc_repo = doc_repo

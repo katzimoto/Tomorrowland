@@ -27,7 +27,7 @@ class EmbedConsumer(BaseConsumer):
         encoder: TextEncoder,
         qdrant: QdrantSearchClient,
         embedding_max_tokens: int | None = None,
-        health_port: int = 8080,
+        health_port: int = 8083,
     ) -> None:
         super().__init__(rabbit, job_repo, health_port)
         self._doc_repo = doc_repo
