@@ -2,6 +2,25 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-06-02 — air-gapped LiteLLM / external-LLM enabled (compose passthrough) + RC state
+
+Status: Active
+Source: Claude Code session 2026-06-02; working tree (uncommitted)
+
+**Found + fixed (uncommitted working tree):** the air-gapped stack could not be switched to an external local LLM (LiteLLM / OpenAI-compatible) even though the code fully supports it. `Settings` defines `LLM_PROVIDER`/`LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY` (factory.py → OpenAICompatibleLLMProvider; `litellm`/`openai-compatible`/`openai`/`llama-cpp`) and the embedding factory supports `EMBEDDING_PROVIDER=openai-compatible` + `EMBEDDING_API_KEY`, but **none of those vars were in the `x-app-environment` anchor** of either compose file, so they never reached the containers (proven via `docker compose config`). Default provider stayed hard-pinned to Ollama.
+
+**Fix:** added `LLM_PROVIDER`/`LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY`/`EMBEDDING_API_KEY` (empty defaults → no behavior change) to BOTH `docker-compose.airgap.yml` and `docker-compose.yml`; documented the LiteLLM path in `.env.airgap.example` + `docs/operations/air-gapped-deployment.md`; softened the "must use EMBEDDING_PROVIDER=ollama" line; CHANGELOG Added entry. Because the pipeline workers (intelligence/enrich/slow) build via `build_llm_provider(settings)` (env factory), setting `LLM_PROVIDER=litellm` now routes api AND all workers. Verified: override flows into every service; compose still renders; validator assertions (meili + 7 workers, no build steps) hold.
+
+**Also fixed:** untracked `scripts/bundle-from-running-ollama.sh` defaulted `COMPOSE_SERVICE=ollama-llm` (a main-compose name) while its default `COMPOSE_FILE=docker-compose.airgap.yml` only has `ollama` → realigned to `ollama`. Script still untracked.
+
+**Release state:** tag `v1.0-rc5` = `8f1b98e` (#621 airgap fix IS included). `[Unreleased]` now holds #622–#625 + this LiteLLM passthrough → a fresh tag (rc6) is needed to ship them. Did NOT tag/build (outward-facing).
+
+**Watch (not changed):** (1) compose defaults vs `.env.airgap.example` drift — `OLLAMA_MODEL` qwen3:4b vs mistral, `EMBEDDING_MODEL`/`EMBEDDING_DIMENSION` qwen3-embedding:8b/4096 vs nomic-embed-text/768 (harmless when operator copies the .env, dangerous dim mismatch only if relying on compose defaults). (2) `embed-worker`/`intelligence-worker` still `depends_on ollama:healthy`; bundled ollama idles (empty=healthy) under LiteLLM so workers still start — acceptable, no profile added (memory warns against touching the ollama service).
+
+See [[project_airgap_compose_parity]].
+
+---
+
 ## 2026-06-02 — #625 merged (rebase preserved #624); stale-base pattern now spans 2 author branches
 
 Status: Watch
