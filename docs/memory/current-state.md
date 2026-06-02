@@ -2,6 +2,23 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-06-02 — airgap RC deployment-impact audit: health-port bug fixed; kafka vestigial; rest verified
+
+Status: Active
+Source: Claude Code session 2026-06-02; worker health-port fix committed + audit
+
+Deployment-impact audit of the air-gapped RC (no AI bundle / LiteLLM). One real bug fixed, one cleanup flagged, rest verified good.
+
+**FIXED (committed):** worker health-check port mismatch. `parse/translate/embed/index` worker classes defaulted `health_port=8080` while `docker-compose(.airgap).yml` probes `curl :8081/8082/8083/8084` (intelligence/alert/enrich were already correct at 8085-8087). `main()` never overrides → those 4 workers were permanently **unhealthy** in `docker compose ps` despite running. Set defaults to 8081-8084. ruff+mypy+py_compile clean; no tests pinned the port.
+
+**OPEN (needs decision — broad change):** Kafka/redpanda is **vestigial**. `src/services/pipeline/kafka_consumer.py` is imported nowhere, no pyproject entrypoint, no airgap `depends_on kafka`, and `settings.kafka_broker` is defined but never read (job bus is RabbitMQ since #545). The `kafka` service + `redpandadata/redpanda:v24.1.9` image are dead weight in the offline bundle (size + ~512MB RAM + operator confusion). Removing it spans: airgap compose (service+volume+KAFKA_BROKER), `.env.airgap.example` (KAFKA_PORT), `build-release-artifact.sh` (third_party_images + manifest volumes), and main compose (which DOES have a `depends_on: kafka` — check before touching). Not removed unilaterally.
+
+**VERIFIED GOOD (no action — so future agents skip re-checking):** single alembic head (`e5f7g9h1i2j3`, 41 revs) → migrate safe; frontend `client.ts` uses relative `BASE="/api"` and `frontend-nginx.conf` proxies `/api/→api:8000` → remote access works, NO CORS trap (same-origin), and api binding to 127.0.0.1:8000 is fine; backend image has NO USER → runs root → named-volume writes OK (no upload perm bug); backend image installs curl (worker probes) and is debian-slim (bash for mcp probe); operator wrapper `tomorrowland-airgap.sh` up/down/status use `docker compose --env-file .env -f docker-compose.airgap.yml`; validator required_files == build-script packaged files.
+
+**RESIDUAL LOW RISK:** container health-checks were never exercised in CI (`validate --load-images` loads images but does not boot the stack); qdrant uses a `bash /dev/tcp` probe, meili uses `wget` — fine on their debian/alpine bases but recommend a real first-boot smoke test. See [[project_airgap_compose_parity]].
+
+---
+
 ## 2026-06-02 — verified: tag-cut RC ships no Ollama model bundle (workflow + build-script + static proof)
 
 Status: Active
