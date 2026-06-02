@@ -2,6 +2,19 @@
 
 Canonical shared memory for active project state. Keep this file compact and factual.
 
+## 2026-06-02 — #625 merged (rebase preserved #624); stale-base pattern now spans 2 author branches
+
+Status: Watch
+Source: PR #625 (6b1719c), Claude Code session
+
+**#625** (`fix/pipeline-bugs-15`) was force-pushed onto stale **#623**, re-doing #624's pipeline work *without* its review fixes and conflicting in `parse_worker`/`scheduler`/`slow_worker`. Rebased onto current main and resolved to keep #624 (attachment cycle guard) + only the net-new work (tombstone wiring in `sync_now`, `build_index_cleanup`, scheduler reconnect guard, bare-`except` logging). Also fixed a **no-op intelligence timeout** — `as_completed()` only yields finished futures, so `future.result(timeout=120)` never fired; moved the budget onto `as_completed(futures, timeout=120)` + non-blocking `pool.shutdown(cancel_futures=True)`.
+
+**Broadened Watch:** the *stale-base → force-push → re-do-already-merged-work* pattern (with PR descriptions that undercount files) now spans **both** of this author's branches — `fix/bug-bounty-rounds-1-3` (#622, #623; airgap revert) and `fix/pipeline-bugs-15` (#624 → #625). For any PR from **katzimoto**: diff against current `main` (not the description), confirm it isn't based on a pre-merge commit, and check it doesn't revert prior merged fixes. Airgap specifics in the #622–#624 entry below.
+
+Still open (unverified): the `translate*`/`embed` double-index question — untouched by #625.
+
+---
+
 ## 2026-06-01 — bug-bounty + pipeline hardening merged (#622, #623, #624)
 
 Status: Done — all three squash-merged to main; 2 Watch items below
