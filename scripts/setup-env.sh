@@ -146,7 +146,7 @@ fi
 # --- generate values ---
 
 APP_ENV="$(prompt "APP_ENV" "prod")"
-APP_VERSION="$(prompt "APP_VERSION" "0.1.0")"
+APP_VERSION="$(prompt "APP_VERSION" "0.2.0")"
 BUILD_COMMIT="$(prompt "BUILD_COMMIT" "unknown")"
 LOG_LEVEL="$(prompt "LOG_LEVEL" "info")"
 
@@ -175,7 +175,6 @@ API_PORT="$(validate_port "$(prompt "API_PORT" "8000")" "API_PORT" "8000")"
 FRONTEND_PORT="$(validate_port "$(prompt "FRONTEND_PORT" "8080")" "FRONTEND_PORT" "8080")"
 POSTGRES_PORT="$(validate_port "$(prompt "POSTGRES_PORT" "5432")" "POSTGRES_PORT" "5432")"
 KAFKA_PORT="$(validate_port "$(prompt "KAFKA_PORT" "9092")" "KAFKA_PORT" "9092")"
-ELASTICSEARCH_PORT="$(validate_port "$(prompt "ELASTICSEARCH_PORT" "9200")" "ELASTICSEARCH_PORT" "9200")"
 QDRANT_PORT="$(validate_port "$(prompt "QDRANT_PORT" "6333")" "QDRANT_PORT" "6333")"
 LIBRETRANSLATE_PORT="$(validate_port "$(prompt "LIBRETRANSLATE_PORT" "5000")" "LIBRETRANSLATE_PORT" "5000")"
 OLLAMA_PORT="$(validate_port "$(prompt "OLLAMA_PORT" "11434")" "OLLAMA_PORT" "11434")"
@@ -198,7 +197,7 @@ SUPPORTED_TRANSLATION_TARGET_LANGUAGES="$(prompt "SUPPORTED_TRANSLATION_TARGET_L
 
 # Embedding
 EMBEDDING_PROVIDER="$(prompt "EMBEDDING_PROVIDER (ollama/deterministic-test/empty)" "")"
-EMBEDDING_MODEL="$(prompt "EMBEDDING_MODEL" "nomic-embed-text")"
+EMBEDDING_MODEL="$(prompt "EMBEDDING_MODEL" "qwen3-embedding:8b")"
 EMBEDDING_URL="$(prompt "EMBEDDING_URL" "")"
 EMBEDDING_PROVIDER_UNSAFE_ALLOW_TEST_IN_PROD="$(prompt_yesno "EMBEDDING_PROVIDER_UNSAFE_ALLOW_TEST_IN_PROD" "false")"
 
@@ -324,7 +323,6 @@ out+="API_PORT=${API_PORT}\n"
 out+="FRONTEND_PORT=${FRONTEND_PORT}\n"
 out+="POSTGRES_PORT=${POSTGRES_PORT}\n"
 out+="KAFKA_PORT=${KAFKA_PORT}\n"
-out+="ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT}\n"
 out+="QDRANT_PORT=${QDRANT_PORT}\n"
 out+="LIBRETRANSLATE_PORT=${LIBRETRANSLATE_PORT}\n"
 out+="OLLAMA_PORT=${OLLAMA_PORT}\n"

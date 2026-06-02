@@ -28,6 +28,7 @@ frontend/test-results/
 data/
 tmp/
 *.log
+ruvector.db
 
 # Release artifacts (the build script writes to dist/ by default; these guard
 # against a root-level build being committed accidentally)

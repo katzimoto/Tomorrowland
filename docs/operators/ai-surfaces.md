@@ -202,13 +202,13 @@ tags. The bundle ships generation and embedding models together:
 
 ```bash
 bash scripts/tomorrowland-airgap.sh load-ollama \
-  /path/to/tomorrowland-ollama-bundle-mistral-<version>.tar.gz
+  /path/to/tomorrowland-ollama-bundle-qwen3-4b-<version>.tar.gz
 ```
 
 Then validate that both models resolved inside Ollama:
 
 ```bash
-OLLAMA_URL=http://localhost:11434 OLLAMA_MODEL=mistral \
+OLLAMA_URL=http://localhost:11434 OLLAMA_MODEL=qwen3:4b \
   bash scripts/validate-ollama-model.sh
 
 curl -s http://localhost:11434/api/tags | grep -q "$EMBEDDING_MODEL" \

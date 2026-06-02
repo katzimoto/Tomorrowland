@@ -150,7 +150,6 @@ class TestSetupEnvScript:
             "FRONTEND_PORT",
             "POSTGRES_PORT",
             "KAFKA_PORT",
-            "ELASTICSEARCH_PORT",
             "QDRANT_PORT",
             "LIBRETRANSLATE_PORT",
             "OLLAMA_PORT",

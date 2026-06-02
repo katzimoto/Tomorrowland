@@ -20,7 +20,7 @@ on:
       ollama_model:
         description: "Ollama model to bundle when build_ollama_bundle is enabled"
         required: false
-        default: "mistral"
+        default: "qwen3:4b"
         type: string
   push:
     tags:
@@ -147,7 +147,7 @@ jobs:
           set -euo pipefail
           model="${{ inputs.ollama_model }}"
           if [[ -z "$model" ]]; then
-            model="mistral"
+            model="qwen3:4b"
           fi
           slug="$(printf '%s' "$model" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//; s/-+/-/g')"
           echo "model=${model}" >> "$GITHUB_OUTPUT"

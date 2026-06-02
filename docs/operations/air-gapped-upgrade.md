@@ -97,7 +97,7 @@ changed, you can verify it instead of reloading:
 
 ```bash
 OLLAMA_URL=http://localhost:${OLLAMA_PORT:-11434} \
-OLLAMA_MODEL=${OLLAMA_MODEL:-mistral} \
+OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:4b} \
 bash scripts/validate-ollama-model.sh
 ```
 
@@ -106,7 +106,7 @@ To replace or upgrade the model safely:
 1. Verify the transferred bundle checksum on the air-gapped host:
 
    ```bash
-   sha256sum -c tomorrowland-ollama-bundle-mistral-<version>.tar.gz.sha256
+   sha256sum -c tomorrowland-ollama-bundle-qwen3-4b-<version>.tar.gz.sha256
    ```
 
 2. Review `model-manifest.json` after extracting or by validating the bundle;
@@ -117,7 +117,7 @@ To replace or upgrade the model safely:
 
    ```bash
    bash ../tomorrowland-release-<version>/scripts/load-ollama-model-bundle.sh \
-     --bundle ../tomorrowland-ollama-bundle-mistral-<version>.tar.gz \
+     --bundle ../tomorrowland-ollama-bundle-qwen3-4b-<version>.tar.gz \
      --compose-file docker-compose.airgap.yml \
      --env-file .env
    ```
@@ -176,7 +176,7 @@ changes:
 
    ```bash
    OLLAMA_URL=http://localhost:${OLLAMA_PORT:-11434} \
-   OLLAMA_MODEL=${OLLAMA_MODEL:-mistral} \
+   OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:4b} \
    bash ../tomorrowland-release-<version>/scripts/validate-ollama-model.sh --smoke-test
    ```
 
@@ -388,8 +388,7 @@ Complete this checklist before declaring the upgrade successful:
 - Existing source connectors are visible.
 - At least one existing document can be searched.
 - At least one existing document can be previewed.
-- Ollama model validation passes when Q&A/RAG/local intelligence is expected:
-  `OLLAMA_MODEL=${OLLAMA_MODEL:-mistral} bash scripts/validate-ollama-model.sh`.
+- Ollama model validation passes when Q&A/RAG/local intelligence is expected:   `OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:4b} bash scripts/validate-ollama-model.sh`.
 - Q&A route responds if enabled and the configured Ollama model is loaded.
 - Comments and annotations remain visible if present.
 - Subscriptions and notifications remain visible if present.
