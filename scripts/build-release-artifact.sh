@@ -288,6 +288,10 @@ MANIFEST
   printf 'search stay degraded until a model bundle is loaded.\n'
   printf 'Load with: scripts/load-ollama-model-bundle.sh\n'
   printf 'Validate with: scripts/validate-ollama-model.sh\n'
+  printf '\nNo bundle? Use an external local LLM instead: set LLM_PROVIDER=litellm\n'
+  printf '(or openai-compatible) with LLM_BASE_URL/LLM_MODEL in .env to route the\n'
+  printf 'platform at a LiteLLM/vLLM/llama.cpp endpoint. See the "Using an external\n'
+  printf 'LLM" section of docs/air-gapped-deployment.md.\n'
   printf '\nNever run: docker compose down -v  (deletes persistent data volumes)\n'
 } > "$release_dir/README-airgap.txt"
 

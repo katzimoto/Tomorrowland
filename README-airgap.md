@@ -29,10 +29,20 @@ parts directly; do not concatenate them by hand.
 
 The platform archive includes the Ollama runtime Docker image but does **not**
 include any model weights. The platform starts without local AI. A missing model
-bundle is a warning, not an error. Transfer and load a model bundle only when
-offline Q&A/RAG/local intelligence is required. Without a bundle, AI features
-are degraded but the base platform (search, preview, permissions, translation)
-works normally.
+bundle is a warning, not an error. Without any model, the base platform (keyword
+search, preview, permissions, translation, ingest) works normally; only
+embedding-backed semantic search and Q&A/RAG/local intelligence are degraded.
+
+There are two ways to enable AI features **without** the Ollama model bundle:
+
+1. **External LLM (recommended if you already run one):** point Tomorrowland at a
+   local OpenAI-compatible endpoint such as a **LiteLLM** proxy, vLLM, or
+   llama.cpp by setting `LLM_PROVIDER` / `LLM_BASE_URL` / `LLM_MODEL` (and the
+   `EMBEDDING_*` equivalents) in `.env`. See "Using an external LLM" in
+   [`docs/operations/air-gapped-deployment.md`](docs/operations/air-gapped-deployment.md).
+2. **Ollama model bundle:** transfer and load the optional
+   `tomorrowland-ollama-bundle-<model>-<version>.tar.gz` asset into the bundled
+   Ollama service.
 
 ## Quick start
 
