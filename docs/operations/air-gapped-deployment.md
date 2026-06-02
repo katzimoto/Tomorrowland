@@ -311,6 +311,49 @@ the Tomorrowland API.
 See `docs/operations/mcp-adapter.md` for full MCP tool descriptions, Hermes
 configuration, citation behaviour, and troubleshooting.
 
+## Using an external LLM instead of the model bundle (LiteLLM / OpenAI-compatible)
+
+Air-gapped deployments do not have to load an Ollama model bundle. If you already
+run a local LLM that exposes the OpenAI API — for example a **LiteLLM** proxy,
+vLLM, LM Studio, or a llama.cpp server — point Tomorrowland at it and skip the
+Ollama bundle entirely. The setting applies to the `api` and **every** pipeline
+worker (chat, RAG answers, summaries, tagging, entity extraction).
+
+Set these in `.env` before `docker compose up`. They are passed through to the
+containers by `docker-compose.airgap.yml`:
+
+```bash
+# Generation LLM
+LLM_PROVIDER=litellm            # litellm | openai-compatible | openai | llama-cpp
+LLM_BASE_URL=http://<litellm-host>:4000
+LLM_MODEL=qwen2.5:7b-instruct   # a model your proxy actually serves
+LLM_API_KEY=                    # only if the proxy enforces a key
+
+# Optional: serve embeddings from the same OpenAI-compatible endpoint
+EMBEDDING_PROVIDER=openai-compatible
+EMBEDDING_URL=http://<litellm-host>:4000
+EMBEDDING_MODEL=<embedding-model-the-proxy-serves>
+EMBEDDING_DIMENSION=<vector-size-of-that-model>
+EMBEDDING_API_KEY=
+```
+
+Networking: the URL must be reachable **from inside the containers**. On Linux,
+`host.docker.internal` is not resolvable by default — use the host's LAN IP, add
+the proxy as a service on the Compose network, or set `extra_hosts`. Keep all
+traffic inside the air-gapped network; no external connectivity is required.
+
+The bundled `ollama` service still starts (its image ships in the platform
+archive) but stays idle when `LLM_PROVIDER` points elsewhere. Leave it running or
+stop just that service with `docker compose -f docker-compose.airgap.yml stop ollama`.
+
+> Embedding dimension must match the model. Changing `EMBEDDING_DIMENSION` after a
+> Qdrant collection already holds vectors requires a reindex.
+
+For a richer multi-provider setup (per-task providers, encrypted credentials,
+health checks) configure providers in **Admin → Model Providers** instead; see
+`docs/operations/model-providers.md`. The env-var path above is the simplest
+zero-UI default and is what the workers fall back to when no task default is set.
+
 ## Ollama model bundle
 
 Some releases may ship an Ollama model bundle as a separate optional release
@@ -441,8 +484,9 @@ When changing the embedding model, provider, or dimension:
 The `EMBEDDING_PROVIDER=deterministic-test` setting is designed for automated
 testing and development environments only. **Do not use it in production.**
 Deterministic-test vectors produce low-quality embeddings that will degrade
-search and RAG results. Production deployments must use `EMBEDDING_PROVIDER=ollama`
-with a real embedding model.
+search and RAG results. Production deployments must use a real embedding model —
+`EMBEDDING_PROVIDER=ollama`, or `EMBEDDING_PROVIDER=openai-compatible` against a
+local OpenAI-compatible endpoint such as LiteLLM.
 
 ## Configure source connectors
 

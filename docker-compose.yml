@@ -18,6 +18,17 @@ x-app-environment: &app-environment
   EMBEDDING_URL: ${EMBEDDING_URL:-http://ollama-embed:11434}
   EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-4096}
   EMBEDDING_PROVIDER_UNSAFE_ALLOW_TEST_IN_PROD: ${EMBEDDING_PROVIDER_UNSAFE_ALLOW_TEST_IN_PROD:-false}
+  # External / OpenAI-compatible model provider overrides (optional).
+  # Leave LLM_PROVIDER empty to use the bundled Ollama. Set LLM_PROVIDER=litellm
+  # (or openai-compatible / openai / llama-cpp) with LLM_BASE_URL + LLM_MODEL to
+  # route the api AND every pipeline worker to an external local LLM instead of an
+  # Ollama model bundle. LLM_API_KEY / EMBEDDING_API_KEY carry Bearer auth when the
+  # endpoint requires it (LiteLLM proxy key, etc.); leave empty for local Ollama.
+  LLM_PROVIDER: ${LLM_PROVIDER:-}
+  LLM_BASE_URL: ${LLM_BASE_URL:-}
+  LLM_MODEL: ${LLM_MODEL:-}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
   AUTH_PROVIDER: ${AUTH_PROVIDER:-local}
   LDAP_URL: ${LDAP_URL:-ldap://domain-controller:389}
   LDAP_BASE_DN: ${LDAP_BASE_DN:-DC=company,DC=local}

@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Air-gapped (and default) Docker Compose now pass the external model-provider
+  settings — `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, and
+  `EMBEDDING_API_KEY` — through to the `api` and every pipeline worker. Operators
+  can run the air-gapped stack against an external local LLM that speaks the OpenAI
+  API (e.g. a LiteLLM proxy, vLLM, or llama.cpp) **without loading an Ollama model
+  bundle**, by setting `LLM_PROVIDER=litellm` (or `openai-compatible` / `llama-cpp`)
+  plus `LLM_BASE_URL` / `LLM_MODEL`. Defaults stay empty, so the bundled Ollama is
+  still used out of the box. `.env.airgap.example` and the air-gapped deployment
+  guide document the LiteLLM path. Previously these variables existed in `Settings`
+  but were never injected into the containers, so the external-LLM path was
+  unreachable in Compose deployments.
+
 ### Changed
 - Simplified air-gapped release to not require local AI for startup. `ollama/ollama`
   image pinned to `0.5.13`; Ollama removed from `api` depends_on health check in
