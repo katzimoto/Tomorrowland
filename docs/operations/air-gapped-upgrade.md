@@ -388,7 +388,8 @@ Complete this checklist before declaring the upgrade successful:
 - Existing source connectors are visible.
 - At least one existing document can be searched.
 - At least one existing document can be previewed.
-- Ollama model validation passes when Q&A/RAG/local intelligence is expected:   `OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:4b} bash scripts/validate-ollama-model.sh`.
+- Ollama model validation passes when Q&A/RAG/local intelligence is expected:
+  `OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:4b} bash scripts/validate-ollama-model.sh`.
 - Q&A route responds if enabled and the configured Ollama model is loaded.
 - Comments and annotations remain visible if present.
 - Subscriptions and notifications remain visible if present.

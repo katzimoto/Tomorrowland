@@ -425,18 +425,18 @@ Tomorrowland uses two distinct Ollama models:
   and similar-document discovery.
 
 Both models must be loaded into Ollama for full functionality. The embedding
-model is typically a smaller, specialized model such as `nomic-embed-text` or
-`mxbai-embed-large`. The `.env` and `.env.airgap.example` files document the
-available configuration options:
+model is a dedicated embedding model such as `qwen3-embedding:8b` (the default)
+or another supported model. The `.env` and `.env.airgap.example` files document
+the available configuration options:
 
 ```env
 # Generation/chat model
-OLLAMA_MODEL=mistral
+OLLAMA_MODEL=qwen3:4b
 
 # Embedding model (vector search)
 EMBEDDING_PROVIDER=ollama
-EMBEDDING_MODEL=nomic-embed-text
-EMBEDDING_DIMENSION=768
+EMBEDDING_MODEL=qwen3-embedding:8b
+EMBEDDING_DIMENSION=4096
 ```
 
 #### Air-gapped embedding model loading
@@ -453,7 +453,7 @@ curl -s http://localhost:11434/api/tags | grep -q "$EMBEDDING_MODEL" \
 #### Qdrant collection isolation
 
 Since vector safety (#184/#197), each embedding dimension creates an isolated
-Qdrant collection named `documents_v{dimension}` (e.g. `documents_v768`). When
+Qdrant collection named `documents_v{dimension}` (e.g. `documents_v4096`). When
 the embedding model or dimension changes, a new collection is created
 automatically on first search/upsert. Old collections are preserved for
 rollback but are not automatically deleted.
