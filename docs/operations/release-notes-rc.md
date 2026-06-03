@@ -50,7 +50,7 @@ Upgrade notes:
 - Run preflight before upgrade.
 - Create a backup before upgrade.
 - Load images from the local artifact bundle.
-- Verify and load `tomorrowland-ollama-bundle-mistral-<version>.tar.gz` when offline Q&A/RAG/local intelligence is required.
+- Verify and load `tomorrowland-ollama-bundle-qwen3-4b-<version>.tar.gz` when offline Q&A/RAG/local intelligence is required.
 - Run migrations through the documented upgrade flow.
 - Validate health/readiness after startup.
 - Validate Ollama model availability with `scripts/validate-ollama-model.sh`; use `--smoke-test` for a tiny local generation check.
@@ -72,8 +72,8 @@ The release artifact model separates platform startup from model weights:
   archive: Compose files, scripts, docs, templates, manifests, and checksums.
 - `tomorrowland-images-<version>.tar.part-*` and `.tar.parts.sha256` for the
   required Docker image bundle.
-- Optional `tomorrowland-ollama-bundle-mistral-<version>.tar.gz` and `.sha256`
-  for approved `OLLAMA_MODEL=mistral` model weights.
+- Optional `tomorrowland-ollama-bundle-qwen3-4b-<version>.tar.gz` and `.sha256`
+  for approved `OLLAMA_MODEL=qwen3:4b` model weights.
 
 The model bundle remains separate from the platform artifact to keep platform
 updates smaller and to allow customer-approved replacement models. The bundle
@@ -146,7 +146,7 @@ Carry-forward validation facts:
 
 - #91 is **Ready with limitations**; final artifact validation should still be performed on a Docker-enabled build host and representative target host.
 - The bundled translation image/model pack should be verified in a connected build environment and then validated against a running service with `scripts/validate-translation-languages.sh`.
-- If an Ollama model bundle is published, it should be built on a connected release host with `OLLAMA_MODEL=mistral bash scripts/build-ollama-model-bundle.sh 1.0-rc2`, checksum-verified, and validated after loading with `scripts/validate-ollama-model.sh --smoke-test`.
+- If an Ollama model bundle is published, it should be built on a connected release host with `OLLAMA_MODEL=qwen3:4b bash scripts/build-ollama-model-bundle.sh 1.0-rc2`, checksum-verified, and validated after loading with `scripts/validate-ollama-model.sh --smoke-test`.
 - Chinese Traditional (`zt`) is not supported in this RC.
 - Direct non-English translation pairs may pivot through English, which can reduce translation quality.
 - Translation worker architecture remains a follow-up area tracked by #110.

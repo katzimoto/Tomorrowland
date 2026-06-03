@@ -17,7 +17,8 @@ code.
 | `meilisearch` | `${MEILISEARCH_PORT:-7700}` | Keyword / BM25 index. | `GET /health` |
 | `qdrant` | `${QDRANT_PORT:-6333}` | Vector index storage. | `GET /healthz` |
 | `libretranslate` | `${LIBRETRANSLATE_PORT:-5000}` | Language detection and translation service. | `GET /languages` |
-| `ollama` | `${OLLAMA_PORT:-11434}` | Local LLM runtime for intelligence features. | `GET /api/tags` |
+| `ollama-llm` | `${OLLAMA_PORT:-11434}` | Local LLM runtime for intelligence features. | `ollama list` |
+| `ollama-embed` | `${OLLAMA_EMBED_PORT:-11435}` | Dedicated embedding model runtime. | `ollama list` |
 | `kafka` | `${KAFKA_PORT:-9092}` | Redpanda Kafka-compatible broker for events. | `rpk cluster health` |
 | `prometheus` | `127.0.0.1:${PROMETHEUS_PORT:-9090}` | Optional metrics scraper and alert-rule evaluator in the `monitoring` profile. | none |
 | `grafana` | `127.0.0.1:${GRAFANA_PORT:-3000}` | Optional dashboard UI in the `monitoring` profile. | none |
@@ -375,7 +376,8 @@ for the operating system and Docker runtime.
 | `meilisearch` | 1.00 | 1g | 256m | 512 |
 | `qdrant` | 1.00 | 1536m | 512m | 512 |
 | `libretranslate` | 1.00 | 2g | 512m | 512 |
-| `ollama` | 2.00 | 4g | 1g | 1024 |
+| `ollama-llm` | 2.00 | 8g | 2g | 1024 |
+| `ollama-embed` | 1.00 | 8g | 2g | 512 |
 | `api` | 1.00 | 1g | 256m | 512 |
 | `parse-worker` | 1.00 | 1536m | 256m | 512 |
 | `translate-worker` | 1.00 | 1024m | 256m | 512 |
@@ -472,7 +474,7 @@ docker compose logs -f api frontend migrate
 Follow infrastructure logs while troubleshooting startup:
 
 ```bash
-docker compose logs -f postgres meilisearch qdrant libretranslate ollama kafka
+docker compose logs -f postgres meilisearch qdrant libretranslate ollama-llm ollama-embed kafka
 ```
 
 Stop services without deleting named volumes:
@@ -630,6 +632,7 @@ curl -fsS http://localhost:7700/health
 curl -fsS http://localhost:6333/healthz
 curl -fsS http://localhost:5000/languages
 curl -fsS http://localhost:11434/api/tags
+curl -fsS http://localhost:11435/api/tags
 ```
 
 PostgreSQL and Kafka health checks are usually inspected through Compose:
@@ -701,7 +704,7 @@ model has already been downloaded. If summaries, tags, or Q&A fail because the
 model is missing, pull the configured model manually:
 
 ```bash
-docker compose exec ollama ollama pull "${OLLAMA_MODEL:-mistral}"
+docker compose exec ollama-llm ollama pull "${OLLAMA_MODEL:-qwen3:4b}"
 ```
 
 Then retry the failed application operation or restart the API if needed:

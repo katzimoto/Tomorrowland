@@ -134,7 +134,7 @@ build from source.
 3. Optionally download the Ollama model bundle (for offline Q&A/RAG):
 
    ```bash
-   sha256sum -c tomorrowland-ollama-bundle-mistral-<version>.tar.gz.sha256
+   sha256sum -c tomorrowland-ollama-bundle-qwen3-4b-<version>.tar.gz.sha256
    ```
 
 4. Copy all verified files to the air-gapped host using approved removable
@@ -368,8 +368,8 @@ independently from the application images. The default bundle follows this
 naming pattern:
 
 ```text
-tomorrowland-ollama-bundle-mistral-<version>.tar.gz
-tomorrowland-ollama-bundle-mistral-<version>.tar.gz.sha256
+tomorrowland-ollama-bundle-qwen3-4b-<version>.tar.gz
+tomorrowland-ollama-bundle-qwen3-4b-<version>.tar.gz.sha256
 ```
 
 Each bundle contains a `models/` directory in Ollama's storage layout,
@@ -384,7 +384,7 @@ Load the bundle after images are loaded and before relying on Q&A/RAG:
 
 ```bash
 bash scripts/load-ollama-model-bundle.sh \
-  --bundle ../tomorrowland-ollama-bundle-mistral-<version>.tar.gz \
+  --bundle ../tomorrowland-ollama-bundle-qwen3-4b-<version>.tar.gz \
   --compose-file docker-compose.airgap.yml \
   --env-file .env
 ```
@@ -393,7 +393,7 @@ Validate that the configured model is available offline:
 
 ```bash
 OLLAMA_URL=http://localhost:11434 \
-OLLAMA_MODEL=mistral \
+OLLAMA_MODEL=qwen3:4b \
 bash scripts/validate-ollama-model.sh
 ```
 
@@ -401,7 +401,7 @@ For an end-to-end local generation check:
 
 ```bash
 OLLAMA_URL=http://localhost:11434 \
-OLLAMA_MODEL=mistral \
+OLLAMA_MODEL=qwen3:4b \
 bash scripts/validate-ollama-model.sh --smoke-test
 ```
 
@@ -425,18 +425,18 @@ Tomorrowland uses two distinct Ollama models:
   and similar-document discovery.
 
 Both models must be loaded into Ollama for full functionality. The embedding
-model is typically a smaller, specialized model such as `nomic-embed-text` or
-`mxbai-embed-large`. The `.env` and `.env.airgap.example` files document the
-available configuration options:
+model is a dedicated embedding model such as `qwen3-embedding:8b` (the default)
+or another supported model. The `.env` and `.env.airgap.example` files document
+the available configuration options:
 
 ```env
 # Generation/chat model
-OLLAMA_MODEL=mistral
+OLLAMA_MODEL=qwen3:4b
 
 # Embedding model (vector search)
 EMBEDDING_PROVIDER=ollama
-EMBEDDING_MODEL=nomic-embed-text
-EMBEDDING_DIMENSION=768
+EMBEDDING_MODEL=qwen3-embedding:8b
+EMBEDDING_DIMENSION=4096
 ```
 
 #### Air-gapped embedding model loading
@@ -453,7 +453,7 @@ curl -s http://localhost:11434/api/tags | grep -q "$EMBEDDING_MODEL" \
 #### Qdrant collection isolation
 
 Since vector safety (#184/#197), each embedding dimension creates an isolated
-Qdrant collection named `documents_v{dimension}` (e.g. `documents_v768`). When
+Qdrant collection named `documents_v{dimension}` (e.g. `documents_v4096`). When
 the embedding model or dimension changes, a new collection is created
 automatically on first search/upsert. Old collections are preserved for
 rollback but are not automatically deleted.
@@ -827,7 +827,7 @@ or marked unavailable by the application.
 
 - Ollama model weights remain a separate release asset rather than being
   embedded in the platform archive. Model bundles are optional add-on artifacts. Operators may omit or replace the
-  default `mistral` bundle; local Q&A/RAG features are degraded until a matching
+  default `qwen3:4b` bundle; local Q&A/RAG features are degraded until a matching
   model is loaded into `ollama_data`.
 - NiFi event ingestion requires operator-provided drain invocation; no
   dedicated NiFi drain worker or live NiFi/Kafka CI validation is included.
