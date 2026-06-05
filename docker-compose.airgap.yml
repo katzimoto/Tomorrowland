@@ -187,8 +187,9 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
+    # No depends_on: ollama — the worker calls the LLM/embedding provider per
+    # job (bundled Ollama via the local-llm profile, or an external endpoint via
+    # LLM_*/EMBEDDING_URL), so it must start without a local Ollama present.
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8083/health"]
       interval: 30s
@@ -234,8 +235,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
+    # No depends_on: ollama — see embed-worker; provider is called per job, so
+    # the worker must start whether or not a local Ollama is running.
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8085/health"]
       interval: 30s
@@ -418,6 +419,12 @@ services:
       - libretranslate_data:/home/libretranslate/.local
 
   ollama:
+    # Bundled local LLM/embedding runtime. Gated behind the "local-llm" profile
+    # so it is opt-in: the tomorrowland-airgap.sh wrapper activates the profile
+    # automatically when LLM_PROVIDER is empty, and skips it (no Ollama, external
+    # endpoint via LLM_*/EMBEDDING_URL) when LLM_PROVIDER is set. A no-Ollama
+    # image bundle (INCLUDE_OLLAMA_IMAGE=0) therefore still validates and deploys.
+    profiles: ["local-llm"]
     image: ollama/ollama:0.5.13
     restart: unless-stopped
     environment:

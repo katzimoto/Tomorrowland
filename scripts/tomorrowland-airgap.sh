@@ -20,6 +20,15 @@ env_value() {
   printf '%s' "$default"
 }
 
+# Air-gapped LLM mode selector. The bundled Ollama runtime lives behind the
+# "local-llm" Compose profile (see docker-compose.airgap.yml). When LLM_PROVIDER
+# is empty the stack uses bundled Ollama, so the profile must be active. When
+# LLM_PROVIDER is set the api and workers target that external OpenAI-compatible
+# endpoint and Ollama is not started. Echoes the profile to activate, or nothing.
+local_llm_profile() {
+  [[ -z "$(env_value LLM_PROVIDER "")" ]] && printf 'local-llm'
+}
+
 usage() {
   cat <<'USAGE'
 Usage: scripts/tomorrowland-airgap.sh <command> [options]
@@ -135,8 +144,14 @@ case "$cmd" in
     [[ -f .env ]] || fail ".env not found.  Copy .env.airgap.example to .env and replace every 'change-me-*' placeholder before starting."
     [[ -f docker-compose.airgap.yml ]] || fail "docker-compose.airgap.yml not found.  Run from the extracted release directory."
     command -v docker >/dev/null 2>&1 || fail "docker is required"
-    log "Starting Tomorrowland stack (air-gapped, no pull, no build)"
-    exec docker compose --env-file .env -f docker-compose.airgap.yml up -d
+    profile_args=()
+    if [[ -n "$(local_llm_profile)" ]]; then
+      profile_args=(--profile local-llm)
+      log "Starting Tomorrowland stack (air-gapped) with bundled Ollama (local-llm profile)"
+    else
+      log "Starting Tomorrowland stack (air-gapped) WITHOUT bundled Ollama; using external LLM_PROVIDER endpoint"
+    fi
+    exec docker compose --env-file .env "${profile_args[@]+"${profile_args[@]}"}" -f docker-compose.airgap.yml up -d
     ;;
 
   status)
@@ -144,7 +159,9 @@ case "$cmd" in
     [[ -f docker-compose.airgap.yml ]] || fail "docker-compose.airgap.yml not found.  Run from the extracted release directory."
     command -v docker >/dev/null 2>&1 || fail "docker is required"
     if [[ -f .env ]]; then
-      docker compose --env-file .env -f docker-compose.airgap.yml ps
+      status_profile_args=()
+      [[ -n "$(local_llm_profile)" ]] && status_profile_args=(--profile local-llm)
+      docker compose --env-file .env "${status_profile_args[@]+"${status_profile_args[@]}"}" -f docker-compose.airgap.yml ps
       api_port="$(env_value API_PORT 8000)"
       frontend_port="$(env_value FRONTEND_PORT 8080)"
     else
@@ -163,9 +180,11 @@ case "$cmd" in
     command -v docker >/dev/null 2>&1 || fail "docker is required"
     log "Stopping Tomorrowland stack (volumes preserved; never use 'down -v')"
     if [[ -f .env ]]; then
-      exec docker compose --env-file .env -f docker-compose.airgap.yml down
+      down_profile_args=()
+      [[ -n "$(local_llm_profile)" ]] && down_profile_args=(--profile local-llm)
+      exec docker compose --env-file .env "${down_profile_args[@]+"${down_profile_args[@]}"}" -f docker-compose.airgap.yml down
     else
-      exec docker compose -f docker-compose.airgap.yml down
+      exec docker compose --profile local-llm -f docker-compose.airgap.yml down
     fi
     ;;
 

@@ -16,6 +16,11 @@ Environment:
   SPLIT_IMAGE_BUNDLE   Set to 0 to embed images/tomorrowland-images.tar in the archive.
                        Defaults to 1 so GitHub Release assets stay under per-file limits.
   IMAGE_PART_SIZE      Split size passed to split -b (default: 1900m)
+  INCLUDE_OLLAMA_IMAGE Set to 0 to exclude the bundled ollama/ollama runtime image
+                       for an external-LLM (no local Ollama) deployment. The
+                       air-gapped stack starts the Ollama service only under the
+                       "local-llm" Compose profile, so a no-Ollama bundle still
+                       validates and deploys. Defaults to 1 (include Ollama).
 USAGE
 }
 
@@ -54,14 +59,17 @@ backend_airgap_image="tomorrowland/backend:airgap"
 frontend_airgap_image="tomorrowland/frontend:airgap"
 libretranslate_version_image="tomorrowland/libretranslate:${safe_version}"
 libretranslate_airgap_image="tomorrowland/libretranslate:airgap"
+include_ollama_image="${INCLUDE_OLLAMA_IMAGE:-1}"
 third_party_images=(
   "postgres:16-alpine"
   "redpandadata/redpanda:v24.1.9"
   "qdrant/qdrant:v1.10.1"
-  "ollama/ollama:0.5.13"
   "getmeili/meilisearch:v1.9"
   "rabbitmq:3.13-management-alpine"
 )
+if [[ "$include_ollama_image" != "0" ]]; then
+  third_party_images+=("ollama/ollama:0.5.13")
+fi
 all_images=(
   "$backend_airgap_image"
   "$frontend_airgap_image"
