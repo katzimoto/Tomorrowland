@@ -342,9 +342,27 @@ Networking: the URL must be reachable **from inside the containers**. On Linux,
 the proxy as a service on the Compose network, or set `extra_hosts`. Keep all
 traffic inside the air-gapped network; no external connectivity is required.
 
-The bundled `ollama` service still starts (its image ships in the platform
-archive) but stays idle when `LLM_PROVIDER` points elsewhere. Leave it running or
-stop just that service with `docker compose -f docker-compose.airgap.yml stop ollama`.
+The bundled `ollama` service is gated behind the `local-llm` Compose profile, so
+it is **not started** when you deploy with `LLM_PROVIDER` set. The
+`scripts/tomorrowland-airgap.sh` wrapper handles this automatically:
+
+- `LLM_PROVIDER` empty → the wrapper activates the `local-llm` profile and starts
+  bundled Ollama (requires the `ollama/ollama` image in the bundle).
+- `LLM_PROVIDER` set → the wrapper skips the profile; no Ollama container runs and
+  the api/workers use the external endpoint above.
+
+If you drive Compose directly instead of the wrapper, add `--profile local-llm`
+to `up`/`down` only when you want the bundled Ollama.
+
+Because Ollama is opt-in, you can build a **no-Ollama image bundle** that omits
+the `ollama/ollama` runtime image entirely and is smaller:
+
+```bash
+INCLUDE_OLLAMA_IMAGE=0 bash scripts/build-release-artifact.sh <version>
+```
+
+Such a bundle still passes `scripts/tomorrowland-airgap.sh validate` and deploys,
+as long as `LLM_PROVIDER` is set in `.env` (otherwise the stack has no LLM at all).
 
 > Embedding dimension must match the model. Changing `EMBEDDING_DIMENSION` after a
 > Qdrant collection already holds vectors requires a reindex.
