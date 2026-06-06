@@ -267,6 +267,7 @@ class TomorrowlandClient:
         self,
         correlation_id: str | None = None,
         auth_header: str | None = None,
+        traceparent: str | None = None,
     ) -> dict[str, str]:
         """Build request headers.
 
@@ -274,6 +275,10 @@ class TomorrowlandClient:
         ``Authorization`` header (per-client token forwarding).  Falls back
         to the static ``self._api_key`` when no per-request header is
         present.
+
+        *traceparent*, when provided, is forwarded verbatim as the W3C
+        ``traceparent`` header for distributed tracing across MCP → API
+        → Qdrant / Ollama.
         """
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if auth_header:
@@ -282,6 +287,8 @@ class TomorrowlandClient:
             headers["Authorization"] = f"Bearer {self._api_key}"
         if correlation_id:
             headers["X-Correlation-ID"] = correlation_id
+        if traceparent:
+            headers["traceparent"] = traceparent
         return headers
 
     def _timeout_for_path(self, path: str) -> httpx.Timeout:
@@ -298,6 +305,7 @@ class TomorrowlandClient:
         params: dict[str, Any] | None = None,
         correlation_id: str | None = None,
         auth_header: str | None = None,
+        traceparent: str | None = None,
     ) -> dict[str, Any]:
         """Perform an HTTP request and return the parsed JSON response.
 
@@ -322,6 +330,7 @@ class TomorrowlandClient:
         req_headers = self._headers(
             correlation_id=correlation_id,
             auth_header=auth_header,
+            traceparent=traceparent,
         )
 
         logger.debug(
@@ -432,6 +441,7 @@ class TomorrowlandClient:
         filters: dict[str, Any] | None = None,
         correlation_id: str | None = None,
         auth_header: str | None = None,
+        traceparent: str | None = None,
     ) -> dict[str, Any]:
         """POST /api/agent/v1/search_documents"""
         body: dict[str, Any] = {"query": query, "top_k": top_k, "page": page}
@@ -443,6 +453,7 @@ class TomorrowlandClient:
             json_body=body,
             correlation_id=correlation_id,
             auth_header=auth_header,
+            traceparent=traceparent,
         )
 
     def get_document(
@@ -450,6 +461,7 @@ class TomorrowlandClient:
         document_id: str,
         correlation_id: str | None = None,
         auth_header: str | None = None,
+        traceparent: str | None = None,
     ) -> dict[str, Any]:
         """GET /api/agent/v1/get_document"""
         return self._request(
@@ -458,6 +470,7 @@ class TomorrowlandClient:
             params={"document_id": document_id},
             correlation_id=correlation_id,
             auth_header=auth_header,
+            traceparent=traceparent,
         )
 
     def get_passages(
@@ -467,6 +480,7 @@ class TomorrowlandClient:
         offset: int = 0,
         correlation_id: str | None = None,
         auth_header: str | None = None,
+        traceparent: str | None = None,
     ) -> dict[str, Any]:
         """GET /api/agent/v1/get_passages"""
         return self._request(
@@ -475,6 +489,7 @@ class TomorrowlandClient:
             params={"document_id": document_id, "limit": limit, "offset": offset},
             correlation_id=correlation_id,
             auth_header=auth_header,
+            traceparent=traceparent,
         )
 
     def ask_corpus(
@@ -484,6 +499,7 @@ class TomorrowlandClient:
         document_id: str | None = None,
         correlation_id: str | None = None,
         auth_header: str | None = None,
+        traceparent: str | None = None,
     ) -> dict[str, Any]:
         """POST /api/agent/v1/ask_corpus"""
         body: dict[str, Any] = {"question": question}
@@ -497,6 +513,7 @@ class TomorrowlandClient:
             json_body=body,
             correlation_id=correlation_id,
             auth_header=auth_header,
+            traceparent=traceparent,
         )
 
     def get_related_documents(
@@ -504,6 +521,7 @@ class TomorrowlandClient:
         document_id: str,
         correlation_id: str | None = None,
         auth_header: str | None = None,
+        traceparent: str | None = None,
     ) -> dict[str, Any]:
         """GET /api/agent/v1/get_related_documents"""
         return self._request(
@@ -512,6 +530,7 @@ class TomorrowlandClient:
             params={"document_id": document_id},
             correlation_id=correlation_id,
             auth_header=auth_header,
+            traceparent=traceparent,
         )
 
     def list_facets(
@@ -519,6 +538,7 @@ class TomorrowlandClient:
         query: str = "",
         correlation_id: str | None = None,
         auth_header: str | None = None,
+        traceparent: str | None = None,
     ) -> dict[str, Any]:
         """GET /api/agent/v1/list_facets"""
         return self._request(
@@ -527,6 +547,7 @@ class TomorrowlandClient:
             params={"query": query},
             correlation_id=correlation_id,
             auth_header=auth_header,
+            traceparent=traceparent,
         )
 
     def close(self) -> None:

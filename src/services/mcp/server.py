@@ -198,6 +198,20 @@ def _extract_auth_header(ctx: Context[Any, Any]) -> str | None:
     return headers.get("authorization")
 
 
+def _extract_traceparent(ctx: Context[Any, Any]) -> str | None:
+    """Extract the W3C ``traceparent`` header from the MCP request context.
+
+    Enables distributed tracing across MCP → API → Qdrant / Ollama.
+    """
+    meta = getattr(ctx, "request_meta", None)
+    if meta is None:
+        return None
+    headers: dict[str, str] | None = getattr(meta, "headers", None)
+    if headers is None:
+        return None
+    return headers.get("traceparent")
+
+
 def _mcp_audit_log(
     *,
     tool: str,
@@ -301,6 +315,7 @@ def create_mcp_server(
     ) -> dict[str, Any]:
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
+        traceparent = _extract_traceparent(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(query, 1, _MAX_QUERY_LENGTH, "query")
         _validate_int(top_k, _MIN_TOP_K, _MAX_TOP_K, "top_k")
@@ -316,6 +331,7 @@ def create_mcp_server(
                 filters=filters,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
+                traceparent=traceparent,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -382,6 +398,7 @@ def create_mcp_server(
     ) -> dict[str, Any]:
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
+        traceparent = _extract_traceparent(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
         _check_tool_enabled("get_document")
@@ -391,6 +408,7 @@ def create_mcp_server(
                 document_id=document_id,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
+                traceparent=traceparent,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -464,6 +482,7 @@ def create_mcp_server(
     ) -> dict[str, Any]:
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
+        traceparent = _extract_traceparent(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
         _validate_int(limit, _MIN_LIMIT, _MAX_LIMIT, "limit")
@@ -477,6 +496,7 @@ def create_mcp_server(
                 offset=offset,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
+                traceparent=traceparent,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -551,6 +571,7 @@ def create_mcp_server(
     ) -> dict[str, Any]:
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
+        traceparent = _extract_traceparent(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(question, 1, _MAX_QUESTION_LENGTH, "question")
 
@@ -573,6 +594,7 @@ def create_mcp_server(
                 document_id=document_id,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
+                traceparent=traceparent,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -646,6 +668,7 @@ def create_mcp_server(
     ) -> dict[str, Any]:
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
+        traceparent = _extract_traceparent(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
         _check_tool_enabled("get_related_documents")
@@ -655,6 +678,7 @@ def create_mcp_server(
                 document_id=document_id,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
+                traceparent=traceparent,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -721,6 +745,7 @@ def create_mcp_server(
     ) -> dict[str, Any]:
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
+        traceparent = _extract_traceparent(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(query, 0, _MAX_QUERY_LENGTH, "query")
         _check_tool_enabled("list_facets")
@@ -730,6 +755,7 @@ def create_mcp_server(
                 query=query,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
+                traceparent=traceparent,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(

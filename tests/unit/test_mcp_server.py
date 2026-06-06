@@ -41,6 +41,7 @@ from services.mcp.server import (
     _VALID_FILTER_KEYS,
     _check_tool_enabled,
     _extract_auth_header,
+    _extract_traceparent,
     _validate_filters,
     _validate_int,
     _validate_string,
@@ -178,6 +179,156 @@ class TestExtractAuthHeader:
     def test_returns_none_when_context_is_none(self) -> None:
         """Gracefully handles None context (tests call tools without ctx)."""
         assert _extract_auth_header(None) is None  # type: ignore[arg-type]
+
+
+# ======================================================================
+# _extract_traceparent
+# ======================================================================
+
+
+class TestExtractTraceparent:
+    """Verify the W3C traceparent header is correctly extracted from Context."""
+
+    def test_extracts_lowercase_traceparent(self) -> None:
+        """ASGI normalises headers to lowercase."""
+        ctx = _mock_context({
+            "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        })
+        result = _extract_traceparent(ctx)
+        assert result == "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+
+    def test_returns_none_when_no_request_meta(self) -> None:
+        ctx = MagicMock(spec=Context, request_meta=None)
+        result = _extract_traceparent(ctx)
+        assert result is None
+
+    def test_returns_none_when_no_headers_on_meta(self) -> None:
+        ctx = MagicMock(spec=Context)
+        meta_without_headers = MagicMock(spec=[])
+        ctx.request_meta = meta_without_headers
+        result = _extract_traceparent(ctx)
+        assert result is None
+
+    def test_returns_none_when_context_is_none(self) -> None:
+        """Gracefully handles None context (tests call tools without ctx)."""
+        assert _extract_traceparent(None) is None  # type: ignore[arg-type]
+
+    def test_returns_none_when_no_traceparent(self) -> None:
+        ctx = _mock_context({"authorization": "Bearer token"})
+        result = _extract_traceparent(ctx)
+        assert result is None
+
+
+# ======================================================================
+# Traceparent forwarding (integration)
+# ======================================================================
+
+
+class TestTraceparentForwarding:
+    """Verify traceparent is forwarded from server tools to the client."""
+
+    def _make_server_with_trace_client(self) -> FastMCP:
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.search_documents.return_value = {
+            "results": [], "total": 0, "query": "t",
+        }
+        mock_client.get_document.return_value = {"document_id": "abc"}
+        mock_client.get_passages.return_value = {
+            "document_id": "abc", "passages": [], "total": 0,
+        }
+        mock_client.ask_corpus.return_value = {
+            "question": "q", "answer": "a", "citations": [], "model": "m",
+        }
+        mock_client.get_related_documents.return_value = {
+            "document_id": "abc", "related": [],
+        }
+        mock_client.list_facets.return_value = {"facets": {}}
+        return create_mcp_server(settings, client=mock_client), mock_client
+
+    def _get_tool_fn(self, mcp: FastMCP, name: str) -> Any:
+        for t in mcp._tool_manager.list_tools():
+            if t.name == name:
+                return t.fn
+        raise KeyError(f"Tool {name!r} not found")
+
+    _TRACEPARENT = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+
+    def test_traceparent_forwarded_to_search_documents(self) -> None:
+        mcp, mock_client = self._make_server_with_trace_client()
+        fn = self._get_tool_fn(mcp, "tomorrowland_search_documents")
+
+        ctx = _mock_context({"traceparent": self._TRACEPARENT})
+        fn(query="test", ctx=ctx)
+
+        mock_client.search_documents.assert_called_once()
+        assert mock_client.search_documents.call_args[1]["traceparent"] == self._TRACEPARENT
+
+    def test_traceparent_forwarded_to_get_document(self) -> None:
+        mcp, mock_client = self._make_server_with_trace_client()
+        fn = self._get_tool_fn(mcp, "tomorrowland_get_document")
+
+        ctx = _mock_context({"traceparent": self._TRACEPARENT})
+        fn(document_id="abc", ctx=ctx)
+
+        mock_client.get_document.assert_called_once()
+        assert mock_client.get_document.call_args[1]["traceparent"] == self._TRACEPARENT
+
+    def test_traceparent_forwarded_to_get_passages(self) -> None:
+        mcp, mock_client = self._make_server_with_trace_client()
+        fn = self._get_tool_fn(mcp, "tomorrowland_get_passages")
+
+        ctx = _mock_context({"traceparent": self._TRACEPARENT})
+        fn(document_id="abc", ctx=ctx)
+
+        mock_client.get_passages.assert_called_once()
+        assert mock_client.get_passages.call_args[1]["traceparent"] == self._TRACEPARENT
+
+    def test_traceparent_forwarded_to_ask_corpus(self) -> None:
+        mcp, mock_client = self._make_server_with_trace_client()
+        fn = self._get_tool_fn(mcp, "tomorrowland_ask_corpus")
+
+        ctx = _mock_context({"traceparent": self._TRACEPARENT})
+        _invoke_tool(fn, question="what?", ctx=ctx)
+
+        mock_client.ask_corpus.assert_called_once()
+        assert mock_client.ask_corpus.call_args[1]["traceparent"] == self._TRACEPARENT
+
+    def test_traceparent_forwarded_to_get_related_documents(self) -> None:
+        mcp, mock_client = self._make_server_with_trace_client()
+        fn = self._get_tool_fn(mcp, "tomorrowland_get_related_documents")
+
+        ctx = _mock_context({"traceparent": self._TRACEPARENT})
+        fn(document_id="abc", ctx=ctx)
+
+        mock_client.get_related_documents.assert_called_once()
+        assert (
+            mock_client.get_related_documents.call_args[1]["traceparent"]
+            == self._TRACEPARENT
+        )
+
+    def test_traceparent_forwarded_to_list_facets(self) -> None:
+        mcp, mock_client = self._make_server_with_trace_client()
+        fn = self._get_tool_fn(mcp, "tomorrowland_list_facets")
+
+        ctx = _mock_context({"traceparent": self._TRACEPARENT})
+        fn(ctx=ctx)
+
+        mock_client.list_facets.assert_called_once()
+        assert mock_client.list_facets.call_args[1]["traceparent"] == self._TRACEPARENT
+
+    def test_no_traceparent_when_not_in_context(self) -> None:
+        mcp, mock_client = self._make_server_with_trace_client()
+        fn = self._get_tool_fn(mcp, "tomorrowland_search_documents")
+
+        ctx = _mock_context({"authorization": "Bearer token"})
+        fn(query="test", ctx=ctx)
+
+        mock_client.search_documents.assert_called_once()
+        assert mock_client.search_documents.call_args[1]["traceparent"] is None
 
 
 # ======================================================================
