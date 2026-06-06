@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Tabs & segmented</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .stack { display: flex; flex-direction: column; gap: 28px; }
+  .lbl { font-family: var(--font-family-mono); font-size: 10px; color: var(--color-text-muted); letter-spacing: 0.04em; margin-bottom: 8px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--color-border); }
+  .tab { padding: 8px 14px; font-size: var(--font-size-body); font-weight: var(--font-weight-meta); color: var(--color-text-secondary); background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; }
+  .tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); font-weight: 600; }
+  .tab:hover:not(.active) { color: var(--color-text-primary); }
+
+  /* Segmented (mode group) */
+  .mode { display: inline-flex; gap: 2px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-panel); padding: 2px; }
+  .seg { padding: 4px 12px; font-size: var(--font-size-meta); font-weight: var(--font-weight-meta); color: var(--color-text-secondary); background: transparent; border: 0; border-radius: calc(var(--radius-panel) - 2px); cursor: pointer; }
+  .seg.active { background: var(--color-surface-raised); color: var(--color-primary); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+</style></head>
+<body>
+<div class="card stack">
+  <div>
+    <div class="lbl">UNDERLINED TABS — document insight panel</div>
+    <div class="tabs">
+      <button class="tab active">Summary</button>
+      <button class="tab">Q&amp;A</button>
+      <button class="tab">Related</button>
+      <button class="tab">Annotations</button>
+      <button class="tab">Comments</button>
+      <button class="tab">Versions</button>
+    </div>
+  </div>
+  <div>
+    <div class="lbl">SEGMENTED CONTROL — search mode</div>
+    <div class="mode">
+      <button class="seg active">Hybrid</button>
+      <button class="seg">Keyword</button>
+      <button class="seg">Semantic</button>
+    </div>
+  </div>
+</div>
+</body></html>

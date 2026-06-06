@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Nav rail</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  body { padding: 0; }
+  .stage { display: flex; gap: 24px; padding: 24px; }
+  .rail { width: 220px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-panel); padding: 16px 0; display: flex; flex-direction: column; }
+  .top { display: flex; align-items: center; gap: 8px; padding: 0 12px 16px; }
+  .mark { width: 32px; height: 32px; }
+  .brand { font-size: 15px; font-weight: 600; color: var(--color-text-primary); }
+  ul { list-style: none; margin: 0; padding: 0 8px; display: flex; flex-direction: column; gap: 2px; }
+  .item { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: var(--radius-panel); color: var(--color-text-muted); text-decoration: none; font-size: 14px; font-weight: 500; }
+  .item:hover { background: var(--color-bg); color: var(--color-text-primary); }
+  .item.active { background: var(--color-badge-source-bg); color: var(--color-primary); }
+  .icn { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
+  .badgeWrap { position: relative; display: flex; }
+  .badge { position: absolute; top: -4px; right: -6px; background: var(--color-danger); color: #0d1117; font-size: 9px; font-weight: 700; border-radius: 10px; padding: 1px 4px; min-width: 16px; text-align: center; line-height: 14px; }
+
+  .collapsed { width: 72px; }
+  .collapsed .top { justify-content: center; padding: 0 8px 16px; }
+  .collapsed .brand, .collapsed .label { display: none; }
+  .collapsed .item { justify-content: center; padding: 8px; }
+</style></head>
+<body>
+<div class="stage">
+  <nav class="rail collapsed">
+    <div class="top"><img class="mark" src="../assets/favicon.svg" alt=""></div>
+    <ul>
+      <li><a class="item active"><span class="icn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span></a></li>
+      <li><a class="item"><span class="icn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg></span></a></li>
+      <li><a class="item"><span class="icn"><span class="badgeWrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span></span></a></li>
+      <li><a class="item"><span class="icn"><span class="badgeWrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span class="badge">3</span></span></span></a></li>
+      <li><a class="item"><span class="icn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg></span></a></li>
+    </ul>
+  </nav>
+
+  <nav class="rail">
+    <div class="top">
+      <img class="mark" src="../assets/favicon.svg" alt="">
+      <span class="brand">Tomorrowland</span>
+    </div>
+    <ul>
+      <li><a class="item active"><span class="icn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span><span class="label">Search</span></a></li>
+      <li><a class="item"><span class="icn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg></span><span class="label">Chat</span></a></li>
+      <li><a class="item"><span class="icn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span><span class="label">Subscriptions</span></a></li>
+      <li><a class="item"><span class="icn"><span class="badgeWrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span class="badge">3</span></span></span><span class="label">Notifications</span></a></li>
+      <li><a class="item"><span class="icn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg></span><span class="label">History</span></a></li>
+    </ul>
+  </nav>
+</div>
+</body></html>

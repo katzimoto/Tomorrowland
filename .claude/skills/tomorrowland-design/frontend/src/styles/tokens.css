@@ -1,0 +1,119 @@
+/* Design tokens — dark-first workspace theme */
+:root {
+  /* Colour palette */
+  --color-bg: #0d1117;
+  --color-surface: #161b22;
+  --color-surface-raised: #1c2128;
+  --color-border: #30363d;
+
+  --color-text-primary: #e6edf3;
+  /* Secondary/muted lightened to meet WCAG 2 AA (4.5:1) on all dark surfaces,
+     including the raised and selected-row backgrounds. */
+  --color-text-secondary: #b1bac4;
+  --color-text-muted: #9da7b3;
+
+  --color-primary: #58a6ff;
+  --color-primary-hover: #79b8ff;
+  --color-primary-fg: #0d1117;
+
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-danger: #f85149;
+  --color-danger-hover: #da3633;
+
+  --color-badge-source: #58a6ff;
+  --color-badge-tag: #3fb950;
+  --color-badge-translation: #d29922;
+
+  /* Badge backgrounds — semi-transparent tints on dark surface */
+  --color-badge-neutral-bg: rgba(255, 255, 255, 0.07);
+  --color-badge-source-bg: rgba(88, 166, 255, 0.15);
+  --color-badge-tag-bg: rgba(63, 185, 80, 0.15);
+  --color-badge-translation-bg: rgba(210, 153, 34, 0.15);
+  --color-badge-success-bg: rgba(63, 185, 80, 0.15);
+  --color-badge-warning-bg: rgba(210, 153, 34, 0.15);
+  --color-badge-danger-bg: rgba(248, 81, 73, 0.15);
+
+  /* Contextual warning surface (banners, alerts) */
+  --color-warning-surface: rgba(210, 153, 34, 0.1);
+  --color-warning-border: rgba(210, 153, 34, 0.3);
+  --color-warning-text: #d29922;
+
+  /* Focus ring alpha tints */
+  --color-primary-alpha: rgba(88, 166, 255, 0.2);
+  --color-danger-alpha: rgba(248, 81, 73, 0.2);
+
+  /* Skeleton shimmer */
+  --color-skeleton-base: #21262d;
+  --color-skeleton-shine: #2d333b;
+
+  /* Modal/menu overlay */
+  --color-overlay: rgba(0, 0, 0, 0.65);
+
+  /* Typography */
+  --font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+
+  --font-size-page-title: 24px;
+  --line-height-page-title: 32px;
+  --font-weight-page-title: 600;
+
+  --font-size-section-title: 18px;
+  --line-height-section-title: 26px;
+  --font-weight-section-title: 600;
+
+  --font-size-panel-title: 14px;
+  --line-height-panel-title: 20px;
+  --font-weight-panel-title: 600;
+
+  --font-size-body: 14px;
+  --line-height-body: 20px;
+  --font-weight-body: 400;
+
+  --font-size-meta: 12px;
+  --line-height-meta: 16px;
+  --font-weight-meta: 500;
+
+  --font-size-button: 14px;
+  --line-height-button: 20px;
+  --font-weight-button: 500;
+
+  /* Spacing (4px base unit) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-14: 56px;
+
+  --page-padding-desktop: 24px;
+  --page-padding-mobile: 16px;
+  --panel-gap: 16px;
+  --toolbar-gap: 8px;
+  --row-padding-y: 14px;
+  --meta-gap: 6px;
+
+  /* Shape */
+  --radius-panel: 6px;
+  --radius-chip: 4px;
+
+  /* Layout */
+  --rail-collapsed: 72px;
+  --rail-expanded: 220px;
+  --topbar-height: 56px;
+  --filter-panel-width: 280px;
+
+  /* Result row heights — shared between real rows and SkeletonRow */
+  --result-row-height: 88px;
+  --result-row-height-compact: 64px;
+
+  /* Focus ring */
+  --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-primary);
+
+  /* Elevation — deeper shadows for dark backgrounds */
+  --shadow-menu: 0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 4px rgba(0, 0, 0, 0.3);
+  --shadow-modal: 0 8px 48px rgba(0, 0, 0, 0.7), 0 2px 12px rgba(0, 0, 0, 0.4);
+}

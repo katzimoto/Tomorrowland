@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Surfaces</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .swatch { border-radius: var(--radius-panel); border: 1px solid var(--color-border); padding: 14px; height: 130px; display: flex; flex-direction: column; justify-content: space-between; }
+  .name { font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
+  .hex { font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-muted); }
+  .tok { font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-secondary); }
+</style></head>
+<body>
+<div class="card">
+  <div class="grid">
+    <div class="swatch" style="background: var(--color-bg);">
+      <div class="name">Background</div>
+      <div><div class="tok">--color-bg</div><div class="hex">#0d1117</div></div>
+    </div>
+    <div class="swatch" style="background: var(--color-surface);">
+      <div class="name">Surface</div>
+      <div><div class="tok">--color-surface</div><div class="hex">#161b22</div></div>
+    </div>
+    <div class="swatch" style="background: var(--color-surface-raised);">
+      <div class="name">Surface raised</div>
+      <div><div class="tok">--color-surface-raised</div><div class="hex">#1c2128</div></div>
+    </div>
+    <div class="swatch" style="background: transparent; border-color: var(--color-border); border-width: 2px;">
+      <div class="name">Border</div>
+      <div><div class="tok">--color-border</div><div class="hex">#30363d</div></div>
+    </div>
+  </div>
+</div>
+</body></html>

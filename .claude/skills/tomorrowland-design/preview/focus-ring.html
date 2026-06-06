@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>Focus ring</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .stack { display: flex; flex-direction: column; gap: 20px; }
+  .desc {
+    font-size: 14px; line-height: 1.55;
+    color: var(--color-text-secondary);
+    max-width: 60ch;
+  }
+  .desc strong { color: var(--color-text-primary); font-weight: 600; }
+
+  .specimens {
+    display: flex; gap: 28px; align-items: center; flex-wrap: wrap;
+    padding: 12px 0;
+  }
+
+  .b {
+    display: inline-flex; align-items: center;
+    padding: 8px 16px; border-radius: var(--radius-panel);
+    font-size: 14px; font-weight: 500; border: 1px solid transparent;
+    cursor: pointer;
+  }
+  .primary { background: var(--color-primary); color: var(--color-primary-fg); border-color: var(--color-primary); }
+  .secondary { background: var(--color-surface); color: var(--color-text-primary); border-color: var(--color-border); }
+  .danger { background: var(--color-danger); color: #fff; border-color: var(--color-danger); }
+  .focused { box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-primary); }
+
+  .input {
+    height: 36px; padding: 0 12px;
+    border: 1px solid var(--color-primary); border-radius: var(--radius-panel);
+    background: var(--color-surface); color: var(--color-text-primary);
+    font: inherit; width: 220px;
+    box-shadow: 0 0 0 2px var(--color-primary-alpha);
+    outline: none;
+  }
+
+  .legend {
+    display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+    padding-top: 12px; border-top: 1px solid var(--color-border);
+  }
+  .swatch {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--color-text-secondary);
+  }
+  .swatch::before {
+    content: ""; width: 14px; height: 14px;
+    border-radius: 3px;
+    display: inline-block; flex-shrink: 0;
+  }
+  .sw-inner::before { background: var(--color-bg); border: 1px solid var(--color-border); }
+  .sw-outer::before { background: var(--color-primary); }
+</style>
+</head>
+<body>
+<div class="card stack">
+  <p class="desc">
+    Every interactive element gets a <strong>two-stop focus ring</strong> when reached
+    with the keyboard. A 2&nbsp;px knockout in the page color sits inside a
+    2&nbsp;px ring in the primary blue — so the ring stays legible on every
+    surface, including primary-on-primary.
+  </p>
+
+  <div class="specimens">
+    <button class="b primary focused">Sign in</button>
+    <button class="b secondary focused">Cancel</button>
+    <button class="b danger focused">Delete</button>
+    <input class="input" value="hybrid search" readonly>
+  </div>
+
+  <div class="legend">
+    <span class="swatch sw-inner">Inner&nbsp;·&nbsp;2&nbsp;px page background</span>
+    <span class="swatch sw-outer">Outer&nbsp;·&nbsp;2&nbsp;px primary</span>
+    <span class="swatch" style="color: var(--color-text-muted);">:focus-visible only — no ring on mouse clicks</span>
+  </div>
+</div>
+</body></html>

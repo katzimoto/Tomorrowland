@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Buttons</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .stack { display: flex; flex-direction: column; gap: 18px; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .lbl { font-family: var(--font-family-mono); font-size: 10px; color: var(--color-text-muted); letter-spacing: 0.04em; width: 80px; }
+  .b { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); border: 1px solid transparent; border-radius: var(--radius-panel); font-size: var(--font-size-button); font-weight: var(--font-weight-button); line-height: var(--line-height-button); cursor: pointer; padding: 6px 14px; transition: background 120ms ease, border-color 120ms ease; }
+  .sm { padding: 4px 10px; }
+  .primary { background: var(--color-primary); color: var(--color-primary-fg); border-color: var(--color-primary); }
+  .primary:hover { background: var(--color-primary-hover); border-color: var(--color-primary-hover); }
+  .secondary { background: var(--color-surface); color: var(--color-text-primary); border-color: var(--color-border); }
+  .secondary:hover { background: var(--color-bg); }
+  .ghost { background: transparent; color: var(--color-text-secondary); border-color: transparent; }
+  .ghost:hover { background: var(--color-bg); color: var(--color-text-primary); }
+  .danger { background: var(--color-danger); color: #fff; border-color: var(--color-danger); }
+  .danger:hover { background: var(--color-danger-hover); border-color: var(--color-danger-hover); }
+  .disabled { opacity: 0.45; cursor: not-allowed; }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 600ms linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style></head>
+<body>
+<div class="card stack">
+  <div class="row"><span class="lbl">PRIMARY</span><button class="b primary">Sign in</button><button class="b primary sm">Search</button><button class="b primary disabled">Submit</button><button class="b primary"><span class="spinner"></span>Loading</button></div>
+  <div class="row"><span class="lbl">SECONDARY</span><button class="b secondary">Cancel</button><button class="b secondary sm">Retry</button><button class="b secondary disabled">Disabled</button></div>
+  <div class="row"><span class="lbl">GHOST</span><button class="b ghost">Close preview</button><button class="b ghost sm">Edit</button></div>
+  <div class="row"><span class="lbl">DANGER</span><button class="b danger">Delete chat</button><button class="b danger sm">Remove</button></div>
+</div>
+</body></html>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Type scale</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  .row { display: grid; grid-template-columns: 72px 1fr; align-items: baseline; gap: 24px; }
+  .tag { font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-muted); letter-spacing: 0; text-transform: none; }
+  .page { font-size: var(--font-size-page-title); line-height: var(--line-height-page-title); font-weight: 600; }
+  .section { font-size: var(--font-size-section-title); line-height: var(--line-height-section-title); font-weight: 600; }
+  .panel { font-size: var(--font-size-panel-title); line-height: var(--line-height-panel-title); font-weight: 600; }
+  .body { font-size: var(--font-size-body); line-height: var(--line-height-body); font-weight: 400; }
+  .meta { font-size: var(--font-size-meta); line-height: var(--line-height-meta); font-weight: 500; color: var(--color-text-muted); }
+</style>
+</head>
+<body>
+<div class="card stack">
+  <div class="row"><span class="tag">24 / 32 · 600</span><span class="page">Sign in to Tomorrowland</span></div>
+  <div class="row"><span class="tag">18 / 26 · 600</span><span class="section">Active subscriptions</span></div>
+  <div class="row"><span class="tag">14 / 20 · 600</span><span class="panel">Summary</span></div>
+  <div class="row"><span class="tag">14 / 20 · 400</span><span class="body">Hybrid keyword and vector search across your accessible documents.</span></div>
+  <div class="row"><span class="tag">12 / 16 · 500</span><span class="meta">PDF · 2.3 MB · 4d ago</span></div>
+</div>
+</body></html>

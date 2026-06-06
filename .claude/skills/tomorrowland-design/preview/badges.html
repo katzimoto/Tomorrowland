@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Badges</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: var(--radius-chip); font-size: var(--font-size-meta); font-weight: var(--font-weight-meta); line-height: 1; white-space: nowrap; }
+  .neutral { background: var(--color-badge-neutral-bg); color: var(--color-text-secondary); }
+  .source { background: var(--color-badge-source-bg); color: var(--color-badge-source); }
+  .tag { background: var(--color-badge-tag-bg); color: var(--color-badge-tag); }
+  .translation { background: var(--color-badge-translation-bg); color: var(--color-badge-translation); }
+  .success { background: var(--color-badge-success-bg); color: var(--color-success); }
+  .warning { background: var(--color-badge-warning-bg); color: var(--color-warning); }
+  .danger { background: var(--color-badge-danger-bg); color: var(--color-danger); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grp { display: flex; flex-direction: column; gap: 8px; }
+  .lbl { font-family: var(--font-family-mono); font-size: 10px; color: var(--color-text-muted); letter-spacing: 0.04em; }
+</style></head>
+<body>
+<div class="card" style="display: flex; flex-direction: column; gap: 20px;">
+  <div class="grp">
+    <div class="lbl">SOURCE · TAG · TRANSLATION (the three semantic chip types used in result rows)</div>
+    <div class="row">
+      <span class="badge source">Confluence</span>
+      <span class="badge source">Legal Docs</span>
+      <span class="badge tag">incident-response</span>
+      <span class="badge tag">runbook</span>
+      <span class="badge translation">Fast translation</span>
+      <span class="badge translation">High quality</span>
+    </div>
+  </div>
+  <div class="grp">
+    <div class="lbl">STATUS · NEUTRAL (overflow counters, version, generic state)</div>
+    <div class="row">
+      <span class="badge success">Active</span>
+      <span class="badge warning">Paused</span>
+      <span class="badge danger">Failed</span>
+      <span class="badge neutral">+3</span>
+      <span class="badge neutral">v2</span>
+      <span class="badge neutral">Latest</span>
+    </div>
+  </div>
+</div>
+</body></html>

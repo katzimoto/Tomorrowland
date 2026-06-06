@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Elevation</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+  .stage { height: 180px; background: var(--color-bg); padding: 24px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--color-border); border-radius: var(--radius-panel); }
+  .obj { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-panel); padding: 12px 16px; font-size: 13px; min-width: 140px; }
+  .raised { background: var(--color-surface-raised); }
+  .menu { box-shadow: var(--shadow-menu); }
+  .modal { box-shadow: var(--shadow-modal); padding: 16px 20px; }
+  .name { font-size: 12px; font-weight: 600; margin-top: 10px; color: var(--color-text-primary); }
+  .meta { font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-muted); margin-top: 2px; }
+</style></head>
+<body>
+<div class="card">
+  <div class="grid">
+    <div>
+      <div class="stage"><div class="obj">Card</div></div>
+      <div class="name">Flat — no shadow</div>
+      <div class="meta">1px border on surface</div>
+    </div>
+    <div>
+      <div class="stage"><div class="obj raised menu">Popover · Tooltip</div></div>
+      <div class="name">Menu shadow</div>
+      <div class="meta">--shadow-menu</div>
+    </div>
+    <div>
+      <div class="stage"><div class="obj raised modal">Modal dialog</div></div>
+      <div class="name">Modal shadow</div>
+      <div class="meta">--shadow-modal</div>
+    </div>
+  </div>
+</div>
+</body></html>

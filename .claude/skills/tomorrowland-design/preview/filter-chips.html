@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Filter chips & starters</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .stack { display: flex; flex-direction: column; gap: 20px; }
+  .lbl { font-family: var(--font-family-mono); font-size: 10px; color: var(--color-text-muted); letter-spacing: 0.04em; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; font-size: 12px; color: var(--color-text-secondary); }
+  .chip .x { background: none; border: 0; cursor: pointer; color: var(--color-text-muted); padding: 0; line-height: 1; }
+  .chip .x:hover { color: var(--color-danger); }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; max-width: 480px; }
+  .pill { padding: 8px 14px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-text-primary); font-size: 14px; cursor: pointer; }
+  .pill:hover { border-color: var(--color-primary); }
+</style></head>
+<body>
+<div class="card stack">
+  <div>
+    <div class="lbl" style="margin-bottom: 8px;">REMOVABLE FILTER CHIPS — active search filters</div>
+    <div class="chips">
+      <span class="chip">pdf <button class="x">×</button></span>
+      <span class="chip">Confluence <button class="x">×</button></span>
+      <span class="chip">runbook <button class="x">×</button></span>
+      <span class="chip">High quality <button class="x">×</button></span>
+    </div>
+  </div>
+  <div>
+    <div class="lbl" style="margin-bottom: 8px;">STARTER PILLS — chat empty state</div>
+    <div class="pills">
+      <button class="pill">What changed in the new on-call rota?</button>
+      <button class="pill">Summarise the Q3 DPA</button>
+      <button class="pill">List all open Jira incidents tagged sev-1</button>
+    </div>
+  </div>
+</div>
+</body></html>

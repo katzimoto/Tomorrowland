@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Message bubble</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .stream { display: flex; flex-direction: column; gap: 12px; padding: 8px 0; }
+  .b { display: flex; flex-direction: column; gap: 8px; max-width: 70%; padding: 12px 16px; border-radius: var(--radius-panel); font-size: 15px; line-height: 22px; }
+  .user { align-self: flex-end; background: var(--color-primary); color: var(--color-primary-fg); border-bottom-right-radius: 2px; }
+  .asst { align-self: flex-start; background: var(--color-surface); border: 1px solid var(--color-border); border-bottom-left-radius: 2px; }
+  .ground { font-size: 12px; color: var(--color-text-muted); font-style: italic; margin: 0; }
+  .src { display: flex; gap: 10px; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-panel); background: var(--color-surface); font-size: 13px; }
+  .idx { font-weight: 600; color: var(--color-primary); min-width: 18px; }
+  .src .title { font-weight: 600; color: var(--color-text-primary); }
+  .src .loc { font-size: 11px; color: var(--color-text-muted); }
+  .lbl { font-size: 11px; font-weight: 600; color: var(--color-text-secondary); letter-spacing: 0.04em; text-transform: uppercase; align-self: flex-start; margin-top: 4px; }
+</style></head>
+<body>
+<div class="card stream">
+  <div class="b user">Which runbook covers a paged Sev-1 outside business hours?</div>
+  <div class="b asst">
+    <div>The on-call engineer follows <strong>Incident response runbook — Q3 2025</strong>. For pages received outside 09:00–18:00 local, the coordinator escalates to the secondary on-call after 10 minutes without acknowledgement.</div>
+    <p class="ground">Based only on documents you can access.</p>
+  </div>
+  <div class="lbl">Sources</div>
+  <div class="src">
+    <span class="idx">[1]</span>
+    <div>
+      <div class="title">Incident response runbook — Q3 2025</div>
+      <div class="loc">Confluence · §3.2 Out-of-hours escalation</div>
+    </div>
+  </div>
+</div>
+</body></html>

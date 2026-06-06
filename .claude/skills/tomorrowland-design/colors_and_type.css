@@ -1,0 +1,244 @@
+/* ============================================================
+ * Tomorrowland — Colors & Type
+ * Dark-first, operator-grade workspace tokens.
+ * Lifted from frontend/src/styles/tokens.css (the production source).
+ * ============================================================ */
+
+/* Font is Inter, loaded from Google Fonts as a substitute.
+ * The production codebase relies on the system Inter stack —
+ * no font files ship with the repo. If you have a brand-licensed
+ * Inter Variable .woff2, drop it in fonts/ and replace this import. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  /* ---------- Base color palette (raw) ------------------------ */
+  --tl-ink-900: #0d1117;          /* page background */
+  --tl-ink-800: #161b22;          /* surface (cards, header) */
+  --tl-ink-700: #1c2128;          /* surface raised (modals, popovers) */
+  --tl-ink-600: #21262d;          /* skeleton base */
+  --tl-ink-500: #2d333b;          /* skeleton shine, hover-on-raised */
+  --tl-ink-400: #30363d;          /* border */
+  /* Secondary/muted were lightened to meet WCAG 2 AA (4.5:1) on every dark
+   * surface, including --color-surface-raised and selected rows. The old
+   * #8b949e / #6e7681 pair failed AA on the raised surface. */
+  --tl-ink-300: #9da7b3;          /* text muted */
+  --tl-ink-200: #b1bac4;          /* text secondary */
+  --tl-ink-100: #e6edf3;          /* text primary */
+
+  /* Brand cyan — used in the logo + login illustration. Never used
+   * as a UI primary; the UI primary is azure blue, see below. */
+  --tl-cyber-cyan: #00e5ff;
+  --tl-cyber-grid: #0d2a44;       /* faint grid lines on brand bg */
+  --tl-cyber-bg:   #060c1a;       /* deep navy under brand mark */
+
+  /* Functional palette */
+  --tl-blue-500:  #58a6ff;        /* primary */
+  --tl-blue-400:  #79b8ff;        /* primary hover */
+  --tl-green-500: #3fb950;        /* success / tag accent */
+  --tl-amber-500: #d29922;        /* warning / translation accent */
+  --tl-red-500:   #f85149;        /* danger */
+  --tl-red-600:   #da3633;        /* danger hover */
+
+  /* ---------- Semantic surface tokens ------------------------- */
+  --color-bg:               var(--tl-ink-900);
+  --color-surface:          var(--tl-ink-800);
+  --color-surface-raised:   var(--tl-ink-700);
+  --color-border:           var(--tl-ink-400);
+  --color-overlay:          rgba(0, 0, 0, 0.65);
+
+  /* ---------- Text tokens ------------------------------------- */
+  --color-text-primary:     var(--tl-ink-100);
+  --color-text-secondary:   var(--tl-ink-200);
+  --color-text-muted:       var(--tl-ink-300);
+
+  /* ---------- Action / state tokens --------------------------- */
+  --color-primary:          var(--tl-blue-500);
+  --color-primary-hover:    var(--tl-blue-400);
+  --color-primary-fg:       var(--tl-ink-900);
+  --color-primary-alpha:    rgba(88, 166, 255, 0.20);
+
+  --color-success:          var(--tl-green-500);
+  --color-warning:          var(--tl-amber-500);
+  --color-danger:           var(--tl-red-500);
+  --color-danger-hover:     var(--tl-red-600);
+  --color-danger-alpha:     rgba(248, 81, 73, 0.20);
+
+  /* ---------- Badge / chip tints ------------------------------ */
+  /* Every badge color is the action color over a 15% tint of itself
+   * on the dark surface — this is the rhythm of the whole UI. */
+  --color-badge-source:        var(--tl-blue-500);
+  --color-badge-tag:           var(--tl-green-500);
+  --color-badge-translation:   var(--tl-amber-500);
+
+  --color-badge-neutral-bg:     rgba(255, 255, 255, 0.07);
+  --color-badge-source-bg:      rgba(88, 166, 255, 0.15);
+  --color-badge-tag-bg:         rgba(63, 185, 80, 0.15);
+  --color-badge-translation-bg: rgba(210, 153, 34, 0.15);
+  --color-badge-success-bg:     rgba(63, 185, 80, 0.15);
+  --color-badge-warning-bg:     rgba(210, 153, 34, 0.15);
+  --color-badge-danger-bg:      rgba(248, 81, 73, 0.15);
+
+  /* Banner surfaces (warning is the only one used in-app) */
+  --color-warning-surface: rgba(210, 153, 34, 0.10);
+  --color-warning-border:  rgba(210, 153, 34, 0.30);
+  --color-warning-text:    var(--tl-amber-500);
+
+  /* Skeleton shimmer */
+  --color-skeleton-base:  var(--tl-ink-600);
+  --color-skeleton-shine: var(--tl-ink-500);
+
+  /* ============ TYPE ========================================= */
+  --font-family: "Inter", ui-sans-serif, system-ui, -apple-system,
+                 BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-mono: "JetBrains Mono", ui-monospace, SFMono-Regular,
+                      "SF Mono", Menlo, Consolas, monospace;
+
+  /* Display / page title — used once per route */
+  --font-size-page-title:    24px;
+  --line-height-page-title:  32px;
+  --font-weight-page-title:  600;
+
+  /* Section title — h2 inside a page */
+  --font-size-section-title:    18px;
+  --line-height-section-title:  26px;
+  --font-weight-section-title:  600;
+
+  /* Panel title — sidebar headers, dialog titles, tab labels */
+  --font-size-panel-title:    14px;
+  --line-height-panel-title:  20px;
+  --font-weight-panel-title:  600;
+
+  /* Body — every paragraph, every input value */
+  --font-size-body:    14px;
+  --line-height-body:  20px;
+  --font-weight-body:  400;
+
+  /* Meta — timestamps, badges, filter labels, helper text */
+  --font-size-meta:    12px;
+  --line-height-meta:  16px;
+  --font-weight-meta:  500;
+
+  /* Button — sized to match body but with medium weight */
+  --font-size-button:    14px;
+  --line-height-button:  20px;
+  --font-weight-button:  500;
+
+  /* ============ SPACING (4px base) =========================== */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-14: 56px;
+
+  --page-padding-desktop: 24px;
+  --page-padding-mobile:  16px;
+  --panel-gap:   16px;
+  --toolbar-gap: 8px;
+  --row-padding-y: 14px;
+  --meta-gap:    6px;
+
+  /* ============ SHAPE ======================================== */
+  /* Two radii only. Everything is either a panel (6) or a chip (4).
+   * Pills are deliberately rare — used only for chat starter
+   * suggestions and active-filter chips. */
+  --radius-panel: 6px;
+  --radius-chip:  4px;
+  --radius-pill:  999px;
+
+  /* ============ LAYOUT ======================================= */
+  --rail-collapsed: 72px;
+  --rail-expanded: 220px;
+  --topbar-height: 56px;
+  --filter-panel-width: 280px;
+  --result-row-height: 88px;
+  --result-row-height-compact: 64px;
+
+  /* ============ ELEVATION & FOCUS ============================ */
+  /* Shadows are tuned for a dark surface — deeper alpha, larger
+   * blur than you'd use on white. Two levels only. */
+  --shadow-menu:  0 4px 16px rgba(0, 0, 0, 0.50),
+                  0 1px 4px  rgba(0, 0, 0, 0.30);
+  --shadow-modal: 0 8px 48px rgba(0, 0, 0, 0.70),
+                  0 2px 12px rgba(0, 0, 0, 0.40);
+
+  /* Focus ring is double-stroked: dark inset, then the primary on
+   * the outside. Survives on every surface in the system. */
+  --focus-ring: 0 0 0 2px var(--color-bg),
+                0 0 0 4px var(--color-primary);
+}
+
+/* ============ SEMANTIC ELEMENT STYLES ====================== */
+/* Apply colors_and_type.css and you get reasonable defaults out
+ * of the box. Element-scoped, no class names. */
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+  background: var(--color-bg);
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1 {
+  font-size: var(--font-size-page-title);
+  line-height: var(--line-height-page-title);
+  font-weight: var(--font-weight-page-title);
+  color: var(--color-text-primary);
+}
+
+h2 {
+  font-size: var(--font-size-section-title);
+  line-height: var(--line-height-section-title);
+  font-weight: var(--font-weight-section-title);
+  color: var(--color-text-primary);
+}
+
+h3 {
+  font-size: var(--font-size-panel-title);
+  line-height: var(--line-height-panel-title);
+  font-weight: var(--font-weight-panel-title);
+  color: var(--color-text-primary);
+}
+
+p {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+}
+
+small,
+.meta {
+  font-size: var(--font-size-meta);
+  line-height: var(--line-height-meta);
+  font-weight: var(--font-weight-meta);
+  color: var(--color-text-muted);
+}
+
+code,
+kbd,
+pre,
+.mono {
+  font-family: var(--font-family-mono);
+  font-size: 13px;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-chip);
+}

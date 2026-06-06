@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Action colors</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .sw { border-radius: var(--radius-panel); height: 130px; display: flex; flex-direction: column; justify-content: flex-end; padding: 14px; color: #0d1117; }
+  .name { font-size: 13px; font-weight: 600; }
+  .tok { font-family: var(--font-family-mono); font-size: 11px; opacity: 0.8; }
+  .hex { font-family: var(--font-family-mono); font-size: 11px; opacity: 0.8; }
+  .dark { color: #fff; }
+</style></head>
+<body>
+<div class="card">
+  <div class="grid">
+    <div class="sw" style="background: var(--color-primary);">
+      <div class="name">Primary</div><div class="tok">--color-primary</div><div class="hex">#58a6ff</div>
+    </div>
+    <div class="sw" style="background: var(--color-success);">
+      <div class="name">Success</div><div class="tok">--color-success</div><div class="hex">#3fb950</div>
+    </div>
+    <div class="sw" style="background: var(--color-warning);">
+      <div class="name">Warning</div><div class="tok">--color-warning</div><div class="hex">#d29922</div>
+    </div>
+    <div class="sw dark" style="background: var(--color-danger);">
+      <div class="name">Danger</div><div class="tok">--color-danger</div><div class="hex">#f85149</div>
+    </div>
+  </div>
+</div>
+</body></html>

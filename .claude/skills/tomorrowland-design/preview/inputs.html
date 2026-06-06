@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Inputs</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .stack { display: flex; flex-direction: column; gap: 18px; max-width: 480px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .lbl { font-size: var(--font-size-meta); font-weight: var(--font-weight-meta); color: var(--color-text-secondary); }
+  .input { height: 36px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: var(--radius-panel); background: var(--color-surface); color: var(--color-text-primary); font: inherit; font-size: var(--font-size-body); width: 100%; box-sizing: border-box; outline: none; }
+  .input::placeholder { color: var(--color-text-muted); }
+  .focused { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary-alpha); }
+  .error { border-color: var(--color-danger); }
+  .err { font-size: var(--font-size-meta); color: var(--color-danger); }
+  .search { display: flex; align-items: center; height: 44px; border: 1px solid var(--color-border); border-radius: var(--radius-panel); background: var(--color-surface); padding: 0 12px; gap: 8px; }
+  .search.focused { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary-alpha); }
+  .search input { border: 0; outline: 0; background: transparent; color: var(--color-text-primary); flex: 1; font-size: var(--font-size-body); }
+  .icn { color: var(--color-text-muted); display: flex; }
+</style></head>
+<body>
+<div class="card stack">
+  <div class="field">
+    <label class="lbl">Email</label>
+    <input class="input" type="email" placeholder="you@company.local" value="ops@acme.local">
+  </div>
+  <div class="field">
+    <label class="lbl">Password</label>
+    <input class="input focused" type="password" value="••••••••">
+  </div>
+  <div class="field">
+    <label class="lbl">Confirm password</label>
+    <input class="input error" type="password" value="••••••">
+    <div class="err">Passwords do not match</div>
+  </div>
+  <div class="field">
+    <label class="lbl">Search</label>
+    <div class="search focused">
+      <span class="icn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
+      <input placeholder="Search documents…" value="incident response">
+    </div>
+  </div>
+</div>
+</body></html>

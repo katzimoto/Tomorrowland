@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Logo</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .stage { display: flex; align-items: center; gap: 32px; padding: 16px; }
+  .big { width: 160px; height: 160px; }
+  .mid { width: 64px; height: 64px; }
+  .sm { width: 32px; height: 32px; }
+  .meta { font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-muted); margin-top: 6px; }
+  .label { font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+</style></head>
+<body>
+<div class="card">
+  <div class="stage">
+    <div class="col">
+      <img class="big" src="../assets/logo.svg" alt="Tomorrowland logo">
+      <div class="label" style="margin-top: 8px;">Primary mark</div>
+      <div class="meta">assets/logo.svg · 40 / 64+ px</div>
+    </div>
+    <div class="col">
+      <img class="mid" src="../assets/favicon.svg" alt="Favicon">
+      <div class="label" style="margin-top: 8px;">Simplified</div>
+      <div class="meta">assets/favicon.svg · ≤ 32 px</div>
+    </div>
+    <div class="col">
+      <img class="sm" src="../assets/favicon.svg" alt="Favicon small">
+      <div class="label" style="margin-top: 8px;">Nav rail</div>
+      <div class="meta">32 px</div>
+    </div>
+  </div>
+</div>
+</body></html>

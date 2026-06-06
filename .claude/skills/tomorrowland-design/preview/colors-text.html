@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Text colors</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+  .row { display: grid; grid-template-columns: 1fr 160px 100px; align-items: center; gap: 24px; padding: 12px 16px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-panel); }
+  .sample { font-size: 15px; }
+  .tok { font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-muted); }
+  .hex { font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-muted); text-align: right; }
+</style></head>
+<body>
+<div class="card stack">
+  <div class="row">
+    <div class="sample" style="color: var(--color-text-primary);">The system never refers to itself.</div>
+    <div class="tok">--color-text-primary</div>
+    <div class="hex">#e6edf3</div>
+  </div>
+  <div class="row">
+    <div class="sample" style="color: var(--color-text-secondary);">Field labels and snippet copy live here.</div>
+    <div class="tok">--color-text-secondary</div>
+    <div class="hex">#b1bac4</div>
+  </div>
+  <div class="row">
+    <div class="sample" style="color: var(--color-text-muted);">Timestamps · helper text · placeholders.</div>
+    <div class="tok">--color-text-muted</div>
+    <div class="hex">#9da7b3</div>
+  </div>
+</div>
+</body></html>

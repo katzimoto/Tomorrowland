@@ -1,0 +1,79 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  padding: var(--page-padding-mobile);
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  padding: var(--space-8);
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  /* Left-align all content — reads like an internal tool, not a consumer app */
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.mark {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-panel);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.heading {
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-section-title);
+  line-height: var(--line-height-section-title);
+  color: var(--color-text-primary);
+  /* Intentionally left-aligned */
+}
+
+.alert {
+  width: 100%;
+  padding: var(--space-3);
+  background: var(--color-warning-surface);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-panel);
+  color: var(--color-warning-text);
+  font-size: var(--font-size-body);
+}
+
+.form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rootError {
+  color: var(--color-danger);
+  font-size: var(--font-size-body);
+}
+
+.switchLink {
+  width: 100%;
+  text-align: center;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.switchLink a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.langRow {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: calc(-1 * var(--space-2));
+}
