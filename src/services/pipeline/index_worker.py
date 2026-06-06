@@ -65,14 +65,33 @@ class IndexConsumer(BaseConsumer):
             logger.debug("meilisearch skipped: empty content_text for document_id=%s", document_id)
 
         self._job_repo.mark_running_stage(job_id, "indexed")
-        self._publisher.publish_intelligence(
-            job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
-        )
-        self._publisher.publish_alert(
-            job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
-        )
         self._job_repo.mark_succeeded(job_id)
         self._doc_repo.update_indexed(document_id, "indexed", doc.translation_quality)
+
+        # Best-effort downstream publishes — these fire after the job is
+        # marked succeeded (committed by consumer_base after we return).
+        # A publish failure here must not crash handle_message, or the
+        # already-succeeded job would be retried needlessly.
+        try:
+            self._publisher.publish_intelligence(
+                job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
+            )
+        except Exception:
+            logger.exception(
+                "Failed to publish intelligence message for job_id=%s document_id=%s",
+                job_id,
+                document_id,
+            )
+        try:
+            self._publisher.publish_alert(
+                job_id=job_id, document_id=document_id, source_id=source_id, attempt=attempt
+            )
+        except Exception:
+            logger.exception(
+                "Failed to publish alert message for job_id=%s document_id=%s",
+                job_id,
+                document_id,
+            )
 
     def _index_meili(
         self,

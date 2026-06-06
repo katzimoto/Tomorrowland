@@ -76,6 +76,7 @@ def run_translation_once(
             logger.info("translation skipped: empty content_text document_id=%s", document_id)
             job_repo.update_translated_text(document_id, "")
             job_repo.mark_succeeded(job_id)
+            job_repo.commit()
             return True
 
         translated = translator.translate(
@@ -92,28 +93,45 @@ def run_translation_once(
                 doc.source_language,
             )
         job_repo.update_translated_text(document_id, translated)
+        job_repo.mark_succeeded(job_id)
+        job_repo.commit()
 
         # Publish downstream embed + index messages so the async pipeline
-        # continues past translation.  When publisher is None (no RabbitMQ),
-        # poll-mode embed/index workers pick up the translated payload from
-        # document_payloads on their own.
+        # continues past translation.  Published after commit so downstream
+        # workers see the succeeded job state and translated payload.
+        # Best-effort: if publish fails the job is already committed as
+        # succeeded; logging and moving on avoids a pipeline stall.
         if publisher is not None:
-            publisher.publish_embed(
-                job_id=job_id,
-                document_id=document_id,
-                source_id=doc.source_id,
-                attempt=attempts,
-                content_text=content_text,
-                translated_text=translated,
-            )
-            publisher.publish_index(
-                job_id=job_id,
-                document_id=document_id,
-                source_id=doc.source_id,
-                attempt=attempts,
-                content_text=content_text,
-                translated_text=translated,
-            )
+            try:
+                publisher.publish_embed(
+                    job_id=job_id,
+                    document_id=document_id,
+                    source_id=doc.source_id,
+                    attempt=attempts,
+                    content_text=content_text,
+                    translated_text=translated,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to publish embed message for job_id=%s document_id=%s",
+                    job_id,
+                    document_id,
+                )
+            try:
+                publisher.publish_index(
+                    job_id=job_id,
+                    document_id=document_id,
+                    source_id=doc.source_id,
+                    attempt=attempts,
+                    content_text=content_text,
+                    translated_text=translated,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to publish index message for job_id=%s document_id=%s",
+                    job_id,
+                    document_id,
+                )
 
     except Exception as exc:
         elapsed = time.monotonic() - start
@@ -166,8 +184,6 @@ def run_translation_once(
         return True
 
     elapsed = time.monotonic() - start
-    job_repo.mark_succeeded(job_id)
-    job_repo.commit()
     if metrics is not None:
         metrics.pipeline_jobs_succeeded_total.labels(
             worker_type=_WORKER_TYPE, job_type=job_type
