@@ -21,17 +21,18 @@
   outline-offset: -2px;
 }
 
-/* Left: icon + source */
+/* Left: mime icon rail */
 .left {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--space-1);
+  justify-content: center;
   flex-shrink: 0;
-  width: 36px;
+  align-self: flex-start;
+  padding-top: 2px;
 }
 .mimeIcon {
   color: var(--color-text-muted);
+  display: flex;
 }
 
 /* Main: title, snippet, tags */
@@ -80,6 +81,23 @@
   white-space: nowrap;
 }
 
+/* Row actions stay calm at rest and reveal on hover, keyboard selection,
+   or focus — keeps a page of results uncluttered without hiding them from
+   keyboard users. */
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.row:hover .actions,
+.rowSelected .actions,
+.actions:focus-within {
+  opacity: 1;
+}
+
 .previewBtn {
   display: inline-flex;
   align-items: center;
@@ -113,7 +131,8 @@
   color: var(--color-primary);
   background: var(--color-bg);
 }
-.whyBtn:hover .whyTooltip {
+.whyBtn:hover .whyTooltip,
+.whyBtn:focus-visible .whyTooltip {
   display: block;
 }
 .whyTooltip {
@@ -135,11 +154,12 @@
   text-align: left;
 }
 
-/* Meilisearch highlight marks */
+/* Meilisearch highlight marks — amber tint from the warning/translation
+   family, the system's emphasis hue, kept readable against dark surfaces. */
 .snippet mark,
 .title mark {
-  background: oklch(97% 0.15 90);
-  color: inherit;
+  background: rgba(210, 153, 34, 0.32);
+  color: var(--color-text-primary);
   border-radius: 2px;
   padding: 0 1px;
   font-style: normal;

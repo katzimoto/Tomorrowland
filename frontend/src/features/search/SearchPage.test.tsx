@@ -215,7 +215,7 @@ describe("SearchPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     expect(screen.getByText("Vendor Risk Assessment 2024")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Updating results");
+    expect(screen.getByRole("status")).toHaveTextContent("Updating");
   });
 
   it("prefetches document preview on result hover", async () => {
@@ -367,7 +367,7 @@ describe("SearchPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     expect(screen.getByText("Vendor Risk Assessment 2024")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Updating results");
+    expect(screen.getByRole("status")).toHaveTextContent("Updating");
   });
 
   it("prefetches document preview on result hover", async () => {

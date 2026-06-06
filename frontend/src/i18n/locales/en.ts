@@ -61,6 +61,7 @@ export interface Translations {
     emptyBody: string;
     failedToast: string;
     keyboardHelp: string;
+    updating: string;
     quickPreviewTitle: string;
     openSelected: string;
     closePreview: string;
@@ -440,6 +441,7 @@ export const en: Translations = {
     failedToast: "Search failed. Check that the backend is reachable.",
     keyboardHelp:
       "Use ↑/↓ or j/k to choose a result, Enter to open, Space to preview, and Esc to close preview.",
+    updating: "Updating…",
     quickPreviewTitle: "Quick preview",
     openSelected: "Open document",
     closePreview: "Close preview",
