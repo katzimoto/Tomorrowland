@@ -1173,3 +1173,225 @@ class TestMCPAuthorizationParity:
         msg = str(exc_info.value)
         assert "Access denied" in msg
         assert hidden_resource_id not in msg
+
+
+# ======================================================================
+# Prometheus metrics
+# ======================================================================
+
+
+class TestMCPMetrics:
+    """Verify the MCP metrics registry, counters, and histograms."""
+
+    def test_metrics_registry_contains_mcp_collectors(self) -> None:
+        from prometheus_client import Counter, Histogram
+
+        from services.mcp.metrics import _mcp_metrics
+
+        # All three MCP collectors are instantiated and typed correctly.
+        assert isinstance(_mcp_metrics.tool_calls_total, Counter)
+        assert isinstance(_mcp_metrics.tool_call_duration_seconds, Histogram)
+        assert isinstance(_mcp_metrics.tool_call_errors_total, Counter)
+
+        # Verify the singleton registry knows about them by recording a
+        # sample value and checking it appears in collect().
+        _mcp_metrics.tool_calls_total.labels(
+            tool="test", outcome="ok",
+        ).inc()
+        names: set[str] = set()
+        for metric in _mcp_metrics.registry.collect():
+            for sample in metric.samples:
+                names.add(sample.name)
+        assert "tomorrowland_mcp_tool_calls_total" in names
+
+    def test_successful_tool_call_increments_counter(self) -> None:
+        from services.mcp.metrics import _mcp_metrics
+
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.search_documents.return_value = {
+            "results": [], "total": 0, "query": "t",
+        }
+        mcp = create_mcp_server(settings, client=mock_client)
+
+        for t in mcp._tool_manager.list_tools():
+            if t.name == "tomorrowland_search_documents":
+                fn = t.fn
+                break
+        else:
+            pytest.fail("Tool not found")
+
+        # Get initial values
+        before_ok = _mcp_metrics.tool_calls_total.labels(
+            tool="search_documents", outcome="ok",
+        )._value.get()
+
+        fn(query="test")
+
+        after_ok = _mcp_metrics.tool_calls_total.labels(
+            tool="search_documents", outcome="ok",
+        )._value.get()
+        assert after_ok == before_ok + 1
+
+    def test_failed_tool_call_increments_error_counter(self) -> None:
+        from services.mcp.metrics import _mcp_metrics
+
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.get_document.side_effect = TomorrowlandClientError(
+            "Not found", status_code=404,
+        )
+        mcp = create_mcp_server(settings, client=mock_client)
+
+        for t in mcp._tool_manager.list_tools():
+            if t.name == "tomorrowland_get_document":
+                fn = t.fn
+                break
+        else:
+            pytest.fail("Tool not found")
+
+        before_err = _mcp_metrics.tool_calls_total.labels(
+            tool="get_document", outcome="error",
+        )._value.get()
+
+        with pytest.raises(ValueError, match="Resource not found"):
+            fn(document_id="missing")
+
+        after_err = _mcp_metrics.tool_calls_total.labels(
+            tool="get_document", outcome="error",
+        )._value.get()
+        assert after_err == before_err + 1
+
+    def test_histogram_observes_latency(self) -> None:
+        from services.mcp.metrics import _mcp_metrics
+
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.list_facets.return_value = {"facets": {}}
+        mcp = create_mcp_server(settings, client=mock_client)
+
+        for t in mcp._tool_manager.list_tools():
+            if t.name == "tomorrowland_list_facets":
+                fn = t.fn
+                break
+        else:
+            pytest.fail("Tool not found")
+
+        before_sum = (
+            _mcp_metrics.tool_call_duration_seconds
+            .labels(tool="list_facets")._sum.get()
+        )
+
+        fn()
+
+        after_sum = (
+            _mcp_metrics.tool_call_duration_seconds
+            .labels(tool="list_facets")._sum.get()
+        )
+        assert after_sum > before_sum
+
+    def test_error_metrics_record_error_type(self) -> None:
+        from services.mcp.metrics import _mcp_metrics
+
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.ask_corpus.side_effect = TomorrowlandClientError(
+            "Service down", status_code=503,
+        )
+        mcp = create_mcp_server(settings, client=mock_client)
+
+        for t in mcp._tool_manager.list_tools():
+            if t.name == "tomorrowland_ask_corpus":
+                fn = t.fn
+                break
+        else:
+            pytest.fail("Tool not found")
+
+        before = _mcp_metrics.tool_call_errors_total.labels(
+            tool="ask_corpus", error_type="HTTP_503",
+        )._value.get()
+
+        with pytest.raises(ValueError, match="Service unavailable"):
+            fn(question="what?")
+
+        after = _mcp_metrics.tool_call_errors_total.labels(
+            tool="ask_corpus", error_type="HTTP_503",
+        )._value.get()
+        assert after == before + 1
+
+    def test_metrics_endpoint_returns_prometheus_format(self) -> None:
+        # The metrics_endpoint is an async function; run it synchronously.
+        import asyncio
+
+        from prometheus_client import CONTENT_TYPE_LATEST
+
+        from services.mcp.metrics import metrics_endpoint
+
+        body, status, headers = asyncio.run(
+            metrics_endpoint(MagicMock()),
+        )
+        assert status == 200
+        assert headers["Content-Type"] == CONTENT_TYPE_LATEST
+        text = body.decode("utf-8")
+        assert "tomorrowland_mcp_tool_calls_total" in text
+        assert "tomorrowland_mcp_tool_call_duration_seconds" in text
+
+    def test_all_six_tools_are_instrumented(self) -> None:
+        from services.mcp.metrics import _mcp_metrics
+
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.search_documents.return_value = {
+            "results": [], "total": 0, "query": "t",
+        }
+        mock_client.get_document.return_value = {"document_id": "abc"}
+        mock_client.get_passages.return_value = {
+            "document_id": "abc", "passages": [], "total": 0,
+        }
+        mock_client.ask_corpus.return_value = {
+            "question": "q", "answer": "a", "citations": [], "model": "m",
+        }
+        mock_client.get_related_documents.return_value = {
+            "document_id": "abc", "related": [],
+        }
+        mock_client.list_facets.return_value = {"facets": {}}
+        mcp = create_mcp_server(settings, client=mock_client)
+
+        tools = {
+            "tomorrowland_search_documents": {"query": "t"},
+            "tomorrowland_get_document": {"document_id": "abc"},
+            "tomorrowland_get_passages": {"document_id": "abc"},
+            "tomorrowland_ask_corpus": {"question": "what?"},
+            "tomorrowland_get_related_documents": {"document_id": "abc"},
+            "tomorrowland_list_facets": {},
+        }
+        expected_tools = {
+            "search_documents",
+            "get_document",
+            "get_passages",
+            "ask_corpus",
+            "get_related_documents",
+            "list_facets",
+        }
+
+        for t in mcp._tool_manager.list_tools():
+            if t.name in tools:
+                fn = t.fn
+                fn(**tools[t.name])
+
+        # Every tool should have at least one "ok" counter increment.
+        for tool_name in expected_tools:
+            val = _mcp_metrics.tool_calls_total.labels(
+                tool=tool_name, outcome="ok",
+            )._value.get()
+            assert val >= 1, f"No ok counter for {tool_name}"

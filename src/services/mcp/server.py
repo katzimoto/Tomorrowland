@@ -8,6 +8,14 @@ The server runs with **Streamable HTTP** transport (``/mcp`` endpoint) by
 default and can also be started with stdio transport for local/air-gapped
 workflows.
 
+Observability
+-------------
+* Every tool invocation emits a structured ``mcp_audit`` log line (INFO).
+* Prometheus metrics are recorded per tool: call counts by outcome,
+  latency histograms, and error counts by error type.
+* ``GET /health`` returns ``{"status": "ok"}`` for liveness probes.
+* ``GET /metrics`` exposes Prometheus text format for monitoring.
+
 Security
 --------
 * No direct database, Qdrant, or Meilisearch access.
@@ -31,6 +39,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
 from services.mcp.client import TomorrowlandClient, TomorrowlandClientError
+from services.mcp.metrics import _mcp_metrics, metrics_endpoint
 from shared.config import Settings
 from shared.correlation import get_correlation_id
 
@@ -202,20 +211,38 @@ def create_mcp_server(
                 query=query, top_k=top_k, page=page, filters=filters,
                 correlation_id=correlation_id, auth_header=auth_header,
             )
+            elapsed = time.perf_counter() - t0
             _mcp_audit_log(
                 tool="search_documents",
                 correlation_id=correlation_id,
-                latency_ms=(time.perf_counter() - t0) * 1000,
+                latency_ms=elapsed * 1000,
             )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="search_documents", outcome="ok",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="search_documents",
+            ).observe(elapsed)
             return result
         except TomorrowlandClientError as exc:
+            elapsed = time.perf_counter() - t0
+            error_type = f"HTTP_{exc.status_code}"
             _mcp_audit_log(
                 tool="search_documents",
                 correlation_id=correlation_id,
-                latency_ms=(time.perf_counter() - t0) * 1000,
+                latency_ms=elapsed * 1000,
                 status="error",
-                error_type=f"HTTP_{exc.status_code}",
+                error_type=error_type,
             )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="search_documents", outcome="error",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="search_documents",
+            ).observe(elapsed)
+            _mcp_metrics.tool_call_errors_total.labels(
+                tool="search_documents", error_type=error_type,
+            ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -248,20 +275,38 @@ def create_mcp_server(
                 document_id=document_id, correlation_id=correlation_id,
                 auth_header=auth_header,
             )
+            elapsed = time.perf_counter() - t0
             _mcp_audit_log(
                 tool="get_document",
                 correlation_id=correlation_id,
-                latency_ms=(time.perf_counter() - t0) * 1000,
+                latency_ms=elapsed * 1000,
             )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="get_document", outcome="ok",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="get_document",
+            ).observe(elapsed)
             return result
         except TomorrowlandClientError as exc:
+            elapsed = time.perf_counter() - t0
+            error_type = f"HTTP_{exc.status_code}"
             _mcp_audit_log(
                 tool="get_document",
                 correlation_id=correlation_id,
-                latency_ms=(time.perf_counter() - t0) * 1000,
+                latency_ms=elapsed * 1000,
                 status="error",
-                error_type=f"HTTP_{exc.status_code}",
+                error_type=error_type,
             )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="get_document", outcome="error",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="get_document",
+            ).observe(elapsed)
+            _mcp_metrics.tool_call_errors_total.labels(
+                tool="get_document", error_type=error_type,
+            ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -303,20 +348,38 @@ def create_mcp_server(
                 document_id=document_id, limit=limit, offset=offset,
                 correlation_id=correlation_id, auth_header=auth_header,
             )
+            elapsed = time.perf_counter() - t0
             _mcp_audit_log(
                 tool="get_passages",
                 correlation_id=correlation_id,
-                latency_ms=(time.perf_counter() - t0) * 1000,
+                latency_ms=elapsed * 1000,
             )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="get_passages", outcome="ok",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="get_passages",
+            ).observe(elapsed)
             return result
         except TomorrowlandClientError as exc:
+            elapsed = time.perf_counter() - t0
+            error_type = f"HTTP_{exc.status_code}"
             _mcp_audit_log(
                 tool="get_passages",
                 correlation_id=correlation_id,
-                latency_ms=(time.perf_counter() - t0) * 1000,
+                latency_ms=elapsed * 1000,
                 status="error",
-                error_type=f"HTTP_{exc.status_code}",
+                error_type=error_type,
             )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="get_passages", outcome="error",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="get_passages",
+            ).observe(elapsed)
+            _mcp_metrics.tool_call_errors_total.labels(
+                tool="get_passages", error_type=error_type,
+            ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -362,20 +425,38 @@ def create_mcp_server(
                 question=question, top_k=top_k, document_id=document_id,
                 correlation_id=correlation_id, auth_header=auth_header,
             )
+            elapsed = time.perf_counter() - t0
             _mcp_audit_log(
                 tool="ask_corpus",
                 correlation_id=correlation_id,
-                latency_ms=(time.perf_counter() - t0) * 1000,
+                latency_ms=elapsed * 1000,
             )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="ask_corpus", outcome="ok",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="ask_corpus",
+            ).observe(elapsed)
             return result
         except TomorrowlandClientError as exc:
+            elapsed = time.perf_counter() - t0
+            error_type = f"HTTP_{exc.status_code}"
             _mcp_audit_log(
                 tool="ask_corpus",
                 correlation_id=correlation_id,
-                latency_ms=(time.perf_counter() - t0) * 1000,
+                latency_ms=elapsed * 1000,
                 status="error",
-                error_type=f"HTTP_{exc.status_code}",
+                error_type=error_type,
             )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="ask_corpus", outcome="error",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="ask_corpus",
+            ).observe(elapsed)
+            _mcp_metrics.tool_call_errors_total.labels(
+                tool="ask_corpus", error_type=error_type,
+            ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -406,20 +487,38 @@ def create_mcp_server(
                 document_id=document_id, correlation_id=correlation_id,
                 auth_header=auth_header,
             )
+            elapsed = time.perf_counter() - t0
             _mcp_audit_log(
                 tool="get_related_documents",
                 correlation_id=correlation_id,
-                latency_ms=(time.perf_counter() - t0) * 1000,
+                latency_ms=elapsed * 1000,
             )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="get_related_documents", outcome="ok",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="get_related_documents",
+            ).observe(elapsed)
             return result
         except TomorrowlandClientError as exc:
+            elapsed = time.perf_counter() - t0
+            error_type = f"HTTP_{exc.status_code}"
             _mcp_audit_log(
                 tool="get_related_documents",
                 correlation_id=correlation_id,
-                latency_ms=(time.perf_counter() - t0) * 1000,
+                latency_ms=elapsed * 1000,
                 status="error",
-                error_type=f"HTTP_{exc.status_code}",
+                error_type=error_type,
             )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="get_related_documents", outcome="error",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="get_related_documents",
+            ).observe(elapsed)
+            _mcp_metrics.tool_call_errors_total.labels(
+                tool="get_related_documents", error_type=error_type,
+            ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -452,32 +551,50 @@ def create_mcp_server(
                 query=query, correlation_id=correlation_id,
                 auth_header=auth_header,
             )
+            elapsed = time.perf_counter() - t0
             _mcp_audit_log(
                 tool="list_facets",
                 correlation_id=correlation_id,
-                latency_ms=(time.perf_counter() - t0) * 1000,
+                latency_ms=elapsed * 1000,
             )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="list_facets", outcome="ok",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="list_facets",
+            ).observe(elapsed)
             return result
         except TomorrowlandClientError as exc:
+            elapsed = time.perf_counter() - t0
+            error_type = f"HTTP_{exc.status_code}"
             _mcp_audit_log(
                 tool="list_facets",
                 correlation_id=correlation_id,
-                latency_ms=(time.perf_counter() - t0) * 1000,
+                latency_ms=elapsed * 1000,
                 status="error",
-                error_type=f"HTTP_{exc.status_code}",
+                error_type=error_type,
             )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="list_facets", outcome="error",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="list_facets",
+            ).observe(elapsed)
+            _mcp_metrics.tool_call_errors_total.labels(
+                tool="list_facets", error_type=error_type,
+            ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
-    # Health check
+    # Health and metrics endpoints
     # ------------------------------------------------------------------
-    _register_health_endpoint(mcp)
+    _register_observability_endpoints(mcp)
 
     return mcp
 
 
-def _register_health_endpoint(mcp: FastMCP) -> None:
-    """Register a ``/health`` endpoint on the FastMCP server."""
+def _register_observability_endpoints(mcp: FastMCP) -> None:
+    """Register ``/health`` and ``/metrics`` endpoints on the FastMCP server."""
     try:
         from starlette.responses import JSONResponse
 
@@ -485,18 +602,23 @@ def _register_health_endpoint(mcp: FastMCP) -> None:
         if app is None:
             logger.debug(
                 "No Starlette app accessible on FastMCP; "
-                "skipping /health endpoint"
+                "skipping /health and /metrics endpoints"
             )
             return
 
+        # Health endpoint
         async def health(request):  # type: ignore[no-untyped-def]  # noqa: ARG001
             return JSONResponse({"status": "ok"})
 
         app.add_route("/health", health, methods=["GET"])
         logger.debug("Registered /health endpoint on FastMCP server")
+
+        # Metrics endpoint
+        app.add_route("/metrics", metrics_endpoint, methods=["GET"])
+        logger.debug("Registered /metrics endpoint on FastMCP server")
     except Exception:
         logger.debug(
-            "Could not register /health endpoint; falling back to TCP probe",
+            "Could not register observability endpoints; falling back to TCP probe",
             exc_info=True,
         )
 
