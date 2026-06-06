@@ -58,10 +58,11 @@ class AgentRateLimiter:
             while bucket and bucket[0] < cutoff:
                 bucket.popleft()
             # Clean up empty buckets after pruning to prevent unbounded dict
-            # growth.  Re-create below so the limit check works on a fresh
-            # deque (0 entries → always under limit).
+            # growth.  If all entries expired, remove the bucket entirely.
+            # It will be re-created on the next call for this key.
             if not bucket:
                 del self._buckets[key]
+            if key not in self._buckets:
                 self._buckets[key] = deque()
                 bucket = self._buckets[key]
             if len(bucket) >= limit:

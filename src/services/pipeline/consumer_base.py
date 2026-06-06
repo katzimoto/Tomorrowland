@@ -173,6 +173,7 @@ class BaseConsumer(ABC):
                     # Mark-retry affected zero rows — the job was already
                     # succeeded, dead-lettered, or otherwise transitioned by
                     # a concurrent worker.  Ack without publishing a stray retry.
+                    self._job_repo.commit()
                     self._channel.basic_ack(delivery_tag=delivery_tag)  # type: ignore[union-attr]
                     logger.info(
                         "skipped retry publish: job already transitioned worker_type=%s job_id=%s",
@@ -184,6 +185,7 @@ class BaseConsumer(ABC):
                 # and translated_text. Without this, downstream workers
                 # (translate, embed, index) receive empty text and silently
                 # skip processing on every retry attempt.
+                self._job_repo.commit()
                 _stored = self._job_repo.get_payload(document_id) or {}
                 _stored_text: str = _stored.get("content_text") or ""
                 _stored_translated: str = _stored.get("translated_text") or ""
@@ -217,6 +219,7 @@ class BaseConsumer(ABC):
                 )
             else:
                 self._job_repo.mark_dead_letter(job_id, exc)
+                self._job_repo.commit()
                 logger.error(
                     "job dead-lettered: worker_type=%s job_id=%s attempt=%d error=%s",
                     self.worker_type,

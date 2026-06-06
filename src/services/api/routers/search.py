@@ -45,7 +45,7 @@ def search(
         # the JWT still carries the old group membership until expiry.
         with http_request.app.state.engine.begin() as _conn:
             admins_group_id_row = _conn.execute(
-                sa.text("SELECT id FROM user_groups WHERE name = 'admins' LIMIT 1")
+                sa.text("SELECT id FROM groups WHERE name = 'admins' LIMIT 1")
             ).scalar_one_or_none()
         current_admins_id = str(admins_group_id_row) if admins_group_id_row else None
         if current_admins_id and current_admins_id not in group_ids:
