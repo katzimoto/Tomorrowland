@@ -21,12 +21,14 @@ Security
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from services.mcp.client import TomorrowlandClient, TomorrowlandClientError
 from shared.config import Settings
+from shared.correlation import get_correlation_id
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +81,29 @@ def _translate_error(exc: TomorrowlandClientError) -> str:
     if status == 504:
         return f"Request timed out (HTTP 504): {exc}"
     return str(exc)
+
+
+def _mcp_audit_log(
+    *,
+    tool: str,
+    correlation_id: str,
+    latency_ms: float,
+    status: str = "ok",
+    error_type: str | None = None,
+) -> None:
+    """Emit a structured audit log line for an MCP tool invocation.
+
+    Logs safe metadata only — no query text, no document content,
+    no authorization headers, no secrets.
+    """
+    logger.info(
+        "mcp_audit tool=%s correlation_id=%s latency_ms=%.1f status=%s%s",
+        tool,
+        correlation_id,
+        latency_ms,
+        status,
+        f" error_type={error_type}" if error_type else "",
+    )
 
 
 def create_mcp_server(
@@ -134,13 +159,31 @@ def create_mcp_server(
         filters: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Search documents via the Tomorrowland researcher API."""
+        correlation_id = get_correlation_id()
+        t0 = time.perf_counter()
         _validate_string(query, 1, _MAX_QUERY_LENGTH, "query")
         _validate_int(top_k, _MIN_TOP_K, _MAX_TOP_K, "top_k")
         _validate_int(page, _MIN_PAGE, _MAX_PAGE, "page")
 
         try:
-            return client.search_documents(query=query, top_k=top_k, page=page, filters=filters)
+            result = client.search_documents(
+                query=query, top_k=top_k, page=page, filters=filters,
+                correlation_id=correlation_id,
+            )
+            _mcp_audit_log(
+                tool="search_documents",
+                correlation_id=correlation_id,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
+            return result
         except TomorrowlandClientError as exc:
+            _mcp_audit_log(
+                tool="search_documents",
+                correlation_id=correlation_id,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+                status="error",
+                error_type=f"HTTP_{exc.status_code}",
+            )
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -154,11 +197,28 @@ def create_mcp_server(
     )
     def tomorrowland_get_document(document_id: str) -> dict[str, Any]:
         """Get document metadata via the Tomorrowland researcher API."""
+        correlation_id = get_correlation_id()
+        t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
 
         try:
-            return client.get_document(document_id=document_id)
+            result = client.get_document(
+                document_id=document_id, correlation_id=correlation_id,
+            )
+            _mcp_audit_log(
+                tool="get_document",
+                correlation_id=correlation_id,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
+            return result
         except TomorrowlandClientError as exc:
+            _mcp_audit_log(
+                tool="get_document",
+                correlation_id=correlation_id,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+                status="error",
+                error_type=f"HTTP_{exc.status_code}",
+            )
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -176,13 +236,31 @@ def create_mcp_server(
         offset: int = 0,
     ) -> dict[str, Any]:
         """Get document passages via the Tomorrowland researcher API."""
+        correlation_id = get_correlation_id()
+        t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
         _validate_int(limit, _MIN_LIMIT, _MAX_LIMIT, "limit")
         _validate_int(offset, _MIN_OFFSET, _MAX_OFFSET, "offset")
 
         try:
-            return client.get_passages(document_id=document_id, limit=limit, offset=offset)
+            result = client.get_passages(
+                document_id=document_id, limit=limit, offset=offset,
+                correlation_id=correlation_id,
+            )
+            _mcp_audit_log(
+                tool="get_passages",
+                correlation_id=correlation_id,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
+            return result
         except TomorrowlandClientError as exc:
+            _mcp_audit_log(
+                tool="get_passages",
+                correlation_id=correlation_id,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+                status="error",
+                error_type=f"HTTP_{exc.status_code}",
+            )
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -200,6 +278,8 @@ def create_mcp_server(
         document_id: str | None = None,
     ) -> dict[str, Any]:
         """Ask a question over the corpus via the Tomorrowland researcher API."""
+        correlation_id = get_correlation_id()
+        t0 = time.perf_counter()
         _validate_string(question, 1, _MAX_QUESTION_LENGTH, "question")
 
         if top_k is not None:
@@ -208,8 +288,24 @@ def create_mcp_server(
             _validate_string(document_id, 1, 64, "document_id")
 
         try:
-            return client.ask_corpus(question=question, top_k=top_k, document_id=document_id)
+            result = client.ask_corpus(
+                question=question, top_k=top_k, document_id=document_id,
+                correlation_id=correlation_id,
+            )
+            _mcp_audit_log(
+                tool="ask_corpus",
+                correlation_id=correlation_id,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
+            return result
         except TomorrowlandClientError as exc:
+            _mcp_audit_log(
+                tool="ask_corpus",
+                correlation_id=correlation_id,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+                status="error",
+                error_type=f"HTTP_{exc.status_code}",
+            )
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -223,11 +319,28 @@ def create_mcp_server(
     )
     def tomorrowland_get_related_documents(document_id: str) -> dict[str, Any]:
         """Get related documents via the Tomorrowland researcher API."""
+        correlation_id = get_correlation_id()
+        t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
 
         try:
-            return client.get_related_documents(document_id=document_id)
+            result = client.get_related_documents(
+                document_id=document_id, correlation_id=correlation_id,
+            )
+            _mcp_audit_log(
+                tool="get_related_documents",
+                correlation_id=correlation_id,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
+            return result
         except TomorrowlandClientError as exc:
+            _mcp_audit_log(
+                tool="get_related_documents",
+                correlation_id=correlation_id,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+                status="error",
+                error_type=f"HTTP_{exc.status_code}",
+            )
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -241,18 +354,74 @@ def create_mcp_server(
     )
     def tomorrowland_list_facets(query: str = "") -> dict[str, Any]:
         """List facet distributions via the Tomorrowland researcher API."""
+        correlation_id = get_correlation_id()
+        t0 = time.perf_counter()
         _validate_string(query, 0, _MAX_QUERY_LENGTH, "query")
 
         try:
-            return client.list_facets(query=query)
+            result = client.list_facets(
+                query=query, correlation_id=correlation_id,
+            )
+            _mcp_audit_log(
+                tool="list_facets",
+                correlation_id=correlation_id,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
+            return result
         except TomorrowlandClientError as exc:
+            _mcp_audit_log(
+                tool="list_facets",
+                correlation_id=correlation_id,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+                status="error",
+                error_type=f"HTTP_{exc.status_code}",
+            )
             raise ValueError(_translate_error(exc)) from exc
+
+    # ------------------------------------------------------------------
+    # Health check — register a minimal GET endpoint for Docker/liveness
+    # probes.  FastMCP doesn't expose a public route-registration API, so
+    # we mount a small ASGI app on the underlying Starlette instance when
+    # it is available (Streamable HTTP transport creates one).
+    # ------------------------------------------------------------------
+    _register_health_endpoint(mcp)
 
     return mcp
 
 
+def _register_health_endpoint(mcp: FastMCP) -> None:
+    """Register a ``/health`` endpoint on the FastMCP server.
+
+    The endpoint returns ``{"status": "ok"}`` with HTTP 200 and is intended
+    for Docker health checks and load-balancer liveness probes.  If the
+    underlying app is not accessible (unusual), the registration is silently
+    skipped and the caller falls back to TCP-level probes.
+    """
+    try:
+        from starlette.responses import JSONResponse
+
+        app = getattr(mcp, "_app", None) or getattr(mcp, "app", None)
+        if app is None:
+            logger.debug("No Starlette app accessible on FastMCP; skipping /health endpoint")
+            return
+
+        async def health(request):  # type: ignore[no-untyped-def]  # noqa: ARG001
+            return JSONResponse({"status": "ok"})
+
+        app.add_route("/health", health, methods=["GET"])
+        logger.debug("Registered /health endpoint on FastMCP server")
+    except Exception:
+        logger.debug(
+            "Could not register /health endpoint; falling back to TCP probe",
+            exc_info=True,
+        )
+
+
 def run_server(settings: Settings | None = None) -> None:
     """Run the MCP server with Streamable HTTP transport.
+
+    Graceful shutdown is handled by uvicorn's built-in signal handling
+    (SIGTERM/SIGINT).  The server drains in-flight requests before exiting.
 
     Parameters
     ----------
@@ -263,6 +432,7 @@ def run_server(settings: Settings | None = None) -> None:
         settings = Settings()
 
     mcp = create_mcp_server(settings)
+
     logger.info(
         "Starting MCP server on %s:%s with transport=streamable-http",
         settings.mcp_host,
