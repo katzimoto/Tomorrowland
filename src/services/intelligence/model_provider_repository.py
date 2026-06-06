@@ -330,9 +330,7 @@ class ModelProviderRepository:
         )
         result = self.get_task_default(data.task_type)
         if result is None:
-            raise RuntimeError(
-                f"Task default not found after upsert: task_type={data.task_type}"
-            )
+            raise RuntimeError(f"Task default not found after upsert: task_type={data.task_type}")
         return result
 
     def get_task_default(self, task_type: str) -> ModelTaskDefault | None:
