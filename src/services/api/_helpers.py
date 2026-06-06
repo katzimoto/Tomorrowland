@@ -64,8 +64,19 @@ def _verify_admin_membership(
     else:
         with connection_or_engine.connect() as conn:
             admins_row = conn.execute(query).scalar_one_or_none()
-    current_admins_id = str(admins_row) if admins_row else None
-    return not current_admins_id or current_admins_id in raw_group_ids
+    if admins_row is None:
+        return True
+    # Compare as UUIDs, not raw strings: group ids are stored dash-less
+    # (db_uuid -> .hex) while JWT group_ids are dashed, so a string compare
+    # never matches and silently downgrades every admin.
+    admins_uuid = to_uuid(admins_row)
+    member_uuids: set[UUID] = set()
+    for gid in raw_group_ids:
+        try:
+            member_uuids.add(to_uuid(gid))
+        except (ValueError, AttributeError):
+            continue
+    return admins_uuid in member_uuids
 
 
 def _parse_json(value: Any) -> Any:
