@@ -58,10 +58,7 @@ class AgentRateLimiter:
             # growth from users who made one call and never returned.
             if now >= self._cleanup_at:
                 self._cleanup_at = now + 300
-                stale_keys = [
-                    k for k, b in self._buckets.items()
-                    if not b or b[-1] < cutoff
-                ]
+                stale_keys = [k for k, b in self._buckets.items() if not b or b[-1] < cutoff]
                 for k in stale_keys:
                     del self._buckets[k]
 

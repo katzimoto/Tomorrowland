@@ -586,7 +586,8 @@ def create_message_stream(
             meili_provider=request.app.state.meili_provider,
             reranker=reranker,
             enable_metadata_search=settings.feature_document_chat_metadata_search,
-            enable_translated_text=settings.feature_document_chat_translated_text,                    )
+            enable_translated_text=settings.feature_document_chat_translated_text,
+        )
 
         # Persist the user message now that scope validation passed.
         repo.create_message(

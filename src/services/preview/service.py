@@ -363,9 +363,7 @@ class PreviewService:
             try:
                 threshold = int(threshold)
             except (ValueError, TypeError):
-                logger.warning(
-                    "Invalid auto_enrich.threshold=%r; using default 5", threshold
-                )
+                logger.warning("Invalid auto_enrich.threshold=%r; using default 5", threshold)
                 threshold = 5
 
         if view_count < threshold:

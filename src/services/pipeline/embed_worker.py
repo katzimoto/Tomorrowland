@@ -75,13 +75,15 @@ class EmbedConsumer(BaseConsumer):
         for idx, chunk in enumerate(original_chunks):
             chunk_texts.append(chunk)
             loc = orig_locations[idx] if idx < len(orig_locations) else {}
-            chunk_meta.append({
-                "lang": doc.source_language,
-                "suffix": "orig",
-                "idx": idx,
-                "page_number": loc.get("page_number"),
-                "section_heading": loc.get("section_heading"),
-            })
+            chunk_meta.append(
+                {
+                    "lang": doc.source_language,
+                    "suffix": "orig",
+                    "idx": idx,
+                    "page_number": loc.get("page_number"),
+                    "section_heading": loc.get("section_heading"),
+                }
+            )
 
         # Only chunk+embed translated text when it differs from the original.
         # Embedding identical text produces duplicate vectors that pollute
@@ -95,13 +97,15 @@ class EmbedConsumer(BaseConsumer):
                 )
             ):
                 chunk_texts.append(chunk)
-                chunk_meta.append({
-                    "lang": doc.target_language,
-                    "suffix": "tr",
-                    "idx": idx,
-                    "page_number": None,
-                    "section_heading": None,
-                })
+                chunk_meta.append(
+                    {
+                        "lang": doc.target_language,
+                        "suffix": "tr",
+                        "idx": idx,
+                        "page_number": None,
+                        "section_heading": None,
+                    }
+                )
 
         vectors = self._encoder.encode_batch(chunk_texts)
 

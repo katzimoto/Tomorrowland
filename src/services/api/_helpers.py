@@ -65,9 +65,7 @@ def _verify_admin_membership(
         with connection_or_engine.connect() as conn:
             admins_row = conn.execute(query).scalar_one_or_none()
     current_admins_id = str(admins_row) if admins_row else None
-    if current_admins_id and current_admins_id not in raw_group_ids:
-        return False
-    return True
+    return not current_admins_id or current_admins_id in raw_group_ids
 
 
 def _parse_json(value: Any) -> Any:
