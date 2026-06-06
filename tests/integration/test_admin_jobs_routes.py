@@ -73,7 +73,7 @@ def _seed_job(engine: Engine):
                max_attempts, run_after, created_at, updated_at, stage)
             VALUES
               (:id, :document_id, :source_id, 'process_document', 'pending', 0,
-               5, datetime('now'), datetime('now'), datetime('now'), 'queued')
+               5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'queued')
             """
             ),
             {
