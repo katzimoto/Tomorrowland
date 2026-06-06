@@ -34,6 +34,7 @@ Security
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Annotated, Any
 
@@ -135,6 +136,34 @@ def _validate_filters(filters: dict[str, Any] | None) -> None:
                     f"filters.{date_key} must be a string or absent, "
                     f"got {type(val).__name__}"
                 )
+
+
+# Per-tool feature flags — operators can disable expensive or risky tools
+# via environment variables while keeping read-only tools active.
+# Set to "0", "false", "no", or "off" (case-insensitive) to disable.
+_TOOL_FEATURE_FLAGS: dict[str, str] = {
+    "search_documents": "MCP_ENABLE_SEARCH_DOCUMENTS",
+    "get_document": "MCP_ENABLE_GET_DOCUMENT",
+    "get_passages": "MCP_ENABLE_GET_PASSAGES",
+    "ask_corpus": "MCP_ENABLE_ASK_CORPUS",
+    "get_related_documents": "MCP_ENABLE_GET_RELATED_DOCUMENTS",
+    "list_facets": "MCP_ENABLE_LIST_FACETS",
+}
+
+_DISABLED_VALUES = frozenset({"0", "false", "no", "off"})
+
+
+def _check_tool_enabled(tool_name: str) -> None:
+    """Raise ValueError if *tool_name* is disabled via its env var."""
+    env_var = _TOOL_FEATURE_FLAGS.get(tool_name)
+    if env_var is None:
+        return  # unknown tool — allow (safety default)
+    value = os.environ.get(env_var, "").strip().lower()
+    if value in _DISABLED_VALUES:
+        raise ValueError(
+            f"Tool '{tool_name}' is disabled. "
+            f"Set {env_var}=1 to enable it."
+        )
 
 
 def _translate_error(exc: TomorrowlandClientError) -> str:
@@ -276,6 +305,7 @@ def create_mcp_server(
         _validate_int(top_k, _MIN_TOP_K, _MAX_TOP_K, "top_k")
         _validate_int(page, _MIN_PAGE, _MAX_PAGE, "page")
         _validate_filters(filters)
+        _check_tool_enabled("search_documents")
 
         try:
             result = client.search_documents(
@@ -353,6 +383,7 @@ def create_mcp_server(
         auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
+        _check_tool_enabled("get_document")
 
         try:
             result = client.get_document(
@@ -436,6 +467,7 @@ def create_mcp_server(
         _validate_string(document_id, 1, 64, "document_id")
         _validate_int(limit, _MIN_LIMIT, _MAX_LIMIT, "limit")
         _validate_int(offset, _MIN_OFFSET, _MAX_OFFSET, "offset")
+        _check_tool_enabled("get_passages")
 
         try:
             result = client.get_passages(
@@ -525,6 +557,7 @@ def create_mcp_server(
             _validate_int(top_k, _MIN_TOP_K, _MAX_TOP_K, "top_k")
         if document_id is not None:
             _validate_string(document_id, 1, 64, "document_id")
+        _check_tool_enabled("ask_corpus")
 
         try:
             result = client.ask_corpus(
@@ -599,6 +632,7 @@ def create_mcp_server(
         auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
+        _check_tool_enabled("get_related_documents")
 
         try:
             result = client.get_related_documents(
@@ -673,6 +707,7 @@ def create_mcp_server(
         auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(query, 0, _MAX_QUERY_LENGTH, "query")
+        _check_tool_enabled("list_facets")
 
         try:
             result = client.list_facets(

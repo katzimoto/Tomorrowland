@@ -38,6 +38,7 @@ from services.mcp.server import (
     _MAX_TOP_K,
     _MIN_TOP_K,
     _VALID_FILTER_KEYS,
+    _check_tool_enabled,
     _extract_auth_header,
     _validate_filters,
     _validate_int,
@@ -1218,6 +1219,95 @@ class TestFilterValidation:
         result = fn(query="test", filters={"sources": ["wiki"]})
         assert result == {"results": [], "total": 0, "query": "t"}
         mock_client.search_documents.assert_called_once()
+
+
+# ======================================================================
+# Per-tool feature flags
+# ======================================================================
+
+
+class TestFeatureFlags:
+    """Validate per-tool feature flags via environment variables."""
+
+    def test_tool_enabled_by_default(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        monkeypatch.delenv("MCP_ENABLE_SEARCH_DOCUMENTS", raising=False)
+        _check_tool_enabled("search_documents")  # Should not raise.
+
+    def test_tool_disabled_by_zero(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        monkeypatch.setenv("MCP_ENABLE_GET_DOCUMENT", "0")
+        with pytest.raises(ValueError, match="get_document.*disabled"):
+            _check_tool_enabled("get_document")
+
+    @pytest.mark.parametrize("value", ["0", "false", "no", "off"])
+    def test_disabled_values(
+        self, monkeypatch, value: str,  # type: ignore[no-untyped-def]
+    ) -> None:
+        monkeypatch.setenv("MCP_ENABLE_GET_PASSAGES", value)
+        with pytest.raises(ValueError, match="get_passages.*disabled"):
+            _check_tool_enabled("get_passages")
+
+    def test_case_insensitive_disabled(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        monkeypatch.setenv("MCP_ENABLE_LIST_FACETS", "OFF")
+        with pytest.raises(ValueError, match="list_facets.*disabled"):
+            _check_tool_enabled("list_facets")
+
+    @pytest.mark.parametrize("value", ["1", "true", "yes", "enabled", "", "anything"])
+    def test_non_disabled_values_allow_tool(
+        self, monkeypatch, value: str,  # type: ignore[no-untyped-def]
+    ) -> None:
+        monkeypatch.setenv("MCP_ENABLE_ASK_CORPUS", value)
+        _check_tool_enabled("ask_corpus")  # Should not raise.
+
+    def test_unknown_tool_always_enabled(self) -> None:
+        _check_tool_enabled("nonexistent_tool")  # Should not raise.
+
+    def test_disabled_tool_in_server_returns_error(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        monkeypatch.setenv("MCP_ENABLE_SEARCH_DOCUMENTS", "0")
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mcp = create_mcp_server(settings, client=mock_client)
+
+        for t in mcp._tool_manager.list_tools():
+            if t.name == "tomorrowland_search_documents":
+                fn = t.fn
+                break
+        else:
+            pytest.fail("Tool not found")
+
+        with pytest.raises(ValueError, match="search_documents.*disabled"):
+            fn(query="test")
+
+        mock_client.search_documents.assert_not_called()
+
+    def test_disabled_expensive_tool_other_tools_still_work(
+        self, monkeypatch,  # type: ignore[no-untyped-def]
+    ) -> None:
+        monkeypatch.setenv("MCP_ENABLE_ASK_CORPUS", "0")
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.search_documents.return_value = {
+            "results": [], "total": 0, "query": "t",
+        }
+        mcp = create_mcp_server(settings, client=mock_client)
+
+        # ask_corpus should be disabled.
+        for t in mcp._tool_manager.list_tools():
+            if t.name == "tomorrowland_ask_corpus":
+                with pytest.raises(ValueError, match="ask_corpus.*disabled"):
+                    t.fn(question="what?")
+                break
+
+        # search_documents should still work.
+        for t in mcp._tool_manager.list_tools():
+            if t.name == "tomorrowland_search_documents":
+                result = t.fn(query="test")
+                assert result == {"results": [], "total": 0, "query": "t"}
+                break
+
 
 
 # ======================================================================
