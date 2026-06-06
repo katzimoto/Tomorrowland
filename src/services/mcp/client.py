@@ -50,8 +50,7 @@ class TomorrowlandClientError(Exception):
 def _sanitize_headers(headers: dict[str, str]) -> dict[str, str]:
     """Return a copy of *headers* with sensitive values redacted."""
     return {
-        k: "[redacted]" if k.lower() in _LOG_SENSITIVE_HEADERS else v
-        for k, v in headers.items()
+        k: "[redacted]" if k.lower() in _LOG_SENSITIVE_HEADERS else v for k, v in headers.items()
     }
 
 
@@ -156,7 +155,8 @@ class TomorrowlandClient:
         """
         url = f"{self._base_url}{path}"
         req_headers = self._headers(
-            correlation_id=correlation_id, auth_header=auth_header,
+            correlation_id=correlation_id,
+            auth_header=auth_header,
         )
 
         logger.debug(
@@ -195,8 +195,7 @@ class TomorrowlandClient:
                 raise last_exc from None
             except httpx.RequestError as exc:
                 logger.warning(
-                    "MCP connection error method=%s path=%s "
-                    "attempt=%d/%d error=%s",
+                    "MCP connection error method=%s path=%s attempt=%d/%d error=%s",
                     method,
                     path,
                     attempt,
@@ -214,13 +213,9 @@ class TomorrowlandClient:
 
             if response.status_code >= 400:
                 detail = _extract_error_detail(response)
-                log_level = (
-                    logger.warning if response.status_code < 500
-                    else logger.error
-                )
+                log_level = logger.warning if response.status_code < 500 else logger.error
                 log_level(
-                    "MCP API error method=%s path=%s status=%s "
-                    "detail=%s attempt=%d/%d",
+                    "MCP API error method=%s path=%s status=%s detail=%s attempt=%d/%d",
                     method,
                     path,
                     response.status_code,
@@ -232,10 +227,7 @@ class TomorrowlandClient:
                     detail or f"API returned HTTP {response.status_code}",
                     status_code=response.status_code,
                 )
-                if (
-                    response.status_code in _RETRYABLE_STATUSES
-                    and attempt < _MAX_RETRIES
-                ):
+                if response.status_code in _RETRYABLE_STATUSES and attempt < _MAX_RETRIES:
                     backoff = _RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
                     time.sleep(backoff)
                     continue

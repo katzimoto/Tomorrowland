@@ -60,24 +60,16 @@ _MIN_OFFSET = 0
 
 def _validate_string(value: str, min_len: int, max_len: int, name: str) -> None:
     if not isinstance(value, str):
-        raise ValueError(
-            f"{name} must be a string, got {type(value).__name__}"
-        )
+        raise ValueError(f"{name} must be a string, got {type(value).__name__}")
     if len(value) < min_len:
-        raise ValueError(
-            f"{name} must be at least {min_len} character(s), got {len(value)}"
-        )
+        raise ValueError(f"{name} must be at least {min_len} character(s), got {len(value)}")
     if len(value) > max_len:
-        raise ValueError(
-            f"{name} must be at most {max_len} character(s), got {len(value)}"
-        )
+        raise ValueError(f"{name} must be at most {max_len} character(s), got {len(value)}")
 
 
 def _validate_int(value: int, min_val: int, max_val: int, name: str) -> None:
     if not isinstance(value, int) or isinstance(value, bool):
-        raise ValueError(
-            f"{name} must be an integer, got {type(value).__name__}"
-        )
+        raise ValueError(f"{name} must be an integer, got {type(value).__name__}")
     if value < min_val:
         raise ValueError(f"{name} must be >= {min_val}, got {value}")
     if value > max_val:
@@ -88,15 +80,9 @@ def _translate_error(exc: TomorrowlandClientError) -> str:
     """Map API HTTP status codes to descriptive error messages."""
     status = exc.status_code
     if status == 401:
-        return (
-            "Authentication failed (HTTP 401). "
-            "Check your Bearer token or TOMORROWLAND_API_KEY."
-        )
+        return "Authentication failed (HTTP 401). Check your Bearer token or TOMORROWLAND_API_KEY."
     if status == 403:
-        return (
-            "Access denied (HTTP 403). "
-            "Your token lacks permissions for this resource."
-        )
+        return "Access denied (HTTP 403). Your token lacks permissions for this resource."
     if status == 404:
         return "Resource not found (HTTP 404)."
     if status == 422:
@@ -208,8 +194,12 @@ def create_mcp_server(
 
         try:
             result = client.search_documents(
-                query=query, top_k=top_k, page=page, filters=filters,
-                correlation_id=correlation_id, auth_header=auth_header,
+                query=query,
+                top_k=top_k,
+                page=page,
+                filters=filters,
+                correlation_id=correlation_id,
+                auth_header=auth_header,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -218,7 +208,8 @@ def create_mcp_server(
                 latency_ms=elapsed * 1000,
             )
             _mcp_metrics.tool_calls_total.labels(
-                tool="search_documents", outcome="ok",
+                tool="search_documents",
+                outcome="ok",
             ).inc()
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="search_documents",
@@ -235,13 +226,15 @@ def create_mcp_server(
                 error_type=error_type,
             )
             _mcp_metrics.tool_calls_total.labels(
-                tool="search_documents", outcome="error",
+                tool="search_documents",
+                outcome="error",
             ).inc()
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="search_documents",
             ).observe(elapsed)
             _mcp_metrics.tool_call_errors_total.labels(
-                tool="search_documents", error_type=error_type,
+                tool="search_documents",
+                error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
@@ -272,7 +265,8 @@ def create_mcp_server(
 
         try:
             result = client.get_document(
-                document_id=document_id, correlation_id=correlation_id,
+                document_id=document_id,
+                correlation_id=correlation_id,
                 auth_header=auth_header,
             )
             elapsed = time.perf_counter() - t0
@@ -282,7 +276,8 @@ def create_mcp_server(
                 latency_ms=elapsed * 1000,
             )
             _mcp_metrics.tool_calls_total.labels(
-                tool="get_document", outcome="ok",
+                tool="get_document",
+                outcome="ok",
             ).inc()
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="get_document",
@@ -299,13 +294,15 @@ def create_mcp_server(
                 error_type=error_type,
             )
             _mcp_metrics.tool_calls_total.labels(
-                tool="get_document", outcome="error",
+                tool="get_document",
+                outcome="error",
             ).inc()
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="get_document",
             ).observe(elapsed)
             _mcp_metrics.tool_call_errors_total.labels(
-                tool="get_document", error_type=error_type,
+                tool="get_document",
+                error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
@@ -345,8 +342,11 @@ def create_mcp_server(
 
         try:
             result = client.get_passages(
-                document_id=document_id, limit=limit, offset=offset,
-                correlation_id=correlation_id, auth_header=auth_header,
+                document_id=document_id,
+                limit=limit,
+                offset=offset,
+                correlation_id=correlation_id,
+                auth_header=auth_header,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -355,7 +355,8 @@ def create_mcp_server(
                 latency_ms=elapsed * 1000,
             )
             _mcp_metrics.tool_calls_total.labels(
-                tool="get_passages", outcome="ok",
+                tool="get_passages",
+                outcome="ok",
             ).inc()
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="get_passages",
@@ -372,13 +373,15 @@ def create_mcp_server(
                 error_type=error_type,
             )
             _mcp_metrics.tool_calls_total.labels(
-                tool="get_passages", outcome="error",
+                tool="get_passages",
+                outcome="error",
             ).inc()
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="get_passages",
             ).observe(elapsed)
             _mcp_metrics.tool_call_errors_total.labels(
-                tool="get_passages", error_type=error_type,
+                tool="get_passages",
+                error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
@@ -422,8 +425,11 @@ def create_mcp_server(
 
         try:
             result = client.ask_corpus(
-                question=question, top_k=top_k, document_id=document_id,
-                correlation_id=correlation_id, auth_header=auth_header,
+                question=question,
+                top_k=top_k,
+                document_id=document_id,
+                correlation_id=correlation_id,
+                auth_header=auth_header,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -432,7 +438,8 @@ def create_mcp_server(
                 latency_ms=elapsed * 1000,
             )
             _mcp_metrics.tool_calls_total.labels(
-                tool="ask_corpus", outcome="ok",
+                tool="ask_corpus",
+                outcome="ok",
             ).inc()
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="ask_corpus",
@@ -449,13 +456,15 @@ def create_mcp_server(
                 error_type=error_type,
             )
             _mcp_metrics.tool_calls_total.labels(
-                tool="ask_corpus", outcome="error",
+                tool="ask_corpus",
+                outcome="error",
             ).inc()
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="ask_corpus",
             ).observe(elapsed)
             _mcp_metrics.tool_call_errors_total.labels(
-                tool="ask_corpus", error_type=error_type,
+                tool="ask_corpus",
+                error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
@@ -484,7 +493,8 @@ def create_mcp_server(
 
         try:
             result = client.get_related_documents(
-                document_id=document_id, correlation_id=correlation_id,
+                document_id=document_id,
+                correlation_id=correlation_id,
                 auth_header=auth_header,
             )
             elapsed = time.perf_counter() - t0
@@ -494,7 +504,8 @@ def create_mcp_server(
                 latency_ms=elapsed * 1000,
             )
             _mcp_metrics.tool_calls_total.labels(
-                tool="get_related_documents", outcome="ok",
+                tool="get_related_documents",
+                outcome="ok",
             ).inc()
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="get_related_documents",
@@ -511,13 +522,15 @@ def create_mcp_server(
                 error_type=error_type,
             )
             _mcp_metrics.tool_calls_total.labels(
-                tool="get_related_documents", outcome="error",
+                tool="get_related_documents",
+                outcome="error",
             ).inc()
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="get_related_documents",
             ).observe(elapsed)
             _mcp_metrics.tool_call_errors_total.labels(
-                tool="get_related_documents", error_type=error_type,
+                tool="get_related_documents",
+                error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
@@ -548,7 +561,8 @@ def create_mcp_server(
 
         try:
             result = client.list_facets(
-                query=query, correlation_id=correlation_id,
+                query=query,
+                correlation_id=correlation_id,
                 auth_header=auth_header,
             )
             elapsed = time.perf_counter() - t0
@@ -558,7 +572,8 @@ def create_mcp_server(
                 latency_ms=elapsed * 1000,
             )
             _mcp_metrics.tool_calls_total.labels(
-                tool="list_facets", outcome="ok",
+                tool="list_facets",
+                outcome="ok",
             ).inc()
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="list_facets",
@@ -575,13 +590,15 @@ def create_mcp_server(
                 error_type=error_type,
             )
             _mcp_metrics.tool_calls_total.labels(
-                tool="list_facets", outcome="error",
+                tool="list_facets",
+                outcome="error",
             ).inc()
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="list_facets",
             ).observe(elapsed)
             _mcp_metrics.tool_call_errors_total.labels(
-                tool="list_facets", error_type=error_type,
+                tool="list_facets",
+                error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
@@ -601,8 +618,7 @@ def _register_observability_endpoints(mcp: FastMCP) -> None:
         app = getattr(mcp, "_app", None) or getattr(mcp, "app", None)
         if app is None:
             logger.debug(
-                "No Starlette app accessible on FastMCP; "
-                "skipping /health and /metrics endpoints"
+                "No Starlette app accessible on FastMCP; skipping /health and /metrics endpoints"
             )
             return
 

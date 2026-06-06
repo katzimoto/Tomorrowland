@@ -196,9 +196,7 @@ class TestPerClientTokenForwarding:
 
     def test_auth_header_takes_precedence_over_static_key(self) -> None:
         """When auth_header is provided, it is used verbatim — not the static key."""
-        client = TomorrowlandClient(
-            api_url="http://localhost:8000", api_key="static-key"
-        )
+        client = TomorrowlandClient(api_url="http://localhost:8000", api_key="static-key")
         mock = MagicMock(
             return_value=_mock_response(
                 json_data={"results": [], "total": 0, "query": "t"},
@@ -214,9 +212,7 @@ class TestPerClientTokenForwarding:
     def test_falls_back_to_static_key_when_no_auth_header(self) -> None:
         """When no auth_header is passed, the static _api_key is used with
         Bearer prefix."""
-        client = TomorrowlandClient(
-            api_url="http://localhost:8000", api_key="fallback-key"
-        )
+        client = TomorrowlandClient(api_url="http://localhost:8000", api_key="fallback-key")
         mock = MagicMock(
             return_value=_mock_response(
                 json_data={"results": [], "total": 0, "query": "t"},
@@ -440,9 +436,7 @@ class TestTomorrowlandClient:
     # -- auth forwarding -------------------------------------------------
 
     def test_auth_header_forwarded(self) -> None:
-        client = TomorrowlandClient(
-            api_url="http://localhost:8000", api_key="my-secret-token"
-        )
+        client = TomorrowlandClient(api_url="http://localhost:8000", api_key="my-secret-token")
         mock = MagicMock(
             return_value=_mock_response(
                 json_data={"results": [], "total": 0, "query": "t"},
@@ -507,14 +501,8 @@ class TestTomorrowlandClient:
         transport = client._client._transport  # type: ignore[union-attr]
         pool = getattr(transport, "_pool", None)
         if pool is not None:
-            assert (
-                pool._max_keepalive_connections
-                == _CONNECTION_LIMITS.max_keepalive_connections
-            )
-            assert (
-                pool._max_connections
-                == _CONNECTION_LIMITS.max_connections
-            )
+            assert pool._max_keepalive_connections == _CONNECTION_LIMITS.max_keepalive_connections
+            assert pool._max_connections == _CONNECTION_LIMITS.max_connections
         assert client._client is not None
 
     def test_client_uses_httpx_timeout_object(self) -> None:
@@ -538,9 +526,7 @@ class TestTomorrowlandClient:
             (504, "timed out"),
         ],
     )
-    def test_api_error_maps_to_mcp_error(
-        self, status_code: int, expected_message: str
-    ) -> None:
+    def test_api_error_maps_to_mcp_error(self, status_code: int, expected_message: str) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000", api_key="key")
         mock = MagicMock(
             return_value=_error_response(status_code, detail="Original error"),
@@ -636,10 +622,13 @@ class TestRetryBehaviour:
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None) as sleep_mock, \
-                pytest.raises(
-                    TomorrowlandClientError, match="Service unavailable",
-                ):
+        with (
+            patch("time.sleep", return_value=None) as sleep_mock,
+            pytest.raises(
+                TomorrowlandClientError,
+                match="Service unavailable",
+            ),
+        ):
             client.search_documents(query="test")
 
         assert mock.call_count == _MAX_RETRIES
@@ -707,10 +696,13 @@ class TestRetryBehaviour:
         mock = MagicMock(return_value=_error_response(401, "Unauthorized"))
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None) as sleep_mock, \
-                pytest.raises(
-                    TomorrowlandClientError, match="Unauthorized",
-                ):
+        with (
+            patch("time.sleep", return_value=None) as sleep_mock,
+            pytest.raises(
+                TomorrowlandClientError,
+                match="Unauthorized",
+            ),
+        ):
             client.search_documents(query="test")
 
         assert mock.call_count == 1
@@ -721,10 +713,13 @@ class TestRetryBehaviour:
         mock = MagicMock(return_value=_error_response(403, "Forbidden"))
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None) as sleep_mock, \
-                pytest.raises(
-                    TomorrowlandClientError, match="Forbidden",
-                ):
+        with (
+            patch("time.sleep", return_value=None) as sleep_mock,
+            pytest.raises(
+                TomorrowlandClientError,
+                match="Forbidden",
+            ),
+        ):
             client.search_documents(query="test")
 
         assert mock.call_count == 1
@@ -735,10 +730,13 @@ class TestRetryBehaviour:
         mock = MagicMock(return_value=_error_response(404, "Not found"))
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None) as sleep_mock, \
-                pytest.raises(
-                    TomorrowlandClientError, match="Not found",
-                ):
+        with (
+            patch("time.sleep", return_value=None) as sleep_mock,
+            pytest.raises(
+                TomorrowlandClientError,
+                match="Not found",
+            ),
+        ):
             client.get_document(document_id="missing")
 
         assert mock.call_count == 1
@@ -755,8 +753,10 @@ class TestRetryBehaviour:
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None) as sleep_mock, \
-                pytest.raises(TomorrowlandClientError):
+        with (
+            patch("time.sleep", return_value=None) as sleep_mock,
+            pytest.raises(TomorrowlandClientError),
+        ):
             client.search_documents(query="test")
 
         calls = sleep_mock.call_args_list
@@ -822,21 +822,30 @@ class TestAuditLogging:
 
     def _make_server_with_success_client(self) -> FastMCP:
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = MagicMock(spec=TomorrowlandClient)
         mock_client.search_documents.return_value = {
-            "results": [], "total": 0, "query": "t",
+            "results": [],
+            "total": 0,
+            "query": "t",
         }
         mock_client.get_document.return_value = {"document_id": "abc"}
         mock_client.get_passages.return_value = {
-            "document_id": "abc", "passages": [], "total": 0,
+            "document_id": "abc",
+            "passages": [],
+            "total": 0,
         }
         mock_client.ask_corpus.return_value = {
-            "question": "q", "answer": "a", "citations": [], "model": "m",
+            "question": "q",
+            "answer": "a",
+            "citations": [],
+            "model": "m",
         }
         mock_client.get_related_documents.return_value = {
-            "document_id": "abc", "related": [],
+            "document_id": "abc",
+            "related": [],
         }
         mock_client.list_facets.return_value = {"facets": {}}
         return create_mcp_server(settings, client=mock_client)
@@ -848,7 +857,8 @@ class TestAuditLogging:
         raise KeyError(f"Tool {name!r} not found")
 
     def test_audit_log_emitted_on_successful_search(
-        self, caplog,  # type: ignore[no-untyped-def]
+        self,
+        caplog,  # type: ignore[no-untyped-def]
     ) -> None:
         caplog.set_level("INFO")
         mcp = self._make_server_with_success_client()
@@ -856,8 +866,7 @@ class TestAuditLogging:
         fn(query="test")
 
         audit_lines = [
-            r for r in caplog.records
-            if getattr(r, "message", "") and "mcp_audit" in r.message
+            r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
         ]
         assert len(audit_lines) == 1
         msg = audit_lines[0].message
@@ -866,15 +875,18 @@ class TestAuditLogging:
         assert re.search(r"latency_ms=\d+", msg)
 
     def test_audit_log_emitted_on_error(
-        self, caplog,  # type: ignore[no-untyped-def]
+        self,
+        caplog,  # type: ignore[no-untyped-def]
     ) -> None:
         caplog.set_level("INFO")
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = MagicMock(spec=TomorrowlandClient)
         mock_client.get_document.side_effect = TomorrowlandClientError(
-            "Not found", status_code=404,
+            "Not found",
+            status_code=404,
         )
         mcp = create_mcp_server(settings, client=mock_client)
         fn = self._get_tool_fn(mcp, "tomorrowland_get_document")
@@ -883,8 +895,7 @@ class TestAuditLogging:
             fn(document_id="missing")
 
         audit_lines = [
-            r for r in caplog.records
-            if getattr(r, "message", "") and "mcp_audit" in r.message
+            r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
         ]
         assert len(audit_lines) == 1
         msg = audit_lines[0].message
@@ -893,7 +904,8 @@ class TestAuditLogging:
         assert "error_type=HTTP_404" in msg
 
     def test_audit_log_includes_correlation_id(
-        self, caplog,  # type: ignore[no-untyped-def]
+        self,
+        caplog,  # type: ignore[no-untyped-def]
     ) -> None:
         caplog.set_level("INFO")
         mcp = self._make_server_with_success_client()
@@ -901,8 +913,7 @@ class TestAuditLogging:
         fn()
 
         audit_lines = [
-            r for r in caplog.records
-            if getattr(r, "message", "") and "mcp_audit" in r.message
+            r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
         ]
         assert len(audit_lines) == 1
         msg = audit_lines[0].message
@@ -912,7 +923,8 @@ class TestAuditLogging:
         )
 
     def test_all_six_tools_emit_audit_log(
-        self, caplog,  # type: ignore[no-untyped-def]
+        self,
+        caplog,  # type: ignore[no-untyped-def]
     ) -> None:
         caplog.set_level("INFO")
         mcp = self._make_server_with_success_client()
@@ -930,8 +942,7 @@ class TestAuditLogging:
             fn(**kwargs)
 
         audit_lines = [
-            r for r in caplog.records
-            if getattr(r, "message", "") and "mcp_audit" in r.message
+            r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
         ]
         assert len(audit_lines) == 6
         tools_seen = set()
@@ -964,7 +975,8 @@ class TestLogSanitization:
 
     def test_no_token_in_error_message(self) -> None:
         client = TomorrowlandClient(
-            api_url="http://localhost:8000", api_key="my-secret-token",
+            api_url="http://localhost:8000",
+            api_key="my-secret-token",
         )
         mock = MagicMock(return_value=_error_response(401))
         client._client.request = mock  # type: ignore[method-assign]
@@ -1018,10 +1030,14 @@ class TestInvalidInputRejection:
 
     def test_query_too_long_rejected(self) -> None:
         with pytest.raises(
-            ValueError, match=f"query must be at most {_MAX_QUERY_LENGTH}",
+            ValueError,
+            match=f"query must be at most {_MAX_QUERY_LENGTH}",
         ):
             _validate_string(
-                "x" * (_MAX_QUERY_LENGTH + 1), 1, _MAX_QUERY_LENGTH, "query",
+                "x" * (_MAX_QUERY_LENGTH + 1),
+                1,
+                _MAX_QUERY_LENGTH,
+                "query",
             )
 
     def test_top_k_zero_rejected(self) -> None:
@@ -1030,7 +1046,8 @@ class TestInvalidInputRejection:
 
     def test_top_k_too_large_rejected(self) -> None:
         with pytest.raises(
-            ValueError, match=f"top_k must be <= {_MAX_TOP_K}",
+            ValueError,
+            match=f"top_k must be <= {_MAX_TOP_K}",
         ):
             _validate_int(100, _MIN_TOP_K, _MAX_TOP_K, "top_k")
 
@@ -1054,7 +1071,8 @@ class TestMCPAuthorizationParity:
 
     def _make_server_raising(self, status_code: int, detail: str) -> FastMCP:
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = MagicMock(spec=TomorrowlandClient)
         error = TomorrowlandClientError(detail, status_code=status_code)
@@ -1096,7 +1114,8 @@ class TestMCPAuthorizationParity:
         )
         mock_client = MagicMock(spec=TomorrowlandClient)
         mock_client.search_documents.side_effect = TomorrowlandClientError(
-            f"Unauthorized: {api_key}", status_code=401,
+            f"Unauthorized: {api_key}",
+            status_code=401,
         )
         mcp = create_mcp_server(settings, client=mock_client)
         fn = self._get_tool_fn(mcp, "tomorrowland_search_documents")
@@ -1111,7 +1130,8 @@ class TestMCPAuthorizationParity:
     def test_429_error_does_not_expose_document_metadata(self) -> None:
         sensitive_id = "corpus-id-must-not-appear-in-429-error"
         mcp = self._make_server_raising(
-            429, f"Too many requests for {sensitive_id}",
+            429,
+            f"Too many requests for {sensitive_id}",
         )
         fn = self._get_tool_fn(mcp, "tomorrowland_ask_corpus")
 
@@ -1134,7 +1154,9 @@ class TestMCPAuthorizationParity:
         ],
     )
     def test_all_tools_translate_401_to_safe_error(
-        self, tool_name: str, tool_kwargs: dict[str, Any],
+        self,
+        tool_name: str,
+        tool_kwargs: dict[str, Any],
     ) -> None:
         raw_detail = "raw-internal-detail-must-not-appear"
         mcp = self._make_server_raising(401, raw_detail)
@@ -1159,11 +1181,14 @@ class TestMCPAuthorizationParity:
         ],
     )
     def test_all_tools_translate_403_to_safe_error(
-        self, tool_name: str, tool_kwargs: dict[str, Any],
+        self,
+        tool_name: str,
+        tool_kwargs: dict[str, Any],
     ) -> None:
         hidden_resource_id = "hidden-resource-id-must-not-appear-in-error"
         mcp = self._make_server_raising(
-            403, f"Cannot access {hidden_resource_id}",
+            403,
+            f"Cannot access {hidden_resource_id}",
         )
         fn = self._get_tool_fn(mcp, tool_name)
 
@@ -1196,7 +1221,8 @@ class TestMCPMetrics:
         # Verify the singleton registry knows about them by recording a
         # sample value and checking it appears in collect().
         _mcp_metrics.tool_calls_total.labels(
-            tool="test", outcome="ok",
+            tool="test",
+            outcome="ok",
         ).inc()
         names: set[str] = set()
         for metric in _mcp_metrics.registry.collect():
@@ -1208,11 +1234,14 @@ class TestMCPMetrics:
         from services.mcp.metrics import _mcp_metrics
 
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = MagicMock(spec=TomorrowlandClient)
         mock_client.search_documents.return_value = {
-            "results": [], "total": 0, "query": "t",
+            "results": [],
+            "total": 0,
+            "query": "t",
         }
         mcp = create_mcp_server(settings, client=mock_client)
 
@@ -1225,13 +1254,15 @@ class TestMCPMetrics:
 
         # Get initial values
         before_ok = _mcp_metrics.tool_calls_total.labels(
-            tool="search_documents", outcome="ok",
+            tool="search_documents",
+            outcome="ok",
         )._value.get()
 
         fn(query="test")
 
         after_ok = _mcp_metrics.tool_calls_total.labels(
-            tool="search_documents", outcome="ok",
+            tool="search_documents",
+            outcome="ok",
         )._value.get()
         assert after_ok == before_ok + 1
 
@@ -1239,11 +1270,13 @@ class TestMCPMetrics:
         from services.mcp.metrics import _mcp_metrics
 
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = MagicMock(spec=TomorrowlandClient)
         mock_client.get_document.side_effect = TomorrowlandClientError(
-            "Not found", status_code=404,
+            "Not found",
+            status_code=404,
         )
         mcp = create_mcp_server(settings, client=mock_client)
 
@@ -1255,14 +1288,16 @@ class TestMCPMetrics:
             pytest.fail("Tool not found")
 
         before_err = _mcp_metrics.tool_calls_total.labels(
-            tool="get_document", outcome="error",
+            tool="get_document",
+            outcome="error",
         )._value.get()
 
         with pytest.raises(ValueError, match="Resource not found"):
             fn(document_id="missing")
 
         after_err = _mcp_metrics.tool_calls_total.labels(
-            tool="get_document", outcome="error",
+            tool="get_document",
+            outcome="error",
         )._value.get()
         assert after_err == before_err + 1
 
@@ -1270,7 +1305,8 @@ class TestMCPMetrics:
         from services.mcp.metrics import _mcp_metrics
 
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = MagicMock(spec=TomorrowlandClient)
         mock_client.list_facets.return_value = {"facets": {}}
@@ -1283,28 +1319,24 @@ class TestMCPMetrics:
         else:
             pytest.fail("Tool not found")
 
-        before_sum = (
-            _mcp_metrics.tool_call_duration_seconds
-            .labels(tool="list_facets")._sum.get()
-        )
+        before_sum = _mcp_metrics.tool_call_duration_seconds.labels(tool="list_facets")._sum.get()
 
         fn()
 
-        after_sum = (
-            _mcp_metrics.tool_call_duration_seconds
-            .labels(tool="list_facets")._sum.get()
-        )
+        after_sum = _mcp_metrics.tool_call_duration_seconds.labels(tool="list_facets")._sum.get()
         assert after_sum > before_sum
 
     def test_error_metrics_record_error_type(self) -> None:
         from services.mcp.metrics import _mcp_metrics
 
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = MagicMock(spec=TomorrowlandClient)
         mock_client.ask_corpus.side_effect = TomorrowlandClientError(
-            "Service down", status_code=503,
+            "Service down",
+            status_code=503,
         )
         mcp = create_mcp_server(settings, client=mock_client)
 
@@ -1316,14 +1348,16 @@ class TestMCPMetrics:
             pytest.fail("Tool not found")
 
         before = _mcp_metrics.tool_call_errors_total.labels(
-            tool="ask_corpus", error_type="HTTP_503",
+            tool="ask_corpus",
+            error_type="HTTP_503",
         )._value.get()
 
         with pytest.raises(ValueError, match="Service unavailable"):
             fn(question="what?")
 
         after = _mcp_metrics.tool_call_errors_total.labels(
-            tool="ask_corpus", error_type="HTTP_503",
+            tool="ask_corpus",
+            error_type="HTTP_503",
         )._value.get()
         assert after == before + 1
 
@@ -1348,21 +1382,30 @@ class TestMCPMetrics:
         from services.mcp.metrics import _mcp_metrics
 
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = MagicMock(spec=TomorrowlandClient)
         mock_client.search_documents.return_value = {
-            "results": [], "total": 0, "query": "t",
+            "results": [],
+            "total": 0,
+            "query": "t",
         }
         mock_client.get_document.return_value = {"document_id": "abc"}
         mock_client.get_passages.return_value = {
-            "document_id": "abc", "passages": [], "total": 0,
+            "document_id": "abc",
+            "passages": [],
+            "total": 0,
         }
         mock_client.ask_corpus.return_value = {
-            "question": "q", "answer": "a", "citations": [], "model": "m",
+            "question": "q",
+            "answer": "a",
+            "citations": [],
+            "model": "m",
         }
         mock_client.get_related_documents.return_value = {
-            "document_id": "abc", "related": [],
+            "document_id": "abc",
+            "related": [],
         }
         mock_client.list_facets.return_value = {"facets": {}}
         mcp = create_mcp_server(settings, client=mock_client)
@@ -1392,6 +1435,7 @@ class TestMCPMetrics:
         # Every tool should have at least one "ok" counter increment.
         for tool_name in expected_tools:
             val = _mcp_metrics.tool_calls_total.labels(
-                tool=tool_name, outcome="ok",
+                tool=tool_name,
+                outcome="ok",
             )._value.get()
             assert val >= 1, f"No ok counter for {tool_name}"
