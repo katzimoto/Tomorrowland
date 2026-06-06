@@ -45,7 +45,7 @@ def _translation_score(quality: str | None) -> float:
 
 
 def _verify_admin_membership(
-    connection_or_engine: sa.Connection | Any,
+    connection_or_engine: sa.Connection | sa.Engine,
     raw_group_ids: list[str],
 ) -> bool:
     """Re-verify admin group membership against the DB.
@@ -58,18 +58,12 @@ def _verify_admin_membership(
     connection) or a ``sa.Engine``.  Returns False when the admins group
     exists in the DB but the caller is not a member.
     """
-    import sqlalchemy as sa
-
+    query = sa.text("SELECT id FROM groups WHERE name = 'admins' LIMIT 1")
     if isinstance(connection_or_engine, sa.Connection):
-        conn = connection_or_engine
-        admins_row = conn.execute(
-            sa.text("SELECT id FROM groups WHERE name = 'admins' LIMIT 1")
-        ).scalar_one_or_none()
+        admins_row = connection_or_engine.execute(query).scalar_one_or_none()
     else:
         with connection_or_engine.connect() as conn:
-            admins_row = conn.execute(
-                sa.text("SELECT id FROM groups WHERE name = 'admins' LIMIT 1")
-            ).scalar_one_or_none()
+            admins_row = conn.execute(query).scalar_one_or_none()
     current_admins_id = str(admins_row) if admins_row else None
     if current_admins_id and current_admins_id not in raw_group_ids:
         return False
