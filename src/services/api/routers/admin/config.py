@@ -57,7 +57,7 @@ def admin_update_config(
                 UPDATE system_config
                 SET value = :value, updated_at = CURRENT_TIMESTAMP, updated_by = :user_id
                 WHERE key = :key
-                """),
+                """).bindparams(sa.bindparam("value", type_=sa.JSON())),
             {
                 "key": key,
                 "value": body.value,
@@ -109,7 +109,7 @@ def admin_reset_config(
                     UPDATE system_config
                     SET value = :value, updated_at = CURRENT_TIMESTAMP, updated_by = :user_id
                     WHERE key = :key
-                    """),
+                    """).bindparams(sa.bindparam("value", type_=sa.JSON())),
                 {"key": key, "value": value, "user_id": user.sub.hex},
             )
         _audit_log(connection, user.sub, "reset", "system_config")

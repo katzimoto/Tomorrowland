@@ -71,8 +71,11 @@ def _setup_users(engine: Engine) -> None:
         # Enable it here so tests that set feature_document_chat=True in Settings
         # also pass the system_config gate.
         connection.execute(
-            sa.text("INSERT OR REPLACE INTO system_config (key, value) VALUES (:key, :value)"),
-            {"key": "feature.document_chat", "value": "true"},
+            sa.text(
+                "INSERT INTO system_config (key, value) VALUES (:key, :value) "
+                "ON CONFLICT (key) DO UPDATE SET value = excluded.value"
+            ).bindparams(sa.bindparam("value", type_=sa.JSON())),
+            {"key": "feature.document_chat", "value": True},
         )
 
 
@@ -101,8 +104,11 @@ def test_chat_disabled_when_system_config_flag_off(migrated_engine: Engine) -> N
 
     with migrated_engine.begin() as connection:
         connection.execute(
-            sa.text("INSERT OR REPLACE INTO system_config (key, value) VALUES (:key, :value)"),
-            {"key": "feature.document_chat", "value": "false"},
+            sa.text(
+                "INSERT INTO system_config (key, value) VALUES (:key, :value) "
+                "ON CONFLICT (key) DO UPDATE SET value = excluded.value"
+            ).bindparams(sa.bindparam("value", type_=sa.JSON())),
+            {"key": "feature.document_chat", "value": False},
         )
 
     client = TestClient(create_app(migrated_engine, _settings(feature_document_chat=True)))
