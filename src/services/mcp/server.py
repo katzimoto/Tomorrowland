@@ -613,7 +613,7 @@ def create_mcp_server(
 def _register_observability_endpoints(mcp: FastMCP) -> None:
     """Register ``/health`` and ``/metrics`` endpoints on the FastMCP server."""
     try:
-        from starlette.responses import JSONResponse
+        from starlette.responses import JSONResponse, Response
 
         app = getattr(mcp, "_app", None) or getattr(mcp, "app", None)
         if app is None:
@@ -629,8 +629,14 @@ def _register_observability_endpoints(mcp: FastMCP) -> None:
         app.add_route("/health", health, methods=["GET"])
         logger.debug("Registered /health endpoint on FastMCP server")
 
-        # Metrics endpoint
-        app.add_route("/metrics", metrics_endpoint, methods=["GET"])
+        # Metrics endpoint. metrics_endpoint returns a (body, status, headers)
+        # tuple; adapt it to a Starlette Response so the route serves correctly
+        # (a bare tuple is not a valid ASGI response and would 500 the scrape).
+        async def metrics(request):  # type: ignore[no-untyped-def]  # noqa: ARG001
+            body, status, headers = await metrics_endpoint(request)
+            return Response(content=body, status_code=status, headers=headers)
+
+        app.add_route("/metrics", metrics, methods=["GET"])
         logger.debug("Registered /metrics endpoint on FastMCP server")
     except Exception:
         logger.debug(

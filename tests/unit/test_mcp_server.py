@@ -1378,6 +1378,30 @@ class TestMCPMetrics:
         assert "tomorrowland_mcp_tool_calls_total" in text
         assert "tomorrowland_mcp_tool_call_duration_seconds" in text
 
+    def test_metrics_route_served_through_starlette(self) -> None:
+        # Regression: metrics_endpoint returns a (body, status, headers) tuple,
+        # which Starlette cannot serve directly. _register_observability_endpoints
+        # must adapt it to a Response, otherwise GET /metrics 500s in production
+        # even though the direct-call unit test passes.
+        from types import SimpleNamespace
+
+        from starlette.applications import Starlette
+        from starlette.testclient import TestClient
+
+        from services.mcp.server import _register_observability_endpoints
+
+        app = Starlette()
+        _register_observability_endpoints(SimpleNamespace(app=app))
+
+        client = TestClient(app)
+        health = client.get("/health")
+        assert health.status_code == 200
+        assert health.json() == {"status": "ok"}
+
+        metrics = client.get("/metrics")
+        assert metrics.status_code == 200
+        assert "tomorrowland_mcp_tool_calls_total" in metrics.text
+
     def test_all_six_tools_are_instrumented(self) -> None:
         from services.mcp.metrics import _mcp_metrics
 
