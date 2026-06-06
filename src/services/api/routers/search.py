@@ -10,7 +10,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, Request
 
-from services.api._helpers import _fmt_dt, _translation_score
+from services.api._helpers import _fmt_dt, _translation_score, _verify_admin_membership
 from services.api.main import current_user
 from services.api.schemas import SearchRequest, SearchResponse, SearchResultItem
 from services.auth.models import TokenPayload
@@ -41,14 +41,7 @@ def search(
     is_admin = user.is_admin or http_request.app.state.admins_group_id in group_ids
     if is_admin:
         # Re-verify admin status against the DB to prevent stale-JWT bypass.
-        # If the user was removed from the admins group after token issuance,
-        # the JWT still carries the old group membership until expiry.
-        with http_request.app.state.engine.begin() as _conn:
-            admins_group_id_row = _conn.execute(
-                sa.text("SELECT id FROM groups WHERE name = 'admins' LIMIT 1")
-            ).scalar_one_or_none()
-        current_admins_id = str(admins_group_id_row) if admins_group_id_row else None
-        if current_admins_id and current_admins_id not in group_ids:
+        if not _verify_admin_membership(http_request.app.state.engine, group_ids):
             is_admin = False
     if not group_ids and not is_admin:
         http_request.app.state.metrics.search_requests_total.labels("hybrid", "success").inc()

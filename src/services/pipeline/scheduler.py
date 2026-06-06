@@ -173,7 +173,7 @@ def _sync_source(
     # SELECT ... FOR UPDATE serializes access so two scheduler ticks
     # or a scheduler tick + sync-now cannot create duplicate sync runs.
     locked = connection.execute(
-        sa.text("SELECT id FROM ingestion_sources WHERE id = :id FOR UPDATE"),
+        sa.text("SELECT id FROM ingestion_sources WHERE id = :id FOR UPDATE SKIP LOCKED"),
         {"id": db_uuid(source_id)},
     ).scalar_one_or_none()
     if locked is None:
