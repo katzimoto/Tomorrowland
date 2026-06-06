@@ -41,6 +41,16 @@ def migrated_engine(tmp_path) -> Iterator[Engine]:  # type: ignore[no-untyped-de
         url = os.environ.get(
             "POSTGRES_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/app"
         )
+        # This fixture is function-scoped but the same Postgres database is
+        # reused across tests, so rows from a prior test persist. Reset the
+        # schema before migrating so each test starts clean — otherwise setup
+        # helpers that insert fixed-email users collide on uq_users_email.
+        # (SQLite gets this isolation for free via a fresh tmp_path file.)
+        reset_engine = sa.create_engine(url)
+        with reset_engine.begin() as conn:
+            conn.execute(sa.text("DROP SCHEMA public CASCADE"))
+            conn.execute(sa.text("CREATE SCHEMA public"))
+        reset_engine.dispose()
     else:
         db_path = tmp_path / "tomorrowland.db"
         url = f"sqlite:///{db_path}"
