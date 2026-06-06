@@ -40,7 +40,10 @@ class _FakeMeiliProvider:
         with self._engine.begin() as conn:
             if is_admin:
                 rows = conn.execute(
-                    sa.text("SELECT id, title FROM documents WHERE title LIKE :q LIMIT :limit"),
+                    sa.text(
+                        "SELECT id, title FROM documents "
+                        "WHERE LOWER(title) LIKE LOWER(:q) LIMIT :limit"
+                    ),
                     params,
                 ).fetchall()
             elif not group_ids:
@@ -52,7 +55,7 @@ class _FakeMeiliProvider:
                     sa.text(
                         "SELECT d.id, d.title FROM documents d "
                         "JOIN source_permissions sp ON sp.source_id = d.source_id "
-                        f"WHERE d.title LIKE :q AND sp.group_id IN ({placeholders}) "
+                        f"WHERE LOWER(d.title) LIKE LOWER(:q) AND sp.group_id IN ({placeholders}) "
                         "LIMIT :limit"
                     ),
                     params,
