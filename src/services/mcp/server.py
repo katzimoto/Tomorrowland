@@ -82,6 +82,61 @@ def _validate_int(value: int, min_val: int, max_val: int, name: str) -> None:
         raise ValueError(f"{name} must be <= {max_val}, got {value}")
 
 
+# Whitelisted filter keys matching the backend AgentSearchFilters schema.
+# Any key NOT in this set is rejected before the API call, giving the MCP
+# client a fast, clear error instead of a round-trip 422.
+_VALID_FILTER_KEYS = frozenset({
+    "sources", "mime_types", "languages", "tags", "date_from", "date_to",
+})
+
+
+def _validate_filters(filters: dict[str, Any] | None) -> None:
+    """Validate the filter dict against the known filter schema.
+
+    Rejects unknown keys and non-list/non-string values for known keys,
+    giving a fast, clear error at the MCP layer instead of a round-trip
+    422 from the backend.
+    """
+    if filters is None:
+        return
+    if not isinstance(filters, dict):
+        raise ValueError(
+            f"filters must be a dict, got {type(filters).__name__}"
+        )
+    invalid_keys = set(filters.keys()) - _VALID_FILTER_KEYS
+    if invalid_keys:
+        raise ValueError(
+            f"Unknown filter keys: {', '.join(sorted(invalid_keys))}. "
+            f"Valid keys: {', '.join(sorted(_VALID_FILTER_KEYS))}"
+        )
+    # Validate list-typed filter values — reject non-lists (including
+    # explicit None) but skip absent keys.
+    for list_key in ("sources", "mime_types", "languages", "tags"):
+        if list_key in filters:
+            val = filters[list_key]
+            if not isinstance(val, list):
+                raise ValueError(
+                    f"filters.{list_key} must be a list, "
+                    f"got {type(val).__name__}"
+                )
+            # Shallow check: list elements should be strings.
+            for i, el in enumerate(val):
+                if not isinstance(el, str):
+                    raise ValueError(
+                        f"filters.{list_key}[{i}] must be a string, "
+                        f"got {type(el).__name__}"
+                    )
+    # Validate date values are non-empty strings (or absent)
+    for date_key in ("date_from", "date_to"):
+        if date_key in filters:
+            val = filters[date_key]
+            if not isinstance(val, str):
+                raise ValueError(
+                    f"filters.{date_key} must be a string or absent, "
+                    f"got {type(val).__name__}"
+                )
+
+
 def _translate_error(exc: TomorrowlandClientError) -> str:
     """Map API HTTP status codes to descriptive error messages."""
     status = exc.status_code
@@ -206,8 +261,9 @@ def create_mcp_server(
             dict[str, Any] | None,
             Field(
                 description=(
-                    "Optional filter dict with sources, mime_types, "
-                    "languages, tags, date_from, date_to"
+                    "Optional filter dict. Valid keys: sources (list[str]), "
+                    "mime_types (list[str]), languages (list[str]), "
+                    "tags (list[str]), date_from (str|null), date_to (str|null)"
                 ),
             ),
         ] = None,
@@ -219,6 +275,7 @@ def create_mcp_server(
         _validate_string(query, 1, _MAX_QUERY_LENGTH, "query")
         _validate_int(top_k, _MIN_TOP_K, _MAX_TOP_K, "top_k")
         _validate_int(page, _MIN_PAGE, _MAX_PAGE, "page")
+        _validate_filters(filters)
 
         try:
             result = client.search_documents(

@@ -37,7 +37,9 @@ from services.mcp.server import (
     _MAX_QUERY_LENGTH,
     _MAX_TOP_K,
     _MIN_TOP_K,
+    _VALID_FILTER_KEYS,
     _extract_auth_header,
+    _validate_filters,
     _validate_int,
     _validate_string,
     create_mcp_server,
@@ -1062,6 +1064,160 @@ class TestInvalidInputRejection:
     def test_question_empty_rejected(self) -> None:
         with pytest.raises(ValueError, match="question must be at least 1"):
             _validate_string("", 1, 2000, "question")
+
+
+# ======================================================================
+# Filter schema validation
+# ======================================================================
+
+
+class TestFilterValidation:
+    """Filters are validated at the MCP layer before any API call."""
+
+    def test_none_filters_pass(self) -> None:
+        _validate_filters(None)  # Should not raise.
+
+    def test_empty_dict_passes(self) -> None:
+        _validate_filters({})  # Should not raise.
+
+    def test_valid_filters_pass(self) -> None:
+        _validate_filters({
+            "sources": ["engineering-wiki"],
+            "mime_types": ["application/pdf"],
+            "languages": ["en"],
+            "tags": ["archived"],
+            "date_from": "2024-01-01",
+            "date_to": "2024-12-31",
+        })
+
+    def test_non_dict_rejected(self) -> None:
+        with pytest.raises(ValueError, match="filters must be a dict"):
+            _validate_filters("not-a-dict")  # type: ignore[arg-type]
+
+    def test_unknown_key_rejected(self) -> None:
+        with pytest.raises(
+            ValueError, match="Unknown filter keys: foo",
+        ):
+            _validate_filters({"sources": ["eng"], "foo": "bar"})
+
+    def test_multiple_unknown_keys_listed(self) -> None:
+        with pytest.raises(ValueError, match="foo, invalid_key"):
+            _validate_filters({
+                "sources": ["eng"], "foo": 1, "invalid_key": 2,
+            })
+
+    def test_sources_must_be_list(self) -> None:
+        with pytest.raises(
+            ValueError, match="filters.sources must be a list",
+        ):
+            _validate_filters({"sources": "not-a-list"})
+
+    def test_mime_types_must_be_list(self) -> None:
+        with pytest.raises(
+            ValueError, match="filters.mime_types must be a list",
+        ):
+            _validate_filters({"mime_types": 123})
+
+    def test_languages_must_be_list(self) -> None:
+        with pytest.raises(
+            ValueError, match="filters.languages must be a list",
+        ):
+            _validate_filters({"languages": None})
+
+    def test_tags_must_be_list(self) -> None:
+        with pytest.raises(
+            ValueError, match="filters.tags must be a list",
+        ):
+            _validate_filters({"tags": {"wrong": "type"}})
+
+    def test_date_from_must_be_string(self) -> None:
+        with pytest.raises(
+            ValueError, match="filters.date_from must be a string",
+        ):
+            _validate_filters({"date_from": 2024})
+
+    def test_date_to_must_be_string(self) -> None:
+        with pytest.raises(
+            ValueError, match="filters.date_to must be a string",
+        ):
+            _validate_filters({"date_to": True})
+
+    def test_sources_explicit_none_rejected(self) -> None:
+        """Explicit None for a list filter key is rejected."""
+        with pytest.raises(
+            ValueError, match="filters.sources must be a list",
+        ):
+            _validate_filters({"sources": None})
+
+    def test_date_from_explicit_none_rejected(self) -> None:
+        """Explicit None for a date filter key is rejected."""
+        with pytest.raises(
+            ValueError, match="filters.date_from must be a string or absent",
+        ):
+            _validate_filters({"date_from": None})
+
+    def test_sources_list_element_must_be_string(self) -> None:
+        """List elements must be strings."""
+        with pytest.raises(
+            ValueError, match="filters.sources\\[1\\] must be a string",
+        ):
+            _validate_filters({"sources": ["valid", 42]})
+
+    def test_tags_list_element_must_be_string(self) -> None:
+        with pytest.raises(
+            ValueError, match="filters.tags\\[0\\] must be a string",
+        ):
+            _validate_filters({"tags": [3.14, "valid", True]})
+
+    def test_valid_filter_keys_set_matches_backend(self) -> None:
+        """The whitelist must match AgentSearchFilters exactly."""
+        assert {
+            "sources", "mime_types", "languages", "tags",
+            "date_from", "date_to",
+        } == _VALID_FILTER_KEYS
+
+    def test_filter_validation_in_tool_rejects_bad_filters(self) -> None:
+        """Integration: the search tool calls _validate_filters before API."""
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mcp = create_mcp_server(settings, client=mock_client)
+        for t in mcp._tool_manager.list_tools():
+            if t.name == "tomorrowland_search_documents":
+                fn = t.fn
+                break
+        else:
+            pytest.fail("Tool not found")
+
+        with pytest.raises(ValueError, match="Unknown filter keys"):
+            fn(query="test", filters={"bogus_key": "v"})
+
+        # The mock client must never have been called.
+        mock_client.search_documents.assert_not_called()
+
+    def test_filter_validation_in_tool_does_not_reject_valid_filters(
+        self,
+    ) -> None:
+        """Valid filters must pass through to the client."""
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.search_documents.return_value = {
+            "results": [], "total": 0, "query": "t",
+        }
+        mcp = create_mcp_server(settings, client=mock_client)
+        for t in mcp._tool_manager.list_tools():
+            if t.name == "tomorrowland_search_documents":
+                fn = t.fn
+                break
+        else:
+            pytest.fail("Tool not found")
+
+        result = fn(query="test", filters={"sources": ["wiki"]})
+        assert result == {"results": [], "total": 0, "query": "t"}
+        mock_client.search_documents.assert_called_once()
 
 
 # ======================================================================
