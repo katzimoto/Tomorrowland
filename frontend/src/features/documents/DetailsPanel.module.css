@@ -52,7 +52,7 @@
   border: 1px solid var(--color-border);
   transition: background 120ms ease;
 }
-.relatedLink:hover { background: var(--color-bg-hover, var(--color-border)); }
+.relatedLink:hover { background: var(--color-surface-raised); }
 .relatedTitle { flex: 1; font-size: var(--font-size-body); }
 
 /* Comments */

@@ -19,7 +19,7 @@
 .amber { background: var(--color-warning, #f59e0b); }
 
 .text {
-  font-size: var(--font-size-xs, 11px);
+  font-size: var(--font-size-meta);
   color: var(--color-text-muted);
   line-height: 1.4;
 }
