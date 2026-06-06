@@ -185,7 +185,12 @@ class BaseConsumer(ABC):
                 # and translated_text. Without this, downstream workers
                 # (translate, embed, index) receive empty text and silently
                 # skip processing on every retry attempt.
-                self._job_repo.commit()
+                #
+                # Read payload BEFORE committing mark_retry — the payload was
+                # committed by a prior worker, so it is already visible.  We
+                # deliberately commit only AFTER basic_publish succeeds so a
+                # publish failure rolls back the mark_retry and the message
+                # can be redelivered for another retry attempt.
                 _stored = self._job_repo.get_payload(document_id) or {}
                 _stored_text: str = _stored.get("content_text") or ""
                 _stored_translated: str = _stored.get("translated_text") or ""
@@ -210,6 +215,7 @@ class BaseConsumer(ABC):
                     body=retry_body,
                     properties=pika.BasicProperties(delivery_mode=2),
                 )
+                self._job_repo.commit()
                 self._channel.basic_ack(delivery_tag=delivery_tag)  # type: ignore[union-attr]
                 logger.info(
                     "job routed to retry: worker_type=%s job_id=%s attempt=%d",
