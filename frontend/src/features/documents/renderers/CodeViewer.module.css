@@ -29,12 +29,12 @@
   padding: 2px 8px;
   background: none;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-panel);
   cursor: pointer;
   color: var(--color-text-muted);
   font-family: inherit;
 }
-.btn:hover { color: var(--color-text-primary); background: var(--color-surface-hover); }
+.btn:hover { color: var(--color-text-primary); background: var(--color-surface-raised); }
 
 .btnActive {
   color: var(--color-text-primary);

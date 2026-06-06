@@ -29,7 +29,7 @@
 
 .img {
   display: block;
-  border-radius: var(--radius);
+  border-radius: var(--radius-panel);
 }
 
 .loading {

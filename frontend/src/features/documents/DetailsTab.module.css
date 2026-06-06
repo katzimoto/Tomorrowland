@@ -42,8 +42,8 @@
 }
 
 .quality_fast { color: var(--color-text-secondary); }
-.quality_high { border-color: var(--color-accent); color: var(--color-accent); }
-.status_indexed { border-color: var(--color-accent); color: var(--color-accent); }
+.quality_high { border-color: var(--color-primary); color: var(--color-primary); }
+.status_indexed { border-color: var(--color-primary); color: var(--color-primary); }
 .status_pending { color: var(--color-text-muted); }
 .status_failed { border-color: var(--color-error, #d9534f); color: var(--color-error, #d9534f); }
 
@@ -63,12 +63,12 @@
   padding: 2px 6px;
   background: none;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-panel);
   cursor: pointer;
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
-.copyBtn:hover { color: var(--color-text-primary); background: var(--color-surface-hover); }
+.copyBtn:hover { color: var(--color-text-primary); background: var(--color-surface-raised); }
 
 /* Section layout */
 .container {
@@ -96,7 +96,7 @@
 }
 
 .sectionHeader:hover {
-  background: var(--color-surface-hover);
+  background: var(--color-surface-raised);
 }
 
 .sectionHeaderStatic {
@@ -172,7 +172,7 @@
 }
 
 .relLink {
-  color: var(--color-accent);
+  color: var(--color-primary);
   text-decoration: none;
 }
 
@@ -215,9 +215,9 @@
 }
 
 .toggleBtnActive {
-  background: var(--color-accent);
+  background: var(--color-primary);
   color: #fff;
-  border-color: var(--color-accent);
+  border-color: var(--color-primary);
 }
 
 .jsonBlock {
