@@ -107,6 +107,6 @@
 
 .error {
   font-size: 0.8125rem;
-  color: var(--color-error, #d9534f);
+  color: var(--color-danger);
   margin: 0;
 }

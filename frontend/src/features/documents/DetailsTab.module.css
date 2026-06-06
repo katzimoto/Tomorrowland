@@ -45,7 +45,7 @@
 .quality_high { border-color: var(--color-primary); color: var(--color-primary); }
 .status_indexed { border-color: var(--color-primary); color: var(--color-primary); }
 .status_pending { color: var(--color-text-muted); }
-.status_failed { border-color: var(--color-error, #d9534f); color: var(--color-error, #d9534f); }
+.status_failed { border-color: var(--color-danger); color: var(--color-danger); }
 
 .latestBadge {
   font-size: 0.75rem;
