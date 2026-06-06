@@ -57,7 +57,8 @@ jobs:
           enable-cache: true
 
       - name: Install audit tooling and project
-        run: uv pip install --system -e . pip-audit
+        # Upgrade pip to >=26.1.2 to clear PYSEC-2026-196 (pip 26.1.1).
+        run: uv pip install --system -e . pip-audit "pip>=26.1.2"
 
       - name: Audit Python dependencies
         run: pip-audit --ignore-vuln PYSEC-2025-183
