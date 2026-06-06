@@ -168,7 +168,18 @@ class BaseConsumer(ABC):
             max_attempts = self._job_repo.get_max_attempts(job_id)
             max_attempts_val = max_attempts or 5
             if attempt < max_attempts_val:
-                self._job_repo.mark_retry(job_id, exc, stage=self.worker_type)
+                rowcount = self._job_repo.mark_retry(job_id, exc, stage=self.worker_type)
+                if not rowcount:
+                    # Mark-retry affected zero rows — the job was already
+                    # succeeded, dead-lettered, or otherwise transitioned by
+                    # a concurrent worker.  Ack without publishing a stray retry.
+                    self._channel.basic_ack(delivery_tag=delivery_tag)  # type: ignore[union-attr]
+                    logger.info(
+                        "skipped retry publish: job already transitioned worker_type=%s job_id=%s",
+                        self.worker_type,
+                        job_id,
+                    )
+                    return
                 # Re-read stored text so the retry message carries content_text
                 # and translated_text. Without this, downstream workers
                 # (translate, embed, index) receive empty text and silently

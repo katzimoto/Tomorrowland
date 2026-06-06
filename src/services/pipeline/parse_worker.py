@@ -107,7 +107,6 @@ class ParseConsumer(BaseConsumer):
 
         self._job_repo.update_content_text(document_id, content_text)
         self._job_repo.mark_running_stage(job_id, "parsed")
-        self._job_repo.commit()
         logger.debug("parsed document_id=%s text_len=%d", document_id, len(content_text))
         self._publisher.publish_translate(
             job_id=job_id,

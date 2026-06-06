@@ -155,7 +155,15 @@ def sync_now(
             # Create a sync run record
             sync_repo = SyncRunRepository(connection)
 
-            # Guard against concurrent syncs
+            # Guard against concurrent syncs by locking the source row.
+            # SELECT ... FOR UPDATE serializes access so two sync-now calls
+            # or a sync-now + scheduler tick cannot create duplicate sync runs.
+            locked = connection.execute(
+                sa.text("SELECT id FROM ingestion_sources WHERE id = :id FOR UPDATE"),
+                {"id": source_id.hex},
+            ).scalar_one_or_none()
+            if locked is None:
+                raise HTTPException(status_code=404, detail="Source not found")
             if sync_repo.has_active_sync(source_id):
                 raise HTTPException(
                     status_code=409,
@@ -321,7 +329,7 @@ def sync_now(
                 sync_outcome = "failed"
                 sync_run_status: str = "failed"
             elif results["failed_enqueue"] > 0 or results["failed_discovery"] > 0:
-                sync_outcome = "partial_failure"
+                sync_outcome = "completed_with_warnings"
                 sync_run_status = "completed_with_warnings"
             else:
                 sync_outcome = "success"

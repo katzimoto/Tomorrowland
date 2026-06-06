@@ -57,6 +57,13 @@ class AgentRateLimiter:
             bucket = self._buckets[key]
             while bucket and bucket[0] < cutoff:
                 bucket.popleft()
+            # Clean up empty buckets after pruning to prevent unbounded dict
+            # growth.  Re-create below so the limit check works on a fresh
+            # deque (0 entries → always under limit).
+            if not bucket:
+                del self._buckets[key]
+                self._buckets[key] = deque()
+                bucket = self._buckets[key]
             if len(bucket) >= limit:
                 raise HTTPException(
                     status_code=429,

@@ -130,7 +130,6 @@ class EmbedConsumer(BaseConsumer):
             self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
 
         self._job_repo.mark_running_stage(job_id, "embedded")
-        self._job_repo.commit()
         self._publisher.publish_index(
             job_id=job_id,
             document_id=document_id,

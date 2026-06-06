@@ -462,14 +462,6 @@ def create_message_stream(
 
         prior_messages = repo.list_messages(session_id)
 
-        repo.create_message(
-            ChatMessageCreate(
-                session_id=session_id,
-                role="user",
-                content=body.content,
-            )
-        )
-
         try:
             chat_scope = ChatScope(
                 scope_type=session.scope_type,  # type: ignore[arg-type]
@@ -594,7 +586,15 @@ def create_message_stream(
             meili_provider=request.app.state.meili_provider,
             reranker=reranker,
             enable_metadata_search=settings.feature_document_chat_metadata_search,
-            enable_translated_text=settings.feature_document_chat_translated_text,
+            enable_translated_text=settings.feature_document_chat_translated_text,                    )
+
+        # Persist the user message now that scope validation passed.
+        repo.create_message(
+            ChatMessageCreate(
+                session_id=session_id,
+                role="user",
+                content=body.content,
+            )
         )
 
         # Persist the user's question durably before streaming starts so a

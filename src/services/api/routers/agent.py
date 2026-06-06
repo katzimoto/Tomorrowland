@@ -218,6 +218,16 @@ def _resolve_effective_groups(
     raw_group_ids = [str(g) for g in user.groups]
     is_admin = user.is_admin or request.app.state.admins_group_id in raw_group_ids
     if is_admin:
+        # Re-verify admin status against the DB to prevent stale-JWT bypass.
+        # If the user was removed from the admins group after token issuance,
+        # the JWT still carries the old group membership until expiry.
+        admins_group_id_row = connection.execute(
+            sa.text("SELECT id FROM user_groups WHERE name = 'admins' LIMIT 1")
+        ).scalar_one_or_none()
+        current_admins_id = str(admins_group_id_row) if admins_group_id_row else None
+        if current_admins_id and current_admins_id not in raw_group_ids:
+            is_admin = False
+    if is_admin:
         return [], True
     if not raw_group_ids:
         return [], False

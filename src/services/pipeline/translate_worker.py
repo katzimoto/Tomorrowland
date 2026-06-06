@@ -94,7 +94,6 @@ class TranslateConsumer(BaseConsumer):
                     translated_text=translated,
                 )
 
-        self._job_repo.commit()
         # Defer document indexing status to the IndexConsumer — do not call
         # update_indexed here so the document only transitions to "indexed"
         # after Meilisearch indexing has actually succeeded.

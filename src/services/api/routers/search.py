@@ -39,6 +39,17 @@ def search(
     metrics_start = time.perf_counter()
     group_ids = [str(g) for g in user.groups]
     is_admin = user.is_admin or http_request.app.state.admins_group_id in group_ids
+    if is_admin:
+        # Re-verify admin status against the DB to prevent stale-JWT bypass.
+        # If the user was removed from the admins group after token issuance,
+        # the JWT still carries the old group membership until expiry.
+        with http_request.app.state.engine.begin() as _conn:
+            admins_group_id_row = _conn.execute(
+                sa.text("SELECT id FROM user_groups WHERE name = 'admins' LIMIT 1")
+            ).scalar_one_or_none()
+        current_admins_id = str(admins_group_id_row) if admins_group_id_row else None
+        if current_admins_id and current_admins_id not in group_ids:
+            is_admin = False
     if not group_ids and not is_admin:
         http_request.app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
         http_request.app.state.metrics.search_results_count.labels("hybrid").observe(0)
