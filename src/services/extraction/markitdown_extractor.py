@@ -104,6 +104,7 @@ def _pptx_to_markdown(path: Path) -> str:
     try:
         prs = Presentation(str(path))
     except Exception:
+        logger.warning("Failed to read PPTX file path=%s", path, exc_info=True)
         return ""
 
     parts: list[str] = []
@@ -143,6 +144,7 @@ def _xlsx_to_markdown(path: Path) -> str:
     try:
         wb = openpyxl.load_workbook(str(path), read_only=True, data_only=True)
     except Exception:
+        logger.warning("Failed to read XLSX file path=%s", path, exc_info=True)
         return ""
 
     parts: list[str] = []

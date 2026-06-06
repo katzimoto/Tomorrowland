@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 
 from services.extraction.base import ExtractionResult
+
+logger = logging.getLogger(__name__)
 
 # re.DOTALL so tags spanning multiple lines (e.g. attributes on separate lines)
 # are fully stripped rather than leaving tag fragments in the extracted text.
@@ -37,6 +40,7 @@ class EpubExtractor:
         try:
             book = epub.read_epub(str(path), options={"ignore_ncx": True})
         except Exception:
+            logger.warning("Failed to read EPUB file path=%s", path, exc_info=True)
             return ExtractionResult(text="")
 
         parts: list[str] = []
