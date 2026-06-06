@@ -544,13 +544,23 @@ def test_admin_dlq_retry_and_list(migrated_engine: Engine) -> None:
     # Insert a DLQ item manually
     document_id = uuid4()
     dlq_id = uuid4()
+    source_id = uuid4()
     with migrated_engine.begin() as connection:
+        # Create the parent source first: Postgres enforces the documents ->
+        # ingestion_sources foreign key (SQLite does not by default).
+        connection.execute(
+            sa.text("""
+                INSERT INTO ingestion_sources (id, name, type, source_language)
+                VALUES (:id, 'DLQ Source', 'folder', 'en')
+                """),
+            {"id": source_id.hex},
+        )
         connection.execute(
             sa.text("""
                 INSERT INTO documents (id, source_id, external_id, source, mime_type)
                 VALUES (:id, :source_id, 'file:/data/test.txt', 'folder', 'text/plain')
                 """),
-            {"id": document_id.hex, "source_id": uuid4().hex},
+            {"id": document_id.hex, "source_id": source_id.hex},
         )
         connection.execute(
             sa.text("""
