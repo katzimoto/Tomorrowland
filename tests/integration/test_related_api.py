@@ -122,7 +122,7 @@ def test_related_documents_filters_dedupes_excludes_source_and_respects_limit(
         connection.execute(
             sa.text(
                 "UPDATE system_config SET value = :value WHERE key = 'search.related_docs_limit'"
-            ),
+            ).bindparams(sa.bindparam("value", type_=sa.JSON())),
             {"value": 1},
         )
         limit = int(

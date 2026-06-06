@@ -207,7 +207,7 @@ def test_preview_with_translation_version(
             request_type="manual",
             target_language="en",
         )
-        version_id = version["id"]
+        version_id = str(version["id"])
         version_repo.update_version_status(
             UUID(version_id), "available", translated_text="Translated content here."
         )
@@ -254,7 +254,7 @@ def test_preview_with_unavailable_version_falls_back(
             request_type="manual",
             target_language="en",
         )
-        version_id = version["id"]
+        version_id = str(version["id"])
 
     client = TestClient(
         create_app(
@@ -342,7 +342,7 @@ def test_slow_worker_with_version_repository(
             request_type="manual",
             target_language="en",
         )
-        version_id = version["id"]
+        version_id = str(version["id"])
         doc_repo = DocumentRepository(connection)
         doc_repo.update_translation_quality(UUID(document_id), "pending_high")
 
@@ -414,7 +414,7 @@ def test_slow_worker_version_failure_marks_version_failed(
             request_type="manual",
             target_language="en",
         )
-        version_id = version["id"]
+        version_id = str(version["id"])
         doc_repo = DocumentRepository(connection)
         doc_repo.update_translation_quality(UUID(document_id), "pending_high")
 

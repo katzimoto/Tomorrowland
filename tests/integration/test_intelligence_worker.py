@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import Engine
+import sqlalchemy as sa
+from sqlalchemy import Connection, Engine
 
 from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.repository import IntelligenceRepository
@@ -14,6 +15,27 @@ from services.intelligence.worker import IntelligenceWorker
 @pytest.fixture
 def ollama_client() -> OllamaClient:
     return OllamaClient(base_url="http://ollama:11434", model="mistral")
+
+
+def _seed_document(connection: Connection, document_id: UUID) -> None:
+    """Insert the parent source + documents row so the worker's child writes
+    (summaries/entities/tags) satisfy the FK on Postgres. SQLite doesn't
+    enforce foreign keys by default, so the missing parent only fails on PG."""
+    source_id = uuid4()
+    connection.execute(
+        sa.text(
+            "INSERT INTO ingestion_sources (id, name, type, source_language) "
+            "VALUES (:id, 'IW Source', 'folder', 'en')"
+        ),
+        {"id": source_id.hex},
+    )
+    connection.execute(
+        sa.text(
+            "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
+            "VALUES (:id, :source_id, :ext, 'folder', 'text/plain')"
+        ),
+        {"id": document_id.hex, "source_id": source_id.hex, "ext": f"file:{document_id.hex}"},
+    )
 
 
 def test_worker_summarizes_and_stores(
@@ -32,6 +54,7 @@ def test_worker_summarizes_and_stores(
             repository=repo,
             ollama_client=ollama_client,
         )
+        _seed_document(connection, document_id)
         worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
@@ -62,6 +85,7 @@ def test_worker_extracts_entities(
             repository=repo,
             ollama_client=ollama_client,
         )
+        _seed_document(connection, document_id)
         worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
@@ -88,6 +112,7 @@ def test_worker_auto_tags(
             repository=repo,
             ollama_client=ollama_client,
         )
+        _seed_document(connection, document_id)
         worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
@@ -119,6 +144,7 @@ def test_worker_skips_disabled_tasks(
             ollama_client=ollama_client,
             config_source=config,
         )
+        _seed_document(connection, document_id)
         worker.process_document(document_id, content)
 
     ollama_client.generate.assert_not_called()
@@ -140,6 +166,7 @@ def test_worker_failure_does_not_block(
             ollama_client=ollama_client,
         )
         # Should not raise
+        _seed_document(connection, document_id)
         worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
@@ -168,6 +195,7 @@ def test_worker_task_failures_are_swallowed(
             ollama_client=ollama_client,
         )
         # Must not raise even when entity extraction (and auto-tag) fail
+        _seed_document(connection, document_id)
         worker.process_document(document_id, content)
 
     with migrated_engine.begin() as connection:
