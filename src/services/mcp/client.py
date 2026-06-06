@@ -41,7 +41,8 @@ class TomorrowlandClientError(Exception):
 def _sanitize_headers(headers: dict[str, str]) -> dict[str, str]:
     """Return a copy of *headers* with sensitive values redacted."""
     return {
-        k: "[redacted]" if k.lower() in _LOG_SENSITIVE_HEADERS else v for k, v in headers.items()
+        k: "[redacted]" if k.lower() in _LOG_SENSITIVE_HEADERS else v
+        for k, v in headers.items()
     }
 
 
@@ -72,6 +73,12 @@ class TomorrowlandClient:
     Connection pooling is tuned for concurrent MCP client workloads.
     Transient failures (5xx, 429, timeouts) are retried with exponential
     backoff up to 3 attempts.
+
+    Per-client token forwarding is supported via the *auth_header* parameter
+    on every tool method.  When an MCP client sends its own Bearer token,
+    the adapter forwards it verbatim.  Falls back to the static
+    ``TOMORROWLAND_API_KEY`` environment variable when no per-request header
+    is present.
     """
 
     def __init__(
@@ -92,9 +99,22 @@ class TomorrowlandClient:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _headers(self, correlation_id: str | None = None) -> dict[str, str]:
+    def _headers(
+        self,
+        correlation_id: str | None = None,
+        auth_header: str | None = None,
+    ) -> dict[str, str]:
+        """Build request headers.
+
+        *auth_header*, when provided, is forwarded verbatim as the
+        ``Authorization`` header (per-client token forwarding).  Falls back
+        to the static ``self._api_key`` when no per-request header is
+        present.
+        """
         headers: dict[str, str] = {"Content-Type": "application/json"}
-        if self._api_key:
+        if auth_header:
+            headers["Authorization"] = auth_header
+        elif self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
         if correlation_id:
             headers["X-Correlation-ID"] = correlation_id
@@ -108,6 +128,7 @@ class TomorrowlandClient:
         json_body: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
         correlation_id: str | None = None,
+        auth_header: str | None = None,
     ) -> dict[str, Any]:
         """Perform an HTTP request and return the parsed JSON response.
 
@@ -115,7 +136,9 @@ class TomorrowlandClient:
         backoff up to ``_MAX_RETRIES`` attempts.
         """
         url = f"{self._base_url}{path}"
-        req_headers = self._headers(correlation_id=correlation_id)
+        req_headers = self._headers(
+            correlation_id=correlation_id, auth_header=auth_header,
+        )
 
         logger.debug(
             "MCP → %s %s headers=%s",
@@ -152,7 +175,8 @@ class TomorrowlandClient:
                 raise last_exc from None
             except httpx.RequestError as exc:
                 logger.warning(
-                    "MCP connection error method=%s path=%s attempt=%d/%d error=%s",
+                    "MCP connection error method=%s path=%s "
+                    "attempt=%d/%d error=%s",
                     method,
                     path,
                     attempt,
@@ -170,9 +194,12 @@ class TomorrowlandClient:
 
             if response.status_code >= 400:
                 detail = _extract_error_detail(response)
-                log_level = logger.warning if response.status_code < 500 else logger.error
+                log_level = (
+                    logger.warning if response.status_code < 500 else logger.error
+                )
                 log_level(
-                    "MCP API error method=%s path=%s status=%s detail=%s attempt=%d/%d",
+                    "MCP API error method=%s path=%s status=%s "
+                    "detail=%s attempt=%d/%d",
                     method,
                     path,
                     response.status_code,
@@ -184,7 +211,10 @@ class TomorrowlandClient:
                     detail or f"API returned HTTP {response.status_code}",
                     status_code=response.status_code,
                 )
-                if response.status_code in _RETRYABLE_STATUSES and attempt < _MAX_RETRIES:
+                if (
+                    response.status_code in _RETRYABLE_STATUSES
+                    and attempt < _MAX_RETRIES
+                ):
                     backoff = _RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
                     time.sleep(backoff)
                     continue
@@ -207,6 +237,7 @@ class TomorrowlandClient:
         page: int = 1,
         filters: dict[str, Any] | None = None,
         correlation_id: str | None = None,
+        auth_header: str | None = None,
     ) -> dict[str, Any]:
         """POST /api/agent/v1/search_documents"""
         body: dict[str, Any] = {"query": query, "top_k": top_k, "page": page}
@@ -217,12 +248,14 @@ class TomorrowlandClient:
             "/api/agent/v1/search_documents",
             json_body=body,
             correlation_id=correlation_id,
+            auth_header=auth_header,
         )
 
     def get_document(
         self,
         document_id: str,
         correlation_id: str | None = None,
+        auth_header: str | None = None,
     ) -> dict[str, Any]:
         """GET /api/agent/v1/get_document"""
         return self._request(
@@ -230,6 +263,7 @@ class TomorrowlandClient:
             "/api/agent/v1/get_document",
             params={"document_id": document_id},
             correlation_id=correlation_id,
+            auth_header=auth_header,
         )
 
     def get_passages(
@@ -238,6 +272,7 @@ class TomorrowlandClient:
         limit: int = 50,
         offset: int = 0,
         correlation_id: str | None = None,
+        auth_header: str | None = None,
     ) -> dict[str, Any]:
         """GET /api/agent/v1/get_passages"""
         return self._request(
@@ -245,6 +280,7 @@ class TomorrowlandClient:
             "/api/agent/v1/get_passages",
             params={"document_id": document_id, "limit": limit, "offset": offset},
             correlation_id=correlation_id,
+            auth_header=auth_header,
         )
 
     def ask_corpus(
@@ -253,6 +289,7 @@ class TomorrowlandClient:
         top_k: int | None = None,
         document_id: str | None = None,
         correlation_id: str | None = None,
+        auth_header: str | None = None,
     ) -> dict[str, Any]:
         """POST /api/agent/v1/ask_corpus"""
         body: dict[str, Any] = {"question": question}
@@ -265,12 +302,14 @@ class TomorrowlandClient:
             "/api/agent/v1/ask_corpus",
             json_body=body,
             correlation_id=correlation_id,
+            auth_header=auth_header,
         )
 
     def get_related_documents(
         self,
         document_id: str,
         correlation_id: str | None = None,
+        auth_header: str | None = None,
     ) -> dict[str, Any]:
         """GET /api/agent/v1/get_related_documents"""
         return self._request(
@@ -278,12 +317,14 @@ class TomorrowlandClient:
             "/api/agent/v1/get_related_documents",
             params={"document_id": document_id},
             correlation_id=correlation_id,
+            auth_header=auth_header,
         )
 
     def list_facets(
         self,
         query: str = "",
         correlation_id: str | None = None,
+        auth_header: str | None = None,
     ) -> dict[str, Any]:
         """GET /api/agent/v1/list_facets"""
         return self._request(
@@ -291,6 +332,7 @@ class TomorrowlandClient:
             "/api/agent/v1/list_facets",
             params={"query": query},
             correlation_id=correlation_id,
+            auth_header=auth_header,
         )
 
     def close(self) -> None:

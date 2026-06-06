@@ -13,8 +13,11 @@ Security
 * No direct database, Qdrant, or Meilisearch access.
 * No duplicated ACL logic — every tool call goes through the permissioned
   researcher API from #558.
-* Bearer tokens are forwarded from the MCP client to Tomorrowland; the
-  adapter never inspects or logs the token value.
+* Bearer tokens are forwarded from the MCP client to Tomorrowland per-request
+  via the ``Authorization`` header extracted from the MCP request context.
+  Falls back to the static ``TOMORROWLAND_API_KEY`` env var when the client
+  does not send its own token.
+* The adapter never inspects or logs the token value.
 * No write tools are exposed.
 """
 
@@ -24,7 +27,7 @@ import logging
 import time
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 from services.mcp.client import TomorrowlandClient, TomorrowlandClientError
 from shared.config import Settings
@@ -47,16 +50,24 @@ _MIN_OFFSET = 0
 
 def _validate_string(value: str, min_len: int, max_len: int, name: str) -> None:
     if not isinstance(value, str):
-        raise ValueError(f"{name} must be a string, got {type(value).__name__}")
+        raise ValueError(
+            f"{name} must be a string, got {type(value).__name__}"
+        )
     if len(value) < min_len:
-        raise ValueError(f"{name} must be at least {min_len} character(s), got {len(value)}")
+        raise ValueError(
+            f"{name} must be at least {min_len} character(s), got {len(value)}"
+        )
     if len(value) > max_len:
-        raise ValueError(f"{name} must be at most {max_len} character(s), got {len(value)}")
+        raise ValueError(
+            f"{name} must be at most {max_len} character(s), got {len(value)}"
+        )
 
 
 def _validate_int(value: int, min_val: int, max_val: int, name: str) -> None:
     if not isinstance(value, int) or isinstance(value, bool):
-        raise ValueError(f"{name} must be an integer, got {type(value).__name__}")
+        raise ValueError(
+            f"{name} must be an integer, got {type(value).__name__}"
+        )
     if value < min_val:
         raise ValueError(f"{name} must be >= {min_val}, got {value}")
     if value > max_val:
@@ -67,9 +78,15 @@ def _translate_error(exc: TomorrowlandClientError) -> str:
     """Map API HTTP status codes to descriptive error messages."""
     status = exc.status_code
     if status == 401:
-        return "Authentication failed (HTTP 401). Check your TOMORROWLAND_API_KEY."
+        return (
+            "Authentication failed (HTTP 401). "
+            "Check your Bearer token or TOMORROWLAND_API_KEY."
+        )
     if status == 403:
-        return "Access denied (HTTP 403). Your token lacks permissions for this resource."
+        return (
+            "Access denied (HTTP 403). "
+            "Your token lacks permissions for this resource."
+        )
     if status == 404:
         return "Resource not found (HTTP 404)."
     if status == 422:
@@ -81,6 +98,25 @@ def _translate_error(exc: TomorrowlandClientError) -> str:
     if status == 504:
         return f"Request timed out (HTTP 504): {exc}"
     return str(exc)
+
+
+def _extract_auth_header(ctx: Context[Any, Any]) -> str | None:
+    """Extract the ``Authorization`` header from the MCP request context.
+
+    In Streamable HTTP transport, FastMCP exposes incoming HTTP headers via
+    ``ctx.request_meta``.  ASGI normalises header names to lowercase, so we
+    look for ``authorization``.
+
+    Returns ``None`` when no header is present (callers fall back to the
+    static ``TOMORROWLAND_API_KEY``).
+    """
+    meta = getattr(ctx, "request_meta", None)
+    if meta is None:
+        return None
+    headers: dict[str, str] | None = getattr(meta, "headers", None)
+    if headers is None:
+        return None
+    return headers.get("authorization")
 
 
 def _mcp_audit_log(
@@ -157,9 +193,11 @@ def create_mcp_server(
         top_k: int = 20,
         page: int = 1,
         filters: dict[str, Any] | None = None,
+        ctx: Context[Any, Any] | None = None,
     ) -> dict[str, Any]:
         """Search documents via the Tomorrowland researcher API."""
         correlation_id = get_correlation_id()
+        auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(query, 1, _MAX_QUERY_LENGTH, "query")
         _validate_int(top_k, _MIN_TOP_K, _MAX_TOP_K, "top_k")
@@ -168,7 +206,7 @@ def create_mcp_server(
         try:
             result = client.search_documents(
                 query=query, top_k=top_k, page=page, filters=filters,
-                correlation_id=correlation_id,
+                correlation_id=correlation_id, auth_header=auth_header,
             )
             _mcp_audit_log(
                 tool="search_documents",
@@ -195,15 +233,20 @@ def create_mcp_server(
             "Returns title, source, MIME type, languages, tags, summary."
         )
     )
-    def tomorrowland_get_document(document_id: str) -> dict[str, Any]:
+    def tomorrowland_get_document(
+        document_id: str,
+        ctx: Context[Any, Any] | None = None,
+    ) -> dict[str, Any]:
         """Get document metadata via the Tomorrowland researcher API."""
         correlation_id = get_correlation_id()
+        auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
 
         try:
             result = client.get_document(
                 document_id=document_id, correlation_id=correlation_id,
+                auth_header=auth_header,
             )
             _mcp_audit_log(
                 tool="get_document",
@@ -234,9 +277,11 @@ def create_mcp_server(
         document_id: str,
         limit: int = 50,
         offset: int = 0,
+        ctx: Context[Any, Any] | None = None,
     ) -> dict[str, Any]:
         """Get document passages via the Tomorrowland researcher API."""
         correlation_id = get_correlation_id()
+        auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
         _validate_int(limit, _MIN_LIMIT, _MAX_LIMIT, "limit")
@@ -245,7 +290,7 @@ def create_mcp_server(
         try:
             result = client.get_passages(
                 document_id=document_id, limit=limit, offset=offset,
-                correlation_id=correlation_id,
+                correlation_id=correlation_id, auth_header=auth_header,
             )
             _mcp_audit_log(
                 tool="get_passages",
@@ -276,9 +321,11 @@ def create_mcp_server(
         question: str,
         top_k: int | None = None,
         document_id: str | None = None,
+        ctx: Context[Any, Any] | None = None,
     ) -> dict[str, Any]:
         """Ask a question over the corpus via the Tomorrowland researcher API."""
         correlation_id = get_correlation_id()
+        auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(question, 1, _MAX_QUESTION_LENGTH, "question")
 
@@ -290,7 +337,7 @@ def create_mcp_server(
         try:
             result = client.ask_corpus(
                 question=question, top_k=top_k, document_id=document_id,
-                correlation_id=correlation_id,
+                correlation_id=correlation_id, auth_header=auth_header,
             )
             _mcp_audit_log(
                 tool="ask_corpus",
@@ -317,15 +364,20 @@ def create_mcp_server(
             "Returns related document IDs, titles, and relevance scores."
         )
     )
-    def tomorrowland_get_related_documents(document_id: str) -> dict[str, Any]:
+    def tomorrowland_get_related_documents(
+        document_id: str,
+        ctx: Context[Any, Any] | None = None,
+    ) -> dict[str, Any]:
         """Get related documents via the Tomorrowland researcher API."""
         correlation_id = get_correlation_id()
+        auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
 
         try:
             result = client.get_related_documents(
                 document_id=document_id, correlation_id=correlation_id,
+                auth_header=auth_header,
             )
             _mcp_audit_log(
                 tool="get_related_documents",
@@ -352,15 +404,20 @@ def create_mcp_server(
             "over documents the caller can access."
         )
     )
-    def tomorrowland_list_facets(query: str = "") -> dict[str, Any]:
+    def tomorrowland_list_facets(
+        query: str = "",
+        ctx: Context[Any, Any] | None = None,
+    ) -> dict[str, Any]:
         """List facet distributions via the Tomorrowland researcher API."""
         correlation_id = get_correlation_id()
+        auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(query, 0, _MAX_QUERY_LENGTH, "query")
 
         try:
             result = client.list_facets(
                 query=query, correlation_id=correlation_id,
+                auth_header=auth_header,
             )
             _mcp_audit_log(
                 tool="list_facets",
@@ -402,7 +459,10 @@ def _register_health_endpoint(mcp: FastMCP) -> None:
 
         app = getattr(mcp, "_app", None) or getattr(mcp, "app", None)
         if app is None:
-            logger.debug("No Starlette app accessible on FastMCP; skipping /health endpoint")
+            logger.debug(
+                "No Starlette app accessible on FastMCP; "
+                "skipping /health endpoint"
+            )
             return
 
         async def health(request):  # type: ignore[no-untyped-def]  # noqa: ARG001
