@@ -62,13 +62,13 @@ export function ResultRow({ result, id, selected = false, onClick, onSelect, onP
         <span className={styles.mimeIcon} aria-hidden>
           <MimeIcon mimeType={result.mime_type} />
         </span>
-        <Badge variant="source">{result.source_label}</Badge>
       </div>
 
       <div className={styles.main}>
         <span className={styles.title} dangerouslySetInnerHTML={{ __html: highlightHtml(result.title ?? "") }} />
         <span className={styles.snippet} dangerouslySetInnerHTML={{ __html: highlightHtml(result.snippet ?? "") }} />
         <div className={styles.meta}>
+          <Badge variant="source">{result.source_label}</Badge>
           {visibleTags.map((tag) => (
             <Badge key={tag} variant="tag">{tag}</Badge>
           ))}
@@ -88,36 +88,38 @@ export function ResultRow({ result, id, selected = false, onClick, onSelect, onP
 
       <div className={styles.right}>
         <span className={styles.date}>{formatDate(result.updated_at)}</span>
-        {onPreview && (
-          <button
-            className={styles.previewBtn}
-            aria-label={`Quick preview: ${result.title}`}
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onSelect?.();
-              onPreview();
-            }}
-          >
-            <Eye size={14} />
-            <span>Preview</span>
-          </button>
-        )}
-        {result.why && result.why.length > 0 && (
-          <button
-            className={styles.whyBtn}
-            aria-label="Why this result?"
-            type="button"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <Info size={14} />
-            <div className={styles.whyTooltip}>
-              {result.why.map((w, i) => (
-                <div key={i}>{w.label}</div>
-              ))}
-            </div>
-          </button>
-        )}
+        <div className={styles.actions}>
+          {onPreview && (
+            <button
+              className={styles.previewBtn}
+              aria-label={`Quick preview: ${result.title}`}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelect?.();
+                onPreview();
+              }}
+            >
+              <Eye size={14} />
+              <span>Preview</span>
+            </button>
+          )}
+          {result.why && result.why.length > 0 && (
+            <button
+              className={styles.whyBtn}
+              aria-label="Why this result?"
+              type="button"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <Info size={14} />
+              <div className={styles.whyTooltip}>
+                {result.why.map((w, i) => (
+                  <div key={i}>{w.label}</div>
+                ))}
+              </div>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

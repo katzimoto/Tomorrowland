@@ -10,7 +10,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { Search as SearchIcon, X } from "lucide-react";
 import { search, type SearchFilters, type SearchMode } from "@/api/search";
 import { getPreview } from "@/api/documents";
 import { SearchInput } from "@/components/primitives/SearchInput";
@@ -341,10 +341,16 @@ export function SearchPage() {
             </button>
           ))}
         </div>
-        {data && (
-          <span className={styles.resultCount}>
-            {t.search.resultCount(data.total)}
+        {isFetching && !isLoading ? (
+          <span className={styles.resultCount} role="status">
+            {t.search.updating}
           </span>
+        ) : (
+          data && (
+            <span className={styles.resultCount}>
+              {t.search.resultCount(data.total)}
+            </span>
+          )
         )}
       </div>
 
@@ -395,11 +401,6 @@ export function SearchPage() {
               {t.search.keyboardHelp}
             </p>
             {isLoading && <SkeletonRow count={6} />}
-            {isFetching && !isLoading && (
-              <div className={styles.refreshing} role="status">
-                Updating results…
-              </div>
-            )}
 
             {isError && !isLoading && (
               <EmptyState
@@ -425,6 +426,7 @@ export function SearchPage() {
 
             {!isLoading && !isError && !showResults && (
               <EmptyState
+                icon={<SearchIcon size={28} strokeWidth={1.5} />}
                 title={t.search.emptyTitle}
                 body={t.search.emptyBody}
               />

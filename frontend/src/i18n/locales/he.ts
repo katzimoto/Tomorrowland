@@ -65,6 +65,7 @@ export const he: Translations = {
     failedToast: "החיפוש נכשל. בדוק/י שהשרת נגיש.",
     keyboardHelp:
       "השתמש/י ב-↑/↓ או j/k לבחירת תוצאה, Enter לפתיחה, Space לתצוגה מקדימה ו-Esc לסגירה.",
+    updating: "מעדכן…",
     quickPreviewTitle: "תצוגה מקדימה מהירה",
     openSelected: "פתח מסמך",
     closePreview: "סגור תצוגה מקדימה",
