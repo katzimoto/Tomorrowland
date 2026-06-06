@@ -14,6 +14,7 @@ Tests cover:
 
 from __future__ import annotations
 
+import asyncio
 import re
 import time
 from typing import Any
@@ -64,6 +65,14 @@ def _error_response(status_code: int, detail: str = "Test error") -> MagicMock:
     resp.status_code = status_code
     resp.json.return_value = {"detail": detail}
     return resp
+
+
+def _invoke_tool(fn: Any, **kwargs: Any) -> Any:
+    """Invoke a tool function, auto-handling async tools."""
+    result = fn(**kwargs)
+    if asyncio.iscoroutine(result):
+        return asyncio.run(result)
+    return result
 
 
 def _mock_context(headers: dict[str, str] | None = None) -> Context:
@@ -945,7 +954,7 @@ class TestAuditLogging:
         ]
         for tool_name, kwargs in calls:
             fn = self._get_tool_fn(mcp, tool_name)
-            fn(**kwargs)
+            _invoke_tool(fn, **kwargs)
 
         audit_lines = [
             r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
@@ -1298,7 +1307,7 @@ class TestFeatureFlags:
         for t in mcp._tool_manager.list_tools():
             if t.name == "tomorrowland_ask_corpus":
                 with pytest.raises(ValueError, match="ask_corpus.*disabled"):
-                    t.fn(question="what?")
+                    _invoke_tool(t.fn, question="what?")
                 break
 
         # search_documents should still work.
@@ -1307,6 +1316,67 @@ class TestFeatureFlags:
                 result = t.fn(query="test")
                 assert result == {"results": [], "total": 0, "query": "t"}
                 break
+
+
+# ======================================================================
+# Progress notifications (ask_corpus)
+# ======================================================================
+
+
+class TestProgressNotifications:
+    """Verify progress notifications in async ask_corpus."""
+
+    def test_ask_corpus_sends_progress_on_success(self) -> None:
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.ask_corpus.return_value = {
+            "question": "q", "answer": "a",
+            "citations": [], "model": "m",
+        }
+        ctx = MagicMock(spec=Context)
+        mcp = create_mcp_server(settings, client=mock_client)
+
+        for t in mcp._tool_manager.list_tools():
+            if t.name == "tomorrowland_ask_corpus":
+                result = _invoke_tool(t.fn, question="what?", ctx=ctx)
+                break
+        else:
+            pytest.fail("Tool not found")
+
+        assert result["answer"] == "a"
+        # ctx.report_progress called for progress=10, 50, 100.
+        assert ctx.report_progress.call_count >= 3
+        calls = ctx.report_progress.call_args_list
+        assert calls[0][1]["progress"] == 10
+        assert calls[1][1]["progress"] == 50
+        assert calls[-1][1]["progress"] == 100
+
+    def test_ask_corpus_sends_progress_on_error(self) -> None:
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.ask_corpus.side_effect = TomorrowlandClientError(
+            "Down", status_code=503,
+        )
+        ctx = MagicMock(spec=Context)
+        mcp = create_mcp_server(settings, client=mock_client)
+
+        for t in mcp._tool_manager.list_tools():
+            if t.name == "tomorrowland_ask_corpus":
+                fn = t.fn
+                break
+        else:
+            pytest.fail("Tool not found")
+
+        with pytest.raises(ValueError, match="Service unavailable"):
+            _invoke_tool(fn, question="what?", ctx=ctx)
+
+        # Progress should still be sent on error path.
+        assert ctx.report_progress.call_count >= 1
+        assert ctx.report_progress.call_args_list[-1][1]["progress"] == 100
 
 
 
@@ -1385,7 +1455,7 @@ class TestMCPAuthorizationParity:
         fn = self._get_tool_fn(mcp, "tomorrowland_ask_corpus")
 
         with pytest.raises(ValueError) as exc_info:
-            fn(question="what?")
+            _invoke_tool(fn, question="what?")
 
         msg = str(exc_info.value)
         assert sensitive_id not in msg
@@ -1412,7 +1482,7 @@ class TestMCPAuthorizationParity:
         fn = self._get_tool_fn(mcp, tool_name)
 
         with pytest.raises(ValueError) as exc_info:
-            fn(**tool_kwargs)
+            _invoke_tool(fn, **tool_kwargs)
 
         msg = str(exc_info.value)
         assert "Authentication failed" in msg
@@ -1430,19 +1500,16 @@ class TestMCPAuthorizationParity:
         ],
     )
     def test_all_tools_translate_403_to_safe_error(
-        self,
-        tool_name: str,
-        tool_kwargs: dict[str, Any],
+        self, tool_name: str, tool_kwargs: dict[str, Any],
     ) -> None:
         hidden_resource_id = "hidden-resource-id-must-not-appear-in-error"
         mcp = self._make_server_raising(
-            403,
-            f"Cannot access {hidden_resource_id}",
+            403, f"Cannot access {hidden_resource_id}",
         )
         fn = self._get_tool_fn(mcp, tool_name)
 
         with pytest.raises(ValueError) as exc_info:
-            fn(**tool_kwargs)
+            _invoke_tool(fn, **tool_kwargs)
 
         msg = str(exc_info.value)
         assert "Access denied" in msg
@@ -1602,7 +1669,7 @@ class TestMCPMetrics:
         )._value.get()
 
         with pytest.raises(ValueError, match="Service unavailable"):
-            fn(question="what?")
+            _invoke_tool(fn, question="what?")
 
         after = _mcp_metrics.tool_call_errors_total.labels(
             tool="ask_corpus",
@@ -1703,7 +1770,7 @@ class TestMCPMetrics:
         for t in mcp._tool_manager.list_tools():
             if t.name in tools:
                 fn = t.fn
-                fn(**tools[t.name])
+                _invoke_tool(fn, **tools[t.name])
 
         # Every tool should have at least one "ok" counter increment.
         for tool_name in expected_tools:

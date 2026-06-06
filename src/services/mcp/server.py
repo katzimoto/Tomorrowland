@@ -36,6 +36,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from contextlib import suppress
 from typing import Annotated, Any
 
 from mcp.server.fastmcp import Context, FastMCP
@@ -533,7 +534,7 @@ def create_mcp_server(
             "source documents. Can be narrowed to a single document."
         ),
     )
-    def tomorrowland_ask_corpus(
+    async def tomorrowland_ask_corpus(
         question: Annotated[
             str,
             Field(description="Natural-language question (1-2000 characters)"),
@@ -558,8 +559,14 @@ def create_mcp_server(
         if document_id is not None:
             _validate_string(document_id, 1, 64, "document_id")
         _check_tool_enabled("ask_corpus")
+        if ctx is not None:
+            with suppress(Exception):
+                await ctx.report_progress(progress=10, total=100)
 
         try:
+            if ctx is not None:
+                with suppress(Exception):
+                    await ctx.report_progress(progress=50, total=100)
             result = client.ask_corpus(
                 question=question,
                 top_k=top_k,
@@ -580,6 +587,9 @@ def create_mcp_server(
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="ask_corpus",
             ).observe(elapsed)
+            if ctx is not None:
+                with suppress(Exception):
+                    await ctx.report_progress(progress=100, total=100)
             return result
         except TomorrowlandClientError as exc:
             elapsed = time.perf_counter() - t0
@@ -602,12 +612,18 @@ def create_mcp_server(
                 tool="ask_corpus",
                 error_type=error_type,
             ).inc()
+            if ctx is not None:
+                with suppress(Exception):
+                    await ctx.report_progress(progress=100, total=100)
             raise ValueError(_translate_error(exc)) from exc
         except CircuitBreakerOpenError as exc:
             elapsed = time.perf_counter() - t0
             _record_circuit_breaker_error(
                 "ask_corpus", elapsed, correlation_id,
             )
+            if ctx is not None:
+                with suppress(Exception):
+                    await ctx.report_progress(progress=100, total=100)
             raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
