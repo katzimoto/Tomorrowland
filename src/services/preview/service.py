@@ -360,7 +360,11 @@ class PreviewService:
         )
         threshold = threshold_row["value"] if threshold_row else 5
         if isinstance(threshold, str):
-            threshold = int(threshold)
+            try:
+                threshold = int(threshold)
+            except (ValueError, TypeError):
+                logger.warning("Invalid auto_enrich.threshold=%r; using default 5", threshold)
+                threshold = 5
 
         if view_count < threshold:
             return
@@ -421,8 +425,11 @@ class PreviewService:
             source_id=source_id,
             job_type="enrich_document",
         )
+        # Commit the auto-enrich state before publishing to RabbitMQ so the
+        # enrich worker can see the pending_high status and the job row.
+        self._connection.commit()
 
-        if getattr(self, "_rabbit", None) is not None and self._rabbit._enabled:
+        if getattr(self, "_rabbit", None) is not None and getattr(self._rabbit, "_enabled", False):
             from services.pipeline.publisher import DocumentPublisher
 
             publisher = DocumentPublisher(job_repo=job_repo, rabbit=self._rabbit)

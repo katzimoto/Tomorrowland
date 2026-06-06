@@ -169,7 +169,16 @@ def _sync_source(
     sync_repo = SyncRunRepository(connection)
     pending_rabbit: list[dict[str, Any]] = []
 
-    # Guard against concurrent syncs for scheduled sources
+    # Guard against concurrent syncs by locking the source row.
+    # SELECT ... FOR UPDATE serializes access so two scheduler ticks
+    # or a scheduler tick + sync-now cannot create duplicate sync runs.
+    locked = connection.execute(
+        sa.text("SELECT id FROM ingestion_sources WHERE id = :id FOR UPDATE SKIP LOCKED"),
+        {"id": db_uuid(source_id)},
+    ).scalar_one_or_none()
+    if locked is None:
+        logger.warning("source %s vanished mid-sync", source_id)
+        return pending_rabbit
     if sync_repo.has_active_sync(source_id):
         logger.warning(
             "scheduled sync skipped source_id=%s — active sync already in progress",
@@ -339,7 +348,7 @@ def _sync_source(
         sync_outcome = "failed"
         sync_run_status = "failed"
     elif failed_enqueue > 0 or failed_discovery > 0:
-        sync_outcome = "partial_failure"
+        sync_outcome = "completed_with_warnings"
         sync_run_status = "completed_with_warnings"
     else:
         sync_outcome = "success"

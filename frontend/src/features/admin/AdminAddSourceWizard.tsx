@@ -84,11 +84,18 @@ export function AdminAddSourceWizard() {
       return adminApi.createSource(payload);
     },
     onSuccess: (newSource) => {
+      const grantFailures: string[] = [];
       const grantPromises = state.groups.map((g) =>
-        adminApi.grantPermission(newSource.id, g.id).catch(() => {}),
+        adminApi.grantPermission(newSource.id, g.id).catch((err: unknown) => {
+          console.error("grantPermission failed", err);
+          grantFailures.push(g.name);
+        }),
       );
       Promise.all(grantPromises).then(() => {
         qc.invalidateQueries({ queryKey: ["sources"] });
+        if (grantFailures.length) {
+          showToast("error", `Failed to grant access to: ${grantFailures.join(", ")}.`);
+        }
         showToast("success", "Source created.");
         navigate({ to: "/admin/sources/$sourceId", params: { sourceId: newSource.id } });
       });

@@ -278,16 +278,23 @@ class QdrantSearchClient:
             must_conditions.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
         scroll_filter = Filter(must=must_conditions)
 
-        # Pull a generous page from Qdrant; we sort + paginate client-side so
-        # chunks come back in stable chunk_index order regardless of point id.
-        scroll_limit = max(limit + offset, 1)
-        points, _ = self._client.scroll(
-            collection_name=self._collection_name,
-            scroll_filter=scroll_filter,
-            limit=scroll_limit,
-            with_payload=True,
-            with_vectors=False,
-        )
+        # Pull all matching points from Qdrant via scroll pagination;
+        # we sort + paginate client-side so chunks come back in stable
+        # chunk_index order regardless of point id.
+        points: list[Any] = []
+        next_page_id: Any = None
+        while True:
+            page, next_page_id = self._client.scroll(
+                collection_name=self._collection_name,
+                scroll_filter=scroll_filter,
+                limit=1000,
+                offset=next_page_id,
+                with_payload=True,
+                with_vectors=False,
+            )
+            points.extend(page)
+            if next_page_id is None:
+                break
 
         results: list[SearchResult] = []
         for point in points:

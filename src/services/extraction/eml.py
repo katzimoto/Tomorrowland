@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import email
+import logging
 import mimetypes
 from email import policy
 from email.errors import MessageError
@@ -11,6 +12,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from services.extraction.base import AttachmentData, ExtractionResult
+
+logger = logging.getLogger(__name__)
 
 
 class EmlExtractor:
@@ -147,4 +150,5 @@ class EmlExtractor:
             return ExtractionResult(text="")
         except Exception:
             # Be conservative: never raise during extraction
+            logger.warning("Failed to extract EML file path=%s", path, exc_info=True)
             return ExtractionResult(text="")

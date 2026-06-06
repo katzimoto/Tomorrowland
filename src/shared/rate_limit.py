@@ -42,6 +42,7 @@ class AgentRateLimiter:
         self._ask_limit = ask_corpus_calls_per_window
         self._buckets: dict[str, deque[float]] = {}
         self._lock = threading.Lock()
+        self._cleanup_at = time.monotonic() + 300  # first cleanup after 5 min
 
     def check(self, user_id: str, *, is_ask_corpus: bool = False) -> None:
         """Record a call. Raises HTTP 429 if the user has exceeded the limit."""
@@ -52,6 +53,15 @@ class AgentRateLimiter:
         now = time.monotonic()
         cutoff = now - self._window
         with self._lock:
+            # Periodic cleanup: sweep and remove buckets whose entries have
+            # all expired.  Runs at most once every 5 minutes to bound dict
+            # growth from users who made one call and never returned.
+            if now >= self._cleanup_at:
+                self._cleanup_at = now + 300
+                stale_keys = [k for k, b in self._buckets.items() if not b or b[-1] < cutoff]
+                for k in stale_keys:
+                    del self._buckets[k]
+
             if key not in self._buckets:
                 self._buckets[key] = deque()
             bucket = self._buckets[key]

@@ -302,10 +302,14 @@ class PipelineJobRepository:
         error: str | BaseException,
         retry_delay_seconds: int = 60,
         stage: str = "process",
-    ) -> None:
-        """Mark a running job for retry with a sanitized error and backoff."""
+    ) -> bool:
+        """Mark a running job for retry with a sanitized error and backoff.
+
+        Returns True if a row was updated (job was running), False otherwise
+        (job was already succeeded, dead-lettered, or otherwise transitioned).
+        """
         now = datetime.now(UTC)
-        self._connection.execute(
+        result = self._connection.execute(
             sa.text("""
                 UPDATE pipeline_jobs
                 SET status = 'retry',
@@ -323,6 +327,7 @@ class PipelineJobRepository:
                 "updated_at": now,
             },
         )
+        return result.rowcount is not None and result.rowcount > 0
 
     def mark_dead_letter(self, job_id: UUID, error: str | BaseException) -> None:
         """Move a running job to dead-letter state (final failure)."""

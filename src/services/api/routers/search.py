@@ -10,7 +10,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, Request
 
-from services.api._helpers import _fmt_dt, _translation_score
+from services.api._helpers import _fmt_dt, _translation_score, _verify_admin_membership
 from services.api.main import current_user
 from services.api.schemas import SearchRequest, SearchResponse, SearchResultItem
 from services.auth.models import TokenPayload
@@ -39,6 +39,9 @@ def search(
     metrics_start = time.perf_counter()
     group_ids = [str(g) for g in user.groups]
     is_admin = user.is_admin or http_request.app.state.admins_group_id in group_ids
+    # Re-verify admin status against the DB to prevent stale-JWT bypass.
+    if is_admin and not _verify_admin_membership(http_request.app.state.engine, group_ids):
+        is_admin = False
     if not group_ids and not is_admin:
         http_request.app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
         http_request.app.state.metrics.search_results_count.labels("hybrid").observe(0)

@@ -372,6 +372,7 @@ def run_enrich_once(
         error_type = type(exc).__name__
         if attempts < max_attempts:
             job_repo.mark_retry(job_id, exc, stage="enrich")
+            job_repo.commit()
             if metrics is not None:
                 metrics.pipeline_jobs_retried_total.labels(
                     worker_type="enrich", job_type=job_type
@@ -394,6 +395,7 @@ def run_enrich_once(
             )
         else:
             job_repo.mark_dead_letter(job_id, exc)
+            job_repo.commit()
             if metrics is not None:
                 metrics.pipeline_jobs_dead_lettered_total.labels(
                     worker_type="enrich", job_type=job_type
@@ -417,6 +419,7 @@ def run_enrich_once(
 
     elapsed = time.monotonic() - start
     job_repo.mark_succeeded(job_id)
+    job_repo.commit()
     if metrics is not None:
         metrics.pipeline_jobs_succeeded_total.labels(worker_type="enrich", job_type=job_type).inc()
         metrics.pipeline_job_duration_seconds.labels(

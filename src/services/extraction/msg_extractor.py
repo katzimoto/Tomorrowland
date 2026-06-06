@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import mimetypes
 from contextlib import suppress
 from html.parser import HTMLParser
@@ -10,6 +11,8 @@ from pathlib import Path
 import extract_msg
 
 from services.extraction.base import AttachmentData, ExtractionResult
+
+logger = logging.getLogger(__name__)
 
 
 class MsgExtractor:
@@ -35,6 +38,7 @@ class MsgExtractor:
         try:
             msg = extract_msg.Message(str(path))  # type: ignore[no-untyped-call]
         except Exception:
+            logger.warning("Failed to open MSG file path=%s", path, exc_info=True)
             return ExtractionResult(text="")
         try:
 
@@ -147,6 +151,7 @@ class MsgExtractor:
 
             return ExtractionResult(text="\n\n".join(sections), attachments=attachments)
         except Exception:
+            logger.warning("Failed to extract MSG content path=%s", path, exc_info=True)
             return ExtractionResult(text="")
         finally:
             with suppress(Exception):

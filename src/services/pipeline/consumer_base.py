@@ -168,11 +168,29 @@ class BaseConsumer(ABC):
             max_attempts = self._job_repo.get_max_attempts(job_id)
             max_attempts_val = max_attempts or 5
             if attempt < max_attempts_val:
-                self._job_repo.mark_retry(job_id, exc, stage=self.worker_type)
+                rowcount = self._job_repo.mark_retry(job_id, exc, stage=self.worker_type)
+                if not rowcount:
+                    # Mark-retry affected zero rows — the job was already
+                    # succeeded, dead-lettered, or otherwise transitioned by
+                    # a concurrent worker.  Ack without publishing a stray retry.
+                    self._job_repo.commit()
+                    self._channel.basic_ack(delivery_tag=delivery_tag)  # type: ignore[union-attr]
+                    logger.info(
+                        "skipped retry publish: job already transitioned worker_type=%s job_id=%s",
+                        self.worker_type,
+                        job_id,
+                    )
+                    return
                 # Re-read stored text so the retry message carries content_text
                 # and translated_text. Without this, downstream workers
                 # (translate, embed, index) receive empty text and silently
                 # skip processing on every retry attempt.
+                #
+                # Read payload BEFORE committing mark_retry — the payload was
+                # committed by a prior worker, so it is already visible.  We
+                # deliberately commit only AFTER basic_publish succeeds so a
+                # publish failure rolls back the mark_retry and the message
+                # can be redelivered for another retry attempt.
                 _stored = self._job_repo.get_payload(document_id) or {}
                 _stored_text: str = _stored.get("content_text") or ""
                 _stored_translated: str = _stored.get("translated_text") or ""
@@ -197,6 +215,7 @@ class BaseConsumer(ABC):
                     body=retry_body,
                     properties=pika.BasicProperties(delivery_mode=2),
                 )
+                self._job_repo.commit()
                 self._channel.basic_ack(delivery_tag=delivery_tag)  # type: ignore[union-attr]
                 logger.info(
                     "job routed to retry: worker_type=%s job_id=%s attempt=%d",
@@ -206,6 +225,7 @@ class BaseConsumer(ABC):
                 )
             else:
                 self._job_repo.mark_dead_letter(job_id, exc)
+                self._job_repo.commit()
                 logger.error(
                     "job dead-lettered: worker_type=%s job_id=%s attempt=%d error=%s",
                     self.worker_type,

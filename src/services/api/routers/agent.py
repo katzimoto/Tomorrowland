@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 
 from services.api._helpers import (
     _fmt_dt,
+    _verify_admin_membership,
     related_docs_limit,
     require_related_docs_enabled,
 )
@@ -217,6 +218,9 @@ def _resolve_effective_groups(
     """
     raw_group_ids = [str(g) for g in user.groups]
     is_admin = user.is_admin or request.app.state.admins_group_id in raw_group_ids
+    # Re-verify admin status against the DB to prevent stale-JWT bypass.
+    if is_admin and not _verify_admin_membership(connection, raw_group_ids):
+        is_admin = False
     if is_admin:
         return [], True
     if not raw_group_ids:

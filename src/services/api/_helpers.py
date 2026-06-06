@@ -44,6 +44,30 @@ def _translation_score(quality: str | None) -> float:
     return 0.0
 
 
+def _verify_admin_membership(
+    connection_or_engine: sa.Connection | sa.Engine,
+    raw_group_ids: list[str],
+) -> bool:
+    """Re-verify admin group membership against the DB.
+
+    Prevents stale-JWT bypass: if a user was removed from the admins group
+    after token issuance, the JWT still carries the old group membership.
+    This check queries the ``groups`` table to confirm current membership.
+
+    Accepts either a ``sa.Connection`` (preferred, to reuse an existing
+    connection) or a ``sa.Engine``.  Returns False when the admins group
+    exists in the DB but the caller is not a member.
+    """
+    query = sa.text("SELECT id FROM groups WHERE name = 'admins' LIMIT 1")
+    if isinstance(connection_or_engine, sa.Connection):
+        admins_row = connection_or_engine.execute(query).scalar_one_or_none()
+    else:
+        with connection_or_engine.connect() as conn:
+            admins_row = conn.execute(query).scalar_one_or_none()
+    current_admins_id = str(admins_row) if admins_row else None
+    return not current_admins_id or current_admins_id in raw_group_ids
+
+
 def _parse_json(value: Any) -> Any:
     if value is None:
         return None
