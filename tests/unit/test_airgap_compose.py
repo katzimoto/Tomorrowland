@@ -53,9 +53,9 @@ def _service_block(service: str) -> list[str]:
 def test_ollama_service_is_behind_local_llm_profile() -> None:
     block = _service_block("ollama")
     assert block, "air-gapped compose must still define the ollama service"
-    assert any(
-        re.match(r"^\s+profiles:\s*\[.*local-llm.*\]", line) for line in block
-    ), "ollama must be gated behind the 'local-llm' profile"
+    assert any(re.match(r"^\s+profiles:\s*\[.*local-llm.*\]", line) for line in block), (
+        "ollama must be gated behind the 'local-llm' profile"
+    )
 
 
 def test_workers_do_not_depend_on_ollama() -> None:
@@ -63,9 +63,9 @@ def test_workers_do_not_depend_on_ollama() -> None:
         block = _service_block(worker)
         assert block, f"{worker} service must exist in the air-gapped compose"
         # A bare ``ollama:`` mapping key (a depends_on entry) — not a comment.
-        assert not any(
-            re.match(r"^\s+ollama:\s*$", line) for line in block
-        ), f"{worker} must not depend_on ollama (must start without local Ollama)"
+        assert not any(re.match(r"^\s+ollama:\s*$", line) for line in block), (
+            f"{worker} must not depend_on ollama (must start without local Ollama)"
+        )
 
 
 def test_env_anchor_exposes_external_llm_settings() -> None:

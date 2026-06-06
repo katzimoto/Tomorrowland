@@ -40,9 +40,7 @@ class _FakeMeiliProvider:
         with self._engine.begin() as conn:
             if is_admin:
                 rows = conn.execute(
-                    sa.text(
-                        "SELECT id, title FROM documents WHERE title LIKE :q LIMIT :limit"
-                    ),
+                    sa.text("SELECT id, title FROM documents WHERE title LIKE :q LIMIT :limit"),
                     params,
                 ).fetchall()
             elif not group_ids:
@@ -62,8 +60,7 @@ class _FakeMeiliProvider:
         # Normalise the DB id to a canonical dashed UUID string so it matches the
         # search route's document lookup keys (SQLite stores UUIDs without dashes).
         results = [
-            SearchResult(document_id=str(to_uuid(row[0])), score=1.0, title=row[1])
-            for row in rows
+            SearchResult(document_id=str(to_uuid(row[0])), score=1.0, title=row[1]) for row in rows
         ]
         return SearchResults(results=results, facets={})
 
