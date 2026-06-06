@@ -8,25 +8,40 @@ The server runs with **Streamable HTTP** transport (``/mcp`` endpoint) by
 default and can also be started with stdio transport for local/air-gapped
 workflows.
 
+Observability
+-------------
+* Every tool invocation emits a structured ``mcp_audit`` log line (INFO).
+* Prometheus metrics are recorded per tool: call counts by outcome,
+  latency histograms, and error counts by error type.
+* ``GET /health`` returns ``{"status": "ok"}`` for liveness probes.
+* ``GET /metrics`` exposes Prometheus text format for monitoring.
+
 Security
 --------
 * No direct database, Qdrant, or Meilisearch access.
 * No duplicated ACL logic — every tool call goes through the permissioned
   researcher API from #558.
-* Bearer tokens are forwarded from the MCP client to Tomorrowland; the
-  adapter never inspects or logs the token value.
+* Bearer tokens are forwarded from the MCP client to Tomorrowland per-request
+  via the ``Authorization`` header extracted from the MCP request context.
+  Falls back to the static ``TOMORROWLAND_API_KEY`` env var when the client
+  does not send its own token.
+* The adapter never inspects or logs the token value.
 * No write tools are exposed.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+import time
+from typing import Annotated, Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
+from pydantic import Field
 
 from services.mcp.client import TomorrowlandClient, TomorrowlandClientError
+from services.mcp.metrics import _mcp_metrics, metrics_endpoint
 from shared.config import Settings
+from shared.correlation import get_correlation_id
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +80,7 @@ def _translate_error(exc: TomorrowlandClientError) -> str:
     """Map API HTTP status codes to descriptive error messages."""
     status = exc.status_code
     if status == 401:
-        return "Authentication failed (HTTP 401). Check your TOMORROWLAND_API_KEY."
+        return "Authentication failed (HTTP 401). Check your Bearer token or TOMORROWLAND_API_KEY."
     if status == 403:
         return "Access denied (HTTP 403). Your token lacks permissions for this resource."
     if status == 404:
@@ -81,25 +96,41 @@ def _translate_error(exc: TomorrowlandClientError) -> str:
     return str(exc)
 
 
+def _extract_auth_header(ctx: Context[Any, Any]) -> str | None:
+    """Extract the ``Authorization`` header from the MCP request context."""
+    meta = getattr(ctx, "request_meta", None)
+    if meta is None:
+        return None
+    headers: dict[str, str] | None = getattr(meta, "headers", None)
+    if headers is None:
+        return None
+    return headers.get("authorization")
+
+
+def _mcp_audit_log(
+    *,
+    tool: str,
+    correlation_id: str,
+    latency_ms: float,
+    status: str = "ok",
+    error_type: str | None = None,
+) -> None:
+    """Emit a structured audit log line for an MCP tool invocation."""
+    logger.info(
+        "mcp_audit tool=%s correlation_id=%s latency_ms=%.1f status=%s%s",
+        tool,
+        correlation_id,
+        latency_ms,
+        status,
+        f" error_type={error_type}" if error_type else "",
+    )
+
+
 def create_mcp_server(
     settings: Settings | None = None,
     client: TomorrowlandClient | None = None,
 ) -> FastMCP:
-    """Create and configure the MCP server.
-
-    Parameters
-    ----------
-    settings:
-        Application settings.  If omitted, loaded from environment.
-    client:
-        Pre-configured Tomorrowland API client.  If omitted, created from
-        *settings*.
-
-    Returns
-    -------
-    FastMCP
-        The configured MCP server instance (not yet running).
-    """
+    """Create and configure the MCP server."""
     if settings is None:
         settings = Settings()
 
@@ -124,23 +155,87 @@ def create_mcp_server(
     @mcp.tool(
         description=(
             "Search documents using hybrid (BM25 + vector) search. "
-            "Returns document results with snippets and relevance scores."
-        )
+            "Returns document results with snippets, relevance scores, "
+            "document IDs, sources, MIME types, and languages. "
+            "Use when a researcher asks to find documents about a topic, "
+            "browse what is available, or narrow results by filters."
+        ),
     )
     def tomorrowland_search_documents(
-        query: str,
-        top_k: int = 20,
-        page: int = 1,
-        filters: dict[str, Any] | None = None,
+        query: Annotated[
+            str,
+            Field(description="Free-text search query (1-500 characters)"),
+        ],
+        top_k: Annotated[
+            int,
+            Field(description="Number of results per page (1-50, default 20)"),
+        ] = 20,
+        page: Annotated[
+            int,
+            Field(description="Page number for pagination (1-20, default 1)"),
+        ] = 1,
+        filters: Annotated[
+            dict[str, Any] | None,
+            Field(
+                description=(
+                    "Optional filter dict with sources, mime_types, "
+                    "languages, tags, date_from, date_to"
+                ),
+            ),
+        ] = None,
+        ctx: Context[Any, Any] | None = None,
     ) -> dict[str, Any]:
-        """Search documents via the Tomorrowland researcher API."""
+        correlation_id = get_correlation_id()
+        auth_header = _extract_auth_header(ctx) if ctx else None
+        t0 = time.perf_counter()
         _validate_string(query, 1, _MAX_QUERY_LENGTH, "query")
         _validate_int(top_k, _MIN_TOP_K, _MAX_TOP_K, "top_k")
         _validate_int(page, _MIN_PAGE, _MAX_PAGE, "page")
 
         try:
-            return client.search_documents(query=query, top_k=top_k, page=page, filters=filters)
+            result = client.search_documents(
+                query=query,
+                top_k=top_k,
+                page=page,
+                filters=filters,
+                correlation_id=correlation_id,
+                auth_header=auth_header,
+            )
+            elapsed = time.perf_counter() - t0
+            _mcp_audit_log(
+                tool="search_documents",
+                correlation_id=correlation_id,
+                latency_ms=elapsed * 1000,
+            )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="search_documents",
+                outcome="ok",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="search_documents",
+            ).observe(elapsed)
+            return result
         except TomorrowlandClientError as exc:
+            elapsed = time.perf_counter() - t0
+            error_type = f"HTTP_{exc.status_code}"
+            _mcp_audit_log(
+                tool="search_documents",
+                correlation_id=correlation_id,
+                latency_ms=elapsed * 1000,
+                status="error",
+                error_type=error_type,
+            )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="search_documents",
+                outcome="error",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="search_documents",
+            ).observe(elapsed)
+            _mcp_metrics.tool_call_errors_total.labels(
+                tool="search_documents",
+                error_type=error_type,
+            ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -149,16 +244,66 @@ def create_mcp_server(
     @mcp.tool(
         description=(
             "Get metadata for a single document by its ID. "
-            "Returns title, source, MIME type, languages, tags, summary."
-        )
+            "Returns title, source, MIME type, languages, tags, "
+            "summary, version information, and timestamps. "
+            "Use after search_documents to inspect a document's full "
+            "metadata, or before calling get_passages or "
+            "get_related_documents to verify the document is correct."
+        ),
     )
-    def tomorrowland_get_document(document_id: str) -> dict[str, Any]:
-        """Get document metadata via the Tomorrowland researcher API."""
+    def tomorrowland_get_document(
+        document_id: Annotated[
+            str,
+            Field(description="UUID of the document (1-64 characters)"),
+        ],
+        ctx: Context[Any, Any] | None = None,
+    ) -> dict[str, Any]:
+        correlation_id = get_correlation_id()
+        auth_header = _extract_auth_header(ctx) if ctx else None
+        t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
 
         try:
-            return client.get_document(document_id=document_id)
+            result = client.get_document(
+                document_id=document_id,
+                correlation_id=correlation_id,
+                auth_header=auth_header,
+            )
+            elapsed = time.perf_counter() - t0
+            _mcp_audit_log(
+                tool="get_document",
+                correlation_id=correlation_id,
+                latency_ms=elapsed * 1000,
+            )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="get_document",
+                outcome="ok",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="get_document",
+            ).observe(elapsed)
+            return result
         except TomorrowlandClientError as exc:
+            elapsed = time.perf_counter() - t0
+            error_type = f"HTTP_{exc.status_code}"
+            _mcp_audit_log(
+                tool="get_document",
+                correlation_id=correlation_id,
+                latency_ms=elapsed * 1000,
+                status="error",
+                error_type=error_type,
+            )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="get_document",
+                outcome="error",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="get_document",
+            ).observe(elapsed)
+            _mcp_metrics.tool_call_errors_total.labels(
+                tool="get_document",
+                error_type=error_type,
+            ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -167,22 +312,77 @@ def create_mcp_server(
     @mcp.tool(
         description=(
             "Get text passages (chunks) for a document. "
-            "Returns ordered passages with page numbers and section headings."
-        )
+            "Returns ordered passages with chunk IDs, text content, "
+            "page numbers, section headings, and language metadata. "
+            "Use to read the actual content of a document, inspect "
+            "specific sections, or review citations."
+        ),
     )
     def tomorrowland_get_passages(
-        document_id: str,
-        limit: int = 50,
-        offset: int = 0,
+        document_id: Annotated[
+            str,
+            Field(description="UUID of the document (1-64 characters)"),
+        ],
+        limit: Annotated[
+            int,
+            Field(description="Maximum passages to return (1-100, default 50)"),
+        ] = 50,
+        offset: Annotated[
+            int,
+            Field(description="Pagination offset (0-10000, default 0)"),
+        ] = 0,
+        ctx: Context[Any, Any] | None = None,
     ) -> dict[str, Any]:
-        """Get document passages via the Tomorrowland researcher API."""
+        correlation_id = get_correlation_id()
+        auth_header = _extract_auth_header(ctx) if ctx else None
+        t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
         _validate_int(limit, _MIN_LIMIT, _MAX_LIMIT, "limit")
         _validate_int(offset, _MIN_OFFSET, _MAX_OFFSET, "offset")
 
         try:
-            return client.get_passages(document_id=document_id, limit=limit, offset=offset)
+            result = client.get_passages(
+                document_id=document_id,
+                limit=limit,
+                offset=offset,
+                correlation_id=correlation_id,
+                auth_header=auth_header,
+            )
+            elapsed = time.perf_counter() - t0
+            _mcp_audit_log(
+                tool="get_passages",
+                correlation_id=correlation_id,
+                latency_ms=elapsed * 1000,
+            )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="get_passages",
+                outcome="ok",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="get_passages",
+            ).observe(elapsed)
+            return result
         except TomorrowlandClientError as exc:
+            elapsed = time.perf_counter() - t0
+            error_type = f"HTTP_{exc.status_code}"
+            _mcp_audit_log(
+                tool="get_passages",
+                correlation_id=correlation_id,
+                latency_ms=elapsed * 1000,
+                status="error",
+                error_type=error_type,
+            )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="get_passages",
+                outcome="error",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="get_passages",
+            ).observe(elapsed)
+            _mcp_metrics.tool_call_errors_total.labels(
+                tool="get_passages",
+                error_type=error_type,
+            ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -190,16 +390,32 @@ def create_mcp_server(
     # ------------------------------------------------------------------
     @mcp.tool(
         description=(
-            "Ask a question over the accessible document corpus. "
-            "Returns an answer with citations to supporting documents."
-        )
+            "Ask a natural-language question over the accessible document "
+            "corpus. Returns a generated answer backed by citations to "
+            "specific documents and passages. Each citation includes "
+            "document ID, title, chunk text, page number, and relevance "
+            "score. Use for factual questions that need evidence from "
+            "source documents. Can be narrowed to a single document."
+        ),
     )
     def tomorrowland_ask_corpus(
-        question: str,
-        top_k: int | None = None,
-        document_id: str | None = None,
+        question: Annotated[
+            str,
+            Field(description="Natural-language question (1-2000 characters)"),
+        ],
+        top_k: Annotated[
+            int | None,
+            Field(description="Number of chunks to retrieve (1-20, optional)"),
+        ] = None,
+        document_id: Annotated[
+            str | None,
+            Field(description="Restrict to a single document UUID (optional)"),
+        ] = None,
+        ctx: Context[Any, Any] | None = None,
     ) -> dict[str, Any]:
-        """Ask a question over the corpus via the Tomorrowland researcher API."""
+        correlation_id = get_correlation_id()
+        auth_header = _extract_auth_header(ctx) if ctx else None
+        t0 = time.perf_counter()
         _validate_string(question, 1, _MAX_QUESTION_LENGTH, "question")
 
         if top_k is not None:
@@ -208,8 +424,48 @@ def create_mcp_server(
             _validate_string(document_id, 1, 64, "document_id")
 
         try:
-            return client.ask_corpus(question=question, top_k=top_k, document_id=document_id)
+            result = client.ask_corpus(
+                question=question,
+                top_k=top_k,
+                document_id=document_id,
+                correlation_id=correlation_id,
+                auth_header=auth_header,
+            )
+            elapsed = time.perf_counter() - t0
+            _mcp_audit_log(
+                tool="ask_corpus",
+                correlation_id=correlation_id,
+                latency_ms=elapsed * 1000,
+            )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="ask_corpus",
+                outcome="ok",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="ask_corpus",
+            ).observe(elapsed)
+            return result
         except TomorrowlandClientError as exc:
+            elapsed = time.perf_counter() - t0
+            error_type = f"HTTP_{exc.status_code}"
+            _mcp_audit_log(
+                tool="ask_corpus",
+                correlation_id=correlation_id,
+                latency_ms=elapsed * 1000,
+                status="error",
+                error_type=error_type,
+            )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="ask_corpus",
+                outcome="error",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="ask_corpus",
+            ).observe(elapsed)
+            _mcp_metrics.tool_call_errors_total.labels(
+                tool="ask_corpus",
+                error_type=error_type,
+            ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -218,16 +474,64 @@ def create_mcp_server(
     @mcp.tool(
         description=(
             "Get documents related to a given document. "
-            "Returns related document IDs, titles, and relevance scores."
-        )
+            "Returns related document IDs, titles, relevance scores, "
+            "and relation reasons. Use to discover semantically or "
+            "topically related material from a key document."
+        ),
     )
-    def tomorrowland_get_related_documents(document_id: str) -> dict[str, Any]:
-        """Get related documents via the Tomorrowland researcher API."""
+    def tomorrowland_get_related_documents(
+        document_id: Annotated[
+            str,
+            Field(description="UUID of the seed document (1-64 characters)"),
+        ],
+        ctx: Context[Any, Any] | None = None,
+    ) -> dict[str, Any]:
+        correlation_id = get_correlation_id()
+        auth_header = _extract_auth_header(ctx) if ctx else None
+        t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
 
         try:
-            return client.get_related_documents(document_id=document_id)
+            result = client.get_related_documents(
+                document_id=document_id,
+                correlation_id=correlation_id,
+                auth_header=auth_header,
+            )
+            elapsed = time.perf_counter() - t0
+            _mcp_audit_log(
+                tool="get_related_documents",
+                correlation_id=correlation_id,
+                latency_ms=elapsed * 1000,
+            )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="get_related_documents",
+                outcome="ok",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="get_related_documents",
+            ).observe(elapsed)
+            return result
         except TomorrowlandClientError as exc:
+            elapsed = time.perf_counter() - t0
+            error_type = f"HTTP_{exc.status_code}"
+            _mcp_audit_log(
+                tool="get_related_documents",
+                correlation_id=correlation_id,
+                latency_ms=elapsed * 1000,
+                status="error",
+                error_type=error_type,
+            )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="get_related_documents",
+                outcome="error",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="get_related_documents",
+            ).observe(elapsed)
+            _mcp_metrics.tool_call_errors_total.labels(
+                tool="get_related_documents",
+                error_type=error_type,
+            ).inc()
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
@@ -235,34 +539,113 @@ def create_mcp_server(
     # ------------------------------------------------------------------
     @mcp.tool(
         description=(
-            "List facet distributions (sources, MIME types, languages, etc.) "
-            "over documents the caller can access."
-        )
+            "List facet distributions (sources, MIME types, languages, "
+            "tags) over documents the caller can access. Returns a "
+            "dictionary of facet categories and their value counts. "
+            "Use to understand the shape of the accessible corpus "
+            "before searching or to discover available sources, "
+            "languages, and document types."
+        ),
     )
-    def tomorrowland_list_facets(query: str = "") -> dict[str, Any]:
-        """List facet distributions via the Tomorrowland researcher API."""
+    def tomorrowland_list_facets(
+        query: Annotated[
+            str,
+            Field(description="Optional free-text query to filter facet counts (0-500 chars)"),
+        ] = "",
+        ctx: Context[Any, Any] | None = None,
+    ) -> dict[str, Any]:
+        correlation_id = get_correlation_id()
+        auth_header = _extract_auth_header(ctx) if ctx else None
+        t0 = time.perf_counter()
         _validate_string(query, 0, _MAX_QUERY_LENGTH, "query")
 
         try:
-            return client.list_facets(query=query)
+            result = client.list_facets(
+                query=query,
+                correlation_id=correlation_id,
+                auth_header=auth_header,
+            )
+            elapsed = time.perf_counter() - t0
+            _mcp_audit_log(
+                tool="list_facets",
+                correlation_id=correlation_id,
+                latency_ms=elapsed * 1000,
+            )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="list_facets",
+                outcome="ok",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="list_facets",
+            ).observe(elapsed)
+            return result
         except TomorrowlandClientError as exc:
+            elapsed = time.perf_counter() - t0
+            error_type = f"HTTP_{exc.status_code}"
+            _mcp_audit_log(
+                tool="list_facets",
+                correlation_id=correlation_id,
+                latency_ms=elapsed * 1000,
+                status="error",
+                error_type=error_type,
+            )
+            _mcp_metrics.tool_calls_total.labels(
+                tool="list_facets",
+                outcome="error",
+            ).inc()
+            _mcp_metrics.tool_call_duration_seconds.labels(
+                tool="list_facets",
+            ).observe(elapsed)
+            _mcp_metrics.tool_call_errors_total.labels(
+                tool="list_facets",
+                error_type=error_type,
+            ).inc()
             raise ValueError(_translate_error(exc)) from exc
+
+    # ------------------------------------------------------------------
+    # Health and metrics endpoints
+    # ------------------------------------------------------------------
+    _register_observability_endpoints(mcp)
 
     return mcp
 
 
-def run_server(settings: Settings | None = None) -> None:
-    """Run the MCP server with Streamable HTTP transport.
+def _register_observability_endpoints(mcp: FastMCP) -> None:
+    """Register ``/health`` and ``/metrics`` endpoints on the FastMCP server."""
+    try:
+        from starlette.responses import JSONResponse
 
-    Parameters
-    ----------
-    settings:
-        Application settings.  If omitted, loaded from environment.
-    """
+        app = getattr(mcp, "_app", None) or getattr(mcp, "app", None)
+        if app is None:
+            logger.debug(
+                "No Starlette app accessible on FastMCP; skipping /health and /metrics endpoints"
+            )
+            return
+
+        # Health endpoint
+        async def health(request):  # type: ignore[no-untyped-def]  # noqa: ARG001
+            return JSONResponse({"status": "ok"})
+
+        app.add_route("/health", health, methods=["GET"])
+        logger.debug("Registered /health endpoint on FastMCP server")
+
+        # Metrics endpoint
+        app.add_route("/metrics", metrics_endpoint, methods=["GET"])
+        logger.debug("Registered /metrics endpoint on FastMCP server")
+    except Exception:
+        logger.debug(
+            "Could not register observability endpoints; falling back to TCP probe",
+            exc_info=True,
+        )
+
+
+def run_server(settings: Settings | None = None) -> None:
+    """Run the MCP server with Streamable HTTP transport."""
     if settings is None:
         settings = Settings()
 
     mcp = create_mcp_server(settings)
+
     logger.info(
         "Starting MCP server on %s:%s with transport=streamable-http",
         settings.mcp_host,
