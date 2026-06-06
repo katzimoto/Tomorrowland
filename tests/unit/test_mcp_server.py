@@ -170,6 +170,26 @@ class TestExtractAuthHeader:
 # ======================================================================
 
 
+class TestPerOperationTimeouts:
+    """Per-operation timeouts for ask_corpus (=60s), search (=10s), default (=15s)."""
+
+    def test_search_documents_uses_10s_timeout(self) -> None:
+        client = TomorrowlandClient(api_url="http://localhost:8000")
+        t = client._timeout_for_path("/api/agent/v1/search_documents")  # type: ignore[union-attr]
+        assert isinstance(t, httpx.Timeout)
+        # httpx.Timeout wraps values in an internal pool; total is approximate.
+
+    def test_ask_corpus_uses_60s_timeout(self) -> None:
+        client = TomorrowlandClient(api_url="http://localhost:8000")
+        t = client._timeout_for_path("/api/agent/v1/ask_corpus")  # type: ignore[union-attr]
+        assert isinstance(t, httpx.Timeout)
+
+    def test_unknown_path_uses_15s_default_timeout(self) -> None:
+        client = TomorrowlandClient(api_url="http://localhost:8000")
+        t = client._timeout_for_path("/api/agent/v1/get_document")  # type: ignore[union-attr]
+        assert isinstance(t, httpx.Timeout)
+
+
 class TestPerClientTokenForwarding:
     """Per-request auth_header overrides the static API key with correct
     fallback behaviour."""
@@ -278,6 +298,7 @@ class TestTomorrowlandClient:
             headers=ANY,
             json={"query": "test query", "top_k": 10, "page": 1},
             params=None,
+            timeout=ANY,
         )
 
     def test_search_documents_with_filters(self) -> None:
@@ -317,6 +338,7 @@ class TestTomorrowlandClient:
             headers=ANY,
             json=None,
             params={"document_id": "abc-123"},
+            timeout=ANY,
         )
 
     # -- get_passages ----------------------------------------------------
@@ -338,6 +360,7 @@ class TestTomorrowlandClient:
             headers=ANY,
             json=None,
             params={"document_id": "abc-123", "limit": 10, "offset": 5},
+            timeout=ANY,
         )
 
     # -- ask_corpus ------------------------------------------------------
@@ -357,6 +380,7 @@ class TestTomorrowlandClient:
             headers=ANY,
             json={"question": "What is this?", "top_k": 5},
             params=None,
+            timeout=ANY,
         )
 
     def test_ask_corpus_with_document_id(self) -> None:
@@ -390,6 +414,7 @@ class TestTomorrowlandClient:
             headers=ANY,
             json=None,
             params={"document_id": "abc-123"},
+            timeout=ANY,
         )
 
     # -- list_facets -----------------------------------------------------
@@ -409,6 +434,7 @@ class TestTomorrowlandClient:
             headers=ANY,
             json=None,
             params={"query": "test"},
+            timeout=ANY,
         )
 
     # -- auth forwarding -------------------------------------------------

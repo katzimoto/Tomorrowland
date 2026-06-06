@@ -22,7 +22,16 @@ _MAX_RETRIES = 3
 _RETRY_BACKOFF_BASE = 0.5  # seconds; doubles each attempt
 _RETRYABLE_STATUSES = frozenset({429, 502, 503, 504})
 
-# httpx connection pool limits — prevents exhaustion under concurrent MCP clients.
+# Per-operation HTTP timeouts (seconds).  ask_corpus may take 30+ seconds
+# for RAG over a large corpus; search should fail fast.
+_OP_TIMEOUTS: dict[str, float] = {
+    "/api/agent/v1/ask_corpus": 60.0,
+    "/api/agent/v1/search_documents": 10.0,
+}
+_DEFAULT_OP_TIMEOUT: float = 15.0
+
+# httpx connection pool limits — prevents exhaustion under concurrent
+# MCP clients.
 _CONNECTION_LIMITS = httpx.Limits(
     max_keepalive_connections=10,
     max_connections=20,
@@ -74,6 +83,9 @@ class TomorrowlandClient:
     Transient failures (5xx, 429, timeouts) are retried with exponential
     backoff up to 3 attempts.
 
+    Per-operation timeouts are applied per endpoint:
+    ``ask_corpus`` = 60 s, ``search_documents`` = 10 s, others = 15 s.
+
     Per-client token forwarding is supported via the *auth_header* parameter
     on every tool method.  When an MCP client sends its own Bearer token,
     the adapter forwards it verbatim.  Falls back to the static
@@ -90,6 +102,8 @@ class TomorrowlandClient:
         self._base_url = api_url.rstrip("/")
         self._api_key = api_key
         self._timeout = timeout
+        # The global timeout on the pool is a safety ceiling; per-operation
+        # timeouts are applied via the *timeout_override* path below.
         self._client = httpx.Client(
             timeout=httpx.Timeout(timeout),
             limits=_CONNECTION_LIMITS,
@@ -120,6 +134,11 @@ class TomorrowlandClient:
             headers["X-Correlation-ID"] = correlation_id
         return headers
 
+    def _timeout_for_path(self, path: str) -> httpx.Timeout:
+        """Return the per-operation timeout for *path*."""
+        seconds = _OP_TIMEOUTS.get(path, _DEFAULT_OP_TIMEOUT)
+        return httpx.Timeout(seconds)
+
     def _request(
         self,
         method: str,
@@ -133,7 +152,7 @@ class TomorrowlandClient:
         """Perform an HTTP request and return the parsed JSON response.
 
         Retries on transient failures (5xx, 429, timeouts) with exponential
-        backoff up to ``_MAX_RETRIES`` attempts.
+        backoff up to ``_MAX_RETRIES`` attempts.  Uses per-operation timeout.
         """
         url = f"{self._base_url}{path}"
         req_headers = self._headers(
@@ -156,6 +175,7 @@ class TomorrowlandClient:
                     headers=req_headers,
                     json=json_body,
                     params=params,
+                    timeout=self._timeout_for_path(path),
                 )
             except httpx.TimeoutException:
                 logger.warning(
@@ -195,7 +215,8 @@ class TomorrowlandClient:
             if response.status_code >= 400:
                 detail = _extract_error_detail(response)
                 log_level = (
-                    logger.warning if response.status_code < 500 else logger.error
+                    logger.warning if response.status_code < 500
+                    else logger.error
                 )
                 log_level(
                     "MCP API error method=%s path=%s status=%s "

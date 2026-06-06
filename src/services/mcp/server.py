@@ -25,9 +25,10 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.fastmcp import Context, FastMCP
+from pydantic import Field
 
 from services.mcp.client import TomorrowlandClient, TomorrowlandClientError
 from shared.config import Settings
@@ -101,15 +102,7 @@ def _translate_error(exc: TomorrowlandClientError) -> str:
 
 
 def _extract_auth_header(ctx: Context[Any, Any]) -> str | None:
-    """Extract the ``Authorization`` header from the MCP request context.
-
-    In Streamable HTTP transport, FastMCP exposes incoming HTTP headers via
-    ``ctx.request_meta``.  ASGI normalises header names to lowercase, so we
-    look for ``authorization``.
-
-    Returns ``None`` when no header is present (callers fall back to the
-    static ``TOMORROWLAND_API_KEY``).
-    """
+    """Extract the ``Authorization`` header from the MCP request context."""
     meta = getattr(ctx, "request_meta", None)
     if meta is None:
         return None
@@ -127,11 +120,7 @@ def _mcp_audit_log(
     status: str = "ok",
     error_type: str | None = None,
 ) -> None:
-    """Emit a structured audit log line for an MCP tool invocation.
-
-    Logs safe metadata only — no query text, no document content,
-    no authorization headers, no secrets.
-    """
+    """Emit a structured audit log line for an MCP tool invocation."""
     logger.info(
         "mcp_audit tool=%s correlation_id=%s latency_ms=%.1f status=%s%s",
         tool,
@@ -146,21 +135,7 @@ def create_mcp_server(
     settings: Settings | None = None,
     client: TomorrowlandClient | None = None,
 ) -> FastMCP:
-    """Create and configure the MCP server.
-
-    Parameters
-    ----------
-    settings:
-        Application settings.  If omitted, loaded from environment.
-    client:
-        Pre-configured Tomorrowland API client.  If omitted, created from
-        *settings*.
-
-    Returns
-    -------
-    FastMCP
-        The configured MCP server instance (not yet running).
-    """
+    """Create and configure the MCP server."""
     if settings is None:
         settings = Settings()
 
@@ -185,17 +160,36 @@ def create_mcp_server(
     @mcp.tool(
         description=(
             "Search documents using hybrid (BM25 + vector) search. "
-            "Returns document results with snippets and relevance scores."
-        )
+            "Returns document results with snippets, relevance scores, "
+            "document IDs, sources, MIME types, and languages. "
+            "Use when a researcher asks to find documents about a topic, "
+            "browse what is available, or narrow results by filters."
+        ),
     )
     def tomorrowland_search_documents(
-        query: str,
-        top_k: int = 20,
-        page: int = 1,
-        filters: dict[str, Any] | None = None,
+        query: Annotated[
+            str,
+            Field(description="Free-text search query (1-500 characters)"),
+        ],
+        top_k: Annotated[
+            int,
+            Field(description="Number of results per page (1-50, default 20)"),
+        ] = 20,
+        page: Annotated[
+            int,
+            Field(description="Page number for pagination (1-20, default 1)"),
+        ] = 1,
+        filters: Annotated[
+            dict[str, Any] | None,
+            Field(
+                description=(
+                    "Optional filter dict with sources, mime_types, "
+                    "languages, tags, date_from, date_to"
+                ),
+            ),
+        ] = None,
         ctx: Context[Any, Any] | None = None,
     ) -> dict[str, Any]:
-        """Search documents via the Tomorrowland researcher API."""
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
@@ -230,14 +224,20 @@ def create_mcp_server(
     @mcp.tool(
         description=(
             "Get metadata for a single document by its ID. "
-            "Returns title, source, MIME type, languages, tags, summary."
-        )
+            "Returns title, source, MIME type, languages, tags, "
+            "summary, version information, and timestamps. "
+            "Use after search_documents to inspect a document's full "
+            "metadata, or before calling get_passages or "
+            "get_related_documents to verify the document is correct."
+        ),
     )
     def tomorrowland_get_document(
-        document_id: str,
+        document_id: Annotated[
+            str,
+            Field(description="UUID of the document (1-64 characters)"),
+        ],
         ctx: Context[Any, Any] | None = None,
     ) -> dict[str, Any]:
-        """Get document metadata via the Tomorrowland researcher API."""
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
@@ -270,16 +270,27 @@ def create_mcp_server(
     @mcp.tool(
         description=(
             "Get text passages (chunks) for a document. "
-            "Returns ordered passages with page numbers and section headings."
-        )
+            "Returns ordered passages with chunk IDs, text content, "
+            "page numbers, section headings, and language metadata. "
+            "Use to read the actual content of a document, inspect "
+            "specific sections, or review citations."
+        ),
     )
     def tomorrowland_get_passages(
-        document_id: str,
-        limit: int = 50,
-        offset: int = 0,
+        document_id: Annotated[
+            str,
+            Field(description="UUID of the document (1-64 characters)"),
+        ],
+        limit: Annotated[
+            int,
+            Field(description="Maximum passages to return (1-100, default 50)"),
+        ] = 50,
+        offset: Annotated[
+            int,
+            Field(description="Pagination offset (0-10000, default 0)"),
+        ] = 0,
         ctx: Context[Any, Any] | None = None,
     ) -> dict[str, Any]:
-        """Get document passages via the Tomorrowland researcher API."""
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
@@ -313,17 +324,29 @@ def create_mcp_server(
     # ------------------------------------------------------------------
     @mcp.tool(
         description=(
-            "Ask a question over the accessible document corpus. "
-            "Returns an answer with citations to supporting documents."
-        )
+            "Ask a natural-language question over the accessible document "
+            "corpus. Returns a generated answer backed by citations to "
+            "specific documents and passages. Each citation includes "
+            "document ID, title, chunk text, page number, and relevance "
+            "score. Use for factual questions that need evidence from "
+            "source documents. Can be narrowed to a single document."
+        ),
     )
     def tomorrowland_ask_corpus(
-        question: str,
-        top_k: int | None = None,
-        document_id: str | None = None,
+        question: Annotated[
+            str,
+            Field(description="Natural-language question (1-2000 characters)"),
+        ],
+        top_k: Annotated[
+            int | None,
+            Field(description="Number of chunks to retrieve (1-20, optional)"),
+        ] = None,
+        document_id: Annotated[
+            str | None,
+            Field(description="Restrict to a single document UUID (optional)"),
+        ] = None,
         ctx: Context[Any, Any] | None = None,
     ) -> dict[str, Any]:
-        """Ask a question over the corpus via the Tomorrowland researcher API."""
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
@@ -361,14 +384,18 @@ def create_mcp_server(
     @mcp.tool(
         description=(
             "Get documents related to a given document. "
-            "Returns related document IDs, titles, and relevance scores."
-        )
+            "Returns related document IDs, titles, relevance scores, "
+            "and relation reasons. Use to discover semantically or "
+            "topically related material from a key document."
+        ),
     )
     def tomorrowland_get_related_documents(
-        document_id: str,
+        document_id: Annotated[
+            str,
+            Field(description="UUID of the seed document (1-64 characters)"),
+        ],
         ctx: Context[Any, Any] | None = None,
     ) -> dict[str, Any]:
-        """Get related documents via the Tomorrowland researcher API."""
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
@@ -400,15 +427,21 @@ def create_mcp_server(
     # ------------------------------------------------------------------
     @mcp.tool(
         description=(
-            "List facet distributions (sources, MIME types, languages, etc.) "
-            "over documents the caller can access."
-        )
+            "List facet distributions (sources, MIME types, languages, "
+            "tags) over documents the caller can access. Returns a "
+            "dictionary of facet categories and their value counts. "
+            "Use to understand the shape of the accessible corpus "
+            "before searching or to discover available sources, "
+            "languages, and document types."
+        ),
     )
     def tomorrowland_list_facets(
-        query: str = "",
+        query: Annotated[
+            str,
+            Field(description="Optional free-text query to filter facet counts (0-500 chars)"),
+        ] = "",
         ctx: Context[Any, Any] | None = None,
     ) -> dict[str, Any]:
-        """List facet distributions via the Tomorrowland researcher API."""
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
         t0 = time.perf_counter()
@@ -436,10 +469,7 @@ def create_mcp_server(
             raise ValueError(_translate_error(exc)) from exc
 
     # ------------------------------------------------------------------
-    # Health check — register a minimal GET endpoint for Docker/liveness
-    # probes.  FastMCP doesn't expose a public route-registration API, so
-    # we mount a small ASGI app on the underlying Starlette instance when
-    # it is available (Streamable HTTP transport creates one).
+    # Health check
     # ------------------------------------------------------------------
     _register_health_endpoint(mcp)
 
@@ -447,13 +477,7 @@ def create_mcp_server(
 
 
 def _register_health_endpoint(mcp: FastMCP) -> None:
-    """Register a ``/health`` endpoint on the FastMCP server.
-
-    The endpoint returns ``{"status": "ok"}`` with HTTP 200 and is intended
-    for Docker health checks and load-balancer liveness probes.  If the
-    underlying app is not accessible (unusual), the registration is silently
-    skipped and the caller falls back to TCP-level probes.
-    """
+    """Register a ``/health`` endpoint on the FastMCP server."""
     try:
         from starlette.responses import JSONResponse
 
@@ -478,16 +502,7 @@ def _register_health_endpoint(mcp: FastMCP) -> None:
 
 
 def run_server(settings: Settings | None = None) -> None:
-    """Run the MCP server with Streamable HTTP transport.
-
-    Graceful shutdown is handled by uvicorn's built-in signal handling
-    (SIGTERM/SIGINT).  The server drains in-flight requests before exiting.
-
-    Parameters
-    ----------
-    settings:
-        Application settings.  If omitted, loaded from environment.
-    """
+    """Run the MCP server with Streamable HTTP transport."""
     if settings is None:
         settings = Settings()
 
