@@ -15,6 +15,7 @@ Tests cover:
 from __future__ import annotations
 
 import re
+import time
 from typing import Any
 from unittest.mock import ANY, MagicMock, patch
 
@@ -25,6 +26,8 @@ from mcp.server.fastmcp import Context, FastMCP
 from services.mcp.client import (
     _CONNECTION_LIMITS,
     _MAX_RETRIES,
+    CircuitBreaker,
+    CircuitBreakerOpenError,
     TomorrowlandClient,
     TomorrowlandClientError,
     _sanitize_headers,
@@ -1463,3 +1466,368 @@ class TestMCPMetrics:
                 outcome="ok",
             )._value.get()
             assert val >= 1, f"No ok counter for {tool_name}"
+
+    def test_circuit_breaker_state_gauge_exists(self) -> None:
+        from prometheus_client import Gauge
+
+        from services.mcp.metrics import _mcp_metrics
+
+        assert isinstance(_mcp_metrics.circuit_breaker_state, Gauge)
+
+        # Default state should be 0 (closed).
+        assert _mcp_metrics.circuit_breaker_state._value.get() == 0
+
+    def test_circuit_breaker_failures_counter_exists(self) -> None:
+        from prometheus_client import Counter
+
+        from services.mcp.metrics import _mcp_metrics
+
+        assert isinstance(_mcp_metrics.circuit_breaker_failures_total, Counter)
+
+
+# ======================================================================
+# Circuit breaker — unit tests
+# ======================================================================
+
+
+class TestCircuitBreaker:
+    """Verify the circuit breaker state machine."""
+
+    def test_initial_state_is_closed(self) -> None:
+        cb = CircuitBreaker()
+        assert cb.state == CircuitBreaker.CLOSED
+        assert cb.failure_count == 0
+
+    def test_before_request_does_not_raise_when_closed(self) -> None:
+        cb = CircuitBreaker()
+        cb.before_request()  # Should not raise.
+
+    def test_opens_after_failure_threshold(self) -> None:
+        cb = CircuitBreaker(failure_threshold=3)
+
+        for _ in range(3):
+            cb.on_failure()
+
+        assert cb.state == CircuitBreaker.OPEN
+        assert cb.failure_count == 3
+
+    def test_blocks_before_request_when_open(self) -> None:
+        cb = CircuitBreaker(failure_threshold=1)
+        cb.on_failure()
+
+        with pytest.raises(CircuitBreakerOpenError, match="Circuit breaker is open"):
+            cb.before_request()
+
+    def test_cooldown_remaining_is_positive_when_open(self) -> None:
+        cb = CircuitBreaker(
+            failure_threshold=1, cooldown_seconds=10.0,
+        )
+        cb.on_failure()
+
+        assert cb.cooldown_remaining > 0
+        # Opened just now, so remaining should be close to cooldown.
+        assert cb.cooldown_remaining <= 10.0
+
+    def test_transitions_to_half_open_after_cooldown(self) -> None:
+        cb = CircuitBreaker(
+            failure_threshold=1, cooldown_seconds=0.01,
+        )
+        cb.on_failure()
+        assert cb.state == CircuitBreaker.OPEN
+
+        time.sleep(0.02)
+        assert cb.state == CircuitBreaker.HALF_OPEN
+
+    def test_allows_request_in_half_open(self) -> None:
+        cb = CircuitBreaker(
+            failure_threshold=1, cooldown_seconds=0.01,
+        )
+        cb.on_failure()
+        time.sleep(0.02)
+        assert cb.state == CircuitBreaker.HALF_OPEN
+
+        cb.before_request()  # Should not raise.
+
+    def test_resets_to_closed_on_success(self) -> None:
+        cb = CircuitBreaker(failure_threshold=2)
+        cb.on_failure()
+        assert cb.failure_count == 1
+
+        cb.on_success()
+        assert cb.state == CircuitBreaker.CLOSED
+        assert cb.failure_count == 0
+
+    def test_success_from_half_open_closes_circuit(self) -> None:
+        cb = CircuitBreaker(
+            failure_threshold=1, cooldown_seconds=0.01,
+        )
+        cb.on_failure()
+        time.sleep(0.02)
+        assert cb.state == CircuitBreaker.HALF_OPEN
+
+        cb.on_success()
+        assert cb.state == CircuitBreaker.CLOSED
+
+    def test_failure_in_half_open_reopens_circuit(self) -> None:
+        cb = CircuitBreaker(
+            failure_threshold=1, cooldown_seconds=0.01,
+        )
+        cb.on_failure()
+        time.sleep(0.02)
+        assert cb.state == CircuitBreaker.HALF_OPEN
+
+        cb.on_failure()
+        assert cb.state == CircuitBreaker.OPEN
+
+    def test_failure_count_resets_on_success(self) -> None:
+        cb = CircuitBreaker(failure_threshold=5)
+        for _ in range(3):
+            cb.on_failure()
+        assert cb.failure_count == 3
+
+        cb.on_success()
+        assert cb.failure_count == 0
+
+    def test_breaker_does_not_reopen_without_enough_failures(self) -> None:
+        cb = CircuitBreaker(failure_threshold=5)
+        for _ in range(4):
+            cb.on_failure()
+
+        assert cb.state == CircuitBreaker.CLOSED
+
+    def test_open_error_includes_cooldown_remaining(self) -> None:
+        cb = CircuitBreaker(
+            failure_threshold=1, cooldown_seconds=30.0,
+        )
+        cb.on_failure()
+
+        with pytest.raises(CircuitBreakerOpenError) as exc_info:
+            cb.before_request()
+
+        msg = str(exc_info.value)
+        assert "Circuit breaker is open" in msg
+        assert "s remaining" in msg
+
+
+# ======================================================================
+# Circuit breaker — client integration
+# ======================================================================
+
+
+class TestCircuitBreakerClientIntegration:
+    """Verify the circuit breaker is integrated into TomorrowlandClient."""
+
+    # Each retryable HTTP error (503, 502, 504, 429) triggers up to
+    # _MAX_RETRIES (3) HTTP calls per top-level request.  on_failure()
+    # fires only once — just before we raise the final error.
+
+    def test_breaker_counts_503_and_opens(self) -> None:
+        client = TomorrowlandClient(api_url="http://localhost:8000")
+        # Each 503 call retries 3 times → 3 items consumed per top-level
+        # call.  3 calls × 3 = 9 items, threshold=3 opens after 3 calls.
+        client._circuit_breaker._failure_threshold = 3
+        mock = MagicMock(
+            side_effect=[
+                _error_response(503, "fail")
+                for _ in range(9)
+            ],
+        )
+        client._client.request = mock  # type: ignore[method-assign]
+
+        with patch("time.sleep", return_value=None):
+            for i in range(2):
+                with pytest.raises(TomorrowlandClientError):
+                    client.search_documents(query="test")
+                assert client._circuit_breaker.failure_count == i + 1
+                assert client._circuit_breaker.state == CircuitBreaker.CLOSED
+
+            # 3rd failure opens the breaker.
+            with pytest.raises(TomorrowlandClientError):
+                client.search_documents(query="test")
+            assert client._circuit_breaker.state == CircuitBreaker.OPEN
+            assert client._circuit_breaker.failure_count == 3
+
+    def test_breaker_blocks_when_open(self) -> None:
+        client = TomorrowlandClient(api_url="http://localhost:8000")
+        client._circuit_breaker._failure_threshold = 2
+        # 2 calls × 3 retries = 6 items.
+        mock = MagicMock(
+            side_effect=[
+                _error_response(503, "fail")
+                for _ in range(6)
+            ],
+        )
+        client._client.request = mock  # type: ignore[method-assign]
+
+        with patch("time.sleep", return_value=None):
+            for _ in range(2):
+                with pytest.raises(TomorrowlandClientError):
+                    client.search_documents(query="test")
+
+            # Breaker is now open — next request fails fast.
+            with pytest.raises(
+                CircuitBreakerOpenError, match="Circuit breaker is open",
+            ):
+                client.search_documents(query="test")
+
+            # No additional HTTP calls beyond the first 2 calls' retries.
+            assert mock.call_count == 6
+
+    def test_breaker_does_not_count_401_403_404(self) -> None:
+        """Client errors (401, 403, 404) must not trip the breaker."""
+        for status in (401, 403, 404):
+            client = TomorrowlandClient(api_url="http://localhost:8000")
+            mock = MagicMock(
+                side_effect=[_error_response(status, "error")],
+            )
+            client._client.request = mock  # type: ignore[method-assign]
+
+            with pytest.raises(TomorrowlandClientError):
+                client.search_documents(query="test")
+
+            assert client._circuit_breaker.state == CircuitBreaker.CLOSED
+            assert client._circuit_breaker.failure_count == 0
+
+    def test_breaker_counts_502_503_504_429(self) -> None:
+        """Server-side / transient errors must count."""
+        for status in (429, 502, 503, 504):
+            client = TomorrowlandClient(api_url="http://localhost:8000")
+            # Each retries 3 times → 3 side_effect items per call.
+            mock = MagicMock(
+                side_effect=[
+                    _error_response(status, "error")
+                    for _ in range(3)
+                ],
+            )
+            client._client.request = mock  # type: ignore[method-assign]
+
+            with patch("time.sleep", return_value=None), \
+                    pytest.raises(TomorrowlandClientError):
+                client.search_documents(query="test")
+
+            assert client._circuit_breaker.failure_count == 1
+
+    def test_breaker_counts_timeout_errors(self) -> None:
+        client = TomorrowlandClient(api_url="http://localhost:8000")
+        # Each timeout call retries 3 times → 3 items per top-level call.
+        # 2 calls × 3 = 6 items.
+        mock = MagicMock(
+            side_effect=[
+                httpx.TimeoutException("timed out")
+                for _ in range(6)
+            ],
+        )
+        client._client.request = mock  # type: ignore[method-assign]
+
+        with patch("time.sleep", return_value=None):
+            for _ in range(2):
+                with pytest.raises(TomorrowlandClientError, match="timed out"):
+                    client.search_documents(query="test")
+
+        # on_failure fires once per top-level call — count should be 2.
+        assert client._circuit_breaker.failure_count == 2
+
+    def test_breaker_resets_after_success(self) -> None:
+        client = TomorrowlandClient(api_url="http://localhost:8000")
+        mock = MagicMock(
+            side_effect=[
+                _error_response(503, "fail"),
+                _error_response(503, "fail"),
+                _error_response(503, "fail"),
+                _mock_response(
+                    json_data={"results": [], "total": 0, "query": "t"},
+                ),
+            ],
+        )
+        client._client.request = mock  # type: ignore[method-assign]
+
+        with patch("time.sleep", return_value=None):
+            with pytest.raises(TomorrowlandClientError):
+                client.search_documents(query="test")
+            assert client._circuit_breaker.failure_count == 1
+
+            result = client.search_documents(query="test")
+            assert client._circuit_breaker.state == CircuitBreaker.CLOSED
+            assert client._circuit_breaker.failure_count == 0
+            assert result == {
+                "results": [], "total": 0, "query": "t",
+            }
+
+
+# ======================================================================
+# Circuit breaker — server integration
+# ======================================================================
+
+
+class TestCircuitBreakerServerIntegration:
+    """Verify the server translates circuit breaker errors to safe messages."""
+
+    def _get_tool_fn(self, mcp: FastMCP, name: str) -> Any:
+        for t in mcp._tool_manager.list_tools():
+            if t.name == name:
+                return t.fn
+        raise KeyError(f"Tool {name!r} not found")
+
+    def test_tool_returns_safe_error_when_breaker_open(self) -> None:
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.search_documents.side_effect = CircuitBreakerOpenError(
+            cooldown_remaining=25.0,
+        )
+        mcp = create_mcp_server(settings, client=mock_client)
+        fn = self._get_tool_fn(mcp, "tomorrowland_search_documents")
+
+        with pytest.raises(ValueError, match="Circuit breaker is open"):
+            fn(query="test")
+
+    def test_circuit_breaker_error_recorded_in_metrics(self) -> None:
+        from services.mcp.metrics import _mcp_metrics
+
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.get_document.side_effect = CircuitBreakerOpenError(
+            cooldown_remaining=15.0,
+        )
+        mcp = create_mcp_server(settings, client=mock_client)
+        fn = self._get_tool_fn(mcp, "tomorrowland_get_document")
+
+        before = _mcp_metrics.tool_call_errors_total.labels(
+            tool="get_document", error_type="circuit_breaker_open",
+        )._value.get()
+
+        with pytest.raises(ValueError, match="Circuit breaker is open"):
+            fn(document_id="abc")
+
+        after = _mcp_metrics.tool_call_errors_total.labels(
+            tool="get_document", error_type="circuit_breaker_open",
+        )._value.get()
+        assert after == before + 1
+
+    def test_circuit_breaker_error_audit_logged(self, caplog) -> None:  # type: ignore[no-untyped-def]
+        caplog.set_level("INFO")
+        settings = Settings(
+            tomorrowland_api_url="http://localhost:8000", app_env="test",
+        )
+        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client.list_facets.side_effect = CircuitBreakerOpenError(
+            cooldown_remaining=10.0,
+        )
+        mcp = create_mcp_server(settings, client=mock_client)
+        fn = self._get_tool_fn(mcp, "tomorrowland_list_facets")
+
+        with pytest.raises(ValueError, match="Circuit breaker is open"):
+            fn()
+
+        audit_lines = [
+            r for r in caplog.records
+            if getattr(r, "message", "") and "mcp_audit" in r.message
+        ]
+        assert len(audit_lines) == 1
+        msg = audit_lines[0].message
+        assert "tool=list_facets" in msg
+        assert "status=error" in msg
+        assert "error_type=circuit_breaker_open" in msg

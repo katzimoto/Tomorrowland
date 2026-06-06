@@ -22,6 +22,12 @@ _MAX_RETRIES = 3
 _RETRY_BACKOFF_BASE = 0.5  # seconds; doubles each attempt
 _RETRYABLE_STATUSES = frozenset({429, 502, 503, 504})
 
+# Circuit-breaker configuration — after _CB_FAILURE_THRESHOLD consecutive
+# server-side errors the breaker opens and stops all requests for
+# _CB_COOLDOWN_SECONDS, protecting the backend from cascading failure.
+_CB_FAILURE_THRESHOLD = 5
+_CB_COOLDOWN_SECONDS = 30.0
+
 # Per-operation HTTP timeouts (seconds).  ask_corpus may take 30+ seconds
 # for RAG over a large corpus; search should fail fast.
 _OP_TIMEOUTS: dict[str, float] = {
@@ -45,6 +51,144 @@ class TomorrowlandClientError(Exception):
     def __init__(self, message: str, status_code: int = 500) -> None:
         self.status_code = status_code
         super().__init__(message)
+
+
+class CircuitBreakerOpenError(Exception):
+    """Raised when the circuit breaker is open — all requests are blocked."""
+
+    def __init__(self, cooldown_remaining: float = 0) -> None:
+        self.cooldown_remaining = cooldown_remaining
+        super().__init__(
+            f"Circuit breaker is open. "
+            f"{cooldown_remaining:.0f}s remaining in cooldown."
+        )
+
+
+class CircuitBreaker:
+    """Prevents cascading failures by stopping requests after N consecutive
+    server-side failures.
+
+    States
+    ------
+    * **CLOSED** — normal operation; requests flow through.
+    * **OPEN** — failure threshold reached; all requests are blocked.
+    * **HALF_OPEN** — cooldown expired; a single probe request is allowed.
+
+    Only server-side / transient errors count toward the failure threshold:
+    5xx, 429, timeouts, and connection errors.  Client errors (401, 403,
+    404, 422) are **not** counted — they reflect permission or validation
+    problems, not backend health.
+
+    Thread-safe for use across MCP worker threads.
+    """
+
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+    def __init__(
+        self,
+        failure_threshold: int = _CB_FAILURE_THRESHOLD,
+        cooldown_seconds: float = _CB_COOLDOWN_SECONDS,
+    ) -> None:
+        self._failure_threshold = failure_threshold
+        self._cooldown_seconds = cooldown_seconds
+        self._failure_count = 0
+        self._state = self.CLOSED
+        self._opened_at: float | None = None
+
+    # -- public properties -----------------------------------------------
+
+    @property
+    def state(self) -> str:
+        """Current state, transitioning OPEN → HALF_OPEN when cooldown expires."""
+        if self._state == self.OPEN and self._opened_at is not None and (
+            time.monotonic() - self._opened_at >= self._cooldown_seconds
+        ):
+                self._state = self.HALF_OPEN
+                logger.info(
+                    "Circuit breaker transitioned to half_open "
+                    "(cooldown expired after %.0fs)",
+                    self._cooldown_seconds,
+                )
+        return self._state
+
+    @property
+    def failure_count(self) -> int:
+        """Number of consecutive failures since the last success."""
+        return self._failure_count
+
+    @property
+    def cooldown_remaining(self) -> float:
+        """Seconds remaining in the OPEN cooldown, or 0 if not OPEN."""
+        if self._state != self.OPEN or self._opened_at is None:
+            return 0.0
+        elapsed = time.monotonic() - self._opened_at
+        return max(0.0, self._cooldown_seconds - elapsed)
+
+    def _update_prometheus_gauge(self) -> None:
+        """Sync the Prometheus gauge with the current state."""
+        try:
+            from services.mcp.metrics import _mcp_metrics
+
+            state_map = {self.CLOSED: 0, self.OPEN: 1, self.HALF_OPEN: 2}
+            _mcp_metrics.circuit_breaker_state.set(
+                state_map.get(self._state, -1)
+            )
+        except Exception:
+            pass  # metrics are best-effort
+
+    # -- request gating --------------------------------------------------
+
+    def before_request(self) -> None:
+        """Check the circuit before making a request.
+
+        Raises :class:`CircuitBreakerOpenError` if the breaker is OPEN.
+        In HALF_OPEN state, the request is allowed through as a probe.
+        """
+        if self.state == self.OPEN:
+            raise CircuitBreakerOpenError(self.cooldown_remaining)
+
+    def on_success(self) -> None:
+        """Record a successful request — reset the breaker to CLOSED."""
+        if self._state != self.CLOSED:
+            logger.info(
+                "Circuit breaker reset to closed after successful probe"
+            )
+        self._failure_count = 0
+        self._state = self.CLOSED
+        self._opened_at = None
+        self._update_prometheus_gauge()
+
+    def on_failure(self) -> None:
+        """Record a server-side failure — may open the breaker."""
+        self._failure_count += 1
+        logger.debug(
+            "Circuit breaker failure count=%d/%d",
+            self._failure_count,
+            self._failure_threshold,
+        )
+        if self._failure_count >= self._failure_threshold:
+            self._state = self.OPEN
+            self._opened_at = time.monotonic()
+            logger.warning(
+                "Circuit breaker opened after %d consecutive failures "
+                "(cooldown=%.0fs)",
+                self._failure_count,
+                self._cooldown_seconds,
+            )
+        self._update_prometheus_gauge()
+        try:
+            from services.mcp.metrics import _mcp_metrics
+
+            _mcp_metrics.circuit_breaker_failures_total.inc()
+        except Exception:
+            pass
+
+
+# Status codes that count as server-side / transient failures and should
+# contribute to the circuit breaker's failure count.
+_CIRCUIT_BREAKER_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 
 def _sanitize_headers(headers: dict[str, str]) -> dict[str, str]:
@@ -82,6 +226,12 @@ class TomorrowlandClient:
     Transient failures (5xx, 429, timeouts) are retried with exponential
     backoff up to 3 attempts.
 
+    A **circuit breaker** protects the backend from cascading failure:
+    after 5 consecutive server-side errors the breaker opens and blocks
+    all requests for 30 s.  Client errors (401, 403, 404, 422) are not
+    counted — they reflect permission or validation problems, not backend
+    health.
+
     Per-operation timeouts are applied per endpoint:
     ``ask_corpus`` = 60 s, ``search_documents`` = 10 s, others = 15 s.
 
@@ -101,6 +251,7 @@ class TomorrowlandClient:
         self._base_url = api_url.rstrip("/")
         self._api_key = api_key
         self._timeout = timeout
+        self._circuit_breaker = CircuitBreaker()
         # The global timeout on the pool is a safety ceiling; per-operation
         # timeouts are applied via the *timeout_override* path below.
         self._client = httpx.Client(
@@ -152,7 +303,21 @@ class TomorrowlandClient:
 
         Retries on transient failures (5xx, 429, timeouts) with exponential
         backoff up to ``_MAX_RETRIES`` attempts.  Uses per-operation timeout.
+
+        The circuit breaker gates every request: if OPEN the call fails fast
+        with :class:`CircuitBreakerOpenError`.  Server-side / transient
+        errors increment the breaker's failure count; client errors (4xx
+        except 429) do not.
         """
+        # --- circuit breaker gate (fast-fail when open) ---
+        try:
+            self._circuit_breaker.before_request()
+        except CircuitBreakerOpenError:
+            logger.warning(
+                "MCP circuit breaker open — blocking %s %s", method, path,
+            )
+            raise
+
         url = f"{self._base_url}{path}"
         req_headers = self._headers(
             correlation_id=correlation_id,
@@ -166,6 +331,7 @@ class TomorrowlandClient:
             _sanitize_headers(req_headers),
         )
 
+        _breaker_failure = False  # track once per top-level request
         last_exc: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
@@ -188,10 +354,12 @@ class TomorrowlandClient:
                 last_exc = TomorrowlandClientError(
                     "Request to Tomorrowland API timed out", status_code=504
                 )
+                _breaker_failure = True
                 if attempt < _MAX_RETRIES:
                     backoff = _RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
                     time.sleep(backoff)
                     continue
+                self._circuit_breaker.on_failure()
                 raise last_exc from None
             except httpx.RequestError as exc:
                 logger.warning(
@@ -205,10 +373,12 @@ class TomorrowlandClient:
                 last_exc = TomorrowlandClientError(
                     f"Cannot reach Tomorrowland API: {exc}", status_code=503
                 )
+                _breaker_failure = True
                 if attempt < _MAX_RETRIES:
                     backoff = _RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
                     time.sleep(backoff)
                     continue
+                self._circuit_breaker.on_failure()
                 raise last_exc from exc
 
             if response.status_code >= 400:
@@ -227,12 +397,23 @@ class TomorrowlandClient:
                     detail or f"API returned HTTP {response.status_code}",
                     status_code=response.status_code,
                 )
-                if response.status_code in _RETRYABLE_STATUSES and attempt < _MAX_RETRIES:
+                # Only server-side / transient statuses count toward the
+                # circuit breaker.  401/403/404/422 are client errors.
+                if response.status_code in _CIRCUIT_BREAKER_STATUSES:
+                    _breaker_failure = True
+                if (
+                    response.status_code in _RETRYABLE_STATUSES
+                    and attempt < _MAX_RETRIES
+                ):
                     backoff = _RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
                     time.sleep(backoff)
                     continue
+                if _breaker_failure:
+                    self._circuit_breaker.on_failure()
                 raise last_exc from None
 
+            # Success — reset the circuit breaker.
+            self._circuit_breaker.on_success()
             return cast("dict[str, Any]", response.json())
 
         # Should be unreachable — all paths either return or raise above.

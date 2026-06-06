@@ -13,6 +13,8 @@ Observability
 * Every tool invocation emits a structured ``mcp_audit`` log line (INFO).
 * Prometheus metrics are recorded per tool: call counts by outcome,
   latency histograms, and error counts by error type.
+* A circuit breaker (5 failures / 30 s cooldown) protects the backend
+  from cascading failure; state is exposed as a Prometheus gauge.
 * ``GET /health`` returns ``{"status": "ok"}`` for liveness probes.
 * ``GET /metrics`` exposes Prometheus text format for monitoring.
 
@@ -38,7 +40,11 @@ from typing import Annotated, Any
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
-from services.mcp.client import TomorrowlandClient, TomorrowlandClientError
+from services.mcp.client import (
+    CircuitBreakerOpenError,
+    TomorrowlandClient,
+    TomorrowlandClientError,
+)
 from services.mcp.metrics import _mcp_metrics, metrics_endpoint
 from shared.config import Settings
 from shared.correlation import get_correlation_id
@@ -124,6 +130,28 @@ def _mcp_audit_log(
         status,
         f" error_type={error_type}" if error_type else "",
     )
+
+
+def _record_circuit_breaker_error(
+    tool: str, elapsed: float, correlation_id: str,
+) -> None:
+    """Record metrics and audit log for a circuit breaker open error."""
+    _mcp_audit_log(
+        tool=tool,
+        correlation_id=correlation_id,
+        latency_ms=elapsed * 1000,
+        status="error",
+        error_type="circuit_breaker_open",
+    )
+    _mcp_metrics.tool_calls_total.labels(
+        tool=tool, outcome="error",
+    ).inc()
+    _mcp_metrics.tool_call_duration_seconds.labels(
+        tool=tool,
+    ).observe(elapsed)
+    _mcp_metrics.tool_call_errors_total.labels(
+        tool=tool, error_type="circuit_breaker_open",
+    ).inc()
 
 
 def create_mcp_server(
@@ -237,6 +265,12 @@ def create_mcp_server(
                 error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
+        except CircuitBreakerOpenError as exc:
+            elapsed = time.perf_counter() - t0
+            _record_circuit_breaker_error(
+                "search_documents", elapsed, correlation_id,
+            )
+            raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # tomorrowland.get_document
@@ -305,6 +339,12 @@ def create_mcp_server(
                 error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
+        except CircuitBreakerOpenError as exc:
+            elapsed = time.perf_counter() - t0
+            _record_circuit_breaker_error(
+                "get_document", elapsed, correlation_id,
+            )
+            raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # tomorrowland.get_passages
@@ -384,6 +424,12 @@ def create_mcp_server(
                 error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
+        except CircuitBreakerOpenError as exc:
+            elapsed = time.perf_counter() - t0
+            _record_circuit_breaker_error(
+                "get_passages", elapsed, correlation_id,
+            )
+            raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # tomorrowland.ask_corpus
@@ -467,6 +513,12 @@ def create_mcp_server(
                 error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
+        except CircuitBreakerOpenError as exc:
+            elapsed = time.perf_counter() - t0
+            _record_circuit_breaker_error(
+                "ask_corpus", elapsed, correlation_id,
+            )
+            raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # tomorrowland.get_related_documents
@@ -533,6 +585,12 @@ def create_mcp_server(
                 error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
+        except CircuitBreakerOpenError as exc:
+            elapsed = time.perf_counter() - t0
+            _record_circuit_breaker_error(
+                "get_related_documents", elapsed, correlation_id,
+            )
+            raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # tomorrowland.list_facets
@@ -601,6 +659,12 @@ def create_mcp_server(
                 error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
+        except CircuitBreakerOpenError as exc:
+            elapsed = time.perf_counter() - t0
+            _record_circuit_breaker_error(
+                "list_facets", elapsed, correlation_id,
+            )
+            raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # Health and metrics endpoints
