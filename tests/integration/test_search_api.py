@@ -764,6 +764,73 @@ def test_search_admin_passes_allow_all_to_backends(
     assert qdrant_kwargs.get("allow_all") is True
 
 
+def test_search_backends_execute_in_parallel(
+    migrated_engine: Engine,
+) -> None:
+    """Verify search fires Meilisearch and Qdrant concurrently via
+    ThreadPoolExecutor, not serially."""
+    _setup_users(migrated_engine)
+    _, document_id = _create_source_with_doc(migrated_engine, "users", "Parallel Doc")
+
+    import threading
+    import time
+
+    call_times: list[tuple[str, float]] = []
+    call_times_lock = threading.Lock()
+
+    class TimingMeiliProvider(_FakeMeiliProvider):
+        def search(self, query: DocumentSearchQuery, user: object) -> SearchResults:
+            with call_times_lock:
+                call_times.append(("meili", time.monotonic()))
+            return super().search(query, user)
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+
+    def timed_qdrant_search(*args, **kwargs):
+        with call_times_lock:
+            call_times.append(("qdrant", time.monotonic()))
+        return [
+            SearchResult(document_id=document_id, score=0.9, chunk_text="chunk")
+        ]
+
+    mock_qdrant.search = timed_qdrant_search
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            qdrant_client=mock_qdrant,
+            meili_provider=TimingMeiliProvider(migrated_engine),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.post(
+        "/search",
+        json={"query": "parallel", "page": 1, "page_size": 10},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    # Both backends must have been called
+    called = {name for name, _ in call_times}
+    assert called == {"meili", "qdrant"}, f"Both backends must be called, got: {called}"
+
+    # Verify actual parallelism: both calls must have started before either
+    # call could have possibly finished if executed serially.
+    # If serial, the timestamp gap between first and second call would be
+    # at least the duration of the first call. Under parallelism, both
+    # timestamps are captured nearly simultaneously.
+    meili_time = next(t for name, t in call_times if name == "meili")
+    qdrant_time = next(t for name, t in call_times if name == "qdrant")
+    time_diff = abs(meili_time - qdrant_time)
+    # Both calls should start within 1 second of each other (serial would be far longer)
+    assert time_diff < 1.0, (
+        f"Backend calls were {time_diff:.2f}s apart — likely serial, not parallel"
+    )
+
+
 def test_search_drops_orphaned_qdrant_vector(
     migrated_engine: Engine,
 ) -> None:

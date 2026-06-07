@@ -85,7 +85,7 @@ class BaseConsumer(ABC):
                     raise RuntimeError(
                         f"RabbitMQ channel is None after connect: worker_type={self.worker_type}"
                     )
-                self._channel.basic_qos(prefetch_count=1)
+                self._channel.basic_qos(prefetch_count=50)
                 self._channel.basic_consume(
                     queue=self.queue_name,
                     on_message_callback=self._on_message,

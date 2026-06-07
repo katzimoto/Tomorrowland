@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     log_level: Literal["critical", "error", "warning", "info", "debug"] = "info"
 
     postgres_url: str = "postgresql+psycopg://postgres:changeme@postgres:5432/app"
+    redis_url: str = "redis://redis:6379/0"
     kafka_broker: str = "kafka:9092"
     qdrant_url: str = "http://qdrant:6333"
     files_root: Path = Path("/data")

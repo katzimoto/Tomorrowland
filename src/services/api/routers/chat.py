@@ -80,15 +80,11 @@ def _message_response(msg: ChatMessage) -> dict[str, Any]:
 
 
 def _check_system_config_flag(connection: sa.Connection) -> None:
-    row = (
-        connection.execute(
-            sa.text("SELECT value FROM system_config WHERE key = :key"),
-            {"key": "feature.document_chat"},
-        )
-        .mappings()
-        .first()
-    )
-    if row and not _config_bool(row["value"], default=False):
+    """Check the feature.document_chat config flag (cached)."""
+    from shared.config_cache import get_cached_config
+
+    value = get_cached_config(connection, "feature.document_chat")
+    if value is not None and not _config_bool(value, default=False):
         raise HTTPException(status_code=404, detail="Document Chat is disabled")
 
 
@@ -337,15 +333,10 @@ def create_message(
         chat_llm = resolver.build_llm_provider("chat") if resolver and resolver.loaded else None
         ollama_client = chat_llm or request.app.state.llm_provider
 
-        prompt_row = (
-            connection.execute(
-                sa.text("SELECT value FROM system_config WHERE key = :key"),
-                {"key": "llm.qa_system_prompt"},
-            )
-            .mappings()
-            .first()
-        )
-        system_prompt = str(prompt_row["value"]) if prompt_row else None
+        from shared.config_cache import get_cached_config
+
+        _sp = get_cached_config(connection, "llm.qa_system_prompt")
+        system_prompt = _sp if _sp else None
 
         reranker_resolved = resolver.resolve("reranking") if resolver and resolver.loaded else None
         reranker_model = (
@@ -549,15 +540,10 @@ def create_message_stream(
         chat_llm = resolver.build_llm_provider("chat") if resolver and resolver.loaded else None
         ollama_client = chat_llm or request.app.state.llm_provider
 
-        prompt_row = (
-            connection.execute(
-                sa.text("SELECT value FROM system_config WHERE key = :key"),
-                {"key": "llm.qa_system_prompt"},
-            )
-            .mappings()
-            .first()
-        )
-        system_prompt = str(prompt_row["value"]) if prompt_row else None
+        from shared.config_cache import get_cached_config
+
+        _sp = get_cached_config(connection, "llm.qa_system_prompt")
+        system_prompt = _sp if _sp else None
 
         reranker_resolved = resolver.resolve("reranking") if resolver and resolver.loaded else None
         reranker_model = (

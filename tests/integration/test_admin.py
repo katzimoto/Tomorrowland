@@ -1339,3 +1339,82 @@ def test_admin_config_non_sensitive_keys_not_masked(migrated_engine: Engine) -> 
     # search.vector_weight should be returned as a real numeric value
     assert "search.vector_weight" in config_by_key
     assert config_by_key["search.vector_weight"] != "••••••••"
+
+
+# ---------------------------------------------------------------------------
+# Config cache invalidation on admin writes (performance optimisation)
+# ---------------------------------------------------------------------------
+
+def test_admin_config_write_invalidates_cache(migrated_engine: Engine) -> None:
+    """When a config value is updated via the service layer, the in-memory
+    config cache must be invalidated so the next read returns the fresh value.
+
+    Tests the service-level invalidation path (does not require Meilisearch).
+    """
+    from shared.config_cache import _system_config_cache, get_cached_config
+
+    _system_config_cache.invalidate_all()
+
+    # Seed a config value
+    with migrated_engine.begin() as conn:
+        conn.execute(
+            sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)"),
+            {"k": "test.cache.key", "v": "old"},
+        )
+
+    # Warm the cache
+    with migrated_engine.begin() as conn:
+        val1 = get_cached_config(conn, "test.cache.key")
+        assert val1 == "old"
+
+    # Update DB directly (simulating admin config write)
+    with migrated_engine.begin() as conn:
+        conn.execute(
+            sa.text("UPDATE system_config SET value = :v WHERE key = :k"),
+            {"k": "test.cache.key", "v": "new"},
+        )
+        # Manually invalidate (what the admin router does)
+        _system_config_cache.invalidate("test.cache.key")
+
+    # Read again — must get new value after invalidation
+    with migrated_engine.begin() as conn:
+        val2 = get_cached_config(conn, "test.cache.key")
+        assert val2 == "new"
+
+
+def test_admin_config_write_multiple_keys_cache_coherence(
+    migrated_engine: Engine,
+) -> None:
+    """Updating one config key must not invalidate unrelated cached keys."""
+    from shared.config_cache import _system_config_cache, get_cached_config
+
+    _system_config_cache.invalidate_all()
+
+    # Seed two config values
+    with migrated_engine.begin() as conn:
+        conn.execute(
+            sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)"),
+            {"k": "cache.key.a", "v": "value-a"},
+        )
+        conn.execute(
+            sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)"),
+            {"k": "cache.key.b", "v": "value-b"},
+        )
+
+    # Warm both caches
+    with migrated_engine.begin() as conn:
+        assert get_cached_config(conn, "cache.key.a") == "value-a"
+        assert get_cached_config(conn, "cache.key.b") == "value-b"
+
+    # Update and invalidate only key A
+    with migrated_engine.begin() as conn:
+        conn.execute(
+            sa.text("UPDATE system_config SET value = :v WHERE key = :k"),
+            {"k": "cache.key.a", "v": "new-a"},
+        )
+        _system_config_cache.invalidate("cache.key.a")
+
+    # Key A returns new value, key B still returns cached original
+    with migrated_engine.begin() as conn:
+        assert get_cached_config(conn, "cache.key.a") == "new-a"
+        assert get_cached_config(conn, "cache.key.b") == "value-b"

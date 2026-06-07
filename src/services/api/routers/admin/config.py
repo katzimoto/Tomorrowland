@@ -64,6 +64,10 @@ def admin_update_config(
                 "user_id": user.sub.hex,
             },
         )
+        # Invalidate cached value so the next request picks up the change immediately.
+        from shared.config_cache import invalidate_config_cache
+
+        invalidate_config_cache(key)
         row = (
             connection.execute(
                 sa.text("SELECT key, value, updated_at FROM system_config WHERE key = :key"),
@@ -112,5 +116,9 @@ def admin_reset_config(
                     """).bindparams(sa.bindparam("value", type_=sa.JSON())),
                 {"key": key, "value": value, "user_id": user.sub.hex},
             )
+        # Invalidate all cached config values after full reset.
+        from shared.config_cache import invalidate_config_cache
+
+        invalidate_config_cache()
         _audit_log(connection, user.sub, "reset", "system_config")
         return {"reset": True, "keys": list(SYSTEM_CONFIG_DEFAULTS.keys())}

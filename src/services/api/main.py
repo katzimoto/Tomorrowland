@@ -31,6 +31,7 @@ from shared.metrics import (
     status_class,
 )
 from shared.rate_limit import AgentRateLimiter
+from shared.redis_client import RedisClient
 from shared.request_context import reset_request_id, set_request_id
 
 AUTH_SCHEME = "Bearer "
@@ -141,6 +142,11 @@ def create_app(
         calls_per_window=app.state.settings.agent_rate_limit_calls_per_window,
         ask_corpus_calls_per_window=app.state.settings.agent_rate_limit_ask_corpus_calls_per_window,
     )
+
+    # Redis client — gracefully degrades when Redis is unavailable.
+    redis_client = RedisClient(url=app.state.settings.redis_url)
+    redis_client.connect()
+    app.state.redis_client = redis_client
 
     app.state.readiness_checker = ReadinessChecker(
         engine=app.state.engine,
