@@ -425,10 +425,10 @@ class PreviewService:
             source_id=source_id,
             job_type="enrich_document",
         )
-        # Commit the auto-enrich state before publishing to RabbitMQ so the
-        # enrich worker can see the pending_high status and the job row.
-        self._connection.commit()
-
+        # NB: do not commit self._connection here — it is owned by the request's
+        # transaction (engine.begin()); committing mid-handler closes that
+        # transaction and the caller's commit then 500s. The auto-enrich state
+        # is persisted when the request handler's transaction commits.
         if getattr(self, "_rabbit", None) is not None and getattr(self._rabbit, "_enabled", False):
             from services.pipeline.publisher import DocumentPublisher
 
