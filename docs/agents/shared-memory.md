@@ -8,6 +8,9 @@ Tomorrowland uses repo-owned Markdown memory as the canonical shared memory betw
 - `docs/memory/decisions.md` — durable architecture and product decisions.
 - `docs/memory/handoffs.md` — concise cross-agent handoffs.
 - `docs/memory/glossary.md` — Tomorrowland terms, service names, and domain vocabulary.
+- `docs/memory/archive/` — memory system's internal archive (compacted entries moved here by the memory lifecycle).
+
+> **Note:** `archive/` at the repo root is a separate top-level archive for historical project documents (implementation plans, agent missions). It is NOT the same as `docs/memory/archive/`. See `archive/README.md`.
 
 ## Agent database stance
 

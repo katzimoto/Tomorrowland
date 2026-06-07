@@ -28,3 +28,10 @@ Shared vocabulary for agents. Add terms only when they prevent repeated confusio
 - Mission: A scoped task brief with goal, context, non-goals, allowed changes, forbidden changes, verification, and done criteria.
 - Handoff: Concise final report allowing another agent to continue without rereading the entire chat.
 - Shared memory: Durable repo-owned project memory under `docs/memory/`.
+
+## Documentation terms
+
+- MkDocs: The project's documentation framework (Material theme). Wiki built via `mkdocs build --strict` and enforced in CI.
+- mkdocstrings: MkDocs plugin that auto-generates API reference pages from Python docstrings (Google-style).
+- archive/: Top-level repo directory for historical project documents (implementation plans, agent missions, superseded designs) moved out of `docs/` to keep the wiki lean. See `archive/README.md`.
+- Documentation policy: Every new feature must be documented. Change-type → docs mapping in `docs/agents/documenting-features.md`. Enforced via coding-behavior rule #6 and CI.

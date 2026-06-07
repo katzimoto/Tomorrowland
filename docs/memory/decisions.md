@@ -2,6 +2,29 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-06-08 — Documentation framework: MkDocs Material with CI enforcement
+
+Status: Active
+Source: feature/documentation-wiki branch, PR #647
+
+Decision:
+- MkDocs Material is the project's documentation framework. The wiki is built via `mkdocs build --strict` and enforced in CI.
+- Every new feature must be documented. The change-type → docs mapping lives in `docs/agents/documenting-features.md`.
+- Historical implementation plans, agent missions, and superseded designs live in `archive/` at the repo root — moved out of `docs/` to keep the wiki lean.
+- `docs/memory/archive/` is the shared-memory system's own internal archive and follows its own lifecycle independent of `archive/`.
+
+Reason:
+- The project had 121 markdown files in `docs/` with no build verification, no nav structure, and no policy for what gets documented.
+- Stale references (Elasticsearch) and historical Kafka design discussions are contained to `archive/` and won't confuse wiki readers. (Kafka/Redpanda remains the active NiFi ingestion bus — see `current-state.md` 2026-06-02.)
+- CI enforcement prevents documentation drift — every docs-touching PR runs `mkdocs build --strict`.
+
+Impact:
+- New features must include documentation updates matching the change-type mapping.
+- PR checklist item #6 in `AGENTS.md` enforces this at review time.
+- `docs/` is now 56 curated files; the wiki nav has 7 clean sections.
+
+---
+
 ## 2026-06-01 — Legacy QA UI removed; async pipeline ports need explicit cycle guards
 
 Status: Active

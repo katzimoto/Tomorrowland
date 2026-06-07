@@ -1,6 +1,46 @@
 # Tomorrowland Handoffs
 
 Shared record for concise cross-agent handoffs that remain useful after a chat or tool session ends.
+<!-- Compaction cutoff: 2026-05-30. Older entries archived to docs/memory/archive/handoffs.md. -->
+
+## 2026-06-08 — docs: documentation overhaul on feature/documentation-wiki
+
+Status: Active
+Source: PR #647, feature/documentation-wiki branch
+
+**Done:** MkDocs Material wiki built, 65+ historical docs archived, documentation policy established, README modernized, CI enforces mkdocs build.
+
+**Changed files:**
+- `mkdocs.yml` — MkDocs Material config with 7-section nav
+- `docs/index.md` — audience-routed home page
+- `docs/roadmap.md` — links to GitHub Issues/CHANGELOG/git log
+- `docs/api/*.md` — 6 auto-generated API Reference pages (mkdocstrings)
+- `docs/agents/documenting-features.md` — comprehensive change-type → docs mapping
+- `docs/agents/coding-behavior.md` — added rule #6 (Document Your Changes)
+- `docs/agents/templates.md` — added Documentation section to issue template
+- `docs/agents/token-efficiency.md` — archive/ location note
+- `docs/agents/issue-context-template.md` — archive/implementation/ paths
+- `docs/design/README.md` — landing page for Design & Specs
+- `docs/context/frontend.md`, `docs/context/search.md` — removed broken implementation/ links
+- `README.md` — modernized with badges, emoji grid, architecture diagram
+- `AGENTS.md` — Pre-PR checklist item #6 (documentation)
+- `.github/workflows/docs.yml` — new mkdocs job with build --strict
+- `pyproject.toml` — mkdocs-material + mkdocstrings in optional-dependencies.dev
+- `.gitignore` — site/ excluded
+- `archive/` — 65+ historical docs moved from docs/, README.md explains contents
+- `docs/memory/current-state.md` — documentation overhaul entry added
+
+**Key invariants:**
+- `mkdocs build --strict` passes clean — no broken links
+- Historical docs (implementation plans, agent missions, superpowers) live in `archive/`, not `docs/`
+- Every new feature must be documented per `docs/agents/documenting-features.md`
+- CI enforces via mkdocs job on docs-touching PRs
+- `docs/memory/archive/` intentionally left in place (shared-memory system's own lifecycle)
+
+**Next agent prompt:**
+> PR #647 is open on `feature/documentation-wiki` targeting `main`. Review the CI mkdocs job result, check the diff, and merge if approved. After merge, update docs/memory/current-state.md status to Done.
+
+---
 
 ## 2026-06-01 — review+fix+merge of #622, #623, #624 (bug-bounty + pipeline)
 
@@ -362,377 +402,6 @@ Source: issue #574 (S1), PR #584, Claude Code session
 > S1 (#544/#574) is on main. Pick up S2 (#575) — embedding adapter extensions. The `BaseModelProviderAdapter` protocol in `src/services/intelligence/adapters/base.py` is the extension point; add an `EmbeddingAdapter` sub-protocol there and implement the Ollama embedding adapter as the first concrete class. Do not touch service wiring (S5/#578).
 
 ---
-
-## 2026-05-29 — ci(e2e): PR-gated smoke workflows — issue #547, PR #567
-
-Status: Done — merged to main
-Source: issue #547, PR #567, Claude Code review session
-
-**Goal:** Wire #541's `smoke_document_flow.sh` into GitHub Actions and add Playwright E2E CI.
-
-**Changed files:**
-- `.github/workflows/smoke.yml` (new) — `playwright` + `document-flow` jobs; path-filtered triggers; Playwright browser cache; diagnostics cover migrate/postgres/elasticsearch; teardown `if: always()`
-- `frontend/package.json` — `test:e2e` + `test:e2e:ci` scripts added
-- `docs/development/testing.md` — local smoke commands documented
-- `docs/development/local-demo.md` — #547 placeholder replaced
-- `CHANGELOG.md` — Unreleased entry added
-
-**Review findings applied (commit 9a926f9):**
-- Missing `test:e2e:ci` script (acceptance-criteria gap) — added
-- Redundant step-level env vars — removed
-- Diagnostics expanded to include `migrate`, `postgres`, `elasticsearch`
-- Push trigger restricted to `main` only (was `feature/**`/`fix/**` too)
-- Playwright browser cache added (`actions/cache@v4` keyed on `package-lock.json`)
-
-**Watch:** Confirm `http://localhost:8080/health` exists as a real frontend endpoint — if missing, the health-wait loop burns the 35-minute budget on every run.
-
----
-
-## 2026-05-29 — feat(admin): ingestion pipeline status UI (#529 frontend slice)
-
-Status: Done — PR #569 merged to main
-Source: issue #529, PR #569, commit c068d6e
-
-**Goal:** Admin `/admin/ingestion` page with summary cards, filter bar, paginated job table, per-document trace expansion, and requeue action.
-
-**Review fixes applied (c068d6e):**
-- `onSuccess` now checks `result.requeued`: warning toast when 0 dead-letter jobs found, count-bearing success toast otherwise.
-- 3 new tests added for requeue: success path, requeued=0 warning, rejection error toast. 19 tests total, all passing.
-
-**Issue #529 closed** — both backend (PR #568) and frontend (PR #569) slices merged.
-
----
-
-## 2026-05-29 — feat(admin): ingestion pipeline status API (#529 backend slice)
-
-Status: Done — PR #568 merged to main (commit 7f78d5b)
-Source: issue #529, PR #566 (closed), PR #568
-
-**Goal:** Admin-only endpoints for operator visibility into pipeline job status.
-
-**Routes:**
-- `GET /admin/ingestion/status` — list jobs with status/source_id/since/limit/offset filters + per-filter summary
-- `GET /admin/ingestion/status/{document_id}` — per-document trace ordered by created_at ASC; returns 404 when no jobs
-
-**Key design notes:**
-- `summary_by_status` is filter-scoped, not global totals — consumers expecting global breakdown should be aware
-- `limit` has no upper bound (consistent with `/admin/jobs`); hardening deferred
-- `last_error` returned raw via `_sanitize_error` from `jobs.py` (already truncated/sanitized upstream); safe
-- `pipeline_jobs.document_id` has `ON DELETE CASCADE` — "deleted document with surviving jobs" cannot occur in production PostgreSQL; the defensive queries are harmless but the scenario is impossible
-
-**Changed files:**
-- `src/services/pipeline/jobs.py` — `list_ingestion_status()`, `list_document_trace()`
-- `src/services/api/schemas.py` — `IngestionStatusJob`, `IngestionStatusResponse`, `DocumentTraceJob`, `DocumentTraceResponse`
-- `src/services/api/routers/admin/ingestion_status.py` (new)
-- `src/services/api/main.py` — router registration
-- `tests/unit/test_pipeline_jobs.py` — 7 new tests
-- `tests/integration/test_admin_ingestion_status.py` — 8 new tests
-- `CHANGELOG.md`
-
-**Review blocker resolved:** Original PR #566 targeted wrong base branch (`feat/536-side-by-side-preview` instead of `main`) and had two tests documenting a cascade-impossible scenario. Both fixed in commit 75db186; new PR #568 targets main.
-
-**Next agent prompt:**
-> #529 backend slice is on main. Pick up the frontend admin page for #529, or the next queued issue.
-
----
-
-## 2026-05-29 — fix(security): ACL regression tests — issue #551
-
-Status: Done — tests merged to main; issue open
-Source: issue #551, Claude Code session
-
-**Goal:** Prove the H1–H5 ACL code fixes (already in source) with regression tests.
-
-**Changed files:**
-- `tests/integration/test_search_api.py` — added `test_search_admin_passes_allow_all_to_backends` (H1), `test_search_drops_orphaned_qdrant_vector` (H3)
-- `tests/integration/test_related_api.py` — fixed 2 broken `RelatedService(...)` calls missing `job_repo`; added `test_expertise_admin_passes_allow_all_to_qdrant` (H2), `test_expertise_subscription_excluded_when_no_group_overlap` (H4), `test_related_documents_router_uses_transitive_group_expansion` (H5); new imports: `TestClient`, `patch`, `hash_password`, `PipelineJobRepository`
-- `CHANGELOG.md` — Unreleased entry added
-
-**Verification:** 26 passed (2 excluded pre-existing failures); ruff clean; mypy clean.
-
-**Pre-existing test failures (not caused here):**
-- `test_search_es_failure_still_fails` — expects 500; ES degradation now returns 200 with empty results
-- `test_excessive_limit_on_comments_returns_422` — expects 422; gets 410 Gone for missing doc
-
-**Next agent prompt:**
-> Close issue #551. Fix the 2 pre-existing test failures (`test_search_es_failure_still_fails`, `test_excessive_limit_on_comments_returns_422`) in a focused patch PR. Then pick up #529 (admin ingestion debug page) or #552 (BM25 source-scope filtering).
-
----
-
-## 2026-05-29 — feat(intelligence): LLM provider abstraction (#528)
-
-Status: Done — PR open
-Source: issue #528, Claude Code session
-
-**Goal:** Allow operators to use any OpenAI-compatible local inference server (LM Studio, llama.cpp, vLLM) instead of Ollama-only for LLM generation. Air-gapped first; no openai SDK.
-
-**Changed files:**
-- `src/services/intelligence/llm_provider.py` (new) — `LLMProvider` Protocol, `OpenAICompatibleLLMProvider`, standalone `parse_json_array()`
-- `src/services/intelligence/factory.py` (new) — `build_llm_provider(settings)`
-- `src/services/intelligence/__init__.py` — exports `LLMProvider`, `OpenAICompatibleLLMProvider`, `build_llm_provider`
-- `src/services/intelligence/worker.py` — `OllamaClient` → `LLMProvider` type; `parse_json_array` from module
-- `src/services/rag/reranker.py`, `rag/service.py`, `chat/message_service.py` — type hints updated
-- `src/services/api/main.py` — `ollama_client` param → `llm_provider`; `app.state.llm_provider` set from factory
-- `src/services/api/routers/chat.py`, `admin/intelligence.py` — use `app.state.llm_provider`
-- `src/services/pipeline/runner.py`, `slow_worker.py`, `intelligence_consumer.py` — use `build_llm_provider(settings)`
-- `src/shared/config.py` — `llm_provider`, `llm_base_url`, `llm_model` fields added
-- `.env.example` — `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL` commented block added
-- `tests/unit/test_llm_provider.py` (new) — 18 tests
-
-**Key constraint:** `generate_stream` is in the protocol; `OpenAICompatibleLLMProvider` raises `NotImplementedError` for streaming (OpenAI SSE format out of scope per issue). Streaming chat endpoint only works with `LLM_PROVIDER=ollama`.
-
-**Verification:** ruff clean, mypy strict clean (8 files), 18 new + 36 existing related unit tests pass.
-
-**Next agent prompt:**
-> Pick up issue #529 (ingestion pipeline debug status page) or #530 (citation grounding). Both are status:next and unblocked.
-
----
-
-## 2026-05-28 — dist: v0.2.0 air-gapped release artifact
-
-Status: Active — files ready; CI build required before distributing
-Source: Claude Code session
-
-**Goal:** Produce a deployment-ready `dist/tomorrowland-release-v0.2.0/` replacing `v1.0-rc3` with correct version, new models (qwen3.5:35b-a3b, qwen3:14b, qwen3-embedding:8b), and split-Ollama compose.
-
-**Changed files in `dist/tomorrowland-release-v0.2.0/`:**
-- `release-manifest.json` — v0.2.0, 16ff0ab, v0.2.0 image tags, 3-bundle section, split ollama volumes
-- `docker-compose.airgap.yml` — ollama → ollama-llm + ollama-embed; EMBEDDING_PROVIDER=ollama default
-- `.env.airgap.example` — version stamp, EMBEDDING_PROVIDER=ollama
-- `README-airgap.txt` — all 3 bundles, correct containers and sizes
-- `docs/air-gapped-deployment.md` — full mistral → qwen3.5:35b-a3b sweep; 3-bundle table; port 11435 for embed validation
-- `docs/air-gapped-upgrade.md` — 3-bundle upgrade path; per-container validation commands; ollama_llm/embed volume names
-- `docs/production-compose.md` — volume table split; pull commands per container
-- `scripts/validate-ollama-model.sh` — default model → qwen3.5:35b-a3b
-- `scripts/load-ollama-model-bundle.sh` — usage updated for --compose-service
-- `checksums.txt` — regenerated
-
-**New bundle metadata dirs:**
-- `dist/tomorrowland-ollama-bundle-qwen3.5-35b-a3b-v0.2.0/` (model-manifest.json + README)
-- `dist/tomorrowland-ollama-bundle-qwen3-14b-v0.2.0/` (model-manifest.json + README)
-- `dist/tomorrowland-ollama-bundle-qwen3-embedding-8b-v0.2.0/` (model-manifest.json + README)
-
-**Verification:** Zero stale `mistral`/`v1.0-rc3`/`ollama_data`/`nomic-embed-text`/`mxbai-embed-large` strings in any text file in the release directory. 138 occurrences of correct v0.2.0/qwen3/ollama-llm/ollama-embed strings confirmed.
-
-**Remaining (CI/build-time):**
-1. Build and tag Docker images as `tomorrowland/backend:v0.2.0`, `frontend:v0.2.0`, `libretranslate:v0.2.0`.
-2. Re-bundle `images/tomorrowland-images.tar` containing the v0.2.0-tagged images.
-3. `sha256sum images/tomorrowland-images.tar >> dist/tomorrowland-release-v0.2.0/checksums.txt`
-4. `tar czf dist/tomorrowland-release-v0.2.0.tar.gz -C dist tomorrowland-release-v0.2.0/`
-5. `sha256sum dist/tomorrowland-release-v0.2.0.tar.gz > dist/tomorrowland-release-v0.2.0.tar.gz.sha256`
-6. Split image tar into 1900m parts: `split -b 1900m images.tar tomorrowland-images-v0.2.0.tar.part-`
-7. Bundle each model dir into its `.tar.gz` and compute `.sha256`.
-
-**Operator note — upgrading from rc3:**
-- `ollama` service is now two services (`ollama-llm` + `ollama-embed`). Volumes renamed: `ollama_data` → `ollama_llm_data` + `ollama_embed_data`. Models must be re-loaded into both containers after upgrade.
-- `EMBEDDING_PROVIDER=ollama` is now the default in `.env.airgap.example` (was empty).
-
-**Next agent prompt:**
-> Run the CI build pipeline for v0.2.0: build and tag Docker images, bundle images/tomorrowland-images.tar, update checksums.txt with the image tar hash, produce the platform archive and split parts, and bundle each of the 3 model directories into their .tar.gz files with .sha256 companions.
-
----
-
-## 2026-05-28 — refactor(pipeline): enforce extraction boundary — only parse/worker may call .extract()
-
-Status: Done — pushed to main
-Source: Claude Code session
-
-**Goal:** No worker or service outside the designated extraction stage may call `ExtractorRegistry.extract()` directly. All non-extractor callers must read pre-extracted text from `document_payloads`.
-
-**Changes (7 files):**
-- `pipeline/vector_worker.py`: removed `extractor` param from `run_vector_once`/`run_vector_loop`; removed fallback extraction block; removed `ExtractorRegistry` import.
-- `pipeline/slow_worker.py`: removed `extractor_registry` constructor param and `self._extractor`; `process_document`/`_run`/`_run_versioned`/`_run_legacy` now accept `content_text: str = ""`; `run_enrich_once` fetches payload and passes `content_text` down.
-- `related/service.py`: replaced `extractor_registry` constructor param with `job_repo: PipelineJobRepository`; `related_documents` reads `content_text` from payload.
-- `api/routers/documents.py`: both `RelatedService(...)` calls pass `job_repo=PipelineJobRepository(connection)`.
-- `api/routers/alerts.py`: admin re-match endpoint reads payload instead of calling extractor.
-- `api/routers/admin/intelligence.py`: both trigger + summary-regenerate endpoints read payload.
-- `tests/unit/test_slow_worker.py`: `_FakeEnrichRepo` gains `get_payload()`; assertion updated.
-
-**Intentional exception:** `preview/service.py:302` — last-resort fallback after payload check fails, guarded by file-exists check, intentional for pre-pipeline uploads.
-
-**Verification:** 8/8 slow-worker unit tests pass; zero `.extract()` calls outside `extraction/`, `pipeline/worker.py`, `pipeline/parse_worker.py`.
-
----
-
-## 2026-05-27 — feat(extraction): uniform ExtractionResult envelope — commit 5e46f1f
-
-Status: Done — pushed to main
-Source: Claude Code session
-
-**Goal:** Pipeline workers fully agnostic to file type — no `hasattr(extractor, "extract_attachments")` branch anywhere.
-
-**Changes:**
-- `base.py`: `ExtractionResult(text: str, attachments: list[AttachmentData] = [])` dataclass; `Extractor` protocol returns `ExtractionResult`.
-- `__init__.py`: exports `ExtractionResult`.
-- Container extractors (eml, msg_extractor, zip_extractor, tar_extractor): single-pass extraction — body text + attachment bytes in one file-open block; public `extract_attachments()` method removed.
-- 16 non-container extractors: `return ExtractionResult(text=...)`.
-- `registry.py`: `extract() -> ExtractionResult`; sniff-and-retry checks `result.text`.
-- `pipeline/worker.py`: unpacks `result.text` + `result.attachments`; `hasattr` branch gone; `_extraction_result: ExtractionResult | None = None` guards attachment path (None when `pre_extracted_text` bypasses file extraction).
-- `pipeline/parse_worker.py`, `slow_worker.py`, `vector_worker.py`, `related/service.py`, `preview/service.py`, `alerts.py`, `intelligence.py`: `.text` suffix added.
-- All 25 extraction + pipeline unit test files updated to `.text` assertions.
-
-**Verification:** 204 unit tests pass; mypy 0 new errors (8 pre-existing import-untyped warnings in unchanged files).
-
----
-
-## 2026-05-27 — fix(frontend): 5 UX bugs across documents, chat, admin, and annotations
-
-Status: Done — pushed to main
-Source: Claude Code session
-
-**Bugs fixed (4 files):**
-
-1. **`FidelityStatusBar.tsx` — silent download failure** — "download original" button had no `.catch()`; added `r.ok` check and `showToast("error", …)` on failure.
-2. **`InsightPane.tsx` (AnnotationsTab) — no Enter-to-submit** — annotation input lacked `onKeyDown`; inconsistent with `CommentComposer`/`AnnotationEditor`. Added Enter handler guarded by non-empty + not-pending.
-3. **`AdminAddSourceWizard.tsx` — empty array treated as loading** — `!connectorTypes.length` was the loading gate; a system with zero connectors would show "Loading…" forever. Changed to `isLoading: connectorTypesLoading` from `useQuery`.
-4. **`ChatWindow.tsx` — no retry on session load error** — error state rendered `EmptyState` with no recovery action. Added `variant="secondary"` Button that invalidates the query (uses `t.chat.retry`).
-5. **`InsightPane.tsx` cache key mismatch (`["doc-annotations"]` vs `["annotations"]`)** — AnnotationsTab used a different key than `AnnotationList`/`AnnotationEditor`; mutations on one never invalidated the other (up to 2 min stale). Standardized all InsightPane keys to `["annotations", docId]`.
-
-**Verification:** `tsc --noEmit` — 0 errors.
-
----
-
-## 2026-05-27 — fix(extraction): generic Office extraction — commit 023f9e0
-
-Status: Done — pushed to main
-Source: Claude Code session
-
-**Root cause (4 bugs):**
-
-1. **XLS never extracted** — `application/vnd.ms-excel` had no extractor; fell to GenericExtractor which returns `""` for OLE binary files.
-2. **DOCX/XLSX/PPTX with wrong stored MIME** — `application/zip` routed to ZipExtractor (returns XML file-listing, not text); `application/octet-stream` routed to GenericExtractor (returns `""`).
-3. **Office MIME variants unregistered** — `.docm`, `.dotx`, `.pptm`, `.potx`, `.xltx`, `.xltm`, and `application/msword`-mislabeled DOCX all fell to GenericExtractor.
-4. **Settings not wired in 3 workers** — `parse_worker`, `slow_worker`, `vector_worker` created `ExtractorRegistry()` without `enable_ocr`/`enable_legacy_office` from Settings.
-
-**Fix:**
-- `xls.py` — new `XlsExtractor` using `xlrd` (pure Python); registered for `application/vnd.ms-excel`. `xlrd>=2.0` in pyproject.toml.
-- `mime_detector.py` — new `sniff_office_mime(path)`: reads ZIP contents (stdlib) to identify DOCX/XLSX/PPTX/ODF; detects OLE magic bytes for legacy. Used as last-resort in `detect()`.
-- `registry.py` — sniff-and-retry in `extract()` for `application/zip` and `application/octet-stream` (always) and any MIME when result is empty. New aliases for all Office MIME variants.
-- `parse_worker`, `slow_worker`, `vector_worker` — pass settings flags to `ExtractorRegistry`.
-
-**Remaining limit:** `.doc` / `.ppt` (binary OLE) still need `ENABLE_LEGACY_OFFICE=true` + LibreOffice. No pure-Python library covers these.
-
-**Tests:** 51 tests pass; 20 new (16 sniffing + 4 XLS). Ruff + mypy --strict clean.
-
----
-
-## 2026-05-26 — fix/office-extraction-empty-text — 3-bug sweep (PR #521)
-
-Status: Done — merged to main
-Source: Claude Code session
-
-**Root cause:** Three independent bugs all produced empty text for PPTX/DOCX documents.
-
-**Bug 1 — preview snippet from deleted temp files (`src/services/preview/service.py`)**
-`_generate_snippet` fell through to file re-extraction when no translation was found. SMB/Atlassian connectors delete the temp file after pipeline processing — file re-extraction always returned `""` even though `content_text` was safely stored in `document_payloads`. Fix: read `document_payloads.content_text` before the file fallback. Primary-key lookup; negligible overhead.
-
-**Bug 2 — content_text lost on retry (`src/services/pipeline/consumer_base.py`)**
-The manual retry path (`attempt >= retry_limit`, `< max_attempts`) rebuilt the retry JSON without `content_text`. Translate/embed/index workers all received `content_text=""` on retried messages. Fix: call `job_repo.get_payload(document_id)` in the retry branch and include `content_text` when the payload exists.
-
-**Bug 3 — extractor exception gaps (`src/services/extraction/pptx_extractor.py`, `docx.py`)**
-Both caught `(OSError, KeyError, PackageNotFoundError)` but not `zipfile.BadZipFile` or `ValueError`. Corrupted or mis-identified ZIP-based Office files propagated unhandled exceptions. Fix: added `zipfile.BadZipFile` and `ValueError` to both tuples.
-
-**Changed files:**
-- `src/services/preview/service.py`
-- `src/services/pipeline/consumer_base.py`
-- `src/services/extraction/pptx_extractor.py`
-- `src/services/extraction/docx.py`
-- `tests/unit/test_preview_service.py` (new)
-- `tests/unit/test_extraction_pptx.py` (+2 tests)
-- `tests/unit/test_extraction_docx.py` (+2 tests)
-- `tests/unit/test_consumer_base.py` (+2 tests)
-
-**Verification:** 17/17 targeted tests pass; ruff clean; mypy clean (4 source files, strict).
-
-**Remaining risks:**
-- Early retry attempts (attempt < `retry_limit` = `min(3, max_attempts)`) still use `basic_nack` → RabbitMQ DLQ re-route which does not carry `content_text`. Downstream workers can re-read from `document_payloads` if needed.
-- `_generate_snippet` now makes one additional primary-key DB query per non-translated preview; negligible at current scale.
-
----
-
-## 2026-05-26 — pipeline connector parity — 6-bug sweep
-
-Status: Done — committed to main
-Source: Claude Code session
-
-**Root cause:** Both ingestion paths (`sync-now` API and scheduler) used hard-coded `connector_type == "smb"` string checks instead of capability-based checks, causing SMB temp files to be deleted too early (before the async worker reads them), Atlassian attachment temp files to leak, RabbitMQ messages to never be published from the scheduler, generator-level exceptions to be silently swallowed, and a logically unreachable `"failed"` sync outcome.
-
-**Bugs fixed:**
-1. **Temp file deleted before worker reads it** — `sync-now` called `os.unlink` on `item.path` inside the ingestion loop; the pipeline worker needs the file after the HTTP request returns. Removed the early unlink entirely.
-2. **Atlassian temp files leaked** — SMB-only `os.unlink` never ran for Confluence/Jira attachment paths. Moved cleanup into `PipelineWorker._run()` via `_maybe_delete_connector_temp()`: deletes `doc.path` only if it lives under `tempfile.gettempdir()` (SMB + Atlassian), leaves Folder/NiFi staged files alone.
-3. **Scheduler never published RabbitMQ messages** — `_sync_source` returned nothing; messages were enqueued in `pipeline_jobs` but never published. Added `_publish_scheduled_rabbit_messages()` mirroring the sync-now API path; refactored `_run_scheduled_syncs` to accept `engine` + `settings` and publish post-commit.
-4. **`sync_outcome = "failed"` logically unreachable** — condition was `failed_discovery > 0 and discovered == 0` which can never be true. Fixed to `discovered > 0 and failed_discovery == discovered`.
-5. **Generator exception swallowed** — `try/except` wrapped `connector.fetch_documents()` (the call), not the iteration. Since all real connectors are generators, the call always succeeds; mid-iteration errors (page 2 network failure etc.) were uncaught. Moved `try/except` around the `for item in documents:` loop.
-6. **NiFi missing from `_classify_connection_error`** — Folder, SMB, Confluence, Jira all had connector-specific error classification; NiFi was absent, defaulting to a generic branch. Added NiFi branch for `staging_root`/`does not exist`/`not a directory` → `config_invalid` and `connection`/`timeout`/`refused` → `unreachable`.
-
-**Changed files:**
-- `src/services/api/_helpers.py` — Bug 6: NiFi branch in `_classify_connection_error`
-- `src/services/api/routers/admin/ingestion.py` — Bugs 1+4: removed early `os.unlink`; fixed `sync_outcome` condition
-- `src/services/pipeline/worker.py` — Bugs 1+2: added `_maybe_delete_connector_temp()`, called after extraction
-- `src/services/pipeline/scheduler.py` — Bugs 1+2+3+4+5: refactored to per-source transactions, added RabbitMQ publish, fixed generator iteration guard, fixed `sync_outcome`
-- `tests/integration/test_pipeline.py` — updated SMB cleanup test (temp files now preserved for worker)
-- `tests/unit/test_pipeline_worker.py` — 4 new tests for `_maybe_delete_connector_temp`
-
-**Verification:** 80 unit tests passed, 35 integration tests passed, ruff clean, mypy clean.
-
-**Remaining risks:**
-- `_maybe_delete_connector_temp` relies on `Path.is_relative_to(tempfile.gettempdir())`. On systems where a connector writes to a custom temp dir outside `gettempdir()` (e.g. Docker volume mounts), files would not be cleaned up. A future `ConnectorDocument.owned_by_caller: bool` flag would be cleaner.
-- NiFi `staging_root` temp files are permanent staged paths — not cleaned up by the new helper (correct behavior: NiFi manages its own staging). No change needed, but worth noting.
-
-**Next agent prompt:**
-> Continue the ACL HIGH items from `docs/context/acl-audit.md`: `/search` admin bypass, `/expertise` admin bypass, stub `SearchResultItem`, transitive-group expansion, and `/expertise` subscription leak.
-
----
-
-## 2026-05-26 — annotations router — security fixes (delete_reply + list_replies)
-
-Status: Done — committed to main
-Source: Claude Code session
-
-**Changed files:**
-- `src/services/annotations/repository.py` — added `get_reply_by_id()` (returns non-deleted reply by id)
-- `src/services/api/routers/annotations.py` — extracted `_get_annotation_or_404_with_access()`; fixed `delete_reply` (missing `assert_doc_access`); fixed `list_replies` (private annotation visibility); refactored `update_annotation`, `delete_annotation`, `create_reply` to use helper
-- `tests/integration/test_annotations_api.py` — 2 regression tests: `test_delete_reply_blocked_without_doc_access`, `test_list_replies_hidden_for_private_annotation`
-
-**Verification:** 22 integration tests passed (ruff clean, mypy clean).
-
-**Remaining risks:**
-- `create_reply` does not gate on annotation visibility (can reply to a private annotation if you have doc access + know annotation ID). Pre-existing; deliberate policy decision needed before fixing.
-- ACL audit HIGH items still open — see current-state.md.
-
-**Next agent prompt:**
-> Implement the ACL audit HIGH items from `docs/context/acl-audit.md`: fix `/search` and `/expertise` admin bypass, drop stub `SearchResultItem`, add transitive-group expansion, and tighten the `/expertise` subscription leak. These block the D2 PR.
-
-## 2026-05-26 — fix/extractor-bugs — 15-bug sweep (extractors + translation pipeline)
-
-Status: Merged — main
-Source: Claude Code session
-
-**Changed files:**
-- `src/services/extraction/html.py` — depth counter for nested skip tags; latin-1 fallback
-- `src/services/extraction/rtf.py` — latin-1 fallback for Win-1252 RTF files
-- `src/services/extraction/xml_extractor.py` — ET.parse() + itertext() (tag stripping + encoding)
-- `src/services/extraction/docx.py` — merged-cell dedup by `_tc` identity
-- `src/services/extraction/msg_extractor.py` — `msg.close()` in finally; contextlib.suppress import
-- `src/services/extraction/xlsx.py` — `wb.close()` in finally block
-- `src/services/extraction/epub.py` — re.DOTALL on `_TAG_RE`
-- `src/services/extraction/eml.py` — filename-guessed MIME when no explicit Content-Type
-- `src/services/extraction/registry.py` — remove self-alias + dead x-zip-compressed entry
-- `src/services/pipeline/translation_worker.py` — graceful skip for empty content_text
-- `src/services/pipeline/slow_worker.py` — `type(exc).__name__` in loop error log
-- `src/services/pipeline/translate_worker.py` — use doc.target_language (default "en") instead of hardcoded "en"
-- `tests/unit/test_extractor_bug_fixes.py` — 20 regression tests (new file; +2 for bug 15)
-- `tests/unit/test_translation_worker.py` — 2 tests updated for new graceful-skip behavior
-
-**Verification:** 28/28 targeted tests pass. 28 pre-existing failures in `test_compose_volumes.py` are unrelated.
-
-**Remaining risks:**
-- `test_compose_volumes.py` pre-existing failures need a separate fix (airgap compose YAML shape).
-- `.doc`/`.xls`/`.ppt` (legacy Office) still return empty unless `ENABLE_LEGACY_OFFICE=true`.
-- Scanned PDFs still need `ENABLE_OCR=true` for any text extraction.
-
-**Next agent prompt:**
-- Consider a backfill job to re-extract documents that had XML, RTF, or HTML files previously returning empty.
 
 ## Handoff template
 
