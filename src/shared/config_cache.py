@@ -3,7 +3,7 @@
 Avoids repeated ``SELECT … FROM system_config WHERE key = …`` lookups on every
 API request by caching values in-process with a configurable TTL (default 30 s).
 
-Thread-safe: single re-entrant lock per cache instance.
+Thread-safe: single lock per cache instance.
 """
 
 from __future__ import annotations
@@ -77,6 +77,8 @@ def get_cached_config(connection: Any, key: str) -> str | None:
     because we cannot distinguish a stored None from a missing entry. This is
     an intentional trade-off — system_config values are rarely NULL in practice.
     """
+    import json
+
     import sqlalchemy as sa
 
     cached = _system_config_cache.get(key)
@@ -93,7 +95,18 @@ def get_cached_config(connection: Any, key: str) -> str | None:
     )
     if row is None:
         return None
-    value: str | None = str(row["value"]) if row["value"] is not None else None
+    raw_value = row["value"]
+    if raw_value is None:
+        value: str | None = None
+    elif isinstance(raw_value, (dict, list)):
+        # system_config.value is sa.JSON(); on Postgres the driver may return
+        # a deserialised dict/list.  Serialise back to a JSON string so that
+        # downstream callers always receive a str (e.g. json.loads(value)).
+        value = json.dumps(raw_value)
+    elif isinstance(raw_value, bool):
+        value = "true" if raw_value else "false"
+    else:
+        value = str(raw_value)
     _system_config_cache.set(key, value)
     return value
 

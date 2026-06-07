@@ -64,8 +64,8 @@ class RedisClient:
             pipe.zcard(key)
             pipe.zadd(key, {str(now_ms): now_ms})
             pipe.expire(key, window_seconds + 1)
-            _, count, _, _ = pipe.execute()
-            return int(count) < max_calls
+            _, count_raw, _, _ = pipe.execute()
+            return int(count_raw) < max_calls
         except Exception:
             logger.debug("Redis rate_limit_check failed — allowing request")
             return True

@@ -432,10 +432,12 @@ def test_rag_retrieval_uses_thread_pool_executor() -> None:
     assert len(submit_calls) >= 2, (
         f"Expected >= 2 submit calls, got {len(submit_calls)}: {submit_calls}"
     )
-    # Verify the actual backends (not just any two submits) were involved
-    assert any("search" in c for c in submit_calls), (
-        f"Expected a search_rag call in submit_calls: {submit_calls}"
+    # Verify the actual backends (not just any two submits) were involved.
+    # The tracked names come from getattr(fn, "__name__", str(fn)) on the
+    # callables submitted to the pool.
+    assert any("search_rag" in c for c in submit_calls), (
+        f"Expected search_rag in submit_calls: {submit_calls}"
     )
-    assert any("search" in c for c in submit_calls[1:]), (
-        f"Expected multiple search submissions, got: {submit_calls}"
+    assert any("search" in c and c != submit_calls[0] for c in submit_calls[1:]), (
+        f"Expected second search submission, got: {submit_calls}"
     )
