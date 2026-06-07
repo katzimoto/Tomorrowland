@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock
-from uuid import UUID
 
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
@@ -17,7 +16,7 @@ from services.documents.repository import (
 )
 from services.search.qdrant import QdrantSearchClient
 from shared.config import Settings
-from shared.db import db_uuid
+from shared.db import db_uuid, to_uuid
 
 TEST_JWT_SECRET = "x" * 32
 
@@ -104,14 +103,14 @@ def test_list_translation_versions(
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version_repo.create_version(
-            document_id=UUID(document_id),
+            document_id=to_uuid(document_id),
             label="Manual en",
             quality="high",
             request_type="manual",
             target_language="en",
         )
         version_repo.create_version(
-            document_id=UUID(document_id),
+            document_id=to_uuid(document_id),
             label="Auto-enrich",
             quality="high",
             request_type="auto_enrich",
@@ -201,7 +200,7 @@ def test_preview_with_translation_version(
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version = version_repo.create_version(
-            document_id=UUID(document_id),
+            document_id=to_uuid(document_id),
             label="Manual en",
             quality="high",
             request_type="manual",
@@ -209,7 +208,7 @@ def test_preview_with_translation_version(
         )
         version_id = str(version["id"])
         version_repo.update_version_status(
-            UUID(version_id), "available", translated_text="Translated content here."
+            to_uuid(version_id), "available", translated_text="Translated content here."
         )
 
     client = TestClient(
@@ -248,7 +247,7 @@ def test_preview_with_unavailable_version_falls_back(
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version = version_repo.create_version(
-            document_id=UUID(document_id),
+            document_id=to_uuid(document_id),
             label="Manual en",
             quality="high",
             request_type="manual",
@@ -336,7 +335,7 @@ def test_slow_worker_with_version_repository(
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version = version_repo.create_version(
-            document_id=UUID(document_id),
+            document_id=to_uuid(document_id),
             label="Manual en",
             quality="high",
             request_type="manual",
@@ -344,7 +343,7 @@ def test_slow_worker_with_version_repository(
         )
         version_id = str(version["id"])
         doc_repo = DocumentRepository(connection)
-        doc_repo.update_translation_quality(UUID(document_id), "pending_high")
+        doc_repo.update_translation_quality(to_uuid(document_id), "pending_high")
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock()
@@ -363,7 +362,7 @@ def test_slow_worker_with_version_repository(
             qdrant_client=mock_qdrant,
             version_repository=version_repo,
         )
-        worker.process_document(UUID(document_id))
+        worker.process_document(to_uuid(document_id))
 
     # Verify version updated to available
     with migrated_engine.begin() as connection:
@@ -373,7 +372,7 @@ def test_slow_worker_with_version_repository(
                 FROM document_translation_versions
                 WHERE id = :id
                 """),
-            {"id": db_uuid(UUID(version_id))},
+            {"id": db_uuid(to_uuid(version_id))},
         ).fetchone()
         assert row[0] == "available"
         assert row[1] == "Translated hello world document content."
@@ -382,7 +381,7 @@ def test_slow_worker_with_version_repository(
     with migrated_engine.begin() as connection:
         row = connection.execute(
             sa.text("SELECT translation_quality FROM documents WHERE id = :id"),
-            {"id": db_uuid(UUID(document_id))},
+            {"id": db_uuid(to_uuid(document_id))},
         ).fetchone()
         assert row[0] == "high"
 
@@ -408,7 +407,7 @@ def test_slow_worker_version_failure_marks_version_failed(
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version = version_repo.create_version(
-            document_id=UUID(document_id),
+            document_id=to_uuid(document_id),
             label="Manual en",
             quality="high",
             request_type="manual",
@@ -416,7 +415,7 @@ def test_slow_worker_version_failure_marks_version_failed(
         )
         version_id = str(version["id"])
         doc_repo = DocumentRepository(connection)
-        doc_repo.update_translation_quality(UUID(document_id), "pending_high")
+        doc_repo.update_translation_quality(to_uuid(document_id), "pending_high")
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     mock_translator = MagicMock()
@@ -435,7 +434,7 @@ def test_slow_worker_version_failure_marks_version_failed(
             qdrant_client=mock_qdrant,
             version_repository=version_repo,
         )
-        worker.process_document(UUID(document_id))
+        worker.process_document(to_uuid(document_id))
 
     # Verify version is failed, document status is not failed
     with migrated_engine.begin() as connection:
@@ -445,13 +444,13 @@ def test_slow_worker_version_failure_marks_version_failed(
                 FROM document_translation_versions
                 WHERE id = :id
                 """),
-            {"id": db_uuid(UUID(version_id))},
+            {"id": db_uuid(to_uuid(version_id))},
         ).fetchone()
         assert version_row[0] == "failed"
 
         doc_row = connection.execute(
             sa.text("SELECT status FROM documents WHERE id = :id"),
-            {"id": db_uuid(UUID(document_id))},
+            {"id": db_uuid(to_uuid(document_id))},
         ).fetchone()
         assert doc_row[0] != "failed"
 
@@ -474,24 +473,24 @@ def test_preview_defaults_to_latest_available_translation(
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version1 = version_repo.create_version(
-            document_id=UUID(document_id),
+            document_id=to_uuid(document_id),
             label="v1",
             quality="fast",
             request_type="manual",
             target_language="en",
         )
         version_repo.update_version_status(
-            UUID(version1["id"]), "available", translated_text="First translation."
+            to_uuid(version1["id"]), "available", translated_text="First translation."
         )
         version2 = version_repo.create_version(
-            document_id=UUID(document_id),
+            document_id=to_uuid(document_id),
             label="v2",
             quality="high",
             request_type="manual",
             target_language="en",
         )
         version_repo.update_version_status(
-            UUID(version2["id"]), "available", translated_text="Latest translation."
+            to_uuid(version2["id"]), "available", translated_text="Latest translation."
         )
 
     client = TestClient(
@@ -528,14 +527,14 @@ def test_preview_default_falls_back_when_no_available_translation(
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version = version_repo.create_version(
-            document_id=UUID(document_id),
+            document_id=to_uuid(document_id),
             label="Pending en",
             quality="fast",
             request_type="manual",
             target_language="en",
         )
         version_repo.update_version_status(
-            UUID(version["id"]), "pending", translated_text="Should not appear."
+            to_uuid(version["id"]), "pending", translated_text="Should not appear."
         )
 
     client = TestClient(
@@ -575,7 +574,7 @@ def test_preview_does_not_render_cross_document_translation_version(
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version = version_repo.create_version(
-            document_id=UUID(doc_b_id),
+            document_id=to_uuid(doc_b_id),
             label="Doc B en",
             quality="high",
             request_type="manual",
@@ -583,7 +582,7 @@ def test_preview_does_not_render_cross_document_translation_version(
         )
         version_b_id = version["id"]
         version_repo.update_version_status(
-            UUID(version_b_id),
+            to_uuid(version_b_id),
             "available",
             translated_text="Document B translated text.",
         )
