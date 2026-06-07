@@ -232,7 +232,7 @@ def test_rag_trace_records_dedup_filter_stage() -> None:
     srv = _make_service(chunks=chunks, meili_chunks=chunks)
     result = srv.answer("test question", group_ids=["group-1"])
     stage_names = [s.stage for s in result.retrieval_trace.stages]
-    assert "dedup_filter" in stage_names
+    assert "dedup" in stage_names
 
 
 def test_rag_trace_records_final_context_stage() -> None:

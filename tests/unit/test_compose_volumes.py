@@ -124,7 +124,9 @@ class TestComposeVolumeDefaults:
         assert names.get("grafana_data") == "tomorrowland_grafana_data"
 
     def test_airgap_compose_defaults(self) -> None:
-        config = _compose_config(COMPOSE_AIRGAP_FILE)
+        # ollama is gated behind the opt-in "local-llm" profile in airgap; activate
+        # it so ollama_data resolves (other volumes are unaffected by the profile).
+        config = _compose_config(COMPOSE_AIRGAP_FILE, profiles=["local-llm"])
         names = _volume_names(config)
         for key, default_name in [
             ("files_data", "tomorrowland_files_data"),
@@ -161,7 +163,9 @@ class TestComposeVolumeDefaults:
 
     @pytest.mark.parametrize("key,expected_target", list(AIRGAP_VOLUMES.items()))
     def test_airgap_mount_targets(self, key: str, expected_target: str) -> None:
-        config = _compose_config(COMPOSE_AIRGAP_FILE)
+        # ollama is gated behind the opt-in "local-llm" profile in airgap; activate
+        # it so ollama_data resolves (other volumes are unaffected by the profile).
+        config = _compose_config(COMPOSE_AIRGAP_FILE, profiles=["local-llm"])
         found = False
         for service_name in config.get("services", {}):
             target = _service_mount_target(config, service_name, key)
@@ -202,7 +206,7 @@ class TestComposeVolumeCustomization:
             "TOMORROWLAND_FILES_VOLUME": "airgap_files",
             "TOMORROWLAND_OLLAMA_VOLUME": "airgap_ollama",
         }
-        config = _compose_config(COMPOSE_AIRGAP_FILE, env)
+        config = _compose_config(COMPOSE_AIRGAP_FILE, env, profiles=["local-llm"])
         names = _volume_names(config)
         assert names["files_data"] == "airgap_files"
         assert names["ollama_data"] == "airgap_ollama"
@@ -242,7 +246,7 @@ class TestComposeVolumeCustomization:
         env = {
             "TOMORROWLAND_FILES_VOLUME": "custom_files",
         }
-        config = _compose_config(COMPOSE_AIRGAP_FILE, env)
+        config = _compose_config(COMPOSE_AIRGAP_FILE, env, profiles=["local-llm"])
         for key, expected_target in AIRGAP_VOLUMES.items():
             found = False
             for service_name in config.get("services", {}):
