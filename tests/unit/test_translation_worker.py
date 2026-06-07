@@ -51,6 +51,9 @@ class _FakeJobRepo:
     def update_translated_text(self, document_id: UUID, translated_text: str) -> None:
         self.translated_text_updates.append((document_id, translated_text))
 
+    def commit(self) -> None:
+        pass
+
     def enqueue_document(self, *, document_id: UUID, source_id: UUID, job_type: str) -> UUID:
         self.enqueued.append(
             {

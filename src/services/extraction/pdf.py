@@ -61,10 +61,17 @@ class PdfExtractor:
         pages_text: list[str] = []
         segments: list[LocationSegment] = []
         offset = 0
+        # Accessing reader.pages lazily raises on an undecryptable (encrypted)
+        # PDF; treat it as empty rather than letting it propagate.
+        try:
+            len(reader.pages)
+        except (FileNotDecryptedError, PdfStreamError, ValueError) as exc:
+            logger.debug("PDF pages unavailable for path=%s: %s", path, exc)
+            return ExtractionResult(text="")
         for i, page in enumerate(reader.pages, 1):
             try:
                 page_text = page.extract_text() or ""
-            except (OSError, ValueError, PdfStreamError) as exc:
+            except (OSError, ValueError, PdfStreamError, FileNotDecryptedError) as exc:
                 logger.debug(
                     "PDF page %d extraction failed for path=%s: %s; continuing",
                     i,

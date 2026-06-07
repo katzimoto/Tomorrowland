@@ -158,8 +158,11 @@ def sync_now(
             # Guard against concurrent syncs by locking the source row.
             # SELECT ... FOR UPDATE serializes access so two sync-now calls
             # or a sync-now + scheduler tick cannot create duplicate sync runs.
+            # SQLite has no row locks (and rejects the FOR UPDATE syntax); it
+            # serializes writes at the db level, so omit the clause there.
+            lock_clause = " FOR UPDATE" if connection.dialect.name == "postgresql" else ""
             locked = connection.execute(
-                sa.text("SELECT id FROM ingestion_sources WHERE id = :id FOR UPDATE"),
+                sa.text(f"SELECT id FROM ingestion_sources WHERE id = :id{lock_clause}"),
                 {"id": source_id.hex},
             ).scalar_one_or_none()
             if locked is None:

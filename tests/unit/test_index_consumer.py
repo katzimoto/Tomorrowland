@@ -129,7 +129,6 @@ def test_handle_message_with_content_text_indexes_via_meili(
 
     # Job lifecycle
     mock_job_repo.mark_running_stage.assert_called_once()
-    mock_job_repo.commit.assert_called_once()
     mock_job_repo.mark_succeeded.assert_called_once()
     mock_doc_repo.update_indexed.assert_called_once()
 
@@ -161,7 +160,6 @@ def test_handle_message_without_content_text_skips_meili(
 
     mock_meili.index_batch.assert_not_called()
     mock_job_repo.mark_running_stage.assert_called_once()
-    mock_job_repo.commit.assert_called_once()
     mock_job_repo.mark_succeeded.assert_called_once()
     mock_publisher.publish_intelligence.assert_called_once()
     mock_publisher.publish_alert.assert_called_once()

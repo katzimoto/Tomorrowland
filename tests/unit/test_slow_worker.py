@@ -57,6 +57,9 @@ class _FakeEnrichRepo:
     def mark_dead_letter(self, job_id: object, error: object) -> None:
         self.dead_lettered = (job_id, error)
 
+    def commit(self) -> None:
+        pass
+
 
 class TestRunEnrichOnce:
     def test_success_path(self) -> None:
