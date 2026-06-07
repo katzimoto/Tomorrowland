@@ -68,7 +68,7 @@ Known edge cases, migrations, compatibility concerns, or follow-up work.
 Read first:
 - `AGENTS.md`
 - `docs/agents/token-efficiency.md`
-- `docs/implementation/phase-10c-admin-readiness.md`
+- `archive/implementation/phase-10c-admin-readiness.md`
 - `docs/context/backend-api.md`
 
 Allowed source paths:
@@ -82,7 +82,7 @@ Allowed test paths:
 
 Do not read unless explicitly needed:
 - `frontend/`
-- unrelated `docs/implementation/phase-*`
+- unrelated `archive/implementation/phase-*`
 ```
 
 ### Frontend UI issue

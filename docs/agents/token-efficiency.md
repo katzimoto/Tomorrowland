@@ -123,7 +123,7 @@ Load:
 - issue body
 - `AGENTS.md`
 - `docs/agents/token-efficiency.md`
-- relevant implementation/design plan when referenced
+- relevant implementation/design plan when referenced (historical plans live in `archive/`)
 - one area context file when useful
 
 Avoid source inspection unless required to validate feasibility or affected paths.
@@ -135,7 +135,7 @@ Use for Codex or Claude when changing code.
 Load:
 - issue body
 - context budget
-- relevant plan when referenced
+- relevant plan when referenced (historical plans live in `archive/`)
 - one area context file when useful
 - exact source/test files found with `rg`
 

@@ -45,7 +45,6 @@ rg --files src/services/search tests | rg search
 ## Document versioning
 
 Added in `feature/document-versioning` (#201 / #203 / #205).
-Plan: `docs/implementation/document-versioning.md`.
 
 ### Default behavior — latest-only filter
 
