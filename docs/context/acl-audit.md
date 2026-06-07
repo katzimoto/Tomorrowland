@@ -21,14 +21,14 @@ Auth primitives (`src/services/permissions/enforcer.py`):
   transitive child-group membership. Used inconsistently across surfaces (see
   matrix and risks).
 - Backend ACL filter on stores: `QdrantSearchClient.search` (group_ids filter,
-  optional `allow_all`) and `ElasticsearchSearchClient.search`
-  (`allowed_group_ids` terms filter, optional `is_admin`).
+  optional `allow_all`) and `MeiliSearchClient.search`
+  (`allowed_group_ids` filter, optional `is_admin`).
 
 ## Permission matrix
 
 | Surface | Endpoint | Auth required | `assert_doc_access()` | Group filter | Admin bypass | Leakage risk | D2 fix needed |
 |---|---|---|---|---|---|---|---|
-| Document search (hybrid) | `POST /search` | yes | n/a (multi-doc) | ES `allowed_group_ids` + Qdrant `group_id` filter (effective groups for non-admins) | broken: passes `group_ids=[]` to ES & Qdrant without `is_admin=True`/`allow_all=True`; admins receive zero hits | stub `SearchResultItem` produced when DB row missing → may surface chunk_text from orphaned Qdrant vectors | YES — pass `is_admin`/`allow_all` for admins; drop stub fallback or 404 the result |
+| Document search (hybrid) | `POST /search` | yes | n/a (multi-doc) | Meilisearch `allowed_group_ids` + Qdrant `group_id` filter (effective groups for non-admins) | broken: passes `group_ids=[]` to Meilisearch & Qdrant without `is_admin=True`/`allow_all=True`; admins receive zero hits | stub `SearchResultItem` produced when DB row missing → may surface chunk_text from orphaned Qdrant vectors | YES — pass `is_admin`/`allow_all` for admins; drop stub fallback or 404 the result |
 | Document preview | `GET /preview/{document_id}` | yes | yes | n/a (single-doc gate) | inherited from `assert_source_access` (admin bypass at source-grant level) | low | none required, but confirm version-family lookups still gate by doc access |
 | Document download | `GET /download/{document_id}` | yes | yes | n/a | inherited | path is resolved + `is_relative_to(files_root)`; symlinks resolve before check — OK | none |
 | User activity | `GET /me/activity` | yes | NO (returns whatever `preview_service.get_user_activity` emits) | NO post-filter against current group access | n/a | activity may include documents the user has since lost access to (revoked group → stale audit row still visible) | YES — filter the result by `assert_doc_access`/source membership at read time |
@@ -69,7 +69,7 @@ Priority ordered. Items marked (HIGH) block the D2 PR.
 
 1. **(HIGH)** Fix `/search` admin path so it actually returns results. In
    `src/services/api/routers/search.py`:
-   - Pass `is_admin=user.is_admin` to `ElasticsearchSearchClient.search` (the
+   - Pass `is_admin=user.is_admin` to `MeiliSearchClient.search` (the
      client already supports it).
    - Pass `allow_all=user.is_admin` to `QdrantSearchClient.search` when
      `search_group_ids` is empty for admins.
@@ -147,7 +147,7 @@ Highest first.
   not impacted but operability and consistency are. Detected by reading
   `src/services/api/routers/search.py` ll. 48–116 against the contracts in
   `src/services/search/qdrant.py` ll. 114–142 and
-  `src/services/search/elastic.py` ll. 150–202.
+  `src/services/search/meili_provider.py`.
 - **H2. `/expertise` admin bypass is broken** (same shape as H1). Detected
   by reading `src/services/api/routers/documents.py` ll. 349–387 against
   `src/services/related/service.py` ll. 93–156 and `qdrant.py` ll. 114–142.
@@ -220,7 +220,7 @@ Highest first.
   `src/services/related/service.py`,
   `src/services/intelligence/repository.py` (top portion only),
   `src/services/search/qdrant.py` (search method),
-  `src/services/search/elastic.py` (search method).
+  `src/services/search/meili_provider.py` (search method).
 - Files skipped: `spec.md`, `spec-v4.pdf`, all frontend, all migrations,
   full `intelligence/repository.py` body, `auth/{jwt,ldap,passwords,
   repository,service}.py` (only `current_user` and the enforcer were needed

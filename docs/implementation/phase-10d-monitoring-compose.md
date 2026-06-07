@@ -55,8 +55,8 @@ for the default product startup.
     durations, DLQ trend.
   - **Search And RAG**: hybrid search latency, backend split, Q&A retrieval/generation
     latency, Ollama error rate.
-  - **Infrastructure**: PostgreSQL/Elasticsearch/Qdrant/LibreTranslate/Ollama/Kafka health,
-    Elasticsearch shard health, Qdrant collection size.
+  - **Infrastructure**: PostgreSQL/Meilisearch/Qdrant/LibreTranslate/Ollama/Kafka health,
+    Meilisearch index health, Qdrant collection size.
 
 ### Alertmanager (Optional)
 
@@ -72,7 +72,7 @@ Provision Prometheus alerting rules from `docs/design/metrics-monitoring-spec.md
 |---|---|---|
 | API down | Critical | Scrape fails or `/health` fails for 2 min |
 | PostgreSQL unavailable | Critical | `dependency_up{dependency="postgres"} == 0` for 2 min |
-| Search unavailable | Critical | Elasticsearch or Qdrant down for 5 min |
+| Search unavailable | Critical | Meilisearch or Qdrant down for 5 min |
 | High API error rate | Warning | 5xx rate > 2% for 10 min |
 | Search SLO breach | Warning | p95 search > 300 ms for 15 min |
 | Q&A SLO breach | Warning | p95 RAG > 10 s for 15 min |
@@ -91,7 +91,7 @@ Update `docs/operations/production-compose.md`:
 ## Implementation Notes
 
 - Keep monitoring volumes (`prometheus_data`, `grafana_data`) separate from product volumes
-  (`postgres_data`, `elasticsearch_data`, `qdrant_data`, `files_data`).
+  (`postgres_data`, `meilisearch_data`, `qdrant_data`, `files_data`).
 - Dashboard JSON files must not contain hardcoded credentials or secret examples.
 - `docker compose config` must pass without the monitoring profile.
 - `docker compose --profile monitoring config` must also pass.

@@ -2,7 +2,21 @@
 
 **A Distributed, Event-Driven, Local-First Knowledge Intelligence System**
 
-This document is the single source of truth for code generation. Every section is implementation-ready. Claude Code should generate each service independently and respect all contracts defined here.
+This document is the original v4 specification. For the current runtime architecture,
+consult `docs/architecture/overview.md` and `docs/logical-spec.md`. Notable changes
+since this spec was written:
+
+- **Elasticsearch → Meilisearch**: The primary BM25/full-text index is now Meilisearch.
+  Elasticsearch was fully removed in PR #573 (2026-05-30). Where this spec references
+  Elasticsearch, the current implementation uses Meilisearch.
+- **Kafka → RabbitMQ**: The document pipeline now uses RabbitMQ stage queues.
+  Kafka (Redpanda) is used only for NiFi event ingestion.
+- **Worker layout**: Pipeline workers (parse, translate, embed, index, intelligence,
+  alert, enrich) each consume their own RabbitMQ queue.
+
+This document remains the single source of truth for code generation. Every section
+is implementation-ready. Claude Code should generate each service independently and
+respect all contracts defined here.
 
 ## 0. Purpose
 
@@ -46,7 +60,7 @@ repo/
 │   └── preview/
 └── infrastructure/
     ├── kafka/
-    ├── elasticsearch/
+    ├── meilisearch/
     ├── qdrant/
     ├── postgres/
     ├── libretranslate/
@@ -63,7 +77,7 @@ APP_ENV=dev
 # Core
 POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/app
 KAFKA_BROKER=kafka:9092
-ELASTIC_URL=http://elasticsearch:9200
+MEILISEARCH_URL=http://meilisearch:7700
 QDRANT_URL=http://qdrant:6333
 FILES_ROOT=/data
 JWT_SECRET=changeme
@@ -143,7 +157,11 @@ healthcheck:
 
 ## 4. Shared Models (Strict Contracts)
 
-### 4.1 Kafka Topics
+### 4.1 Kafka Topics *(original spec; current impl uses RabbitMQ stage queues)*
+
+> **Note:** The current implementation uses RabbitMQ stage queues (parse, translate,
+> embed, index, intelligence, alert, enrich) instead of Kafka topics. Kafka (Redpanda)
+> is used only for NiFi event ingestion. This section is preserved as the original design.
 
 | Topic | Producer | Consumer | Purpose |
 | :--- | :--- | :--- | :--- |
@@ -337,7 +355,7 @@ CREATE TABLE annotations (
 
 CREATE INDEX ON annotations (documant_id);
 CREATE INDEX ON annotations (user_id);
--- Annotations are indexed in Elasticsearch under a separate index: "annotations"
+-- Annotations are stored in PostgreSQL; searchable through the annotations API
 ```
 
 ### 5.7 Alert Subscriptions (NEW)
@@ -583,7 +601,12 @@ CREATE TABLE ingested_files (
 
 ## 9. Fast Worker
 
-### 9.1 Pipeline
+### 9.1 Pipeline *(original spec; current impl uses RabbitMQ consumers)*
+
+> **Note:** The current implementation uses RabbitMQ stage consumers (`parse_worker.py`,
+> `translate_worker.py`, `embed_worker.py`, `index_worker.py`, `intelligence_consumer.py`,
+> `alert_consumer.py`, `enrich_worker.py`) instead of a monolithic fast worker. This
+> section is preserved as the original design.
 `consume(documents.raw)`
 -> `extract_text()` # tika / pdfminer / custom per mime_type
 -> `ocr_if_needed()` # tesseract fallback for image PDFs
@@ -613,6 +636,10 @@ On LibreTranslate failure: index with `content_english = content_original`, set 
 
 ## 10. Worker Intelligence (NEW SERVICE)
 
+> **Note:** The current implementation uses RabbitMQ consumers (`intelligence_consumer.py`)
+> instead of a Kafka-based worker. The intelligence tasks (summarize, extract_entities,
+> auto_tag, match_alerts) are preserved as described below.
+
 This service consumes `documents.intelligence` and runs all LLM-powered tasks via Ollama.
 
 ### 10.1 Structure
@@ -635,7 +662,7 @@ def summarize(documant_id: str, content: str):
 " + content[:8000]
     summary = ollama_generate(prompt)
     upsert("document_summaries", { documant_id, summary, model: OLLAMA_MODEL })
-    # Also update Elasticsearch document with summary field
+    # Also update the document's search index with the summary field
 ```
 
 ### 10.3 Task: Extract Entities
@@ -659,7 +686,7 @@ def auto_tag(documant_id: str, content: str):
 " + content[:4000]
     tags = parse_json(ollama_generate(prompt)) # ["finance", "Q3", ...]
     replace("document_tags", documant_id, tags)
-    # Update Elasticsearch document tags[] field
+    # Update the document's search index tags[] field
 ```
 
 ### 10.5 Task: Match Alerts
@@ -739,7 +766,7 @@ async def answer_question(question: str, user: TokenPayload) -> QAResponse:
     )
 ```
 
-## 12. Slow Worker
+## 12. Slow Worker *(original spec; current impl uses `enrich_worker.py` over RabbitMQ)*
 
 ### 12.1 Pipeline
 `fetch_docs_to_enrich()` # WHERE translation_quality IS NULL OR = 'fast'
@@ -794,20 +821,11 @@ async def answer_question(question: str, user: TokenPayload) -> QAResponse:
 
 ## 14. Search Implementation
 
-**Elasticsearch (BM25)**
-```json
-{
-  "query": {
-    "bool": {
-      "must": { "multi_match": {
-        "query": "<query>",
-        "fields": ["content_english", "summary^1.5", "tags^2"]
-      }},
-      "filter": { "terms": { "group_id": ["<user_groups>"] } }
-    }
-  }
-}
-```
+**Meilisearch (BM25)** — *current implementation uses Meilisearch; see `src/services/search/meili_provider.py`*
+
+Original spec used Elasticsearch with multi_match + terms filter. The Meilisearch
+implementation uses filter expressions with `allowedGroupIds IN [...]` for ACL and
+relevance-ranked full-text search.
 
 **Qdrant (Vector)**
 ```python
@@ -842,7 +860,7 @@ def get_related(documant_id: str, user: TokenPayload):
 * Split on sentence boundaries; hard cut at token limit
 * Uniform across all file types
 * Each chunk = one Qdrant point with payload `{ documant_id, group_id, chunk_index, text }`
-* Elasticsearch indexes full `content_english` per document (not per chunk)
+* The BM25 index stores full `content_english` per document (not per chunk)
 
 ## 16. Translation Strategy
 | Property | Value |
@@ -929,7 +947,7 @@ def assert_annotation_owner(annotation, user):
 
 ## 20. Delete Cascade
 `operation: delete` consumed by fast worker:
-1. Delete from Elasticsearch
+1. Delete from Meilisearch (BM25 index)
 2. Delete from Qdrant (all chunks)
 3. Delete from `document_summaries`, `document_entities`, `document_tags`, `document_view_counts`
 4. Delete from `ingested_files`

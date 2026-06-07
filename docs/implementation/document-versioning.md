@@ -154,7 +154,7 @@ to work unchanged — every document is "latest" until a new version is created.
 3. Insert a `documents` row: `version_number = 1`, `is_latest = TRUE`,
    `content_sha256 = <hash>`, `version_family_id = <new family id>`.
 4. Set `current_document_id` on the family to the new document's `id`.
-5. Index in Elasticsearch and Qdrant with version metadata.
+5. Index in Meilisearch and Qdrant with version metadata.
 
 ### Scenario B — Re-sync, same SHA (unchanged file)
 
@@ -173,7 +173,7 @@ to work unchanged — every document is "latest" until a new version is created.
    - `content_sha256 = <new hash>`
    - `version_family_id = <existing family id>`
 5. Update `current_document_id` on the family to the new document's `id`.
-6. Index the new version in Elasticsearch and Qdrant.
+6. Index the new version in Meilisearch and Qdrant.
 7. Do NOT delete the old version's stored document row or index entries.
 8. Log as "created version N for <source_id>/<external_id>".
 
@@ -188,7 +188,7 @@ addressed in a follow-up issue.
 
 ## 4. Search / Indexing Impact
 
-### Elasticsearch payload additions
+### Meilisearch payload additions
 
 Add these fields to every indexed document:
 
@@ -220,12 +220,12 @@ the same filter:
 
 ### Default behavior — latest-only
 
-Unless the caller explicitly requests older versions, both Elasticsearch and
+Unless the caller explicitly requests older versions, both Meilisearch and
 Qdrant queries must include an `is_latest = true` filter:
 
-```json
-// Elasticsearch
-{ "filter": { "term": { "is_latest": true } } }
+```
+// Meilisearch filter
+"is_latest = true"
 
 // Qdrant
 { "must": [{ "key": "is_latest", "match": { "value": true } }] }
@@ -235,7 +235,7 @@ This is the default for all search surfaces (keyword, vector, hybrid).
 
 ### Include older versions (`include_older_versions = true`)
 
-Remove the `is_latest` filter from both ES and Qdrant queries.
+Remove the `is_latest` filter from both Meilisearch and Qdrant queries.
 Result payloads must include `version_number`, `is_latest`, `has_newer_version`,
 and `latest_document_id` so the UI (#204) can label older results.
 
@@ -244,7 +244,7 @@ inaccessible documents must not appear even when `include_older_versions = true`
 
 ### Stale chunk / vector isolation
 
-Each `documents` row has a unique `id`. Elasticsearch and Qdrant entries are
+Each `documents` row has a unique `id`. Meilisearch and Qdrant entries are
 keyed by `document_id`. When a new version is indexed:
 
 - New version chunks are stored under the new `document_id`.
@@ -535,13 +535,13 @@ integration PR to `main`.
 - [ ] Checking the box sends `include_older_versions: true` to the search API.
 - [ ] Older-version results are visibly labeled when the flag is enabled.
 
-### Search (Elasticsearch)
+### Search (Meilisearch)
 
 - [ ] Default search (`include_older_versions = false`) returns only
       `is_latest = true` documents.
 - [ ] `include_older_versions = true` returns all versions including
       `is_latest = false`.
-- [ ] ES indexed documents include `version_family_id`, `version_number`,
+- [ ] Meilisearch indexed documents include `version_family_id`, `version_number`,
       `is_latest`, `has_newer_version`, `latest_document_id`.
 - [ ] Permission filter is applied before version filter in all query paths.
 
@@ -596,7 +596,7 @@ merges to `main`. These are the canonical locations for each audience.
 
 Add a "Document versioning" subsection covering:
 
-- `is_latest` filter behavior in Elasticsearch and Qdrant queries.
+- `is_latest` filter behavior in Meilisearch and Qdrant queries.
 - `include_older_versions` search flag and how to test it.
 - Version metadata fields in search result payloads.
 - Stale chunk isolation rules.

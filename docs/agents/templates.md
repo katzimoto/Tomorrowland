@@ -91,6 +91,9 @@ Follow-ups: #<issue> or None
 - ...
 ## Forbidden Changes
 - ...
+## Documentation
+Where this change should be documented per `docs/agents/documenting-features.md`:
+- [ ] `docs/...` — ...
 ## Acceptance Criteria
 - [ ] Targeted tests/checks pass
 - [ ] `CHANGELOG.md` updated when user-visible behavior, schema, config, docs workflow, or operations change

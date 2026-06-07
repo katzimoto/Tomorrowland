@@ -254,7 +254,7 @@ Additional rules:
   errors.
 - Never log `Authorization`, `Cookie`, or connector config values.
 - Do not log prompt text or model responses when RAG or intelligence calls fail.
-- Do not log Elasticsearch or Qdrant payloads if they may include document text.
+- Do not log Meilisearch or Qdrant payloads if they may include document text.
 - Treat traceback logging as development-only unless the traceback has passed the
   same redaction rules and excludes local paths that reveal sensitive source
   structure.

@@ -30,7 +30,7 @@ updating that spec first.
 
 - `GET /health` returns `{"status":"ok","service":"api"}` — unauthenticated and shallow.
 - `GET /admin/health` is admin-gated but shallow.
-- Docker Compose health checks cover API, frontend, PostgreSQL, Kafka, Elasticsearch,
+- Docker Compose health checks cover API, frontend, PostgreSQL, Kafka, Meilisearch,
   Qdrant, LibreTranslate, and Ollama.
 - No metrics endpoint, Prometheus client, request-ID middleware, JSON log formatter, or
   monitoring Compose profile exists yet.

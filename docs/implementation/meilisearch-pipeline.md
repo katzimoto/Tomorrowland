@@ -1,5 +1,12 @@
 # Meilisearch Indexing Pipeline — Decisions
 
+> **Current state (June 2026):** Elasticsearch fully removed (PR #573, 2026-05-30).
+> Meilisearch is the sole BM25 backend. The pipeline now uses RabbitMQ (not Kafka).
+> The dual-write shadow-indexing migration completed — there is no longer an
+> Elasticsearch path. The feature-flag gating (`FEATURE_MEILISEARCH_SHADOW_INDEX`)
+> and ES client path were removed. The write flow below is historical;
+> the current pipeline writes exclusively to Meilisearch via RabbitMQ consumers.
+
 **Scope:** Write flow, task polling, stale chunk detection, translation patching,
 document deletion, and production reindex strategy.
 **Does not cover:** Index settings (#301), ACL filter (#302), multilingual routing (#304).
@@ -25,7 +32,7 @@ successor). The provider exposes clean primitives; the pipeline layer composes t
 
 ```
 1. Write document to DB (status: "pending")
-2. Publish "document.created" event (Kafka — existing stack)
+2. Publish "document.created" event (Kafka in original design; now RabbitMQ)
 
 [Pipeline consumer]
 3. Load document from DB
@@ -166,12 +173,16 @@ filterable attribute) — change settings on the shadow, reindex, swap.
 
 ---
 
-## Dual-write (shadow indexing for migration)
+## Dual-write (historical — migration completed)
+
+> **Note:** This section describes the migration cutover strategy. The dual-write
+> phase completed. Elasticsearch has been removed. Meilisearch is now the sole
+> BM25 backend — there is no shadow-indexing against Elasticsearch.
 
 When `FEATURE_MEILISEARCH_SHADOW_INDEX=true` and `FEATURE_MEILISEARCH_SEARCH=false`:
-- The pipeline writes to both Elasticsearch (live) and Meilisearch (shadow)
-- Search queries still go to Elasticsearch
-- This validates Meilisearch correctness before cutover
+- The pipeline wrote to both Elasticsearch (live) and Meilisearch (shadow)
+- Search queries still went to Elasticsearch
+- This validated Meilisearch correctness before cutover
 
 The provider's `index_batch` / `remove_by_document_id` are called unconditionally
 in this mode. The pipeline worker checks the feature flag and calls the appropriate

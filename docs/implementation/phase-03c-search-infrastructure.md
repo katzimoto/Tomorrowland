@@ -1,13 +1,18 @@
 # Phase 03c: Search Infrastructure
 
+> **Note (June 2026):** This phase plan predates the Elasticsearch→Meilisearch
+> migration (PR #573, 2026-05-30). The current implementation uses Meilisearch
+> instead of Elasticsearch for BM25/full-text search. This document is retained
+> as a historical phase plan.
+
 ## Goal
 
-Create and manage the Elasticsearch index and Qdrant collection, with a mock
-embedding encoder.
+Create and manage the search index (originally Elasticsearch, now Meilisearch)
+and Qdrant collection, with a mock embedding encoder.
 
 ## Scope
 
-- Elasticsearch client and document index mapping.
+- Search client and document index mapping (now Meilisearch).
 - Qdrant client and chunk collection creation.
 - Mock embedding encoder (384-dim, deterministic, zero dependencies).
 - Hybrid score merger for BM25 + vector results.
@@ -17,7 +22,7 @@ embedding encoder.
 - **MockEncoder** produces deterministic 384-dimensional vectors derived from
   the hash of the input text. This keeps CI fast and removes the torch
   dependency until Phase 06.
-- **Elasticsearch** indexes the full document (`content_english`, `title`,
+- **Search index** (now Meilisearch) indexes the full document (`content_english`, `title`,
   `summary`, `tags`, `metadata`, `allowed_group_ids`).
 - **Qdrant** stores one point per chunk. Payload fields: `documant_id`, `group_id`,
   `chunk_index`, `text`.
@@ -28,7 +33,7 @@ embedding encoder.
 ## Validation
 
 - Unit tests for mock encoder shape and determinism.
-- Unit tests for Elasticsearch index/search with a mocked client.
+- Unit tests for search index/search with a mocked client.
 - Unit tests for Qdrant index/search with a mocked client.
 - Unit tests for hybrid merge logic (score math, deduplication, tie-breaking).
 

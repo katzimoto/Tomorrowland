@@ -362,7 +362,7 @@ non-Group-0 item is in the running RC.**
 
 | Group | Slice | Branch                       | Operator-visible change                                                                     |
 |-------|-------|------------------------------|---------------------------------------------------------------------------------------------|
-| 1     | A2    | `feat/rag-hybrid-retrieval`  | RAG fuses Qdrant + Elasticsearch (and Meilisearch when enabled).                            |
+| 1     | A2    | `feat/rag-hybrid-retrieval`  | RAG fuses Qdrant vector + Meilisearch BM25 hybrid retrieval.                            |
 | 1     | A5    | `feat/rag-chunking`          | Sentence-boundary chunker — reindex required for full benefit.                              |
 | 1     | A6    | `feat/rag-eval-harness`      | Hit@k / MRR eval; CI signal only.                                                           |
 | 1     | B2    | `feat/intelligence-projection` | `GET /documents/{id}/intelligence` aggregates summary / key_points / entities / tags.    |

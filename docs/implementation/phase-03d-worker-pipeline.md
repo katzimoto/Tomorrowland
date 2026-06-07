@@ -22,7 +22,7 @@ callable pipeline, exposed via an admin API.
   3. Translate via the LibreTranslate client (fallback to original).
   4. Chunk via the token splitter.
   5. Encode chunks with the mock encoder.
-  6. Index the full document in Elasticsearch.
+  6. Index the full document in the search index (originally Elasticsearch, now Meilisearch).
   7. Index chunks in Qdrant.
   8. Update the document row: `status = "indexed"` and set
      `translation_quality`.
@@ -34,7 +34,7 @@ callable pipeline, exposed via an admin API.
 
 - Integration test: drop a fixture file, call sync-now, assert the document
   row has `status = "indexed"`.
-- Integration test: assert Elasticsearch contains the document and Qdrant
+- Integration test: assert the search index (Meilisearch) contains the document and Qdrant
   contains its chunks.
 - Integration test: mock LibreTranslate failure and assert the document is
   still indexed with `translation_quality = null`.

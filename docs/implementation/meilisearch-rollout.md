@@ -1,5 +1,10 @@
 ## Meilisearch Rollout — Decisions
 
+> **Current state (June 2026):** Meilisearch is the sole BM25/full-text search backend.
+> Elasticsearch was fully removed in PR #573 (2026-05-30). The rollout described below
+> completed. This document is retained as a historical record of the migration design.
+> The rollback section (§9) is no longer applicable.
+
 ### 1. Startup initialization order
 
 `initialize_meilisearch(client, settings)` runs once at application startup, before the API
@@ -83,9 +88,13 @@ migration. The index is populated (or re-populated) via the shadow-index workflo
 re-running the pipeline ingestion. This keeps the Meilisearch lifecycle orthogonal to the
 Postgres schema migration lifecycle.
 
-### 9. Rollback
+### 9. Rollback (no longer applicable)
 
-Rollback from Meilisearch to Elasticsearch is a feature-flag flip:
+> **Elasticsearch has been fully removed (PR #573, 2026-05-30).** Rollback is not
+> possible — Meilisearch is the only BM25 backend. The original procedure below is
+> preserved for historical reference only and will not produce working search results.
+
+The original rollback from Meilisearch to Elasticsearch was a feature-flag flip:
 
 1. Set `FEATURE_MEILISEARCH_SEARCH=false` in `.env` (or the container environment).
 2. Restart the API container so the new setting takes effect.
@@ -99,3 +108,6 @@ is not supported — the API container must be restarted for the change to apply
 The Elasticsearch index remains the serving backend whenever `FEATURE_MEILISEARCH_SEARCH`
 is `false`. Search continues to work even if the Meilisearch container is unavailable,
 because the disabled flag prevents the application from connecting to Meilisearch.
+
+**Current state (June 2026):** Elasticsearch has been removed. `FEATURE_MEILISEARCH_SEARCH`
+defaults to `true` and Meilisearch is the sole BM25 backend.

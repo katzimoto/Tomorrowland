@@ -75,3 +75,30 @@ Before handoff, report:
 
 Do not claim tests, typechecks, builds, or manual flows passed unless you actually
 ran them.
+
+## 6. Document Your Changes
+
+Every non-trivial change must update the MkDocs wiki. See
+`docs/agents/documenting-features.md` for the full mapping of change type →
+where to document.
+
+### Minimum docs requirement per change type
+
+| Change type | Update this |
+|---|---|
+| New env var or config setting | The relevant operations or deploy doc, `.env.example`, and `.env.airgap.example` |
+| New API endpoint or route | The relevant context map (`docs/context/`) and API Reference (`docs/api/`) |
+| New service, worker, or runtime component | `docs/architecture/overview.md` and the relevant operations doc |
+| Schema change (new table, column, migration) | `docs/architecture/overview.md` if it changes the data model |
+| New UI page or component | The relevant design spec |
+| Feature flag addition or change | `docs/operators/ai-surfaces.md` or relevant operations doc; `.env.example` and `.env.airgap.example` |
+| Security, auth, or permission change | `docs/context/acl-audit.md` and `docs/design/sources-permissions-model.md` |
+| Search/RAG/indexing behavior change | `docs/context/search.md` |
+| Bug fix that changes expected behavior | The doc that describes the now-corrected behavior |
+
+### Checklist before PR
+
+- [ ] Added or updated the relevant docs page
+- [ ] Verified the page appears correctly in the mkdocs nav
+- [ ] Ran `mkdocs build --strict` (or verified CI will do it)
+- [ ] Updated `.env.example` and `.env.airgap.example` if new env vars were added

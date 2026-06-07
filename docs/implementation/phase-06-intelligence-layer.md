@@ -1,3 +1,7 @@
+> **Note (June 2026):** This phase plan predates the Elasticsearch→Meilisearch
+> migration (PR #573). References to "Update Elasticsearch" or "ES index mapping"
+> below now apply to Meilisearch in the current implementation.
+
 # Phase 06: Intelligence Layer
 
 ## Goal
@@ -44,7 +48,7 @@ Add best-effort local LLM intelligence without blocking ingestion.
    - After `update_indexed()`, call `IntelligenceWorker.process_document()` with `content_english`
    - Only if document has `translation_quality` (fast or high) — skip raw untranslated docs
 
-7. **Update ES index mapping**
+7. **Update search index mapping**
    - Add `entities` keyword field alongside existing `summary` and `tags`
 
 ### Out of Scope / Deferred
@@ -118,7 +122,7 @@ CREATE INDEX ix_document_tags_tag ON document_tags (tag);
 |------|--------|
 | `src/services/api/main.py` | Add `GET /documents/{documant_id}/summary`, `/entities`, `/tags`; add `POST /admin/intelligence/{documant_id}/trigger` |
 | `src/services/pipeline/worker.py` | After `update_indexed()`, call `IntelligenceWorker.process_document(documant_id, translated_text)` |
-| `src/services/search/elastic.py` | Update index mapping: add `entities` keyword field |
+| `src/services/search/meili_settings.py` | Update index mapping: add `entities` keyword field |
 | `CHANGELOG.md` | Add Phase 06 entry |
 
 ---
@@ -132,8 +136,7 @@ process_document(documant_id, content):
   3. For each task:
      - Call Ollama with prompt + content slice
      - Parse response (JSON for entities/tags, plain text for summary)
-     - Upsert to Postgres
-     - Update Elasticsearch document
+     - Upsert to Postgres      - Update search index document
      - On any exception → log, break loop, do NOT re-raise
 ```
 
@@ -191,7 +194,7 @@ if doc.translation_quality in ("fast", "high"):
 
 ## Acceptance Criteria
 
-- [ ] Enabled tasks update Postgres and Elasticsearch
+- [ ] Enabled tasks update Postgres and the search index
 - [ ] Disabled tasks are skipped
 - [ ] Ollama failures are logged and do not block document ingestion
 - [ ] Admin can re-trigger intelligence on any document

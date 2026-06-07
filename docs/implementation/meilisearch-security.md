@@ -24,9 +24,8 @@ documents they have no permission to access. This can happen if:
 
 ## ACL filter model
 
-The existing Elasticsearch search uses `allowed_group_ids: list[str]` on every
-indexed document and `{"terms": {"allowed_group_ids": group_ids}}` on every
-query. The Meilisearch ACL model mirrors this exactly.
+The Meilisearch ACL model uses `allowed_group_ids: list[str]` on every indexed
+chunk record and `allowedGroupIds IN [...]` filter expressions on every query.
 
 Every `SearchChunkRecord` carries `allowed_group_ids: list[str]` (group UUIDs
 as strings). Every query adds a filter derived solely from the authenticated
