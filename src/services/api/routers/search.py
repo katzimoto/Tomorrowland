@@ -83,9 +83,18 @@ def search(
     vector_results: list[SearchResult] = []
 
     # Pre-compute encoder outside the thread pool to avoid extra work.
+    # Wrapped in try/except so an embedding-model outage degrades to
+    # BM25-only results instead of crashing the route with a 500.
     _settings = http_request.app.state.settings
     encoder = build_encoder(_settings, timeout=_settings.search_embedding_timeout)
-    query_vector = encoder.encode(request.query)
+    try:
+        query_vector = encoder.encode(request.query)
+    except Exception:
+        logger.warning(
+            "Embedding encode failed — falling back to BM25-only search correlation_id=%s",
+            get_correlation_id(),
+        )
+        query_vector = None
     qdrant_client = http_request.app.state.qdrant_client or QdrantSearchClient(
         url=_settings.qdrant_url
     )
@@ -117,7 +126,9 @@ def search(
             )
             return [], {}
 
-    def _run_qdrant() -> list[SearchResult]:
+    def _run_qdrant(
+        query_vector: list[float],
+    ) -> list[SearchResult]:
         backend_start = time.perf_counter()
         try:
             results = qdrant_client.search(
@@ -145,14 +156,22 @@ def search(
     # read scalar attributes (request.query, app.state.*, settings.*) which are
     # safe to access from the thread-pool threads.  Do not mutate request.state
     # or read headers/body from inside these closures.
-    if meili_provider is not None:
+    if meili_provider is not None and query_vector is not None:
+        # Both backends available — run in parallel.
         with ThreadPoolExecutor(max_workers=2) as pool:
             meili_future = pool.submit(_run_meilisearch)
-            qdrant_future = pool.submit(_run_qdrant)
+            qdrant_future = pool.submit(_run_qdrant, query_vector)
             bm25_results, meili_facets = meili_future.result()
             vector_results = qdrant_future.result()
+    elif meili_provider is not None:
+        # Encoder failed — run BM25 alone (no vector to parallelise).
+        bm25_results, meili_facets = _run_meilisearch()
+    elif query_vector is not None:
+        # Meilisearch not configured — run Qdrant only.
+        vector_results = _run_qdrant(query_vector)
     else:
-        vector_results = _run_qdrant()
+        # Neither backend available.
+        vector_results = []
 
     if vector_results:
         merged = merge_results(
@@ -170,10 +189,12 @@ def search(
         )
 
     # Load all merged doc rows in one query — used for both is_latest filtering and enrichment.
-    all_merged_ids: list[UUID] = []
+    # Deduplicate before the batch query to avoid redundant IN-clause entries.
+    all_merged_ids_set: set[UUID] = set()
     for r in merged:
         with suppress(ValueError):
-            all_merged_ids.append(UUID(r.document_id))
+            all_merged_ids_set.add(UUID(r.document_id))
+    all_merged_ids = list(all_merged_ids_set)
 
     # Single DB transaction: load document rows + resolve family current IDs.
     all_docs: dict[str, DocumentRow] = {}

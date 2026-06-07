@@ -56,13 +56,17 @@ class RedisClient:
             return True
         try:
             import time  # noqa: PLC0415
+            from uuid import uuid4
 
             now_ms = int(time.time() * 1000)
             cutoff_ms = now_ms - (window_seconds * 1000)
+            # Use a unique member per request so concurrent requests in the same
+            # millisecond don't overwrite each other and undercount.
+            member = f"{now_ms}:{uuid4().hex}"
             pipe = self._client.pipeline()
             pipe.zremrangebyscore(key, 0, cutoff_ms)
             pipe.zcard(key)
-            pipe.zadd(key, {str(now_ms): now_ms})
+            pipe.zadd(key, {member: now_ms})
             pipe.expire(key, window_seconds + 1)
             _, count_raw, _, _ = pipe.execute()
             return int(count_raw) < max_calls

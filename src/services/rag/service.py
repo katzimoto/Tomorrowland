@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +23,8 @@ from shared.metrics import current_metrics
 
 from .models import AnswerResponse, Citation
 from .trace_models import RetrievalCandidateTrace, RetrievalStageTrace, RetrievalTrace
+
+logger = logging.getLogger(__name__)
 
 CANDIDATE_LIMIT = 40
 
@@ -494,10 +497,34 @@ class RagService:
                     else None
                 )
 
-                vector_results = qdrant_future.result()
-                raw_bm25 = bm25_future.result()
-                raw_meta = meta_future.result() if meta_future is not None else []
-                raw_trans = trans_future.result() if trans_future is not None else []
+                try:
+                    vector_results = qdrant_future.result()
+                except Exception:
+                    vector_results = []
+                    logger.warning(
+                        "RAG vector retrieval degraded — Qdrant future failed"
+                    )
+                try:
+                    raw_bm25 = bm25_future.result()
+                except Exception:
+                    raw_bm25 = []
+                    logger.warning(
+                        "RAG BM25 retrieval degraded — Meilisearch future failed"
+                    )
+                if meta_future is not None:
+                    try:
+                        raw_meta = meta_future.result()
+                    except Exception:
+                        raw_meta = []
+                else:
+                    raw_meta = []
+                if trans_future is not None:
+                    try:
+                        raw_trans = trans_future.result()
+                    except Exception:
+                        raw_trans = []
+                else:
+                    raw_trans = []
 
             bm25_results = self._apply_scope_to_bm25(raw_bm25, scope)
             meta_results = self._apply_scope_to_bm25(raw_meta, scope)
