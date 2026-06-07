@@ -117,12 +117,20 @@ class RelatedRepository:
             group_params, group_placeholders = _uuid_params(group_ids, prefix="group")
             params.update(group_params)
             rows = self._connection.execute(
+                # EXISTS rather than JOIN+DISTINCT: a source granted to several
+                # of the caller's groups would otherwise duplicate rows, and
+                # SELECT DISTINCT over the json `metadata` column fails on
+                # Postgres (json has no equality operator). EXISTS dedupes
+                # without comparing json and is portable to SQLite.
                 sa.text(f"""
-                    SELECT DISTINCT d.id, d.title, d.source, d.metadata
+                    SELECT d.id, d.title, d.source, d.metadata
                     FROM documents d
-                    JOIN source_permissions sp ON sp.source_id = d.source_id
                     WHERE d.id IN ({placeholders})
-                      AND sp.group_id IN ({group_placeholders})
+                      AND EXISTS (
+                          SELECT 1 FROM source_permissions sp
+                          WHERE sp.source_id = d.source_id
+                            AND sp.group_id IN ({group_placeholders})
+                      )
                     """),
                 params,
             ).mappings()
