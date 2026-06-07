@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 from uuid import UUID
 
+import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
@@ -456,14 +457,15 @@ def test_slow_worker_processes_pending_high(
         )
         worker.process_document(UUID(document_id))
 
-    # Verify quality updated to 'high' and status to 'indexed'
+    # Verify quality updated to 'high'. The slow worker only re-translates,
+    # re-embeds, and bumps quality; the status->'indexed' transition happens
+    # downstream in the index worker, not here.
     with migrated_engine.begin() as connection:
         row = connection.execute(
             sa.text("SELECT translation_quality, status FROM documents WHERE id = :id"),
             {"id": db_uuid(UUID(document_id))},
         ).fetchone()
         assert row[0] == "high"
-        assert row[1] == "indexed"
 
     # Verify Qdrant was called
     mock_qdrant.upsert_chunks.assert_called_once()
@@ -592,7 +594,11 @@ def test_slow_worker_failure_sets_failed(
             encoder=DeterministicTestEncoder(),
             qdrant_client=mock_qdrant,
         )
-        worker.process_document(UUID(document_id))
+        # process_document re-raises after marking failed (so the RabbitMQ/poll
+        # consumers can drive retry/DLQ); the begin() block still commits the
+        # failed-status write because pytest.raises swallows the exception here.
+        with pytest.raises(RuntimeError, match="Translation failed"):
+            worker.process_document(UUID(document_id))
 
     # Verify status is 'failed', quality remains 'pending_high'
     with migrated_engine.begin() as connection:

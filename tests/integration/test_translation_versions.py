@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
@@ -434,7 +435,11 @@ def test_slow_worker_version_failure_marks_version_failed(
             qdrant_client=mock_qdrant,
             version_repository=version_repo,
         )
-        worker.process_document(to_uuid(document_id))
+        # process_document re-raises after marking the version failed (so the
+        # RabbitMQ/poll consumers can drive retry/DLQ); the begin() block still
+        # commits the failed-status write because pytest.raises swallows here.
+        with pytest.raises(RuntimeError, match="Translation failed"):
+            worker.process_document(to_uuid(document_id))
 
     # Verify version is failed, document status is not failed
     with migrated_engine.begin() as connection:
