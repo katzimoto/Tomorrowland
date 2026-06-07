@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Any
 from unittest.mock import MagicMock, patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
@@ -32,6 +32,7 @@ from services.search.meili_types import DocumentSearchQuery
 from services.search.models import SearchResults
 from services.search.qdrant import QdrantSearchClient
 from shared.config import Settings
+from shared.db import to_uuid
 
 TEST_JWT_SECRET = "x" * 32
 
@@ -51,12 +52,17 @@ class _FakeMeiliProvider:
     def search(self, query: DocumentSearchQuery, user: object) -> SearchResults:
         with self._engine.begin() as conn:
             rows = conn.execute(
-                sa.text("SELECT id, title FROM documents WHERE title LIKE :q LIMIT :limit"),
+                sa.text(
+                    "SELECT id, title FROM documents WHERE LOWER(title) LIKE LOWER(:q) LIMIT :limit"
+                ),
                 {"q": f"%{query.q}%", "limit": query.limit},
             ).fetchall()
-        # IDs are stored as hex (no dashes); normalise to standard UUID str so
-        # the router's docs-dict key lookup works correctly.
-        results = [SearchResult(document_id=str(UUID(r[0])), score=1.0, title=r[1]) for r in rows]
+        # IDs come back as a dash-less hex str on SQLite but a UUID object on
+        # Postgres; to_uuid() normalises either to a UUID, then str() gives the
+        # canonical dashed form the router's docs-dict key lookup expects.
+        results = [
+            SearchResult(document_id=str(to_uuid(r[0])), score=1.0, title=r[1]) for r in rows
+        ]
         return SearchResults(results=results, facets=self._facets)
 
 
@@ -369,6 +375,9 @@ def test_get_passages_returns_chunks_for_authorized_doc(migrated_engine: Engine)
             metadata={"chunk_index": 1, "chunk_id": "c-1"},
         ),
     ]
+    # The handler reads total via count_chunks_by_document; without an explicit
+    # return_value a MagicMock is coerced to int (1), masking the real count.
+    qdrant.count_chunks_by_document.return_value = 2
 
     client = _build_app(migrated_engine, qdrant_client=qdrant)
     token = _login(client, "user@example.com")
@@ -1162,19 +1171,22 @@ def test_source_filter_valid_source_narrows_within_allowed_corpus(
                         sa.text(
                             f"SELECT d.id, d.title FROM documents d "
                             f"JOIN ingestion_sources s ON d.source_id = s.id "
-                            f"WHERE d.title LIKE :q AND s.name IN ({placeholders}) "
+                            f"WHERE LOWER(d.title) LIKE LOWER(:q) AND s.name IN ({placeholders}) "
                             f"LIMIT :lim"
                         ),
                         params,
                     ).fetchall()
                 else:
                     rows = conn.execute(
-                        sa.text("SELECT id, title FROM documents WHERE title LIKE :q LIMIT :lim"),
+                        sa.text(
+                            "SELECT id, title FROM documents "
+                            "WHERE LOWER(title) LIKE LOWER(:q) LIMIT :lim"
+                        ),
                         {"q": f"%{query.q}%", "lim": query.limit},
                     ).fetchall()
-            # Normalise hex UUID to standard dashed format.
+            # Normalise hex/UUID-object id to the canonical dashed UUID str.
             results = [
-                SearchResult(document_id=str(UUID(r[0])), score=1.0, title=r[1]) for r in rows
+                SearchResult(document_id=str(to_uuid(r[0])), score=1.0, title=r[1]) for r in rows
             ]
             return SearchResults(results=results, facets={})
 
