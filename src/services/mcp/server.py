@@ -288,7 +288,7 @@ def create_mcp_server(
             "browse what is available, or narrow results by filters."
         ),
     )
-    def tomorrowland_search_documents(
+    async def tomorrowland_search_documents(
         query: Annotated[
             str,
             Field(description="Free-text search query (1-500 characters)"),
@@ -322,9 +322,10 @@ def create_mcp_server(
         _validate_int(page, _MIN_PAGE, _MAX_PAGE, "page")
         _validate_filters(filters)
         _check_tool_enabled("search_documents")
+        await client.warmup()
 
         try:
-            result = client.search_documents(
+            result = await client.search_documents(
                 query=query,
                 top_k=top_k,
                 page=page,
@@ -389,7 +390,7 @@ def create_mcp_server(
             "get_related_documents to verify the document is correct."
         ),
     )
-    def tomorrowland_get_document(
+    async def tomorrowland_get_document(
         document_id: Annotated[
             str,
             Field(description="UUID of the document (1-64 characters)"),
@@ -402,9 +403,10 @@ def create_mcp_server(
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
         _check_tool_enabled("get_document")
+        await client.warmup()
 
         try:
-            result = client.get_document(
+            result = await client.get_document(
                 document_id=document_id,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
@@ -465,7 +467,7 @@ def create_mcp_server(
             "specific sections, or review citations."
         ),
     )
-    def tomorrowland_get_passages(
+    async def tomorrowland_get_passages(
         document_id: Annotated[
             str,
             Field(description="UUID of the document (1-64 characters)"),
@@ -488,9 +490,10 @@ def create_mcp_server(
         _validate_int(limit, _MIN_LIMIT, _MAX_LIMIT, "limit")
         _validate_int(offset, _MIN_OFFSET, _MAX_OFFSET, "offset")
         _check_tool_enabled("get_passages")
+        await client.warmup()
 
         try:
-            result = client.get_passages(
+            result = await client.get_passages(
                 document_id=document_id,
                 limit=limit,
                 offset=offset,
@@ -588,7 +591,8 @@ def create_mcp_server(
             if ctx is not None:
                 with suppress(Exception):
                     await ctx.report_progress(progress=50, total=100)
-            result = client.ask_corpus(
+            await client.warmup()
+            result = await client.ask_corpus(
                 question=question,
                 top_k=top_k,
                 document_id=document_id,
@@ -659,7 +663,7 @@ def create_mcp_server(
             "topically related material from a key document."
         ),
     )
-    def tomorrowland_get_related_documents(
+    async def tomorrowland_get_related_documents(
         document_id: Annotated[
             str,
             Field(description="UUID of the seed document (1-64 characters)"),
@@ -672,9 +676,10 @@ def create_mcp_server(
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
         _check_tool_enabled("get_related_documents")
+        await client.warmup()
 
         try:
-            result = client.get_related_documents(
+            result = await client.get_related_documents(
                 document_id=document_id,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
@@ -736,7 +741,7 @@ def create_mcp_server(
             "languages, and document types."
         ),
     )
-    def tomorrowland_list_facets(
+    async def tomorrowland_list_facets(
         query: Annotated[
             str,
             Field(description="Optional free-text query to filter facet counts (0-500 chars)"),
@@ -749,9 +754,10 @@ def create_mcp_server(
         t0 = time.perf_counter()
         _validate_string(query, 0, _MAX_QUERY_LENGTH, "query")
         _check_tool_enabled("list_facets")
+        await client.warmup()
 
         try:
-            result = client.list_facets(
+            result = await client.list_facets(
                 query=query,
                 correlation_id=correlation_id,
                 auth_header=auth_header,

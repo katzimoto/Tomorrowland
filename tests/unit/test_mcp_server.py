@@ -18,7 +18,7 @@ import asyncio
 import re
 import time
 from typing import Any
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -78,7 +78,7 @@ def _invoke_tool(fn: Any, **kwargs: Any) -> Any:
 
 def _mock_context(headers: dict[str, str] | None = None) -> Context:
     """Return a mock MCP Context with request_meta populated."""
-    ctx = MagicMock(spec=Context)
+    ctx = AsyncMock(spec=Context)
     if headers is not None:
         meta = MagicMock()
         meta.headers = headers
@@ -170,7 +170,7 @@ class TestExtractAuthHeader:
         assert result is None
 
     def test_returns_none_when_no_headers_on_meta(self) -> None:
-        ctx = MagicMock(spec=Context)
+        ctx = AsyncMock(spec=Context)
         meta_without_headers = MagicMock(spec=[])
         ctx.request_meta = meta_without_headers
         result = _extract_auth_header(ctx)
@@ -203,7 +203,7 @@ class TestExtractTraceparent:
         assert result is None
 
     def test_returns_none_when_no_headers_on_meta(self) -> None:
-        ctx = MagicMock(spec=Context)
+        ctx = AsyncMock(spec=Context)
         meta_without_headers = MagicMock(spec=[])
         ctx.request_meta = meta_without_headers
         result = _extract_traceparent(ctx)
@@ -232,7 +232,7 @@ class TestTraceparentForwarding:
             tomorrowland_api_url="http://localhost:8000",
             app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.search_documents.return_value = {
             "results": [], "total": 0, "query": "t",
         }
@@ -262,7 +262,7 @@ class TestTraceparentForwarding:
         fn = self._get_tool_fn(mcp, "tomorrowland_search_documents")
 
         ctx = _mock_context({"traceparent": self._TRACEPARENT})
-        fn(query="test", ctx=ctx)
+        _invoke_tool(fn, query="test", ctx=ctx)
 
         mock_client.search_documents.assert_called_once()
         assert mock_client.search_documents.call_args[1]["traceparent"] == self._TRACEPARENT
@@ -272,7 +272,7 @@ class TestTraceparentForwarding:
         fn = self._get_tool_fn(mcp, "tomorrowland_get_document")
 
         ctx = _mock_context({"traceparent": self._TRACEPARENT})
-        fn(document_id="abc", ctx=ctx)
+        _invoke_tool(fn, document_id="abc", ctx=ctx)
 
         mock_client.get_document.assert_called_once()
         assert mock_client.get_document.call_args[1]["traceparent"] == self._TRACEPARENT
@@ -282,7 +282,7 @@ class TestTraceparentForwarding:
         fn = self._get_tool_fn(mcp, "tomorrowland_get_passages")
 
         ctx = _mock_context({"traceparent": self._TRACEPARENT})
-        fn(document_id="abc", ctx=ctx)
+        _invoke_tool(fn, document_id="abc", ctx=ctx)
 
         mock_client.get_passages.assert_called_once()
         assert mock_client.get_passages.call_args[1]["traceparent"] == self._TRACEPARENT
@@ -302,7 +302,7 @@ class TestTraceparentForwarding:
         fn = self._get_tool_fn(mcp, "tomorrowland_get_related_documents")
 
         ctx = _mock_context({"traceparent": self._TRACEPARENT})
-        fn(document_id="abc", ctx=ctx)
+        _invoke_tool(fn, document_id="abc", ctx=ctx)
 
         mock_client.get_related_documents.assert_called_once()
         assert (
@@ -315,7 +315,7 @@ class TestTraceparentForwarding:
         fn = self._get_tool_fn(mcp, "tomorrowland_list_facets")
 
         ctx = _mock_context({"traceparent": self._TRACEPARENT})
-        fn(ctx=ctx)
+        _invoke_tool(fn, ctx=ctx)
 
         mock_client.list_facets.assert_called_once()
         assert mock_client.list_facets.call_args[1]["traceparent"] == self._TRACEPARENT
@@ -325,7 +325,7 @@ class TestTraceparentForwarding:
         fn = self._get_tool_fn(mcp, "tomorrowland_search_documents")
 
         ctx = _mock_context({"authorization": "Bearer token"})
-        fn(query="test", ctx=ctx)
+        _invoke_tool(fn, query="test", ctx=ctx)
 
         mock_client.search_documents.assert_called_once()
         assert mock_client.search_documents.call_args[1]["traceparent"] is None
@@ -363,14 +363,14 @@ class TestPerClientTokenForwarding:
     def test_auth_header_takes_precedence_over_static_key(self) -> None:
         """When auth_header is provided, it is used verbatim — not the static key."""
         client = TomorrowlandClient(api_url="http://localhost:8000", api_key="static-key")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(
                 json_data={"results": [], "total": 0, "query": "t"},
             )
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.search_documents(query="test", auth_header="Bearer per-client-token")
+        asyncio.run(client.search_documents(query="test", auth_header="Bearer per-client-token"))
 
         call_headers = mock.call_args[1]["headers"]
         assert call_headers["Authorization"] == "Bearer per-client-token"
@@ -379,14 +379,14 @@ class TestPerClientTokenForwarding:
         """When no auth_header is passed, the static _api_key is used with
         Bearer prefix."""
         client = TomorrowlandClient(api_url="http://localhost:8000", api_key="fallback-key")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(
                 json_data={"results": [], "total": 0, "query": "t"},
             )
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.search_documents(query="test")
+        asyncio.run(client.search_documents(query="test"))
 
         call_headers = mock.call_args[1]["headers"]
         assert call_headers["Authorization"] == "Bearer fallback-key"
@@ -395,14 +395,14 @@ class TestPerClientTokenForwarding:
         """When neither auth_header nor static key is present, no
         Authorization header is set."""
         client = TomorrowlandClient(api_url="http://localhost:8000", api_key="")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(
                 json_data={"results": [], "total": 0, "query": "t"},
             )
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.search_documents(query="test")
+        asyncio.run(client.search_documents(query="test"))
 
         call_headers = mock.call_args[1]["headers"]
         assert "Authorization" not in call_headers
@@ -410,26 +410,26 @@ class TestPerClientTokenForwarding:
     def test_all_six_methods_accept_auth_header(self) -> None:
         """Every tool method must accept and forward auth_header."""
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(return_value=_mock_response(json_data={}))
+        mock = AsyncMock(return_value=_mock_response(json_data={}))
         client._client.request = mock  # type: ignore[method-assign]
 
         token = "Bearer per-client-token"
-        client.search_documents(query="t", auth_header=token)
+        asyncio.run(client.search_documents(query="t", auth_header=token))
         assert mock.call_args[1]["headers"]["Authorization"] == token
 
-        client.get_document(document_id="abc", auth_header=token)
+        asyncio.run(client.get_document(document_id="abc", auth_header=token))
         assert mock.call_args[1]["headers"]["Authorization"] == token
 
-        client.get_passages(document_id="abc", auth_header=token)
+        asyncio.run(client.get_passages(document_id="abc", auth_header=token))
         assert mock.call_args[1]["headers"]["Authorization"] == token
 
-        client.ask_corpus(question="what?", auth_header=token)
+        asyncio.run(client.ask_corpus(question="what?", auth_header=token))
         assert mock.call_args[1]["headers"]["Authorization"] == token
 
-        client.get_related_documents(document_id="abc", auth_header=token)
+        asyncio.run(client.get_related_documents(document_id="abc", auth_header=token))
         assert mock.call_args[1]["headers"]["Authorization"] == token
 
-        client.list_facets(auth_header=token)
+        asyncio.run(client.list_facets(auth_header=token))
         assert mock.call_args[1]["headers"]["Authorization"] == token
 
 
@@ -445,14 +445,14 @@ class TestTomorrowlandClient:
 
     def test_search_documents_posts_correct_path(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000", api_key="test-key")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(
                 json_data={"results": [], "total": 0, "query": "test"},
             )
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.search_documents(query="test query", top_k=10, page=1)
+        asyncio.run(client.search_documents(query="test query", top_k=10, page=1))
 
         mock.assert_called_once_with(
             method="POST",
@@ -465,17 +465,17 @@ class TestTomorrowlandClient:
 
     def test_search_documents_with_filters(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(
                 json_data={"results": [], "total": 0, "query": "test"},
             )
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.search_documents(
+        asyncio.run(client.search_documents(
             query="test",
             filters={"sources": ["src1"], "mime_types": ["application/pdf"]},
-        )
+        ))
 
         call_kwargs = mock.call_args[1]
         assert call_kwargs["json"]["filters"] == {
@@ -487,12 +487,12 @@ class TestTomorrowlandClient:
 
     def test_get_document_gets_correct_path(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(json_data={"document_id": "abc"}),
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.get_document(document_id="abc-123")
+        asyncio.run(client.get_document(document_id="abc-123"))
 
         mock.assert_called_once_with(
             method="GET",
@@ -507,14 +507,14 @@ class TestTomorrowlandClient:
 
     def test_get_passages_gets_correct_path(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(
                 json_data={"document_id": "abc", "passages": []},
             )
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.get_passages(document_id="abc-123", limit=10, offset=5)
+        asyncio.run(client.get_passages(document_id="abc-123", limit=10, offset=5))
 
         mock.assert_called_once_with(
             method="GET",
@@ -529,12 +529,12 @@ class TestTomorrowlandClient:
 
     def test_ask_corpus_posts_correct_path(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(json_data={"answer": "test answer"}),
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.ask_corpus(question="What is this?", top_k=5)
+        asyncio.run(client.ask_corpus(question="What is this?", top_k=5))
 
         mock.assert_called_once_with(
             method="POST",
@@ -547,12 +547,12 @@ class TestTomorrowlandClient:
 
     def test_ask_corpus_with_document_id(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(json_data={"answer": "test"}),
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.ask_corpus(question="Question?", document_id="doc-1")
+        asyncio.run(client.ask_corpus(question="Question?", document_id="doc-1"))
 
         call_kwargs = mock.call_args[1]
         assert call_kwargs["json"]["document_id"] == "doc-1"
@@ -561,14 +561,14 @@ class TestTomorrowlandClient:
 
     def test_get_related_documents_gets_correct_path(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(
                 json_data={"document_id": "abc", "related": []},
             )
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.get_related_documents(document_id="abc-123")
+        asyncio.run(client.get_related_documents(document_id="abc-123"))
 
         mock.assert_called_once_with(
             method="GET",
@@ -583,12 +583,12 @@ class TestTomorrowlandClient:
 
     def test_list_facets_gets_correct_path(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(json_data={"facets": {}}),
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.list_facets(query="test")
+        asyncio.run(client.list_facets(query="test"))
 
         mock.assert_called_once_with(
             method="GET",
@@ -603,28 +603,28 @@ class TestTomorrowlandClient:
 
     def test_auth_header_forwarded(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000", api_key="my-secret-token")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(
                 json_data={"results": [], "total": 0, "query": "t"},
             )
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.search_documents(query="test")
+        asyncio.run(client.search_documents(query="test"))
 
         call_headers = mock.call_args[1]["headers"]
         assert call_headers["Authorization"] == "Bearer my-secret-token"
 
     def test_no_auth_header_when_no_key(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000", api_key="")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(
                 json_data={"results": [], "total": 0, "query": "t"},
             )
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.search_documents(query="test")
+        asyncio.run(client.search_documents(query="test"))
 
         call_headers = mock.call_args[1]["headers"]
         assert "Authorization" not in call_headers
@@ -633,28 +633,28 @@ class TestTomorrowlandClient:
 
     def test_correlation_id_forwarded_as_header(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000", api_key="test-key")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(
                 json_data={"results": [], "total": 0, "query": "t"},
             )
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.search_documents(query="test", correlation_id="corr-abc-123")
+        asyncio.run(client.search_documents(query="test", correlation_id="corr-abc-123"))
 
         call_headers = mock.call_args[1]["headers"]
         assert call_headers["X-Correlation-ID"] == "corr-abc-123"
 
     def test_no_correlation_id_header_when_not_provided(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000", api_key="test-key")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_mock_response(
                 json_data={"results": [], "total": 0, "query": "t"},
             )
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        client.search_documents(query="test")
+        asyncio.run(client.search_documents(query="test"))
 
         call_headers = mock.call_args[1]["headers"]
         assert "X-Correlation-ID" not in call_headers
@@ -694,7 +694,7 @@ class TestTomorrowlandClient:
     )
     def test_api_error_maps_to_mcp_error(self, status_code: int, expected_message: str) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000", api_key="key")
-        mock = MagicMock(
+        mock = AsyncMock(
             return_value=_error_response(status_code, detail="Original error"),
         )
         client._client.request = mock  # type: ignore[method-assign]
@@ -703,35 +703,34 @@ class TestTomorrowlandClient:
 
         with pytest.raises(ValueError, match=expected_message):
             try:
-                client.search_documents(query="test")
+                asyncio.run(client.search_documents(query="test"))
             except TomorrowlandClientError as exc:
                 raise ValueError(_translate_error(exc)) from exc
 
     def test_timeout_raises_mcp_error(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(side_effect=httpx.TimeoutException("Timed out"))
+        mock = AsyncMock(side_effect=httpx.TimeoutException("Timed out"))
         client._client.request = mock  # type: ignore[method-assign]
 
         with pytest.raises(TomorrowlandClientError, match="timed out"):
-            client.search_documents(query="test")
+            asyncio.run(client.search_documents(query="test"))
 
     def test_connection_error_raises_mcp_error(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(side_effect=httpx.RequestError("Connection refused"))
+        mock = AsyncMock(side_effect=httpx.RequestError("Connection refused"))
         client._client.request = mock  # type: ignore[method-assign]
 
         with pytest.raises(TomorrowlandClientError, match="Cannot reach"):
-            client.search_documents(query="test")
+            asyncio.run(client.search_documents(query="test"))
 
     def test_api_500_raises_error(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
-            return_value=_error_response(500, detail="Internal error"),
+        mock = AsyncMock(return_value=_error_response(500, detail="Internal error"),
         )
         client._client.request = mock  # type: ignore[method-assign]
 
         with pytest.raises(TomorrowlandClientError, match="Internal error"):
-            client.search_documents(query="test")
+            asyncio.run(client.search_documents(query="test"))
 
     # -- response parsing ------------------------------------------------
 
@@ -742,10 +741,10 @@ class TestTomorrowlandClient:
             "total": 1,
             "query": "hello",
         }
-        mock = MagicMock(return_value=_mock_response(json_data=expected))
+        mock = AsyncMock(return_value=_mock_response(json_data=expected))
         client._client.request = mock  # type: ignore[method-assign]
 
-        result = client.search_documents(query="hello")
+        result = asyncio.run(client.search_documents(query="hello"))
         assert result == expected
 
 
@@ -759,7 +758,7 @@ class TestRetryBehaviour:
 
     def test_retries_on_503_then_succeeds(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             side_effect=[
                 _error_response(503, "Service temporarily unavailable"),
                 _error_response(503, "Service temporarily unavailable"),
@@ -770,8 +769,8 @@ class TestRetryBehaviour:
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None) as sleep_mock:
-            result = client.search_documents(query="test")
+        with patch("asyncio.sleep", return_value=None) as sleep_mock:
+            result =            asyncio.run(client.search_documents(query="test"))
 
         assert mock.call_count == 3
         assert sleep_mock.call_count == 2
@@ -779,7 +778,7 @@ class TestRetryBehaviour:
 
     def test_retries_exhausted_on_503_raises_error(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             side_effect=[
                 _error_response(503, "Service unavailable"),
                 _error_response(503, "Service unavailable"),
@@ -789,20 +788,20 @@ class TestRetryBehaviour:
         client._client.request = mock  # type: ignore[method-assign]
 
         with (
-            patch("time.sleep", return_value=None) as sleep_mock,
+            patch("asyncio.sleep", return_value=None) as sleep_mock,
             pytest.raises(
                 TomorrowlandClientError,
                 match="Service unavailable",
             ),
         ):
-            client.search_documents(query="test")
+            asyncio.run(client.search_documents(query="test"))
 
         assert mock.call_count == _MAX_RETRIES
         assert sleep_mock.call_count == _MAX_RETRIES - 1
 
     def test_retries_on_429_then_succeeds(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             side_effect=[
                 _error_response(429, "Rate limit exceeded"),
                 _mock_response(
@@ -812,8 +811,8 @@ class TestRetryBehaviour:
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None) as sleep_mock:
-            result = client.search_documents(query="test")
+        with patch("asyncio.sleep", return_value=None) as sleep_mock:
+            result =            asyncio.run(client.search_documents(query="test"))
 
         assert mock.call_count == 2
         assert sleep_mock.call_count == 1
@@ -821,7 +820,7 @@ class TestRetryBehaviour:
 
     def test_retries_on_timeout_then_succeeds(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             side_effect=[
                 httpx.TimeoutException("timed out"),
                 _mock_response(
@@ -831,8 +830,8 @@ class TestRetryBehaviour:
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None) as sleep_mock:
-            result = client.search_documents(query="test")
+        with patch("asyncio.sleep", return_value=None) as sleep_mock:
+            result =            asyncio.run(client.search_documents(query="test"))
 
         assert mock.call_count == 2
         assert sleep_mock.call_count == 1
@@ -840,7 +839,7 @@ class TestRetryBehaviour:
 
     def test_retries_on_connection_error_then_succeeds(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             side_effect=[
                 httpx.RequestError("Connection reset"),
                 _mock_response(
@@ -850,8 +849,8 @@ class TestRetryBehaviour:
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None) as sleep_mock:
-            result = client.search_documents(query="test")
+        with patch("asyncio.sleep", return_value=None) as sleep_mock:
+            result =            asyncio.run(client.search_documents(query="test"))
 
         assert mock.call_count == 2
         assert sleep_mock.call_count == 1
@@ -859,58 +858,58 @@ class TestRetryBehaviour:
 
     def test_does_not_retry_on_401(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(return_value=_error_response(401, "Unauthorized"))
+        mock = AsyncMock(return_value=_error_response(401, "Unauthorized"))
         client._client.request = mock  # type: ignore[method-assign]
 
         with (
-            patch("time.sleep", return_value=None) as sleep_mock,
+            patch("services.mcp.client.asyncio.sleep", return_value=None) as sleep_mock,
             pytest.raises(
                 TomorrowlandClientError,
                 match="Unauthorized",
             ),
         ):
-            client.search_documents(query="test")
+            asyncio.run(client.search_documents(query="test"))
 
         assert mock.call_count == 1
         assert sleep_mock.call_count == 0
 
     def test_does_not_retry_on_403(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(return_value=_error_response(403, "Forbidden"))
+        mock = AsyncMock(return_value=_error_response(403, "Forbidden"))
         client._client.request = mock  # type: ignore[method-assign]
 
         with (
-            patch("time.sleep", return_value=None) as sleep_mock,
+            patch("services.mcp.client.asyncio.sleep", return_value=None) as sleep_mock,
             pytest.raises(
                 TomorrowlandClientError,
                 match="Forbidden",
             ),
         ):
-            client.search_documents(query="test")
+            asyncio.run(client.search_documents(query="test"))
 
         assert mock.call_count == 1
         assert sleep_mock.call_count == 0
 
     def test_does_not_retry_on_404(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(return_value=_error_response(404, "Not found"))
+        mock = AsyncMock(return_value=_error_response(404, "Not found"))
         client._client.request = mock  # type: ignore[method-assign]
 
         with (
-            patch("time.sleep", return_value=None) as sleep_mock,
+            patch("services.mcp.client.asyncio.sleep", return_value=None) as sleep_mock,
             pytest.raises(
                 TomorrowlandClientError,
                 match="Not found",
             ),
         ):
-            client.get_document(document_id="missing")
+            asyncio.run(client.get_document(document_id="missing"))
 
         assert mock.call_count == 1
         assert sleep_mock.call_count == 0
 
     def test_backoff_is_exponential(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             side_effect=[
                 _error_response(503, "fail 1"),
                 _error_response(503, "fail 2"),
@@ -920,10 +919,10 @@ class TestRetryBehaviour:
         client._client.request = mock  # type: ignore[method-assign]
 
         with (
-            patch("time.sleep", return_value=None) as sleep_mock,
+            patch("services.mcp.client.asyncio.sleep", return_value=None) as sleep_mock,
             pytest.raises(TomorrowlandClientError),
         ):
-            client.search_documents(query="test")
+            asyncio.run(client.search_documents(query="test"))
 
         calls = sleep_mock.call_args_list
         assert len(calls) == 2
@@ -991,7 +990,7 @@ class TestAuditLogging:
             tomorrowland_api_url="http://localhost:8000",
             app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.search_documents.return_value = {
             "results": [],
             "total": 0,
@@ -1029,7 +1028,7 @@ class TestAuditLogging:
         caplog.set_level("INFO")
         mcp = self._make_server_with_success_client()
         fn = self._get_tool_fn(mcp, "tomorrowland_search_documents")
-        fn(query="test")
+        _invoke_tool(fn, query="test")
 
         audit_lines = [
             r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
@@ -1049,7 +1048,7 @@ class TestAuditLogging:
             tomorrowland_api_url="http://localhost:8000",
             app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.get_document.side_effect = TomorrowlandClientError(
             "Not found",
             status_code=404,
@@ -1058,7 +1057,7 @@ class TestAuditLogging:
         fn = self._get_tool_fn(mcp, "tomorrowland_get_document")
 
         with pytest.raises(ValueError, match="Resource not found"):
-            fn(document_id="missing")
+            _invoke_tool(fn, document_id="missing")
 
         audit_lines = [
             r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
@@ -1076,7 +1075,7 @@ class TestAuditLogging:
         caplog.set_level("INFO")
         mcp = self._make_server_with_success_client()
         fn = self._get_tool_fn(mcp, "tomorrowland_list_facets")
-        fn()
+        _invoke_tool(fn)
 
         audit_lines = [
             r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
@@ -1144,11 +1143,11 @@ class TestLogSanitization:
             api_url="http://localhost:8000",
             api_key="my-secret-token",
         )
-        mock = MagicMock(return_value=_error_response(401))
+        mock = AsyncMock(return_value=_error_response(401))
         client._client.request = mock  # type: ignore[method-assign]
 
         with pytest.raises(TomorrowlandClientError) as exc_info:
-            client.search_documents(query="test")
+            asyncio.run(client.search_documents(query="test"))
 
         assert "my-secret-token" not in str(exc_info.value)
 
@@ -1342,7 +1341,7 @@ class TestFilterValidation:
         settings = Settings(
             tomorrowland_api_url="http://localhost:8000", app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mcp = create_mcp_server(settings, client=mock_client)
         for t in mcp._tool_manager.list_tools():
             if t.name == "tomorrowland_search_documents":
@@ -1352,7 +1351,7 @@ class TestFilterValidation:
             pytest.fail("Tool not found")
 
         with pytest.raises(ValueError, match="Unknown filter keys"):
-            fn(query="test", filters={"bogus_key": "v"})
+            _invoke_tool(fn, query="test", filters={"bogus_key": "v"})
 
         # The mock client must never have been called.
         mock_client.search_documents.assert_not_called()
@@ -1364,7 +1363,7 @@ class TestFilterValidation:
         settings = Settings(
             tomorrowland_api_url="http://localhost:8000", app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.search_documents.return_value = {
             "results": [], "total": 0, "query": "t",
         }
@@ -1376,7 +1375,7 @@ class TestFilterValidation:
         else:
             pytest.fail("Tool not found")
 
-        result = fn(query="test", filters={"sources": ["wiki"]})
+        result = _invoke_tool(fn, query="test", filters={"sources": ["wiki"]})
         assert result == {"results": [], "total": 0, "query": "t"}
         mock_client.search_documents.assert_called_once()
 
@@ -1426,7 +1425,7 @@ class TestFeatureFlags:
         settings = Settings(
             tomorrowland_api_url="http://localhost:8000", app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mcp = create_mcp_server(settings, client=mock_client)
 
         for t in mcp._tool_manager.list_tools():
@@ -1437,7 +1436,7 @@ class TestFeatureFlags:
             pytest.fail("Tool not found")
 
         with pytest.raises(ValueError, match="search_documents.*disabled"):
-            fn(query="test")
+            _invoke_tool(fn, query="test")
 
         mock_client.search_documents.assert_not_called()
 
@@ -1448,7 +1447,7 @@ class TestFeatureFlags:
         settings = Settings(
             tomorrowland_api_url="http://localhost:8000", app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.search_documents.return_value = {
             "results": [], "total": 0, "query": "t",
         }
@@ -1464,7 +1463,7 @@ class TestFeatureFlags:
         # search_documents should still work.
         for t in mcp._tool_manager.list_tools():
             if t.name == "tomorrowland_search_documents":
-                result = t.fn(query="test")
+                result = _invoke_tool(t.fn, query="test")
                 assert result == {"results": [], "total": 0, "query": "t"}
                 break
 
@@ -1481,12 +1480,12 @@ class TestProgressNotifications:
         settings = Settings(
             tomorrowland_api_url="http://localhost:8000", app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.ask_corpus.return_value = {
             "question": "q", "answer": "a",
             "citations": [], "model": "m",
         }
-        ctx = MagicMock(spec=Context)
+        ctx = AsyncMock(spec=Context)
         mcp = create_mcp_server(settings, client=mock_client)
 
         for t in mcp._tool_manager.list_tools():
@@ -1508,11 +1507,11 @@ class TestProgressNotifications:
         settings = Settings(
             tomorrowland_api_url="http://localhost:8000", app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.ask_corpus.side_effect = TomorrowlandClientError(
             "Down", status_code=503,
         )
-        ctx = MagicMock(spec=Context)
+        ctx = AsyncMock(spec=Context)
         mcp = create_mcp_server(settings, client=mock_client)
 
         for t in mcp._tool_manager.list_tools():
@@ -1544,7 +1543,7 @@ class TestMCPAuthorizationParity:
             tomorrowland_api_url="http://localhost:8000",
             app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         error = TomorrowlandClientError(detail, status_code=status_code)
         for method_name in (
             "search_documents",
@@ -1569,7 +1568,7 @@ class TestMCPAuthorizationParity:
         fn = self._get_tool_fn(mcp, "tomorrowland_get_document")
 
         with pytest.raises(ValueError) as exc_info:
-            fn(document_id=doc_id)
+            _invoke_tool(fn, document_id=doc_id)
 
         msg = str(exc_info.value)
         assert doc_id not in msg
@@ -1582,7 +1581,7 @@ class TestMCPAuthorizationParity:
             tomorrowland_api_key=api_key,
             app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.search_documents.side_effect = TomorrowlandClientError(
             f"Unauthorized: {api_key}",
             status_code=401,
@@ -1591,7 +1590,7 @@ class TestMCPAuthorizationParity:
         fn = self._get_tool_fn(mcp, "tomorrowland_search_documents")
 
         with pytest.raises(ValueError) as exc_info:
-            fn(query="test")
+            _invoke_tool(fn, query="test")
 
         msg = str(exc_info.value)
         assert api_key not in msg
@@ -1704,7 +1703,7 @@ class TestMCPMetrics:
             tomorrowland_api_url="http://localhost:8000",
             app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.search_documents.return_value = {
             "results": [],
             "total": 0,
@@ -1725,7 +1724,7 @@ class TestMCPMetrics:
             outcome="ok",
         )._value.get()
 
-        fn(query="test")
+        _invoke_tool(fn, query="test")
 
         after_ok = _mcp_metrics.tool_calls_total.labels(
             tool="search_documents",
@@ -1740,7 +1739,7 @@ class TestMCPMetrics:
             tomorrowland_api_url="http://localhost:8000",
             app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.get_document.side_effect = TomorrowlandClientError(
             "Not found",
             status_code=404,
@@ -1760,7 +1759,7 @@ class TestMCPMetrics:
         )._value.get()
 
         with pytest.raises(ValueError, match="Resource not found"):
-            fn(document_id="missing")
+            _invoke_tool(fn, document_id="missing")
 
         after_err = _mcp_metrics.tool_calls_total.labels(
             tool="get_document",
@@ -1775,7 +1774,7 @@ class TestMCPMetrics:
             tomorrowland_api_url="http://localhost:8000",
             app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.list_facets.return_value = {"facets": {}}
         mcp = create_mcp_server(settings, client=mock_client)
 
@@ -1788,7 +1787,7 @@ class TestMCPMetrics:
 
         before_sum = _mcp_metrics.tool_call_duration_seconds.labels(tool="list_facets")._sum.get()
 
-        fn()
+        _invoke_tool(fn)
 
         after_sum = _mcp_metrics.tool_call_duration_seconds.labels(tool="list_facets")._sum.get()
         assert after_sum > before_sum
@@ -1800,7 +1799,7 @@ class TestMCPMetrics:
             tomorrowland_api_url="http://localhost:8000",
             app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.ask_corpus.side_effect = TomorrowlandClientError(
             "Service down",
             status_code=503,
@@ -1876,7 +1875,7 @@ class TestMCPMetrics:
             tomorrowland_api_url="http://localhost:8000",
             app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.search_documents.return_value = {
             "results": [],
             "total": 0,
@@ -2090,7 +2089,7 @@ class TestCircuitBreakerClientIntegration:
         # Each 503 call retries 3 times → 3 items consumed per top-level
         # call.  3 calls × 3 = 9 items, threshold=3 opens after 3 calls.
         client._circuit_breaker._failure_threshold = 3
-        mock = MagicMock(
+        mock = AsyncMock(
             side_effect=[
                 _error_response(503, "fail")
                 for _ in range(9)
@@ -2098,16 +2097,16 @@ class TestCircuitBreakerClientIntegration:
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None):
+        with patch("services.mcp.client.asyncio.sleep", return_value=None):
             for i in range(2):
                 with pytest.raises(TomorrowlandClientError):
-                    client.search_documents(query="test")
+                    asyncio.run(client.search_documents(query="test"))
                 assert client._circuit_breaker.failure_count == i + 1
                 assert client._circuit_breaker.state == CircuitBreaker.CLOSED
 
             # 3rd failure opens the breaker.
             with pytest.raises(TomorrowlandClientError):
-                client.search_documents(query="test")
+                asyncio.run(client.search_documents(query="test"))
             assert client._circuit_breaker.state == CircuitBreaker.OPEN
             assert client._circuit_breaker.failure_count == 3
 
@@ -2115,7 +2114,7 @@ class TestCircuitBreakerClientIntegration:
         client = TomorrowlandClient(api_url="http://localhost:8000")
         client._circuit_breaker._failure_threshold = 2
         # 2 calls × 3 retries = 6 items.
-        mock = MagicMock(
+        mock = AsyncMock(
             side_effect=[
                 _error_response(503, "fail")
                 for _ in range(6)
@@ -2123,16 +2122,16 @@ class TestCircuitBreakerClientIntegration:
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None):
+        with patch("services.mcp.client.asyncio.sleep", return_value=None):
             for _ in range(2):
                 with pytest.raises(TomorrowlandClientError):
-                    client.search_documents(query="test")
+                    asyncio.run(client.search_documents(query="test"))
 
             # Breaker is now open — next request fails fast.
             with pytest.raises(
                 CircuitBreakerOpenError, match="Circuit breaker is open",
             ):
-                client.search_documents(query="test")
+                asyncio.run(client.search_documents(query="test"))
 
             # No additional HTTP calls beyond the first 2 calls' retries.
             assert mock.call_count == 6
@@ -2141,13 +2140,13 @@ class TestCircuitBreakerClientIntegration:
         """Client errors (401, 403, 404) must not trip the breaker."""
         for status in (401, 403, 404):
             client = TomorrowlandClient(api_url="http://localhost:8000")
-            mock = MagicMock(
+            mock = AsyncMock(
                 side_effect=[_error_response(status, "error")],
             )
             client._client.request = mock  # type: ignore[method-assign]
 
             with pytest.raises(TomorrowlandClientError):
-                client.search_documents(query="test")
+                asyncio.run(client.search_documents(query="test"))
 
             assert client._circuit_breaker.state == CircuitBreaker.CLOSED
             assert client._circuit_breaker.failure_count == 0
@@ -2157,7 +2156,7 @@ class TestCircuitBreakerClientIntegration:
         for status in (429, 502, 503, 504):
             client = TomorrowlandClient(api_url="http://localhost:8000")
             # Each retries 3 times → 3 side_effect items per call.
-            mock = MagicMock(
+            mock = AsyncMock(
                 side_effect=[
                     _error_response(status, "error")
                     for _ in range(3)
@@ -2165,9 +2164,9 @@ class TestCircuitBreakerClientIntegration:
             )
             client._client.request = mock  # type: ignore[method-assign]
 
-            with patch("time.sleep", return_value=None), \
+            with patch("services.mcp.client.asyncio.sleep", return_value=None), \
                     pytest.raises(TomorrowlandClientError):
-                client.search_documents(query="test")
+                asyncio.run(client.search_documents(query="test"))
 
             assert client._circuit_breaker.failure_count == 1
 
@@ -2175,7 +2174,7 @@ class TestCircuitBreakerClientIntegration:
         client = TomorrowlandClient(api_url="http://localhost:8000")
         # Each timeout call retries 3 times → 3 items per top-level call.
         # 2 calls × 3 = 6 items.
-        mock = MagicMock(
+        mock = AsyncMock(
             side_effect=[
                 httpx.TimeoutException("timed out")
                 for _ in range(6)
@@ -2183,17 +2182,17 @@ class TestCircuitBreakerClientIntegration:
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None):
+        with patch("services.mcp.client.asyncio.sleep", return_value=None):
             for _ in range(2):
                 with pytest.raises(TomorrowlandClientError, match="timed out"):
-                    client.search_documents(query="test")
+                    asyncio.run(client.search_documents(query="test"))
 
         # on_failure fires once per top-level call — count should be 2.
         assert client._circuit_breaker.failure_count == 2
 
     def test_breaker_resets_after_success(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = MagicMock(
+        mock = AsyncMock(
             side_effect=[
                 _error_response(503, "fail"),
                 _error_response(503, "fail"),
@@ -2205,12 +2204,12 @@ class TestCircuitBreakerClientIntegration:
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        with patch("time.sleep", return_value=None):
+        with patch("services.mcp.client.asyncio.sleep", return_value=None):
             with pytest.raises(TomorrowlandClientError):
-                client.search_documents(query="test")
+                asyncio.run(client.search_documents(query="test"))
             assert client._circuit_breaker.failure_count == 1
 
-            result = client.search_documents(query="test")
+            result = asyncio.run(client.search_documents(query="test"))
             assert client._circuit_breaker.state == CircuitBreaker.CLOSED
             assert client._circuit_breaker.failure_count == 0
             assert result == {
@@ -2236,7 +2235,7 @@ class TestCircuitBreakerServerIntegration:
         settings = Settings(
             tomorrowland_api_url="http://localhost:8000", app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.search_documents.side_effect = CircuitBreakerOpenError(
             cooldown_remaining=25.0,
         )
@@ -2244,7 +2243,7 @@ class TestCircuitBreakerServerIntegration:
         fn = self._get_tool_fn(mcp, "tomorrowland_search_documents")
 
         with pytest.raises(ValueError, match="Circuit breaker is open"):
-            fn(query="test")
+            _invoke_tool(fn, query="test")
 
     def test_circuit_breaker_error_recorded_in_metrics(self) -> None:
         from services.mcp.metrics import _mcp_metrics
@@ -2252,7 +2251,7 @@ class TestCircuitBreakerServerIntegration:
         settings = Settings(
             tomorrowland_api_url="http://localhost:8000", app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.get_document.side_effect = CircuitBreakerOpenError(
             cooldown_remaining=15.0,
         )
@@ -2264,7 +2263,7 @@ class TestCircuitBreakerServerIntegration:
         )._value.get()
 
         with pytest.raises(ValueError, match="Circuit breaker is open"):
-            fn(document_id="abc")
+            _invoke_tool(fn, document_id="abc")
 
         after = _mcp_metrics.tool_call_errors_total.labels(
             tool="get_document", error_type="circuit_breaker_open",
@@ -2276,7 +2275,7 @@ class TestCircuitBreakerServerIntegration:
         settings = Settings(
             tomorrowland_api_url="http://localhost:8000", app_env="test",
         )
-        mock_client = MagicMock(spec=TomorrowlandClient)
+        mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.list_facets.side_effect = CircuitBreakerOpenError(
             cooldown_remaining=10.0,
         )
@@ -2284,7 +2283,7 @@ class TestCircuitBreakerServerIntegration:
         fn = self._get_tool_fn(mcp, "tomorrowland_list_facets")
 
         with pytest.raises(ValueError, match="Circuit breaker is open"):
-            fn()
+            _invoke_tool(fn)
 
         audit_lines = [
             r for r in caplog.records

@@ -2,10 +2,15 @@
 
 Wraps the ``/api/agent/v1/*`` endpoints so the MCP server never touches
 the database, Qdrant, or Meilisearch directly.
+
+All methods are **async** (``httpx.AsyncClient``) so concurrent MCP clients
+never block the event loop waiting for backend I/O.
 """
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 import logging
 import time
@@ -79,7 +84,7 @@ class CircuitBreaker:
     404, 422) are **not** counted — they reflect permission or validation
     problems, not backend health.
 
-    Thread-safe for use across MCP worker threads.
+    Async-safe — all state mutations are synchronous (no I/O).
     """
 
     CLOSED = "closed"
@@ -215,8 +220,34 @@ def _extract_error_detail(response: httpx.Response) -> str | None:
         return None
 
 
+def _coalesce_key(
+    method: str,
+    path: str,
+    json_body: dict[str, Any] | None,
+    params: dict[str, Any] | None,
+    auth_header: str | None,
+    correlation_id: str | None,
+    traceparent: str | None,
+) -> str:
+    """Build a deterministic key for request coalescing.
+
+    Identical (method, path, body, params, auth, correlation, trace)
+    tuples map to the same key, allowing concurrent identical requests
+    to share a single backend call.  **Different auth tokens produce
+    different keys** — preventing cross-tenant data leakage.
+    """
+    raw = f"{method}|{path}|"
+    if json_body is not None:
+        raw += json.dumps(json_body, sort_keys=True, default=str)
+    raw += "|"
+    if params is not None:
+        raw += json.dumps(params, sort_keys=True, default=str)
+    raw += f"|{auth_header or ''}|{correlation_id or ''}|{traceparent or ''}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
 class TomorrowlandClient:
-    """Thin HTTP client wrapping ``/api/agent/v1`` researcher endpoints.
+    """Async HTTP client wrapping ``/api/agent/v1`` researcher endpoints.
 
     Every method maps to exactly one endpoint and preserves the request /
     response schema established by #558.  Authentication is forwarded as a
@@ -240,6 +271,17 @@ class TomorrowlandClient:
     the adapter forwards it verbatim.  Falls back to the static
     ``TOMORROWLAND_API_KEY`` environment variable when no per-request header
     is present.
+
+    **Request coalescing** deduplicates concurrent identical requests: if
+    two callers ask for the same document / search / facets simultaneously,
+    only one backend call is made and both callers receive the same result
+    (or exception).
+
+    **Response compression** is requested via ``Accept-Encoding: gzip``
+    to reduce bandwidth for large responses.
+
+    **Connection warmup** pre-establishes TCP+TLS connections to the
+    backend on first use, avoiding cold-start latency.
     """
 
     def __init__(
@@ -254,10 +296,41 @@ class TomorrowlandClient:
         self._circuit_breaker = CircuitBreaker()
         # The global timeout on the pool is a safety ceiling; per-operation
         # timeouts are applied via the *timeout_override* path below.
-        self._client = httpx.Client(
+        self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout),
             limits=_CONNECTION_LIMITS,
         )
+        # Request coalescing — maps coalesce keys to (Event, result_holder)
+        # tuples.  When a second caller arrives with the same key it awaits
+        # the Event instead of making a duplicate backend call.
+        self._inflight: dict[
+            str, tuple[asyncio.Event, dict[str, Any]]
+        ] = {}
+        self._warmed_up = False
+
+    # ------------------------------------------------------------------
+    # Connection warmup (best-effort, lazy)
+    # ------------------------------------------------------------------
+
+    async def warmup(self) -> None:
+        """Pre-establish TCP+TLS connections to the backend (best-effort).
+
+        Idempotent — subsequent calls are no-ops.  Call once at startup or
+        before the first tool invocation to avoid cold-start latency.
+        Only marks warmup complete after a successful connection, so
+        transient startup failures are retried on next invocation.
+        """
+        if self._warmed_up:
+            return
+        try:
+            await self._client.head(
+                f"{self._base_url}/health",
+                timeout=httpx.Timeout(5.0),
+            )
+            self._warmed_up = True
+            logger.debug("MCP client warmup complete (connections established)")
+        except Exception:
+            logger.debug("MCP client warmup skipped (backend not reachable yet)")
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -279,8 +352,14 @@ class TomorrowlandClient:
         *traceparent*, when provided, is forwarded verbatim as the W3C
         ``traceparent`` header for distributed tracing across MCP → API
         → Qdrant / Ollama.
+
+        Includes ``Accept-Encoding: gzip`` to reduce bandwidth for large
+        responses (search results, passages, facets).
         """
-        headers: dict[str, str] = {"Content-Type": "application/json"}
+        headers: dict[str, str] = {
+            "Content-Type": "application/json",
+            "Accept-Encoding": "gzip",
+        }
         if auth_header:
             headers["Authorization"] = auth_header
         elif self._api_key:
@@ -296,7 +375,7 @@ class TomorrowlandClient:
         seconds = _OP_TIMEOUTS.get(path, _DEFAULT_OP_TIMEOUT)
         return httpx.Timeout(seconds)
 
-    def _request(
+    async def _request(
         self,
         method: str,
         path: str,
@@ -316,6 +395,68 @@ class TomorrowlandClient:
         with :class:`CircuitBreakerOpenError`.  Server-side / transient
         errors increment the breaker's failure count; client errors (4xx
         except 429) do not.
+
+        **Request coalescing:** concurrent identical requests share a single
+        backend call.  The first caller performs the actual HTTP request;
+        subsequent callers with the same coalesce key await the result.
+        """
+        # --- request coalescing -----------------------------------------
+        ckey = _coalesce_key(
+            method, path, json_body, params,
+            auth_header, correlation_id, traceparent,
+        )
+        existing = self._inflight.get(ckey)
+        if existing is not None:
+            _coalesce_event, _coalesce_holder = existing
+            logger.debug(
+                "MCP coalescing %s %s (awaiting in-flight request)",
+                method,
+                path,
+            )
+            await _coalesce_event.wait()
+            if "error" in _coalesce_holder:
+                raise _coalesce_holder["error"]
+            return cast("dict[str, Any]", _coalesce_holder["result"])
+
+        event = asyncio.Event()
+        result_holder: dict[str, Any] = {}
+        self._inflight[ckey] = (event, result_holder)
+
+        try:
+            result = await self._do_request(
+                method=method,
+                path=path,
+                json_body=json_body,
+                params=params,
+                correlation_id=correlation_id,
+                auth_header=auth_header,
+                traceparent=traceparent,
+            )
+            result_holder["result"] = result
+            return result
+        except Exception as exc:
+            result_holder["error"] = exc
+            raise
+        finally:
+            event.set()
+            del self._inflight[ckey]
+
+    async def _do_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_body: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        correlation_id: str | None = None,
+        auth_header: str | None = None,
+        traceparent: str | None = None,
+    ) -> dict[str, Any]:
+        """Perform the actual HTTP request with retries and circuit breaker.
+
+        This is the inner implementation called by ``_request`` after
+        coalescing.  It handles retries, circuit breaker state, and
+        error translation.
         """
         # --- circuit breaker gate (fast-fail when open) ---
         try:
@@ -344,7 +485,7 @@ class TomorrowlandClient:
         last_exc: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
-                response = self._client.request(
+                response = await self._client.request(
                     method=method,
                     url=url,
                     headers=req_headers,
@@ -366,7 +507,7 @@ class TomorrowlandClient:
                 _breaker_failure = True
                 if attempt < _MAX_RETRIES:
                     backoff = _RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
-                    time.sleep(backoff)
+                    await asyncio.sleep(backoff)
                     continue
                 self._circuit_breaker.on_failure()
                 raise last_exc from None
@@ -385,7 +526,7 @@ class TomorrowlandClient:
                 _breaker_failure = True
                 if attempt < _MAX_RETRIES:
                     backoff = _RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
-                    time.sleep(backoff)
+                    await asyncio.sleep(backoff)
                     continue
                 self._circuit_breaker.on_failure()
                 raise last_exc from exc
@@ -415,7 +556,7 @@ class TomorrowlandClient:
                     and attempt < _MAX_RETRIES
                 ):
                     backoff = _RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
-                    time.sleep(backoff)
+                    await asyncio.sleep(backoff)
                     continue
                 if _breaker_failure:
                     self._circuit_breaker.on_failure()
@@ -433,7 +574,7 @@ class TomorrowlandClient:
     # Tool methods (each matches one /api/agent/v1 endpoint)
     # ------------------------------------------------------------------
 
-    def search_documents(
+    async def search_documents(
         self,
         query: str,
         top_k: int = 20,
@@ -447,7 +588,7 @@ class TomorrowlandClient:
         body: dict[str, Any] = {"query": query, "top_k": top_k, "page": page}
         if filters:
             body["filters"] = filters
-        return self._request(
+        return await self._request(
             "POST",
             "/api/agent/v1/search_documents",
             json_body=body,
@@ -456,7 +597,7 @@ class TomorrowlandClient:
             traceparent=traceparent,
         )
 
-    def get_document(
+    async def get_document(
         self,
         document_id: str,
         correlation_id: str | None = None,
@@ -464,7 +605,7 @@ class TomorrowlandClient:
         traceparent: str | None = None,
     ) -> dict[str, Any]:
         """GET /api/agent/v1/get_document"""
-        return self._request(
+        return await self._request(
             "GET",
             "/api/agent/v1/get_document",
             params={"document_id": document_id},
@@ -473,7 +614,7 @@ class TomorrowlandClient:
             traceparent=traceparent,
         )
 
-    def get_passages(
+    async def get_passages(
         self,
         document_id: str,
         limit: int = 50,
@@ -483,7 +624,7 @@ class TomorrowlandClient:
         traceparent: str | None = None,
     ) -> dict[str, Any]:
         """GET /api/agent/v1/get_passages"""
-        return self._request(
+        return await self._request(
             "GET",
             "/api/agent/v1/get_passages",
             params={"document_id": document_id, "limit": limit, "offset": offset},
@@ -492,7 +633,7 @@ class TomorrowlandClient:
             traceparent=traceparent,
         )
 
-    def ask_corpus(
+    async def ask_corpus(
         self,
         question: str,
         top_k: int | None = None,
@@ -507,7 +648,7 @@ class TomorrowlandClient:
             body["top_k"] = top_k
         if document_id is not None:
             body["document_id"] = document_id
-        return self._request(
+        return await self._request(
             "POST",
             "/api/agent/v1/ask_corpus",
             json_body=body,
@@ -516,7 +657,7 @@ class TomorrowlandClient:
             traceparent=traceparent,
         )
 
-    def get_related_documents(
+    async def get_related_documents(
         self,
         document_id: str,
         correlation_id: str | None = None,
@@ -524,7 +665,7 @@ class TomorrowlandClient:
         traceparent: str | None = None,
     ) -> dict[str, Any]:
         """GET /api/agent/v1/get_related_documents"""
-        return self._request(
+        return await self._request(
             "GET",
             "/api/agent/v1/get_related_documents",
             params={"document_id": document_id},
@@ -533,7 +674,7 @@ class TomorrowlandClient:
             traceparent=traceparent,
         )
 
-    def list_facets(
+    async def list_facets(
         self,
         query: str = "",
         correlation_id: str | None = None,
@@ -541,7 +682,7 @@ class TomorrowlandClient:
         traceparent: str | None = None,
     ) -> dict[str, Any]:
         """GET /api/agent/v1/list_facets"""
-        return self._request(
+        return await self._request(
             "GET",
             "/api/agent/v1/list_facets",
             params={"query": query},
@@ -550,6 +691,6 @@ class TomorrowlandClient:
             traceparent=traceparent,
         )
 
-    def close(self) -> None:
-        """Close the underlying HTTP client."""
-        self._client.close()
+    async def aclose(self) -> None:
+        """Close the underlying async HTTP client."""
+        await self._client.aclose()
