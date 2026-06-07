@@ -141,6 +141,10 @@ def search(
             return []
 
     # Fire both backends concurrently.
+    # Note: the closures capture ``http_request`` (a Starlette Request).  We only
+    # read scalar attributes (request.query, app.state.*, settings.*) which are
+    # safe to access from the thread-pool threads.  Do not mutate request.state
+    # or read headers/body from inside these closures.
     if meili_provider is not None:
         with ThreadPoolExecutor(max_workers=2) as pool:
             meili_future = pool.submit(_run_meilisearch)

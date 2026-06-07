@@ -400,3 +400,42 @@ def test_answer_stream_trace_no_results_path() -> None:
     trace = done_events[0][1]["retrieval_trace"]
     assert trace["candidates"] == []
     assert len(trace["stages"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# RAG parallel retrieval (ThreadPoolExecutor)
+# ---------------------------------------------------------------------------
+
+
+def test_rag_retrieval_uses_thread_pool_executor() -> None:
+    """_retrieve_chunks must submit backend queries to a ThreadPoolExecutor
+    when Meilisearch is configured, not execute them serially."""
+    chunks = [_make_chunk()]
+    srv = _make_service(chunks=chunks, meili_chunks=chunks)
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    real_submit = ThreadPoolExecutor.submit
+    submit_calls: list[str] = []
+
+    def _tracking_submit(self, fn, *args, **kwargs):
+        fn_name = getattr(fn, "__name__", str(fn))
+        submit_calls.append(fn_name)
+        return real_submit(self, fn, *args, **kwargs)
+
+    with patch(
+        "concurrent.futures.ThreadPoolExecutor.submit", _tracking_submit
+    ):
+        srv.answer("test question", group_ids=["group-1"])
+
+    # At minimum, qdrant search and bm25 search must have been submitted
+    assert len(submit_calls) >= 2, (
+        f"Expected >= 2 submit calls, got {len(submit_calls)}: {submit_calls}"
+    )
+    # Verify the actual backends (not just any two submits) were involved
+    assert any("search" in c for c in submit_calls), (
+        f"Expected a search_rag call in submit_calls: {submit_calls}"
+    )
+    assert any("search" in c for c in submit_calls[1:]), (
+        f"Expected multiple search submissions, got: {submit_calls}"
+    )

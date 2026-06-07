@@ -70,7 +70,13 @@ _admins_group_cache = ConfigCache(ttl_seconds=60.0)  # rarely changes
 
 
 def get_cached_config(connection: Any, key: str) -> str | None:
-    """Return a cached system_config value, refreshing from DB on miss."""
+    """Return a cached system_config value, refreshing from DB on miss.
+
+    Note: ``None`` is both "cache miss" and "cached null value". When a
+    system_config row stores ``value=NULL``, the next call hits the DB again
+    because we cannot distinguish a stored None from a missing entry. This is
+    an intentional trade-off — system_config values are rarely NULL in practice.
+    """
     import sqlalchemy as sa
 
     cached = _system_config_cache.get(key)
