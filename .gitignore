@@ -40,6 +40,9 @@ site/
 /tomorrowland-images-*.tar.part-*
 /tomorrowland-images-*.tar.parts.sha256
 
+# Generated knowledge graph (graphify) — regenerated locally, not tracked
+graphify-out/
+
 # Editors and OS files
 .DS_Store
 .idea/
