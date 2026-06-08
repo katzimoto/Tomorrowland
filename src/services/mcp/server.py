@@ -13,6 +13,8 @@ Observability
 * Every tool invocation emits a structured ``mcp_audit`` log line (INFO).
 * Prometheus metrics are recorded per tool: call counts by outcome,
   latency histograms, and error counts by error type.
+* A circuit breaker (5 failures / 30 s cooldown) protects the backend
+  from cascading failure; state is exposed as a Prometheus gauge.
 * ``GET /health`` returns ``{"status": "ok"}`` for liveness probes.
 * ``GET /metrics`` exposes Prometheus text format for monitoring.
 
@@ -32,13 +34,19 @@ Security
 from __future__ import annotations
 
 import logging
+import os
 import time
+from contextlib import suppress
 from typing import Annotated, Any
 
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
-from services.mcp.client import TomorrowlandClient, TomorrowlandClientError
+from services.mcp.client import (
+    CircuitBreakerOpenError,
+    TomorrowlandClient,
+    TomorrowlandClientError,
+)
 from services.mcp.metrics import _mcp_metrics, metrics_endpoint
 from shared.config import Settings
 from shared.correlation import get_correlation_id
@@ -76,6 +84,86 @@ def _validate_int(value: int, min_val: int, max_val: int, name: str) -> None:
         raise ValueError(f"{name} must be <= {max_val}, got {value}")
 
 
+# Whitelisted filter keys matching the backend AgentSearchFilters schema.
+# Any key NOT in this set is rejected before the API call, giving the MCP
+# client a fast, clear error instead of a round-trip 422.
+_VALID_FILTER_KEYS = frozenset(
+    {
+        "sources",
+        "mime_types",
+        "languages",
+        "tags",
+        "date_from",
+        "date_to",
+    }
+)
+
+
+def _validate_filters(filters: dict[str, Any] | None) -> None:
+    """Validate the filter dict against the known filter schema.
+
+    Rejects unknown keys and non-list/non-string values for known keys,
+    giving a fast, clear error at the MCP layer instead of a round-trip
+    422 from the backend.
+    """
+    if filters is None:
+        return
+    if not isinstance(filters, dict):
+        raise ValueError(f"filters must be a dict, got {type(filters).__name__}")
+    invalid_keys = set(filters.keys()) - _VALID_FILTER_KEYS
+    if invalid_keys:
+        raise ValueError(
+            f"Unknown filter keys: {', '.join(sorted(invalid_keys))}. "
+            f"Valid keys: {', '.join(sorted(_VALID_FILTER_KEYS))}"
+        )
+    # Validate list-typed filter values — reject non-lists (including
+    # explicit None) but skip absent keys.
+    for list_key in ("sources", "mime_types", "languages", "tags"):
+        if list_key in filters:
+            val = filters[list_key]
+            if not isinstance(val, list):
+                raise ValueError(f"filters.{list_key} must be a list, got {type(val).__name__}")
+            # Shallow check: list elements should be strings.
+            for i, el in enumerate(val):
+                if not isinstance(el, str):
+                    raise ValueError(
+                        f"filters.{list_key}[{i}] must be a string, got {type(el).__name__}"
+                    )
+    # Validate date values are non-empty strings (or absent)
+    for date_key in ("date_from", "date_to"):
+        if date_key in filters:
+            val = filters[date_key]
+            if not isinstance(val, str):
+                raise ValueError(
+                    f"filters.{date_key} must be a string or absent, got {type(val).__name__}"
+                )
+
+
+# Per-tool feature flags — operators can disable expensive or risky tools
+# via environment variables while keeping read-only tools active.
+# Set to "0", "false", "no", or "off" (case-insensitive) to disable.
+_TOOL_FEATURE_FLAGS: dict[str, str] = {
+    "search_documents": "MCP_ENABLE_SEARCH_DOCUMENTS",
+    "get_document": "MCP_ENABLE_GET_DOCUMENT",
+    "get_passages": "MCP_ENABLE_GET_PASSAGES",
+    "ask_corpus": "MCP_ENABLE_ASK_CORPUS",
+    "get_related_documents": "MCP_ENABLE_GET_RELATED_DOCUMENTS",
+    "list_facets": "MCP_ENABLE_LIST_FACETS",
+}
+
+_DISABLED_VALUES = frozenset({"0", "false", "no", "off"})
+
+
+def _check_tool_enabled(tool_name: str) -> None:
+    """Raise ValueError if *tool_name* is disabled via its env var."""
+    env_var = _TOOL_FEATURE_FLAGS.get(tool_name)
+    if env_var is None:
+        return  # unknown tool — allow (safety default)
+    value = os.environ.get(env_var, "").strip().lower()
+    if value in _DISABLED_VALUES:
+        raise ValueError(f"Tool '{tool_name}' is disabled. Set {env_var}=1 to enable it.")
+
+
 def _translate_error(exc: TomorrowlandClientError) -> str:
     """Map API HTTP status codes to descriptive error messages."""
     status = exc.status_code
@@ -107,6 +195,20 @@ def _extract_auth_header(ctx: Context[Any, Any]) -> str | None:
     return headers.get("authorization")
 
 
+def _extract_traceparent(ctx: Context[Any, Any]) -> str | None:
+    """Extract the W3C ``traceparent`` header from the MCP request context.
+
+    Enables distributed tracing across MCP → API → Qdrant / Ollama.
+    """
+    meta = getattr(ctx, "request_meta", None)
+    if meta is None:
+        return None
+    headers: dict[str, str] | None = getattr(meta, "headers", None)
+    if headers is None:
+        return None
+    return headers.get("traceparent")
+
+
 def _mcp_audit_log(
     *,
     tool: str,
@@ -124,6 +226,32 @@ def _mcp_audit_log(
         status,
         f" error_type={error_type}" if error_type else "",
     )
+
+
+def _record_circuit_breaker_error(
+    tool: str,
+    elapsed: float,
+    correlation_id: str,
+) -> None:
+    """Record metrics and audit log for a circuit breaker open error."""
+    _mcp_audit_log(
+        tool=tool,
+        correlation_id=correlation_id,
+        latency_ms=elapsed * 1000,
+        status="error",
+        error_type="circuit_breaker_open",
+    )
+    _mcp_metrics.tool_calls_total.labels(
+        tool=tool,
+        outcome="error",
+    ).inc()
+    _mcp_metrics.tool_call_duration_seconds.labels(
+        tool=tool,
+    ).observe(elapsed)
+    _mcp_metrics.tool_call_errors_total.labels(
+        tool=tool,
+        error_type="circuit_breaker_open",
+    ).inc()
 
 
 def create_mcp_server(
@@ -161,7 +289,7 @@ def create_mcp_server(
             "browse what is available, or narrow results by filters."
         ),
     )
-    def tomorrowland_search_documents(
+    async def tomorrowland_search_documents(
         query: Annotated[
             str,
             Field(description="Free-text search query (1-500 characters)"),
@@ -178,8 +306,9 @@ def create_mcp_server(
             dict[str, Any] | None,
             Field(
                 description=(
-                    "Optional filter dict with sources, mime_types, "
-                    "languages, tags, date_from, date_to"
+                    "Optional filter dict. Valid keys: sources (list[str]), "
+                    "mime_types (list[str]), languages (list[str]), "
+                    "tags (list[str]), date_from (str|null), date_to (str|null)"
                 ),
             ),
         ] = None,
@@ -187,19 +316,24 @@ def create_mcp_server(
     ) -> dict[str, Any]:
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
+        traceparent = _extract_traceparent(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(query, 1, _MAX_QUERY_LENGTH, "query")
         _validate_int(top_k, _MIN_TOP_K, _MAX_TOP_K, "top_k")
         _validate_int(page, _MIN_PAGE, _MAX_PAGE, "page")
+        _validate_filters(filters)
+        _check_tool_enabled("search_documents")
+        await client.warmup()
 
         try:
-            result = client.search_documents(
+            result = await client.search_documents(
                 query=query,
                 top_k=top_k,
                 page=page,
                 filters=filters,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
+                traceparent=traceparent,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -237,6 +371,14 @@ def create_mcp_server(
                 error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
+        except CircuitBreakerOpenError as exc:
+            elapsed = time.perf_counter() - t0
+            _record_circuit_breaker_error(
+                "search_documents",
+                elapsed,
+                correlation_id,
+            )
+            raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # tomorrowland.get_document
@@ -251,7 +393,7 @@ def create_mcp_server(
             "get_related_documents to verify the document is correct."
         ),
     )
-    def tomorrowland_get_document(
+    async def tomorrowland_get_document(
         document_id: Annotated[
             str,
             Field(description="UUID of the document (1-64 characters)"),
@@ -260,14 +402,18 @@ def create_mcp_server(
     ) -> dict[str, Any]:
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
+        traceparent = _extract_traceparent(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
+        _check_tool_enabled("get_document")
+        await client.warmup()
 
         try:
-            result = client.get_document(
+            result = await client.get_document(
                 document_id=document_id,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
+                traceparent=traceparent,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -305,6 +451,14 @@ def create_mcp_server(
                 error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
+        except CircuitBreakerOpenError as exc:
+            elapsed = time.perf_counter() - t0
+            _record_circuit_breaker_error(
+                "get_document",
+                elapsed,
+                correlation_id,
+            )
+            raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # tomorrowland.get_passages
@@ -318,7 +472,7 @@ def create_mcp_server(
             "specific sections, or review citations."
         ),
     )
-    def tomorrowland_get_passages(
+    async def tomorrowland_get_passages(
         document_id: Annotated[
             str,
             Field(description="UUID of the document (1-64 characters)"),
@@ -335,18 +489,22 @@ def create_mcp_server(
     ) -> dict[str, Any]:
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
+        traceparent = _extract_traceparent(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
         _validate_int(limit, _MIN_LIMIT, _MAX_LIMIT, "limit")
         _validate_int(offset, _MIN_OFFSET, _MAX_OFFSET, "offset")
+        _check_tool_enabled("get_passages")
+        await client.warmup()
 
         try:
-            result = client.get_passages(
+            result = await client.get_passages(
                 document_id=document_id,
                 limit=limit,
                 offset=offset,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
+                traceparent=traceparent,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -384,6 +542,14 @@ def create_mcp_server(
                 error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
+        except CircuitBreakerOpenError as exc:
+            elapsed = time.perf_counter() - t0
+            _record_circuit_breaker_error(
+                "get_passages",
+                elapsed,
+                correlation_id,
+            )
+            raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # tomorrowland.ask_corpus
@@ -398,7 +564,7 @@ def create_mcp_server(
             "source documents. Can be narrowed to a single document."
         ),
     )
-    def tomorrowland_ask_corpus(
+    async def tomorrowland_ask_corpus(
         question: Annotated[
             str,
             Field(description="Natural-language question (1-2000 characters)"),
@@ -415,6 +581,7 @@ def create_mcp_server(
     ) -> dict[str, Any]:
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
+        traceparent = _extract_traceparent(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(question, 1, _MAX_QUESTION_LENGTH, "question")
 
@@ -422,14 +589,23 @@ def create_mcp_server(
             _validate_int(top_k, _MIN_TOP_K, _MAX_TOP_K, "top_k")
         if document_id is not None:
             _validate_string(document_id, 1, 64, "document_id")
+        _check_tool_enabled("ask_corpus")
+        if ctx is not None:
+            with suppress(Exception):
+                await ctx.report_progress(progress=10, total=100)
 
         try:
-            result = client.ask_corpus(
+            if ctx is not None:
+                with suppress(Exception):
+                    await ctx.report_progress(progress=50, total=100)
+            await client.warmup()
+            result = await client.ask_corpus(
                 question=question,
                 top_k=top_k,
                 document_id=document_id,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
+                traceparent=traceparent,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -444,6 +620,9 @@ def create_mcp_server(
             _mcp_metrics.tool_call_duration_seconds.labels(
                 tool="ask_corpus",
             ).observe(elapsed)
+            if ctx is not None:
+                with suppress(Exception):
+                    await ctx.report_progress(progress=100, total=100)
             return result
         except TomorrowlandClientError as exc:
             elapsed = time.perf_counter() - t0
@@ -466,7 +645,21 @@ def create_mcp_server(
                 tool="ask_corpus",
                 error_type=error_type,
             ).inc()
+            if ctx is not None:
+                with suppress(Exception):
+                    await ctx.report_progress(progress=100, total=100)
             raise ValueError(_translate_error(exc)) from exc
+        except CircuitBreakerOpenError as exc:
+            elapsed = time.perf_counter() - t0
+            _record_circuit_breaker_error(
+                "ask_corpus",
+                elapsed,
+                correlation_id,
+            )
+            if ctx is not None:
+                with suppress(Exception):
+                    await ctx.report_progress(progress=100, total=100)
+            raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # tomorrowland.get_related_documents
@@ -479,7 +672,7 @@ def create_mcp_server(
             "topically related material from a key document."
         ),
     )
-    def tomorrowland_get_related_documents(
+    async def tomorrowland_get_related_documents(
         document_id: Annotated[
             str,
             Field(description="UUID of the seed document (1-64 characters)"),
@@ -488,14 +681,18 @@ def create_mcp_server(
     ) -> dict[str, Any]:
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
+        traceparent = _extract_traceparent(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(document_id, 1, 64, "document_id")
+        _check_tool_enabled("get_related_documents")
+        await client.warmup()
 
         try:
-            result = client.get_related_documents(
+            result = await client.get_related_documents(
                 document_id=document_id,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
+                traceparent=traceparent,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -533,6 +730,14 @@ def create_mcp_server(
                 error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
+        except CircuitBreakerOpenError as exc:
+            elapsed = time.perf_counter() - t0
+            _record_circuit_breaker_error(
+                "get_related_documents",
+                elapsed,
+                correlation_id,
+            )
+            raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # tomorrowland.list_facets
@@ -547,7 +752,7 @@ def create_mcp_server(
             "languages, and document types."
         ),
     )
-    def tomorrowland_list_facets(
+    async def tomorrowland_list_facets(
         query: Annotated[
             str,
             Field(description="Optional free-text query to filter facet counts (0-500 chars)"),
@@ -556,14 +761,18 @@ def create_mcp_server(
     ) -> dict[str, Any]:
         correlation_id = get_correlation_id()
         auth_header = _extract_auth_header(ctx) if ctx else None
+        traceparent = _extract_traceparent(ctx) if ctx else None
         t0 = time.perf_counter()
         _validate_string(query, 0, _MAX_QUERY_LENGTH, "query")
+        _check_tool_enabled("list_facets")
+        await client.warmup()
 
         try:
-            result = client.list_facets(
+            result = await client.list_facets(
                 query=query,
                 correlation_id=correlation_id,
                 auth_header=auth_header,
+                traceparent=traceparent,
             )
             elapsed = time.perf_counter() - t0
             _mcp_audit_log(
@@ -601,6 +810,14 @@ def create_mcp_server(
                 error_type=error_type,
             ).inc()
             raise ValueError(_translate_error(exc)) from exc
+        except CircuitBreakerOpenError as exc:
+            elapsed = time.perf_counter() - t0
+            _record_circuit_breaker_error(
+                "list_facets",
+                elapsed,
+                correlation_id,
+            )
+            raise ValueError(str(exc)) from exc
 
     # ------------------------------------------------------------------
     # Health and metrics endpoints
