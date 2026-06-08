@@ -1,0 +1,105 @@
+# LiteLLM Proxy Gateway configuration for Tomorrowland crew.
+#
+# Fallback chain:
+#   Primary   → opencode-go/deepseek-v4-pro (via OpenRouter)
+#   Secondary → deepseek/deepseek-chat (OpenRouter paid)
+#   Tertiary  → qwen3:4b (local Ollama)
+#
+# Rate limiting and spend tracking are backed by the shared Redis instance
+# (redis:6379) already defined in the main docker-compose.yml.
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/LITELLM_DATABASE_URL
+  # Redis for distributed rate-limit tracking (shared with Tomorrowland's cache).
+  redis_host: os.environ/REDIS_HOST
+  redis_port: os.environ/REDIS_PORT
+  redis_password: os.environ/REDIS_PASSWORD
+  # Alerting: post to Slack/Discord webhook on budget threshold breach.
+  alerting: ["slack"]
+  alerting_threshold: 300  # seconds between repeated alerts
+  # Spend tracking
+  disable_spend_logs: false
+
+model_list:
+  # ── Primary: OpenRouter (the crew's current provider) ──────────────────
+  - model_name: deepseek-v4-pro
+    litellm_params:
+      model: openrouter/opencode-go/deepseek-v4-pro
+      api_key: os.environ/OPENROUTER_API_KEY
+      rpm: 120    # requests per minute across all 10 crew members
+      tpm: 500000 # tokens per minute
+    model_info:
+      mode: chat
+      id: "primary-openrouter-deepseek"
+      description: "Primary: opencode-go/deepseek-v4-pro via OpenRouter"
+      tier: primary
+
+  # ── Secondary: OpenRouter paid fallback (DeepSeek Chat) ────────────────
+  - model_name: deepseek-v4-pro-paid
+    litellm_params:
+      model: openrouter/deepseek/deepseek-chat
+      api_key: os.environ/OPENROUTER_API_KEY
+      rpm: 60
+      tpm: 300000
+    model_info:
+      mode: chat
+      id: "secondary-openrouter-deepseek-chat"
+      description: "Secondary: deepseek/deepseek-chat via OpenRouter (paid)"
+      tier: secondary
+
+  # ── Tertiary: Local Ollama (always available, no API limits) ───────────
+  - model_name: deepseek-v4-pro-local
+    litellm_params:
+      model: ollama/qwen3:4b
+      api_base: http://ollama-llm:11434
+      rpm: 30
+      tpm: 100000
+    model_info:
+      mode: chat
+      id: "tertiary-ollama-qwen"
+      description: "Tertiary: qwen3:4b via local Ollama (air-gap safe)"
+      tier: tertiary
+
+litellm_settings:
+  # ── Fallback chain ─────────────────────────────────────────────────────
+  # If the primary deployment returns a 429 / 5xx / timeout, LiteLLM
+  # automatically retries on the next deployment in model_list order.
+  # "usage-based-routing" prefers deployments with lower RPM/TPM usage,
+  # so the tertiary (Ollama) picks up when OpenRouter is exhausted.
+  routing_strategy: "usage-based-routing"
+
+  fallbacks:
+    - deepseek-v4-pro: ["deepseek-v4-pro-paid"]
+    - deepseek-v4-pro-paid: ["deepseek-v4-pro-local"]
+  context_window_fallbacks:
+    - deepseek-v4-pro: ["deepseek-v4-pro-paid"]
+    - deepseek-v4-pro-paid: ["deepseek-v4-pro-local"]
+
+  # Retry and timeout
+  num_retries: 3
+  request_timeout: 120
+  set_verbose: false
+
+  # ── Rate limiting (global proxy-level) ──────────────────────────────────
+  global_max_parallel_requests: 20
+  max_parallel_requests: 5   # per-user default
+
+  # ── Budget alerts (optional, for spend tracking) ────────────────────────
+  # Uncomment to enable daily budget caps:
+  # daily_budget: 10.0       # USD per day across all users
+  # budget_duration: 1d
+
+# ── Router-level cooldown ────────────────────────────────────────────────
+# When a deployment returns consecutive failures, LiteLLM cools it down
+# (stops routing to it) for the specified period.
+router_settings:
+  allowed_fails: 3
+  cooldown_time: 30  # seconds
+  num_retries: 3
+  fallbacks:
+    - deepseek-v4-pro: ["deepseek-v4-pro-paid"]
+    - deepseek-v4-pro-paid: ["deepseek-v4-pro-local"]
+  context_window_fallbacks:
+    - deepseek-v4-pro: ["deepseek-v4-pro-paid"]
+    - deepseek-v4-pro-paid: ["deepseek-v4-pro-local"]
