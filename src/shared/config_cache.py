@@ -8,6 +8,7 @@ Thread-safe: single lock per cache instance.
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from typing import Any
@@ -104,10 +105,8 @@ def get_cached_config(connection: Any, key: str) -> str | None:
         # '"old"' for the Python string "old").  Try to deserialise here so
         # both SQLite and PostgreSQL callers receive the same plain value.
         if isinstance(raw_value, str):
-            try:
+            with contextlib.suppress(json.JSONDecodeError, ValueError):
                 raw_value = json.loads(raw_value)
-            except (json.JSONDecodeError, ValueError):
-                pass
         if isinstance(raw_value, (dict, list)):
             value = json.dumps(raw_value)
         elif isinstance(raw_value, bool):
