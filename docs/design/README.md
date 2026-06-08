@@ -18,7 +18,6 @@ Core platform architecture and data model specs.
 
 - [Sources & Permissions](sources-permissions-model.md) — document access control model
 - [Translation Versions](translation-versions-spec.md) — translation versioning and enrichment
-- [Pipeline Tasks](pipeline-tasks.md) — event-driven DAGs on Kanban for multi-stage agent workflows
 - [SQLModel Bounded Models](../architecture/sqlmodel-bounded-models.md) — SQLModel type boundaries
 
 ## Observability
