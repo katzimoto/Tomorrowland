@@ -100,6 +100,7 @@ nav:
       - API Logging: operations/api-logging.md
       - Release Notes: operations/release-notes-rc.md
       - Split Airgap Artifacts: operations/split-airgap-artifacts.md
+      - LiteLLM Gateway: infra/litellm-gateway.md
   - Develop:
       - Overview: context/README.md
       - Testing Guide: development/testing.md
@@ -120,6 +121,7 @@ nav:
       - Platform:
           - Sources & Permissions: design/sources-permissions-model.md
           - Translation Versions: design/translation-versions-spec.md
+          - Pipeline Tasks: design/pipeline-tasks.md
           - SQLModel Bounded Models: architecture/sqlmodel-bounded-models.md
       - Observability:
           - Logging System: design/logging-system-spec.md
@@ -134,9 +136,12 @@ nav:
       - Token Efficiency: agents/token-efficiency.md
       - Templates: agents/templates.md
       - Shared Memory: agents/shared-memory.md
+      - Supervisor Quality Gate: agents/supervisor-quality-gate.md
       - Copilot: agents/copilot.md
       - OpenCode: agents/opencode.md
       - Issue Context Template: agents/issue-context-template.md
+  - Research:
+      - Agent Efficiency Gaps V2: research/agent-efficiency-gaps-v2.md
   - API Reference:
       - Search & Vector: api/search.md
       - RAG: api/rag.md

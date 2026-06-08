@@ -676,5 +676,5 @@ human review → retry).
 - [CrewAI Checkpointing](https://docs.crewai.com/concepts/checkpointing)
 - [Hermes Kanban — Multi-Agent Board](https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban)
 - [Hermes Kanban Tutorial](https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban-tutorial)
-- [Tomorrowland Pipeline Workers](operations/pipeline-workers.md)
+- [Tomorrowland Pipeline Workers](../operations/pipeline-workers.md)
 - Parent research: `t_ed5d965a` — CrewAI/AutoGen/Hermes Kanban comparison
