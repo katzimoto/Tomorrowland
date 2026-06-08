@@ -1,0 +1,73 @@
+# LiteLLM Provider Gateway — drop-in Compose override for Tomorrowland.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.litellm.yml up -d litellm
+#
+# This file adds the LiteLLM proxy service alongside the existing stack.
+# It does NOT modify any project source code. The proxy presents an
+# OpenAI-compatible API at http://litellm:4000 with automatic fallback
+# across three provider tiers (see docker/litellm/config.yaml).
+#
+# Required env vars (add to .env):
+#   LITELLM_MASTER_KEY     — proxy master key (generate with: openssl rand -hex 32)
+#   OPENROUTER_API_KEY     — OpenRouter API key for primary + secondary tiers
+#   LITELLM_DATABASE_URL   — optional Postgres URL for spend tracking
+#                             (e.g. postgresql://postgres:changeme@postgres:5432/litellm)
+
+services:
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    restart: unless-stopped
+    cpus: ${LITELLM_CPUS:-0.50}
+    mem_limit: ${LITELLM_MEM_LIMIT:-512m}
+    mem_reservation: ${LITELLM_MEM_RESERVATION:-128m}
+    pids_limit: ${LITELLM_PIDS_LIMIT:-256}
+
+    ports:
+      # Bind to 127.0.0.1 by default — the proxy is an internal service.
+      # Crew profiles talk to it from the host; Tomorrowland workers talk
+      # to it over the Docker network as http://litellm:4000.
+      - "127.0.0.1:${LITELLM_PORT:-4000}:4000"
+
+    environment:
+      # LiteLLM proxy config path (mounted read-only below).
+      LITELLM_CONFIG_PATH: /app/config.yaml
+
+      # Master key — required for proxy startup and admin UI.
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
+
+      # Database for spend tracking (optional; proxy runs without it).
+      DATABASE_URL: ${LITELLM_DATABASE_URL:-}
+
+      # Redis for distributed rate limiting. Reuses Tomorrowland's Redis.
+      REDIS_HOST: ${LITELLM_REDIS_HOST:-redis}
+      REDIS_PORT: ${LITELLM_REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${LITELLM_REDIS_PASSWORD:-}
+
+      # OpenRouter API key — injected so config.yaml can reference it
+      # via os.environ/OPENROUTER_API_KEY.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+
+    depends_on:
+      redis:
+        condition: service_healthy
+      ollama-llm:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health', timeout=5).close()\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+    logging:
+      driver: json-file
+
+    volumes:
+      # LiteLLM proxy configuration — mounted read-only.
+      - ./docker/litellm/config.yaml:/app/config.yaml:ro
