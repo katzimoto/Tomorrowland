@@ -340,16 +340,3 @@ def default_alert_threshold(connection: sa.Connection) -> float:
     if row is None:
         return 0.75
     return float(row["value"])
-
-
-def alerts_check_on_ingest(connection: sa.Connection) -> bool:
-    """Return whether ingest-time alert matching is enabled."""
-    row = (
-        connection.execute(
-            sa.text("SELECT value FROM system_config WHERE key = :key"),
-            {"key": "alerts.check_on_ingest"},
-        )
-        .mappings()
-        .first()
-    )
-    return _config_bool(row["value"], default=True) if row else True

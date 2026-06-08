@@ -17,37 +17,6 @@ class RelatedRepository:
     def __init__(self, connection: Connection) -> None:
         self._connection = connection
 
-    def get_document_text(self, document_id: UUID) -> str | None:
-        """Return stored text for a document, preferring summary over payload.
-
-        Used by related-document lookups to avoid re-extracting from disk on
-        every request. Returns None when nothing is stored.
-        """
-        summary_row = (
-            self._connection.execute(
-                sa.text("SELECT summary FROM document_summaries WHERE document_id = :document_id"),
-                {"document_id": db_uuid(document_id)},
-            )
-            .mappings()
-            .first()
-        )
-        if summary_row and summary_row["summary"]:
-            return str(summary_row["summary"])
-
-        payload_row = (
-            self._connection.execute(
-                sa.text(
-                    "SELECT content_text FROM document_payloads WHERE document_id = :document_id"
-                ),
-                {"document_id": db_uuid(document_id)},
-            )
-            .mappings()
-            .first()
-        )
-        if payload_row and payload_row["content_text"]:
-            return str(payload_row["content_text"])
-        return None
-
     def get_document_tags_and_entities(self, doc_ids: list[str]) -> dict[str, dict[str, set[str]]]:
         """Return tags and entity tokens for each document id (string UUID).
 
@@ -229,34 +198,6 @@ class RelatedRepository:
                 FROM user_groups ug
                 WHERE ug.user_id = :user_id
                   AND ug.group_id IN ({placeholders})
-                LIMIT 1
-                """),
-            params,
-        ).scalar_one_or_none()
-        return value is not None
-
-    def user_can_access_any(self, user_id: UUID, doc_ids: list[str], group_ids: list[str]) -> bool:
-        """Return whether a user can access at least one document in *doc_ids*."""
-        if not doc_ids or not group_ids:
-            return False
-        params, placeholders = _uuid_params(doc_ids)
-        group_params, group_placeholders = _uuid_params(group_ids, prefix="group")
-        params.update(group_params)
-        params["user_id"] = db_uuid(user_id)
-        value = self._connection.execute(
-            sa.text(f"""
-                SELECT 1
-                FROM user_groups ug
-                JOIN source_permissions sp ON sp.group_id = ug.group_id
-                JOIN documents d ON d.source_id = sp.source_id
-                WHERE ug.user_id = :user_id
-                  AND d.id IN ({placeholders})
-                  AND d.id IN (
-                      SELECT d2.id
-                      FROM documents d2
-                      JOIN source_permissions sp2 ON sp2.source_id = d2.source_id
-                      WHERE sp2.group_id IN ({group_placeholders})
-                  )
                 LIMIT 1
                 """),
             params,
