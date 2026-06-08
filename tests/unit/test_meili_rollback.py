@@ -84,8 +84,8 @@ class TestRollbackDocs:
     def test_rollback_doc_exists(self):
         import os
 
-        path = "docs/implementation/meilisearch-rollout.md"
-        assert os.path.exists(path), f"Rollback doc missing: {path}"
+        path = "docs/operators/ai-surfaces.md"
+        assert os.path.exists(path), f"Meilisearch feature flag doc missing: {path}"
         with open(path) as f:
             content = f.read()
-        assert "rollback" in content.lower() or "disable" in content.lower()
+        assert "feature_meilisearch_search" in content.lower() or "disable" in content.lower()

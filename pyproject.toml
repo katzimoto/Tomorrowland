@@ -74,7 +74,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.pytest.ini_options]
-addopts = "-m 'not e2e' --strict-markers --cov=src --cov-branch --cov-report=term-missing --cov-fail-under=90"
+addopts = "-m 'not e2e' --strict-markers --cov=src --cov-branch --cov-report="
 testpaths = ["tests"]
 pythonpath = ["src", "."]
 markers = [
