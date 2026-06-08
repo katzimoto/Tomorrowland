@@ -1,8 +1,8 @@
+# Phase 06: Intelligence Layer
+
 > **Note (June 2026):** This phase plan predates the Elasticsearch→Meilisearch
 > migration (PR #573). References to "Update Elasticsearch" or "ES index mapping"
 > below now apply to Meilisearch in the current implementation.
-
-# Phase 06: Intelligence Layer
 
 ## Goal
 

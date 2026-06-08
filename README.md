@@ -1,4 +1,4 @@
-<h1 align="center">Tomorrowland</h1>
+# Tomorrowland
 
 <p align="center">
   <strong>Local-first knowledge intelligence for private document corpora</strong>
