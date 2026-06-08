@@ -451,9 +451,9 @@ doc_ingest() {
   fi
 
   local indexed skipped failed_count
-  indexed="$(echo "$response" | json_get 'data.get("indexed", 0)')"
+  indexed="$(echo "$response" | json_get 'data.get("created", 0)')"
   skipped="$(echo "$response" | json_get 'data.get("skipped", 0)')"
-  failed_count="$(echo "$response" | json_get 'data.get("failed", 0)')"
+  failed_count="$(echo "$response" | json_get 'data.get("failed_discovery", 0) + data.get("failed_enqueue", 0)')"
 
   if [[ "$failed_count" != "0" ]]; then
     echo "Ingestion reported failed=${failed_count}" >&2
