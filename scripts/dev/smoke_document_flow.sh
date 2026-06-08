@@ -440,9 +440,16 @@ doc_ingest() {
   fi
 
   log_info "Triggering sync for source ${SOURCE_ID}"
-  local response
-  response="$(curl_json POST "${API_URL}/admin/ingestion/${SOURCE_ID}/sync-now")"
-  local http_code="$CURL_JSON_HTTP_CODE"
+  local response http_code tmp_resp
+  tmp_resp="$(mktemp)"
+  # Call curl directly so the http_code is captured in this shell, not a subshell
+  # (curl_json sets CURL_JSON_HTTP_CODE inside $() which is a subshell and the
+  # assignment does not propagate back to the caller).
+  http_code="$(curl -sS -o "$tmp_resp" -w '%{http_code}' -X POST \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    "${API_URL}/admin/ingestion/${SOURCE_ID}/sync-now")"
+  response="$(cat "$tmp_resp")"
+  rm -f "$tmp_resp"
 
   if (( http_code < 200 || http_code >= 300 )); then
     echo "Sync returned HTTP ${http_code}" >&2
