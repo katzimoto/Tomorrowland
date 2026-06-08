@@ -5,7 +5,6 @@ import time
 from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
-import sqlalchemy as sa
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -23,6 +22,7 @@ from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
+from shared.config_cache import get_cached_admins_group_id
 from shared.metrics import (
     MetricsRegistry,
     reset_current_metrics,
@@ -31,6 +31,7 @@ from shared.metrics import (
     status_class,
 )
 from shared.rate_limit import AgentRateLimiter
+from shared.redis_client import RedisClient
 from shared.request_context import reset_request_id, set_request_id
 
 AUTH_SCHEME = "Bearer "
@@ -128,18 +129,21 @@ def create_app(
 
     with app.state.engine.begin() as connection:
         try:
-            admins_id = connection.execute(
-                sa.text("SELECT id FROM groups WHERE name = 'admins'"),
-            ).scalar()
-            app.state.admins_group_id = str(admins_id) if admins_id else None
+            app.state.admins_group_id = get_cached_admins_group_id(connection)
         except Exception:
             app.state.admins_group_id = None
+
+    # Redis client — gracefully degrades when Redis is unavailable.
+    redis_client = RedisClient(url=app.state.settings.redis_url)
+    redis_client.connect()
+    app.state.redis_client = redis_client
 
     app.state.agent_rate_limiter = AgentRateLimiter(
         enabled=app.state.settings.agent_rate_limit_enabled,
         window_seconds=app.state.settings.agent_rate_limit_window_seconds,
         calls_per_window=app.state.settings.agent_rate_limit_calls_per_window,
         ask_corpus_calls_per_window=app.state.settings.agent_rate_limit_ask_corpus_calls_per_window,
+        redis_client=redis_client,
     )
 
     app.state.readiness_checker = ReadinessChecker(

@@ -55,6 +55,7 @@ x-app-environment: &app-environment
   FEATURE_MEILISEARCH_SHADOW_INDEX: ${FEATURE_MEILISEARCH_SHADOW_INDEX:-true}
   RABBITMQ_URL: ${RABBITMQ_URL:-amqp://tomorrowland:changeme@rabbitmq:5672/}
   RABBITMQ_ENABLED: ${RABBITMQ_ENABLED:-true}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
 
 services:
   migrate:
@@ -292,9 +293,9 @@ services:
       OLLAMA_MODELS: /root/.ollama/models
       OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-2048}
       OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
-      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-2}
       OLLAMA_MAX_QUEUE: ${OLLAMA_MAX_QUEUE:-8}
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-1m}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-24h}
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
     healthcheck:
@@ -355,6 +356,24 @@ services:
       retries: 10
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    cpus: ${REDIS_CPUS:-0.25}
+    mem_limit: ${REDIS_MEM_LIMIT:-256m}
+    mem_reservation: ${REDIS_MEM_RESERVATION:-64m}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+    volumes:
+      - redis_data:/data
 
   parse-worker:
     build:
@@ -644,6 +663,8 @@ volumes:
     name: ${TOMORROWLAND_OLLAMA_EMBED_VOLUME:-tomorrowland_ollama_embed_data}
   rabbitmq_data:
     name: ${TOMORROWLAND_RABBITMQ_VOLUME:-tomorrowland_rabbitmq_data}
+  redis_data:
+    name: ${TOMORROWLAND_REDIS_VOLUME:-tomorrowland_redis_data}
   prometheus_data:
     name: ${TOMORROWLAND_PROMETHEUS_VOLUME:-tomorrowland_prometheus_data}
   grafana_data:

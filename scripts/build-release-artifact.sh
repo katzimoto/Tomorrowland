@@ -66,6 +66,7 @@ third_party_images=(
   "qdrant/qdrant:v1.10.1"
   "getmeili/meilisearch:v1.9"
   "rabbitmq:3.13-management-alpine"
+  "redis:7-alpine"
 )
 if [[ "$include_ollama_image" != "0" ]]; then
   third_party_images+=("ollama/ollama:0.5.13")
@@ -247,7 +248,7 @@ $(for image in "${all_images[@]:1}"; do printf ',\n    "%s"' "$image"; done)
   "minimum_compose_version": "2.20",
   "migrations": {"expected": true, "service": "migrate", "command": "alembic upgrade head"},
   "persistent_data": {
-    "volumes": ["files_data", "postgres_data", "kafka_data", "meilisearch_data", "qdrant_data", "libretranslate_data", "ollama_data", "rabbitmq_data"],
+    "volumes": ["files_data", "postgres_data", "kafka_data", "meilisearch_data", "qdrant_data", "libretranslate_data", "ollama_data", "rabbitmq_data", "redis_data"],
     "volume_env_names": {
       "files_data": "TOMORROWLAND_FILES_VOLUME",
       "postgres_data": "TOMORROWLAND_POSTGRES_VOLUME",
@@ -256,7 +257,8 @@ $(for image in "${all_images[@]:1}"; do printf ',\n    "%s"' "$image"; done)
       "qdrant_data": "TOMORROWLAND_QDRANT_VOLUME",
       "libretranslate_data": "TOMORROWLAND_LIBRETRANSLATE_VOLUME",
       "ollama_data": "TOMORROWLAND_OLLAMA_VOLUME",
-      "rabbitmq_data": "TOMORROWLAND_RABBITMQ_VOLUME"
+      "rabbitmq_data": "TOMORROWLAND_RABBITMQ_VOLUME",
+      "redis_data": "TOMORROWLAND_REDIS_VOLUME"
     },
     "paths": ["TOMORROWLAND_FOLDER_SOURCE_HOST_PATH"]
   },

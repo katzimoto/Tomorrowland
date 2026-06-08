@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from contextlib import suppress as _suppress
 from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID, uuid4
@@ -265,78 +266,85 @@ def _notification_response(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def require_subscriptions_enabled(connection: sa.Connection, settings: Any) -> None:
-    """Raise 404 when subscriptions are disabled."""
+    """Raise 404 when subscriptions are disabled.
+
+    Uses in-process TTL cache to avoid per-request DB round-trips.
+    """
+    from shared.config_cache import get_cached_config
+
     if not settings.feature_subscriptions:
         raise HTTPException(status_code=404, detail="Subscriptions are disabled")
-    row = (
-        connection.execute(
-            sa.text("SELECT value FROM system_config WHERE key = :key"),
-            {"key": "feature.subscriptions"},
-        )
-        .mappings()
-        .first()
-    )
-    if row and not _config_bool(row["value"], default=True):
+    value = get_cached_config(connection, "feature.subscriptions")
+    if value is not None and not _config_bool(value, default=True):
         raise HTTPException(status_code=404, detail="Subscriptions are disabled")
 
 
 def require_related_docs_enabled(connection: sa.Connection, settings: Any) -> None:
-    """Raise 404 when related documents are disabled."""
+    """Raise 404 when related documents are disabled.
+
+    Uses in-process TTL cache to avoid per-request DB round-trips.
+    """
+    from shared.config_cache import get_cached_config
+
     if not settings.feature_related_docs:
         raise HTTPException(status_code=404, detail="Related documents are disabled")
-    row = (
-        connection.execute(
-            sa.text("SELECT value FROM system_config WHERE key = :key"),
-            {"key": "feature.related_docs"},
-        )
-        .mappings()
-        .first()
-    )
-    if row and not _config_bool(row["value"], default=True):
+    value = get_cached_config(connection, "feature.related_docs")
+    if value is not None and not _config_bool(value, default=True):
         raise HTTPException(status_code=404, detail="Related documents are disabled")
 
 
 def require_expertise_enabled(connection: sa.Connection, settings: Any) -> None:
-    """Raise 404 when expertise map is disabled."""
+    """Raise 404 when expertise map is disabled.
+
+    Uses in-process TTL cache to avoid per-request DB round-trips.
+    """
+    from shared.config_cache import get_cached_config
+
     if not settings.feature_expertise_map:
         raise HTTPException(status_code=404, detail="Expertise map is disabled")
-    row = (
-        connection.execute(
-            sa.text("SELECT value FROM system_config WHERE key = :key"),
-            {"key": "feature.expertise_map"},
-        )
-        .mappings()
-        .first()
-    )
-    if row and not _config_bool(row["value"], default=True):
+    value = get_cached_config(connection, "feature.expertise_map")
+    if value is not None and not _config_bool(value, default=True):
         raise HTTPException(status_code=404, detail="Expertise map is disabled")
 
 
 def related_docs_limit(connection: sa.Connection) -> int:
-    """Read related document limit from runtime config."""
-    row = (
-        connection.execute(
-            sa.text("SELECT value FROM system_config WHERE key = :key"),
-            {"key": "search.related_docs_limit"},
-        )
-        .mappings()
-        .first()
-    )
-    if row is None:
+    """Read related document limit from runtime config.
+
+    Uses in-process TTL cache to avoid per-request DB round-trips.
+    """
+    from shared.config_cache import get_cached_config
+
+    value = get_cached_config(connection, "search.related_docs_limit")
+    if value is None:
         return 5
-    return int(row["value"])
+    with _suppress(ValueError):
+        return int(value)
+    return 5
 
 
 def default_alert_threshold(connection: sa.Connection) -> float:
-    """Read the default alert similarity threshold from runtime config."""
-    row = (
-        connection.execute(
-            sa.text("SELECT value FROM system_config WHERE key = :key"),
-            {"key": "alerts.similarity_threshold"},
-        )
-        .mappings()
-        .first()
-    )
-    if row is None:
+    """Read the default alert similarity threshold from runtime config.
+
+    Uses in-process TTL cache to avoid per-request DB round-trips.
+    """
+    from shared.config_cache import get_cached_config
+
+    value = get_cached_config(connection, "alerts.similarity_threshold")
+    if value is None:
         return 0.75
-    return float(row["value"])
+    with _suppress(ValueError):
+        return float(value)
+    return 0.75
+
+
+def alerts_check_on_ingest(connection: sa.Connection) -> bool:
+    """Return whether ingest-time alert matching is enabled.
+
+    Uses in-process TTL cache to avoid per-request DB round-trips.
+    """
+    from shared.config_cache import get_cached_config
+
+    value = get_cached_config(connection, "alerts.check_on_ingest")
+    if value is None:
+        return True
+    return _config_bool(value, default=True)

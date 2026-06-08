@@ -128,3 +128,72 @@ class TestAgentRateLimiterConcurrency:
 
         # Each user has exactly 10 calls — no thread should have raised
         assert not errors
+
+
+class _FakeRedis:
+    """Minimal RedisClient stand-in for distributed rate-limit tests.
+
+    ``allow`` controls the verdict; ``calls`` records every key checked so a
+    test can assert the global limiter was (or was not) consulted.
+    """
+
+    def __init__(self, allow: bool = True) -> None:
+        self.allow = allow
+        self.calls: list[tuple[str, int, int]] = []
+
+    def rate_limit_check(self, key: str, window_seconds: int, max_calls: int) -> bool:
+        self.calls.append((key, window_seconds, max_calls))
+        return self.allow
+
+
+class TestAgentRateLimiterRedis:
+    def test_no_redis_skips_distributed_check(self) -> None:
+        """Without a Redis client the limiter is in-process only (back-compat)."""
+        limiter = AgentRateLimiter(calls_per_window=2, window_seconds=60)
+        limiter.check("user-1")
+        limiter.check("user-1")
+        with pytest.raises(HTTPException):
+            limiter.check("user-1")
+
+    def test_redis_allows_behaves_like_in_process(self) -> None:
+        redis = _FakeRedis(allow=True)
+        limiter = AgentRateLimiter(calls_per_window=2, window_seconds=60, redis_client=redis)
+        limiter.check("user-1")
+        limiter.check("user-1")
+        # In-process floor still trips at the configured limit.
+        with pytest.raises(HTTPException):
+            limiter.check("user-1")
+        # Redis was consulted on every allowed call with a scoped key.
+        assert redis.calls
+        assert redis.calls[0][0] == "ratelimit:user-1:general"
+        assert redis.calls[0][2] == 2  # max_calls forwarded
+
+    def test_redis_denies_raises_429_under_in_process_limit(self) -> None:
+        """Global ceiling: Redis can reject even when the local bucket is clean."""
+        redis = _FakeRedis(allow=False)
+        limiter = AgentRateLimiter(calls_per_window=100, window_seconds=60, redis_client=redis)
+        with pytest.raises(HTTPException) as exc:
+            limiter.check("user-1")
+        assert exc.value.status_code == 429
+
+    def test_ask_corpus_uses_ask_scope_and_limit(self) -> None:
+        redis = _FakeRedis(allow=True)
+        limiter = AgentRateLimiter(
+            calls_per_window=100,
+            ask_corpus_calls_per_window=5,
+            window_seconds=60,
+            redis_client=redis,
+        )
+        limiter.check("user-1", is_ask_corpus=True)
+        assert redis.calls[-1][0] == "ratelimit:user-1:ask_corpus"
+        assert redis.calls[-1][2] == 5  # ask_corpus limit forwarded
+
+    def test_disabled_limiter_skips_redis(self) -> None:
+        redis = _FakeRedis(allow=False)
+        limiter = AgentRateLimiter(
+            enabled=False, calls_per_window=1, window_seconds=60, redis_client=redis
+        )
+        # Disabled → no raise and Redis never consulted.
+        limiter.check("user-1")
+        limiter.check("user-1")
+        assert redis.calls == []

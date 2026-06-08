@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Generator
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -14,12 +17,14 @@ from services.chat.models import ChatScope
 from services.documents.repository import DocumentRepository
 from services.intelligence.llm_provider import LLMProvider
 from services.search.encoder import TextEncoder
-from services.search.hybrid import merge_results
+from services.search.hybrid import SearchResult, merge_results
 from services.search.qdrant import QdrantSearchClient
 from shared.metrics import current_metrics
 
 from .models import AnswerResponse, Citation
 from .trace_models import RetrievalCandidateTrace, RetrievalStageTrace, RetrievalTrace
+
+logger = logging.getLogger(__name__)
 
 CANDIDATE_LIMIT = 40
 
@@ -410,26 +415,11 @@ class RagService:
     ) -> tuple[list[dict[str, Any]], list[RetrievalStageTrace]]:
         """Retrieve chunks from Qdrant (+ Meilisearch when available).
 
-        Returns ``(chunks, stages)`` where *stages* contains per-pipeline-stage
-        timing and candidate counts for instrumentation.
-
-        Retrieves a candidate pool of up to ``CANDIDATE_LIMIT`` per source
-        (vector + lexical). When a Meilisearch provider is configured, BM25
-        candidates are fused with the vector results via ``merge_results()``
-        using equal weights. Deduplication is performed at the chunk level
-        (by chunk_id).
-
-        After retrieval, a reranker (if configured) re-orders and may filter
-        the pool. Chunks scoring below ``score_threshold`` are dropped before
-        context assembly.
-
-        When *scope* is provided, ``build_qdrant_filter`` produces the full
-        combined permission+scope filter and ``search_filtered`` is used.
-        When *scope* is None, the legacy ``document_id`` path is used (for /qa
-        backward compatibility).
+        All backend queries (Qdrant + up to 3 Meilisearch branches) are fired
+        concurrently via ThreadPoolExecutor. Results are then merged sequentially
+        in order: BM25 → metadata → translated.
         """
         stages: list[RetrievalStageTrace] = []
-        t0 = time.perf_counter()
 
         query_vector = self._encoder.encode(question)
 
@@ -437,36 +427,123 @@ class RagService:
             if not group_ids and not allow_all:
                 return [], stages
             qdrant_filter = build_qdrant_filter(scope, group_ids, allow_all)
-            vector_results = self._qdrant.search_filtered(
-                vector=query_vector,
-                query_filter=qdrant_filter,
-                limit=CANDIDATE_LIMIT,
-            )
         else:
-            vector_results = self._qdrant.search(
-                vector=query_vector,
-                group_ids=group_ids,
-                limit=CANDIDATE_LIMIT,
-                document_id=document_id,
-                allow_all=allow_all,
-            )
-
-        stages.append(self._build_stage_trace("vector", len(vector_results), t0))
+            qdrant_filter = None
 
         source_ids = scope.scope_ids if scope and scope.scope_type == "source" else None
 
+        # ── Fire all backend queries in parallel ────────────────────
+        t0 = time.perf_counter()
+        bm25_results: list[SearchResult] = []
+        meta_results: list[SearchResult] = []
+        trans_results: list[SearchResult] = []
+
         if self._meili is not None:
-            t1 = time.perf_counter()
-            bm25_results = self._apply_scope_to_bm25(
-                self._meili.search_rag(
+            # Pre-compute callable + kwargs to simplify mypy inference.
+            _qdrant_callable = (
+                self._qdrant.search_filtered if qdrant_filter is not None else self._qdrant.search
+            )
+            _qdrant_kwargs: dict[str, Any] = (
+                {
+                    "vector": query_vector,
+                    "query_filter": qdrant_filter,
+                    "limit": CANDIDATE_LIMIT,
+                }
+                if qdrant_filter is not None
+                else {
+                    "vector": query_vector,
+                    "group_ids": group_ids,
+                    "limit": CANDIDATE_LIMIT,
+                    "document_id": document_id,
+                    "allow_all": allow_all,
+                }
+            )
+
+            # Up to 4 concurrent backend calls: Qdrant + 3 Meilisearch branches.
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                qdrant_future = pool.submit(_qdrant_callable, **_qdrant_kwargs)  # type: ignore[arg-type]
+                bm25_future = pool.submit(
+                    self._meili.search_rag,
                     text=question,
                     group_ids=group_ids,
                     allow_all=allow_all,
                     limit=CANDIDATE_LIMIT,
                     source_ids=source_ids,
-                ),
-                scope,
-            )
+                )
+                meta_future = (
+                    pool.submit(
+                        self._meili.search_rag_metadata,
+                        text=question,
+                        group_ids=group_ids,
+                        allow_all=allow_all,
+                        limit=CANDIDATE_LIMIT,
+                        source_ids=source_ids,
+                    )
+                    if self._enable_metadata_search
+                    else None
+                )
+                trans_future = (
+                    pool.submit(
+                        self._meili.search_rag_translated,
+                        text=question,
+                        group_ids=group_ids,
+                        allow_all=allow_all,
+                        limit=CANDIDATE_LIMIT,
+                        source_ids=source_ids,
+                    )
+                    if self._enable_translated_text
+                    else None
+                )
+
+                try:
+                    vector_results = qdrant_future.result(timeout=30)
+                except Exception:
+                    vector_results = []
+                    logger.warning("RAG vector retrieval degraded — Qdrant future failed")
+                try:
+                    raw_bm25 = bm25_future.result(timeout=30)
+                except Exception:
+                    raw_bm25 = []
+                    logger.warning("RAG BM25 retrieval degraded — Meilisearch future failed")
+                if meta_future is not None:
+                    try:
+                        raw_meta = meta_future.result(timeout=30)
+                    except Exception:
+                        raw_meta = []
+                else:
+                    raw_meta = []
+                if trans_future is not None:
+                    try:
+                        raw_trans = trans_future.result(timeout=30)
+                    except Exception:
+                        raw_trans = []
+                else:
+                    raw_trans = []
+
+            bm25_results = self._apply_scope_to_bm25(raw_bm25, scope)
+            meta_results = self._apply_scope_to_bm25(raw_meta, scope)
+            trans_results = self._apply_scope_to_bm25(raw_trans, scope)
+        else:
+            if qdrant_filter is not None:
+                vector_results = self._qdrant.search_filtered(
+                    vector=query_vector,
+                    query_filter=qdrant_filter,
+                    limit=CANDIDATE_LIMIT,
+                )
+            else:
+                vector_results = self._qdrant.search(
+                    vector=query_vector,
+                    group_ids=group_ids,
+                    limit=CANDIDATE_LIMIT,
+                    document_id=document_id,
+                    allow_all=allow_all,
+                )
+
+        stages.append(self._build_stage_trace("vector", len(vector_results), t0))
+
+        # ── Sequential merge: BM25 + vector → metadata → translated ──
+        if self._meili is not None:
+            t1 = time.perf_counter()
             stages.append(self._build_stage_trace("bm25", len(bm25_results), t1))
 
             t2 = time.perf_counter()
@@ -480,22 +557,8 @@ class RagService:
 
             if self._enable_metadata_search:
                 t3 = time.perf_counter()
-                meta_results = self._apply_scope_to_bm25(
-                    self._meili.search_rag_metadata(
-                        text=question,
-                        group_ids=group_ids,
-                        allow_all=allow_all,
-                        limit=CANDIDATE_LIMIT,
-                        source_ids=source_ids,
-                    ),
-                    scope,
-                )
                 stages.append(self._build_stage_trace("metadata", len(meta_results), t3))
-
                 t4 = time.perf_counter()
-                # Metadata search is inherently text/label matching — BM25's exact-match
-                # signal is more reliable than vector similarity for document metadata
-                # fields (tags, labels, names, etc.), so weight BM25 heavily (0.8).
                 results = merge_results(
                     bm25_results=meta_results,
                     vector_results=results,
@@ -506,23 +569,8 @@ class RagService:
 
             if self._enable_translated_text:
                 t5 = time.perf_counter()
-                trans_results = self._apply_scope_to_bm25(
-                    self._meili.search_rag_translated(
-                        text=question,
-                        group_ids=group_ids,
-                        allow_all=allow_all,
-                        limit=CANDIDATE_LIMIT,
-                        source_ids=source_ids,
-                    ),
-                    scope,
-                )
                 stages.append(self._build_stage_trace("translated", len(trans_results), t5))
-
                 t6 = time.perf_counter()
-                # Translated text favours BM25 (0.8) because the translated chunks are
-                # exact keyword matches of the query in the target language, which is
-                # better served by lexical search than by vector similarity on translated
-                # embeddings that may drift from the original semantic space.
                 results = merge_results(
                     bm25_results=trans_results,
                     vector_results=results,
@@ -533,6 +581,7 @@ class RagService:
         else:
             results = vector_results
 
+        # ── Deduplicate + look up doc titles ────────────────────────
         t7 = time.perf_counter()
         seen_chunk_ids: set[str] = set()
         unique_results = []
@@ -541,15 +590,19 @@ class RagService:
             if chunk_id not in seen_chunk_ids:
                 seen_chunk_ids.add(chunk_id)
                 unique_results.append(r)
-        stages.append(self._build_stage_trace("dedup", len(unique_results), t7))
+        stages.append(self._build_stage_trace("dedup_filter", len(unique_results), t7))
 
-        # Look up doc titles once, keyed by document_id
+        # Look up doc titles in one batch query — avoids N+1 per-document get_by_id calls.
         doc_repo = DocumentRepository(self._connection)
-        title_cache: dict[str, str | None] = {}
+        doc_ids: list[UUID] = []
         for r in unique_results:
-            if r.document_id not in title_cache:
-                doc = doc_repo.get_by_id(UUID(r.document_id))
-                title_cache[r.document_id] = doc.title if doc else None
+            with suppress(ValueError):
+                doc_ids.append(UUID(r.document_id))
+        title_cache: dict[str, str | None] = {}
+        if doc_ids:
+            # Deduplicate before batch lookup.
+            for doc in doc_repo.list_by_ids(list(set(doc_ids))):
+                title_cache[str(doc.id)] = doc.title
 
         chunks = [
             {

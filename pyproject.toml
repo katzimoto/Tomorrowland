@@ -21,6 +21,7 @@ dependencies = [
   "python-pptx>=1.0",
   "xlrd>=2.0",
   "qdrant-client>=1.10,<1.12",
+  "redis>=5.0",
   "smbprotocol>=1.16,<2",
   "sqlalchemy>=2.0",
   "striprtf>=0.0.32",

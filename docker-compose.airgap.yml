@@ -58,6 +58,7 @@ x-app-environment: &app-environment
   # parse/translate/embed/index/intelligence/alert/enrich workers consume them.
   RABBITMQ_URL: ${RABBITMQ_URL:-amqp://tomorrowland:changeme@rabbitmq:5672/}
   RABBITMQ_ENABLED: ${RABBITMQ_ENABLED:-true}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
 
 services:
   migrate:
@@ -429,6 +430,11 @@ services:
     restart: unless-stopped
     environment:
       OLLAMA_MODELS: /root/.ollama/models
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-2048}
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-2}
+      OLLAMA_MAX_QUEUE: ${OLLAMA_MAX_QUEUE:-8}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-24h}
     ports:
       - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
     healthcheck:
@@ -460,6 +466,21 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+    volumes:
+      - redis_data:/data
+
 volumes:
   files_data:
     name: ${TOMORROWLAND_FILES_VOLUME:-tomorrowland_files_data}
@@ -477,3 +498,5 @@ volumes:
     name: ${TOMORROWLAND_OLLAMA_VOLUME:-tomorrowland_ollama_data}
   rabbitmq_data:
     name: ${TOMORROWLAND_RABBITMQ_VOLUME:-tomorrowland_rabbitmq_data}
+  redis_data:
+    name: ${TOMORROWLAND_REDIS_VOLUME:-tomorrowland_redis_data}

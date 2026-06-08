@@ -225,3 +225,32 @@ def test_model_task_default_unique_task_type(migrated_engine: Engine) -> None:
             ),
             {"id": uuid4().hex, "pid": provider_id.hex},
         )
+
+
+# ---------------------------------------------------------------------------
+# Performance indexes (m3n4o5p6q7r8)
+# ---------------------------------------------------------------------------
+
+
+def test_performance_indexes_exist(migrated_engine: Engine) -> None:
+    """The performance-optimisation migration must create indexes on
+    documents.version_family_id, documents.external_id, and
+    source_permissions.group_id.
+    """
+    inspector = sa.inspect(migrated_engine)
+
+    # Collect all index names from the relevant tables
+    doc_indexes = {idx["name"] for idx in inspector.get_indexes("documents")}
+    src_perm_indexes = {idx["name"] for idx in inspector.get_indexes("source_permissions")}
+
+    # Verify the new performance indexes exist
+    assert "ix_documents_version_family_id" in doc_indexes, (
+        f"Expected ix_documents_version_family_id in {doc_indexes}"
+    )
+    # Composite index on (source_id, external_id) for dedup lookups
+    assert "ix_documents_external_id_source" in doc_indexes, (
+        f"Expected ix_documents_external_id_source in {doc_indexes}"
+    )
+    assert "ix_source_permissions_group_id" in src_perm_indexes, (
+        f"Expected ix_source_permissions_group_id in {src_perm_indexes}"
+    )

@@ -764,6 +764,57 @@ def test_search_admin_passes_allow_all_to_backends(
     assert qdrant_kwargs.get("allow_all") is True
 
 
+def test_search_backends_execute_in_parallel(
+    migrated_engine: Engine,
+) -> None:
+    """Verify search fires Meilisearch and Qdrant concurrently via
+    ThreadPoolExecutor, not serially."""
+    _setup_users(migrated_engine)
+    _, document_id = _create_source_with_doc(migrated_engine, "users", "Parallel Doc")
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = [
+        SearchResult(document_id=document_id, score=0.9, chunk_text="chunk")
+    ]
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    real_submit = ThreadPoolExecutor.submit
+    submit_calls: list[str] = []
+
+    def _tracking_submit(self, fn, *args, **kwargs):
+        fn_name = getattr(fn, "__name__", str(fn))
+        submit_calls.append(fn_name)
+        return real_submit(self, fn, *args, **kwargs)
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
+        )
+    )
+    token = _user_token(client)
+
+    with patch("concurrent.futures.ThreadPoolExecutor.submit", _tracking_submit):
+        response = client.post(
+            "/search",
+            json={"query": "parallel", "page": 1, "page_size": 10},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+
+    # Both backends must have been submitted to the thread pool
+    assert "_run_meilisearch" in submit_calls, (
+        f"_run_meilisearch not submitted to ThreadPoolExecutor: {submit_calls}"
+    )
+    assert "_run_qdrant" in submit_calls, (
+        f"_run_qdrant not submitted to ThreadPoolExecutor: {submit_calls}"
+    )
+
+
 def test_search_drops_orphaned_qdrant_vector(
     migrated_engine: Engine,
 ) -> None:
