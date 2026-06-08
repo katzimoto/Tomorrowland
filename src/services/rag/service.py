@@ -498,14 +498,14 @@ class RagService:
                 )
 
                 try:
-                    vector_results = qdrant_future.result()
+                    vector_results = qdrant_future.result(timeout=30)
                 except Exception:
                     vector_results = []
                     logger.warning(
                         "RAG vector retrieval degraded — Qdrant future failed"
                     )
                 try:
-                    raw_bm25 = bm25_future.result()
+                    raw_bm25 = bm25_future.result(timeout=30)
                 except Exception:
                     raw_bm25 = []
                     logger.warning(
@@ -513,14 +513,14 @@ class RagService:
                     )
                 if meta_future is not None:
                     try:
-                        raw_meta = meta_future.result()
+                        raw_meta = meta_future.result(timeout=30)
                     except Exception:
                         raw_meta = []
                 else:
                     raw_meta = []
                 if trans_future is not None:
                     try:
-                        raw_trans = trans_future.result()
+                        raw_trans = trans_future.result(timeout=30)
                     except Exception:
                         raw_trans = []
                 else:

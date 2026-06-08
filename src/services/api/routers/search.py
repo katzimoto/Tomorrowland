@@ -161,8 +161,16 @@ def search(
         with ThreadPoolExecutor(max_workers=2) as pool:
             meili_future = pool.submit(_run_meilisearch)
             qdrant_future = pool.submit(_run_qdrant, query_vector)
-            bm25_results, meili_facets = meili_future.result()
-            vector_results = qdrant_future.result()
+            try:
+                bm25_results, meili_facets = meili_future.result(timeout=30)
+            except Exception:
+                bm25_results, meili_facets = [], {}
+                logger.warning("Meilisearch search future failed or timed out — degraded to BM25-only")
+            try:
+                vector_results = qdrant_future.result(timeout=30)
+            except Exception:
+                vector_results = []
+                logger.warning("Qdrant search future failed or timed out — vector results unavailable")
     elif meili_provider is not None:
         # Encoder failed — run BM25 alone (no vector to parallelise).
         bm25_results, meili_facets = _run_meilisearch()
