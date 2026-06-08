@@ -192,15 +192,22 @@ def _print_table(results: list[dict[str, Any]]) -> None:
             f"{r['errors']:>5}"
         )
     print(sep)
-    print(f"\nTotal: {sum(r['iterations'] for r in results)} calls "
-          f"across {len(results)} benchmarks.")
+    print(
+        f"\nTotal: {sum(r['iterations'] for r in results)} calls across {len(results)} benchmarks."
+    )
 
 
 def _print_csv(results: list[dict[str, Any]]) -> None:
     """Print results as CSV."""
     keys = [
-        "tool", "concurrency", "iterations", "throughput_calls_per_sec",
-        "latency_p50_ms", "latency_p95_ms", "latency_p99_ms", "errors",
+        "tool",
+        "concurrency",
+        "iterations",
+        "throughput_calls_per_sec",
+        "latency_p50_ms",
+        "latency_p95_ms",
+        "latency_p99_ms",
+        "errors",
     ]
     print(",".join(keys))
     for r in results:
@@ -230,8 +237,10 @@ def main() -> None:
 
     concurrency_levels = [int(c.strip()) for c in args.concurrency.split(",")]
 
-    print(f"Benchmarking async MCP client "
-          f"(iterations={args.iterations}, concurrency={args.concurrency})")
+    print(
+        f"Benchmarking async MCP client "
+        f"(iterations={args.iterations}, concurrency={args.concurrency})"
+    )
     print()
 
     results = asyncio.run(run_benchmarks(concurrency_levels, args.iterations))
