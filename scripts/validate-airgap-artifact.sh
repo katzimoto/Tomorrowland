@@ -192,17 +192,17 @@ tmp_dir="$(mktemp -d)"
 cleanup() { rm -rf "$tmp_dir"; }
 trap cleanup EXIT
 
-if ! docker compose --env-file .env.airgap.example -f docker-compose.airgap.yml config > "$tmp_dir/compose.rendered.yml"; then
-  fail "docker compose config failed for docker-compose.airgap.yml"
+if ! docker compose --env-file .env.airgap.example -f docker-compose.yml -f docker-compose.airgap.yml config > "$tmp_dir/compose.rendered.yml"; then
+  fail "docker compose config failed for merged docker-compose.yml + docker-compose.airgap.yml"
 fi
 log "docker compose config passed"
 
-if grep -Eq '^[[:space:]]+build:' "$tmp_dir/compose.rendered.yml" docker-compose.airgap.yml; then
-  fail "air-gapped compose configuration must not contain build steps"
+if grep -Eq '^[[:space:]]+build:' docker-compose.airgap.yml; then
+  fail "air-gapped overlay must not introduce build steps (build: belongs only in docker-compose.yml)"
 fi
-log "No build steps are present in the air-gapped compose configuration"
+log "No build steps in the air-gapped overlay"
 
-if ! docker compose --env-file .env.airgap.example -f docker-compose.airgap.yml config --images > "$tmp_dir/compose-images.txt"; then
+if ! docker compose --env-file .env.airgap.example -f docker-compose.yml -f docker-compose.airgap.yml config --images > "$tmp_dir/compose-images.txt"; then
   fail "could not list compose images"
 fi
 
@@ -282,18 +282,18 @@ log "Every compose image is present in the offline image bundle"
 # MCP adapter validation (#564)
 # ------------------------------------------------------------------
 
-# Verify the mcp-server service is defined in the air-gapped Compose file.
-if ! grep -q 'mcp-server:' docker-compose.airgap.yml; then
+# Verify the mcp-server service is present in the merged compose configuration.
+if ! grep -q 'mcp-server:' "$tmp_dir/compose.rendered.yml"; then
   fail "air-gapped compose configuration must include mcp-server service"
 fi
 
-# Verify the mcp-server service uses the backend image (no separate build required).
-if grep -A 20 '^  mcp-server:' "$tmp_dir/compose.rendered.yml" | grep -q 'build:'; then
-  fail "mcp-server service must use an image reference, not a build step"
+# Verify the mcp-server service uses an image: reference (not build-only).
+if ! grep -A 20 'mcp-server:' "$tmp_dir/compose.rendered.yml" | grep -q 'image:'; then
+  fail "mcp-server service must declare an image: reference for airgap deployment"
 fi
 
 # Verify mcp-server port binding restricts to localhost.
-if ! grep -q '127.0.0.1:.*8001' docker-compose.airgap.yml; then
+if ! grep -q '127.0.0.1:.*8001' "$tmp_dir/compose.rendered.yml"; then
   log "WARNING: mcp-server port may not be bound to 127.0.0.1; air-gapped deployments should bind to localhost only"
 fi
 
@@ -304,7 +304,7 @@ log "MCP adapter service is present and properly configured in the air-gapped Co
 # ------------------------------------------------------------------
 
 # Meilisearch powers keyword/BM25 search. Without it, search returns no results.
-if ! grep -q '^  meilisearch:' docker-compose.airgap.yml; then
+if ! grep -q 'meilisearch:' "$tmp_dir/compose.rendered.yml"; then
   fail "air-gapped compose configuration must include the meilisearch service"
 fi
 
@@ -312,7 +312,7 @@ fi
 # or synced documents are recorded but never parsed, translated, embedded,
 # indexed, or enriched.
 for worker in parse-worker translate-worker embed-worker index-worker intelligence-worker alert-worker enrich-worker; do
-  if ! grep -q "^  ${worker}:" docker-compose.airgap.yml; then
+  if ! grep -q "${worker}:" "$tmp_dir/compose.rendered.yml"; then
     fail "air-gapped compose configuration must include the ${worker} service"
   fi
 done

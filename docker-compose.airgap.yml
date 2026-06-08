@@ -1,502 +1,58 @@
-x-app-environment: &app-environment
-  APP_ENV: ${APP_ENV:-prod}
-  POSTGRES_URL: ${POSTGRES_URL:-postgresql+psycopg://postgres:changeme@postgres:5432/app}
-  KAFKA_BROKER: ${KAFKA_BROKER:-kafka:9092}
-  QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
-  FILES_ROOT: ${FILES_ROOT:-/data}
-  JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
-  LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-http://libretranslate:5000}
-  SUPPORTED_TRANSLATION_SOURCE_LANGUAGES: ${SUPPORTED_TRANSLATION_SOURCE_LANGUAGES:-en,he,zh,ko,th,ar,fr,ru,es}
-  SUPPORTED_TRANSLATION_TARGET_LANGUAGES: ${SUPPORTED_TRANSLATION_TARGET_LANGUAGES:-en,he,zh,ko,th,ar,fr,ru,es}
-  OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
-  OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
-  OLLAMA_UTILITY_MODEL: ${OLLAMA_UTILITY_MODEL:-qwen3:1.7b}
-  OLLAMA_RERANKER_MODEL: ${OLLAMA_RERANKER_MODEL:-}
-  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-}
-  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-qwen3-embedding:8b}
-  EMBEDDING_URL: ${EMBEDDING_URL:-http://ollama:11434}
-  EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-4096}
-  # External / OpenAI-compatible model provider overrides (optional).
-  # Leave LLM_PROVIDER empty to use the bundled Ollama. Set LLM_PROVIDER=litellm
-  # (or openai-compatible / openai / llama-cpp) with LLM_BASE_URL + LLM_MODEL to
-  # route the api AND every pipeline worker to an external local LLM instead of an
-  # Ollama model bundle. LLM_API_KEY / EMBEDDING_API_KEY carry Bearer auth when the
-  # endpoint requires it (LiteLLM proxy key, etc.); leave empty for local Ollama.
-  LLM_PROVIDER: ${LLM_PROVIDER:-}
-  LLM_BASE_URL: ${LLM_BASE_URL:-}
-  LLM_MODEL: ${LLM_MODEL:-}
-  LLM_API_KEY: ${LLM_API_KEY:-}
-  EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
-  AUTH_PROVIDER: ${AUTH_PROVIDER:-local}
-  LDAP_URL: ${LDAP_URL:-ldap://domain-controller:389}
-  LDAP_BASE_DN: ${LDAP_BASE_DN:-DC=company,DC=local}
-  LDAP_BIND_USER: ${LDAP_BIND_USER:-cn=svc-search,DC=company,DC=local}
-  LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-changeme}
-  LDAP_GROUP_SEARCH_BASE_DNS: ${LDAP_GROUP_SEARCH_BASE_DNS:-}
-  LDAP_GROUP_SEARCH_FILTER: ${LDAP_GROUP_SEARCH_FILTER:-(&(objectClass=group)(cn=*{query}*))}
-  LDAP_GROUP_SEARCH_LIMIT: ${LDAP_GROUP_SEARCH_LIMIT:-50}
-  LDAP_GROUP_SEARCH_TIMEOUT: ${LDAP_GROUP_SEARCH_TIMEOUT:-10}
-  LDAP_GROUP_EXTERNAL_ID_ATTR: ${LDAP_GROUP_EXTERNAL_ID_ATTR:-objectGUID}
-  LDAP_GROUP_DISPLAY_NAME_ATTR: ${LDAP_GROUP_DISPLAY_NAME_ATTR:-cn}
-  FEATURE_RAG_QA: ${FEATURE_RAG_QA:-true}
-  FEATURE_SUMMARIZATION: ${FEATURE_SUMMARIZATION:-true}
-  FEATURE_ENTITY_EXTRACTION: ${FEATURE_ENTITY_EXTRACTION:-true}
-  FEATURE_ANNOTATIONS: ${FEATURE_ANNOTATIONS:-true}
-  FEATURE_SUBSCRIPTIONS: ${FEATURE_SUBSCRIPTIONS:-true}
-  FEATURE_EXPERTISE_MAP: ${FEATURE_EXPERTISE_MAP:-true}
-  FEATURE_RELATED_DOCS: ${FEATURE_RELATED_DOCS:-true}
-  FEATURE_AUTO_TAGGING: ${FEATURE_AUTO_TAGGING:-true}
-  AUTO_ENRICH_THRESHOLD: ${AUTO_ENRICH_THRESHOLD:-5}
-  # Keyword/BM25 search backend (Meilisearch). Required for search; the offline
-  # image bundle ships getmeili/meilisearch:v1.9.
-  MEILISEARCH_URL: ${MEILISEARCH_URL:-http://meilisearch:7700}
-  MEILISEARCH_MASTER_KEY: ${MEILISEARCH_MASTER_KEY:-change-me-meilisearch-master-key}
-  FEATURE_MEILISEARCH_SEARCH: ${FEATURE_MEILISEARCH_SEARCH:-true}
-  FEATURE_MEILISEARCH_SHADOW_INDEX: ${FEATURE_MEILISEARCH_SHADOW_INDEX:-true}
-  # Pipeline job bus (RabbitMQ). The api publishes stage messages and the
-  # parse/translate/embed/index/intelligence/alert/enrich workers consume them.
-  RABBITMQ_URL: ${RABBITMQ_URL:-amqp://tomorrowland:changeme@rabbitmq:5672/}
-  RABBITMQ_ENABLED: ${RABBITMQ_ENABLED:-true}
-  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+# Air-gapped deployment overlay for Tomorrowland.
+#
+# Layer on top of docker-compose.yml for offline operation:
+#   docker compose -f docker-compose.yml -f docker-compose.airgap.yml [command]
+#
+# All runtime differences between connected and air-gapped deployments are
+# controlled by .env.airgap.example variables (BIND_HOST, MEILISEARCH_ENV,
+# TOMORROWLAND_*_IMAGE, OLLAMA_URL, EMBEDDING_URL, etc.). This file adds
+# pull_policy: never to every service so Docker never attempts a registry pull
+# in an offline environment — a missing image fails fast with a clear error
+# instead of timing out on a blocked network.
+#
+# To start with bundled Ollama (models loaded via load-ollama-model-bundle.sh):
+#   COMPOSE_PROFILES=local-llm docker compose -f docker-compose.yml -f docker-compose.airgap.yml up -d
+# Or use the wrapper which activates the profile automatically:
+#   scripts/tomorrowland-airgap.sh up
 
 services:
   migrate:
-    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
-    command: ["alembic", "upgrade", "head"]
-    environment: *app-environment
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - files_data:/data
-      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
-
+    pull_policy: never
   api:
-    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
-    restart: unless-stopped
-    environment: *app-environment
-    ports:
-      - "127.0.0.1:${API_PORT:-8000}:8000"
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      qdrant:
-        condition: service_healthy
-      libretranslate:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).close()\""]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    logging:
-      driver: json-file
-    volumes:
-      - files_data:/data
-      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
-
+    pull_policy: never
   mcp-server:
-    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
-    command: ["tomorrowland-mcp-server"]
-    restart: unless-stopped
-    environment:
-      TOMORROWLAND_API_URL: ${MCP_API_URL:-http://api:8000}
-      TOMORROWLAND_API_KEY: ${TOMORROWLAND_API_KEY:-}
-      TOMORROWLAND_API_TIMEOUT: ${TOMORROWLAND_API_TIMEOUT:-30.0}
-      MCP_HOST: ${MCP_HOST:-0.0.0.0}
-      MCP_PORT: ${MCP_PORT:-8001}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-    ports:
-      - "127.0.0.1:${MCP_HOST_PORT:-8001}:8001"
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/8001'"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    logging:
-      driver: json-file
-
-  # ---------------------------------------------------------------------------
-  # Pipeline workers. Each runs the backend image with a stage-specific command
-  # and consumes its RabbitMQ queue. Without these, uploaded or synced documents
-  # are recorded in the database but never parsed, translated, embedded, indexed,
-  # or enriched. The parse -> translate -> index path keeps keyword search
-  # working; the embed and intelligence stages degrade gracefully until an
-  # optional Ollama model bundle is loaded.
-  # ---------------------------------------------------------------------------
-  parse-worker:
-    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
-    command: ["tomorrowland-parse-worker"]
-    restart: unless-stopped
-    environment: *app-environment
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8081/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    logging:
-      driver: json-file
-    volumes:
-      - files_data:/data
-      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
-
-  translate-worker:
-    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
-    command: ["tomorrowland-translate-worker"]
-    restart: unless-stopped
-    environment: *app-environment
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      libretranslate:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8082/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    logging:
-      driver: json-file
-    volumes:
-      - files_data:/data
-      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
-
-  embed-worker:
-    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
-    command: ["tomorrowland-embed-worker"]
-    restart: unless-stopped
-    environment: *app-environment
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
-    # No depends_on: ollama — the worker calls the LLM/embedding provider per
-    # job (bundled Ollama via the local-llm profile, or an external endpoint via
-    # LLM_*/EMBEDDING_URL), so it must start without a local Ollama present.
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8083/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    logging:
-      driver: json-file
-    volumes:
-      - files_data:/data
-      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
-
-  index-worker:
-    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
-    command: ["tomorrowland-index-worker"]
-    restart: unless-stopped
-    environment: *app-environment
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      meilisearch:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8084/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    logging:
-      driver: json-file
-    volumes:
-      - files_data:/data
-
-  intelligence-worker:
-    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
-    command: ["tomorrowland-intelligence-worker"]
-    restart: unless-stopped
-    environment: *app-environment
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    # No depends_on: ollama — see embed-worker; provider is called per job, so
-    # the worker must start whether or not a local Ollama is running.
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8085/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    logging:
-      driver: json-file
-    volumes:
-      - files_data:/data
-      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
-
-  alert-worker:
-    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
-    command: ["tomorrowland-alert-worker"]
-    restart: unless-stopped
-    environment: *app-environment
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8086/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    logging:
-      driver: json-file
-    volumes:
-      - files_data:/data
-      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
-
-  enrich-worker:
-    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
-    command: ["tomorrowland-enrich-worker"]
-    restart: unless-stopped
-    environment: *app-environment
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8087/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    logging:
-      driver: json-file
-    volumes:
-      - files_data:/data
-      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
-
+    pull_policy: never
   frontend:
-    image: ${TOMORROWLAND_FRONTEND_IMAGE:-tomorrowland/frontend:airgap}
-    restart: unless-stopped
-    ports:
-      - "${FRONTEND_PORT:-8080}:8080"
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "test -s /var/run/nginx.pid && kill -0 $$(cat /var/run/nginx.pid)"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    logging:
-      driver: json-file
-
+    pull_policy: never
+  parse-worker:
+    pull_policy: never
+  translate-worker:
+    pull_policy: never
+  embed-worker:
+    pull_policy: never
+  index-worker:
+    pull_policy: never
+  intelligence-worker:
+    pull_policy: never
+  alert-worker:
+    pull_policy: never
+  enrich-worker:
+    pull_policy: never
   postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-app}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-    ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    logging:
-      driver: json-file
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
+    pull_policy: never
   kafka:
-    image: redpandadata/redpanda:v24.1.9
-    restart: unless-stopped
-    command:
-      - redpanda
-      - start
-      - --overprovisioned
-      - --smp
-      - "1"
-      - --memory
-      - 512M
-      - --reserve-memory
-      - 0M
-      - --node-id
-      - "0"
-      - --check=false
-      - --kafka-addr
-      - PLAINTEXT://0.0.0.0:9092
-      - --advertise-kafka-addr
-      - PLAINTEXT://kafka:9092
-    ports:
-      - "127.0.0.1:${KAFKA_PORT:-9092}:9092"
-    healthcheck:
-      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-    logging:
-      driver: json-file
-    volumes:
-      - kafka_data:/var/lib/redpanda/data
-
-  qdrant:
-    image: qdrant/qdrant:v1.10.1
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333'"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-    logging:
-      driver: json-file
-    volumes:
-      - qdrant_data:/qdrant/storage
-
+    pull_policy: never
   meilisearch:
-    image: getmeili/meilisearch:v1.9
-    restart: unless-stopped
-    environment:
-      MEILI_MASTER_KEY: ${MEILISEARCH_MASTER_KEY:-change-me-meilisearch-master-key}
-      # Air-gapped deployments run Meilisearch in production mode. The master key
-      # must be at least 16 bytes or Meilisearch refuses to start.
-      MEILI_ENV: ${MEILISEARCH_ENV:-production}
-    ports:
-      - "127.0.0.1:${MEILISEARCH_PORT:-7700}:7700"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7700/health | grep -q 'available'"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 20s
-    logging:
-      driver: json-file
-    volumes:
-      - meilisearch_data:/meili_data
-
+    pull_policy: never
+  qdrant:
+    pull_policy: never
   libretranslate:
-    image: ${TOMORROWLAND_LIBRETRANSLATE_IMAGE:-tomorrowland/libretranslate:airgap}
-    restart: unless-stopped
-    environment:
-      LT_UPDATE_PACKAGES: "false"
-      LT_UPDATE_MODELS: "false"
-      LT_LOAD_ONLY: ${LT_LOAD_ONLY:-en,he,zh,ko,th,ar,fr,ru,es}
-      ARGOS_CHUNK_TYPE: ${ARGOS_CHUNK_TYPE:-MINISBD}
-    ports:
-      - "127.0.0.1:${LIBRETRANSLATE_PORT:-5000}:5000"
-    healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/languages', timeout=5).close()\""]
-      interval: 30s
-      timeout: 10s
-      retries: 20
-      start_period: 120s
-    logging:
-      driver: json-file
-    volumes:
-      - libretranslate_data:/home/libretranslate/.local
-
-  ollama:
-    # Bundled local LLM/embedding runtime. Gated behind the "local-llm" profile
-    # so it is opt-in: the tomorrowland-airgap.sh wrapper activates the profile
-    # automatically when LLM_PROVIDER is empty, and skips it (no Ollama, external
-    # endpoint via LLM_*/EMBEDDING_URL) when LLM_PROVIDER is set. A no-Ollama
-    # image bundle (INCLUDE_OLLAMA_IMAGE=0) therefore still validates and deploys.
-    profiles: ["local-llm"]
-    image: ollama/ollama:0.5.13
-    restart: unless-stopped
-    environment:
-      OLLAMA_MODELS: /root/.ollama/models
-      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-2048}
-      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}
-      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-2}
-      OLLAMA_MAX_QUEUE: ${OLLAMA_MAX_QUEUE:-8}
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-24h}
-    ports:
-      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-    logging:
-      driver: json-file
-    volumes:
-      - ollama_data:/root/.ollama
-
+    pull_policy: never
+  ollama-llm:
+    pull_policy: never
+  ollama-embed:
+    pull_policy: never
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    restart: unless-stopped
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-tomorrowland}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-changeme}
-    ports:
-      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
-      - "127.0.0.1:${RABBITMQ_MGMT_PORT:-15672}:15672"
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-    logging:
-      driver: json-file
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-
+    pull_policy: never
   redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    logging:
-      driver: json-file
-    volumes:
-      - redis_data:/data
-
-volumes:
-  files_data:
-    name: ${TOMORROWLAND_FILES_VOLUME:-tomorrowland_files_data}
-  postgres_data:
-    name: ${TOMORROWLAND_POSTGRES_VOLUME:-tomorrowland_postgres_data}
-  kafka_data:
-    name: ${TOMORROWLAND_KAFKA_VOLUME:-tomorrowland_kafka_data}
-  qdrant_data:
-    name: ${TOMORROWLAND_QDRANT_VOLUME:-tomorrowland_qdrant_data}
-  meilisearch_data:
-    name: ${TOMORROWLAND_MEILISEARCH_VOLUME:-tomorrowland_meilisearch_data}
-  libretranslate_data:
-    name: ${TOMORROWLAND_LIBRETRANSLATE_VOLUME:-tomorrowland_libretranslate_data}
-  ollama_data:
-    name: ${TOMORROWLAND_OLLAMA_VOLUME:-tomorrowland_ollama_data}
-  rabbitmq_data:
-    name: ${TOMORROWLAND_RABBITMQ_VOLUME:-tomorrowland_rabbitmq_data}
-  redis_data:
-    name: ${TOMORROWLAND_REDIS_VOLUME:-tomorrowland_redis_data}
+    pull_policy: never

@@ -142,6 +142,7 @@ case "$cmd" in
   up)
     [[ $# -eq 0 ]] || fail "unexpected arguments for up: $*  Run './scripts/tomorrowland-airgap.sh help' for usage."
     [[ -f .env ]] || fail ".env not found.  Copy .env.airgap.example to .env and replace every 'change-me-*' placeholder before starting."
+    [[ -f docker-compose.yml ]] || fail "docker-compose.yml not found.  Run from the extracted release directory."
     [[ -f docker-compose.airgap.yml ]] || fail "docker-compose.airgap.yml not found.  Run from the extracted release directory."
     command -v docker >/dev/null 2>&1 || fail "docker is required"
     profile_args=()
@@ -151,22 +152,23 @@ case "$cmd" in
     else
       log "Starting Tomorrowland stack (air-gapped) WITHOUT bundled Ollama; using external LLM_PROVIDER endpoint"
     fi
-    exec docker compose --env-file .env "${profile_args[@]+"${profile_args[@]}"}" -f docker-compose.airgap.yml up -d
+    exec docker compose --env-file .env "${profile_args[@]+"${profile_args[@]}"}" -f docker-compose.yml -f docker-compose.airgap.yml up -d
     ;;
 
   status)
     [[ $# -eq 0 ]] || fail "unexpected arguments for status: $*  Run './scripts/tomorrowland-airgap.sh help' for usage."
+    [[ -f docker-compose.yml ]] || fail "docker-compose.yml not found.  Run from the extracted release directory."
     [[ -f docker-compose.airgap.yml ]] || fail "docker-compose.airgap.yml not found.  Run from the extracted release directory."
     command -v docker >/dev/null 2>&1 || fail "docker is required"
     if [[ -f .env ]]; then
       status_profile_args=()
       [[ -n "$(local_llm_profile)" ]] && status_profile_args=(--profile local-llm)
-      docker compose --env-file .env "${status_profile_args[@]+"${status_profile_args[@]}"}" -f docker-compose.airgap.yml ps
+      docker compose --env-file .env "${status_profile_args[@]+"${status_profile_args[@]}"}" -f docker-compose.yml -f docker-compose.airgap.yml ps
       api_port="$(env_value API_PORT 8000)"
       frontend_port="$(env_value FRONTEND_PORT 8080)"
     else
       warn ".env not found; showing status with defaults"
-      docker compose -f docker-compose.airgap.yml ps
+      docker compose -f docker-compose.yml -f docker-compose.airgap.yml ps
       api_port="8000"
       frontend_port="8080"
     fi
@@ -176,15 +178,16 @@ case "$cmd" in
 
   down)
     [[ $# -eq 0 ]] || fail "unexpected arguments for down: $*  Run './scripts/tomorrowland-airgap.sh help' for usage."
+    [[ -f docker-compose.yml ]] || fail "docker-compose.yml not found.  Run from the extracted release directory."
     [[ -f docker-compose.airgap.yml ]] || fail "docker-compose.airgap.yml not found.  Run from the extracted release directory."
     command -v docker >/dev/null 2>&1 || fail "docker is required"
     log "Stopping Tomorrowland stack (volumes preserved; never use 'down -v')"
     if [[ -f .env ]]; then
       down_profile_args=()
       [[ -n "$(local_llm_profile)" ]] && down_profile_args=(--profile local-llm)
-      exec docker compose --env-file .env "${down_profile_args[@]+"${down_profile_args[@]}"}" -f docker-compose.airgap.yml down
+      exec docker compose --env-file .env "${down_profile_args[@]+"${down_profile_args[@]}"}" -f docker-compose.yml -f docker-compose.airgap.yml down
     else
-      exec docker compose --profile local-llm -f docker-compose.airgap.yml down
+      exec docker compose --profile local-llm -f docker-compose.yml -f docker-compose.airgap.yml down
     fi
     ;;
 
