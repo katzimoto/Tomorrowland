@@ -16,7 +16,6 @@ def _client() -> TestClient:
     app = create_app(
         engine,
         Settings(
-            _env_file=None,
             app_env="test",
             app_version="9.9.9",
             build_commit="abc123",
