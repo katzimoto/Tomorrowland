@@ -1,6 +1,6 @@
-# Context Maps
+# Develop
 
-Context maps are compact area summaries for agent work. They are intentionally smaller than implementation plans and source files.
+Context maps for developers working on Tomorrowland. These are compact area summaries — smaller than implementation plans and source files.
 
 Use them to answer:
 
@@ -15,7 +15,7 @@ Use them to answer:
 |---|---|
 | `backend-api.md` | FastAPI routes, auth guards, persistence boundaries. |
 | `frontend.md` | React/Vite UI work and frontend testing. |
-| `search.md` | Elasticsearch/Qdrant/hybrid search work. |
+| `search.md` | Meilisearch/Qdrant/hybrid search work. |
 | `extraction.md` | Document extraction registry and file-type handlers. |
 
 Agents should read at most one context map by default.

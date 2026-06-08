@@ -1,0 +1,158 @@
+site_name: Tomorrowland
+site_description: Local-first knowledge intelligence system for private document corpora
+site_author: Tomorrowland Team
+repo_url: https://github.com/tomorrowland/tomorrowland
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    # Dark mode as default
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: light blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: light blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.path
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
+    - toc.integrate
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+            docstring_style: google
+            show_signature_annotations: true
+            members_order: source
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.critic
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - toc:
+      permalink: true
+      toc_depth: 4
+  - attr_list
+  - md_in_html
+  - def_list
+  - footnotes
+  - tables
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Quick Start: development/local-dev.md
+      - Architecture Overview: architecture/overview.md
+      - Logical Spec: logical-spec.md
+  - Deploy & Operate:
+      - Production Compose: operations/production-compose.md
+      - Air-Gapped Deployment: operations/air-gapped-deployment.md
+      - Air-Gapped Upgrade: operations/air-gapped-upgrade.md
+      - Pipeline Workers: operations/pipeline-workers.md
+      - Model Providers: operations/model-providers.md
+      - MCP Adapter: operations/mcp-adapter.md
+      - API Logging: operations/api-logging.md
+      - Release Notes: operations/release-notes-rc.md
+      - Split Airgap Artifacts: operations/split-airgap-artifacts.md
+  - Develop:
+      - Overview: context/README.md
+      - Testing Guide: development/testing.md
+      - Local Demo: development/local-demo.md
+      - Backend API: context/backend-api.md
+      - Search: context/search.md
+      - Extraction: context/extraction.md
+      - Frontend: context/frontend.md
+      - ACL & Permissions: context/acl-audit.md
+  - Design & Specs:
+      - Overview: design/README.md
+      - Documents:
+          - AI Surfaces: operators/ai-surfaces.md
+          - Document Viewer: design/document-viewer-design.md
+          - Viewer Guardrails: design/document-viewer-implementation-guardrails.md
+          - Document Chat: design/document-chat-design.md
+          - Document Comments: design/document-comments-spec.md
+      - Platform:
+          - Sources & Permissions: design/sources-permissions-model.md
+          - Translation Versions: design/translation-versions-spec.md
+          - SQLModel Bounded Models: architecture/sqlmodel-bounded-models.md
+      - Observability:
+          - Logging System: design/logging-system-spec.md
+          - Metrics & Monitoring: design/metrics-monitoring-spec.md
+      - UI & UX:
+          - User UI: design/user-ui-spec.md
+          - Logo Options: design/logo-options.md
+  - Agent Guide:
+      - Overview: agents/README.md
+      - Coding Behavior: agents/coding-behavior.md
+      - Documenting Features: agents/documenting-features.md
+      - Token Efficiency: agents/token-efficiency.md
+      - Templates: agents/templates.md
+      - Shared Memory: agents/shared-memory.md
+      - Copilot: agents/copilot.md
+      - OpenCode: agents/opencode.md
+      - Issue Context Template: agents/issue-context-template.md
+  - API Reference:
+      - Search & Vector: api/search.md
+      - RAG: api/rag.md
+      - Auth & Permissions: api/auth.md
+      - Documents: api/documents.md
+      - Intelligence: api/intelligence.md
+      - Shared: api/shared.md
+  - Reference:
+      - Glossary: memory/glossary.md
+      - Decisions Log: memory/decisions.md
+  - History & Roadmap: roadmap.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/tomorrowland/tomorrowland
+  generator: false
+
+copyright: Copyright &copy; Tomorrowland Team

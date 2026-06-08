@@ -105,7 +105,7 @@ null  --manual/auto-->  "pending_high"  --slow worker-->  "high"
 2. Translate via LibreTranslate with source language detection.
 3. Chunk translated text.
 4. Encode chunks with `MockEncoder`.
-5. Re-index full document in Elasticsearch.
+5. Re-index full document in the search index (originally Elasticsearch, now Meilisearch).
 6. Re-index chunks in Qdrant (upsert overwrites existing points).
 7. Update `documents.translation_quality = 'high'` and `status = 'indexed'`.
 8. Log completion with correlation ID.

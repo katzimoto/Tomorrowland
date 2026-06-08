@@ -9,7 +9,7 @@ Compose application for connected and air-gapped environments.
   comments, annotations, subscriptions, readiness, and orchestration endpoints.
 - React frontend built with TypeScript and Vite.
 - PostgreSQL for application metadata and permissions.
-- Elasticsearch for keyword search.
+- Meilisearch for keyword (BM25) search.
 - Qdrant for vector search.
 - Kafka-compatible event plumbing for NiFi-produced events where configured.
 - LibreTranslate for bundled offline translation language packs.

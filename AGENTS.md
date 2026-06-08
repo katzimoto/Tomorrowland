@@ -208,6 +208,14 @@ Run the guard script for a quick automated check:
 bash scripts/check-pr-cleanliness.sh [target-branch]
 ```
 
+6. **Documentation updated** — every non-trivial change must include docs.
+   See `docs/agents/documenting-features.md` for the change-type → docs mapping.
+   At minimum, verify the relevant wiki page is updated and run:
+   ```bash
+   uv run mkdocs build --strict
+   ```
+   CI enforces this through the `Docs CI` workflow.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.

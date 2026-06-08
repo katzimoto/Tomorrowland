@@ -15,7 +15,7 @@ The current implementation has these observability primitives:
 - `GET /health` returns a minimal API liveness payload: `{"status":"ok","service":"api"}`.
 - `GET /admin/health` is admin-gated and currently returns `{"status":"ok"}`.
 - Docker Compose defines health checks for the API, frontend, PostgreSQL,
-  Redpanda, Elasticsearch, Qdrant, LibreTranslate, and Ollama.
+  Redpanda, Meilisearch, Qdrant, LibreTranslate, and Ollama.
 - Compose uses the Docker `json-file` logging driver for application and
   infrastructure services.
 - Application failures are mostly emitted through standard Python loggers in
@@ -81,7 +81,7 @@ JSON shape:
   "checked_at": "2026-05-09T00:00:00Z",
   "dependencies": {
     "postgres": {"status": "ok", "latency_ms": 7},
-    "elasticsearch": {"status": "ok", "latency_ms": 21},
+    "meilisearch": {"status": "ok", "latency_ms": 21},
     "qdrant": {"status": "ok", "latency_ms": 13},
     "libretranslate": {"status": "degraded", "latency_ms": 1000},
     "ollama": {"status": "ok", "latency_ms": 45}
@@ -151,7 +151,7 @@ hooks for OpenTelemetry. Recommended spans:
 
 - HTTP request handling by route template.
 - Database transactions around route handlers and repositories.
-- Elasticsearch search and indexing calls.
+- Meilisearch search and indexing calls.
 - Qdrant vector search, upsert, and delete calls.
 - LibreTranslate detection/translation calls.
 - Ollama summarization, entity extraction, tagging, and Q&A calls.
@@ -211,10 +211,10 @@ Recommended latency buckets: `0.005`, `0.01`, `0.025`, `0.05`, `0.1`, `0.25`,
 | --- | --- | --- | --- |
 | `tomorrowland_search_requests_total` | counter | `mode`, `outcome` | Search requests by BM25, vector, or hybrid mode. |
 | `tomorrowland_search_duration_seconds` | histogram | `mode` | End-to-end search latency. |
-| `tomorrowland_search_backend_duration_seconds` | histogram | `backend`, `operation` | Elasticsearch and Qdrant call latency. |
+| `tomorrowland_search_backend_duration_seconds` | histogram | `backend`, `operation` | Meilisearch and Qdrant call latency. |
 | `tomorrowland_search_results_count` | histogram | `mode` | Result count distribution. |
 | `tomorrowland_search_permission_filtered_total` | counter | `mode` | Results filtered out by permission checks, if available without high cost. |
-| `tomorrowland_search_index_documents` | gauge | `backend` | Approximate indexed document/vector count from Elasticsearch and Qdrant. |
+| `tomorrowland_search_index_documents` | gauge | `backend` | Approximate indexed document/vector count from Meilisearch and Qdrant. |
 
 ### Translation, Intelligence, And RAG
 
@@ -260,7 +260,7 @@ Recommended latency buckets: `0.005`, `0.01`, `0.025`, `0.05`, `0.1`, `0.25`,
 - Q&A p50/p95 latency against the 10 second target.
 - Ingest throughput and failures.
 - DLQ pending count.
-- Dependency status for PostgreSQL, Elasticsearch, Qdrant, LibreTranslate, and
+- Dependency status for PostgreSQL, Meilisearch, Qdrant, LibreTranslate, and
   Ollama.
 
 ### API And UX
@@ -289,9 +289,9 @@ Recommended latency buckets: `0.005`, `0.01`, `0.025`, `0.05`, `0.1`, `0.25`,
 
 ### Infrastructure
 
-- PostgreSQL, Elasticsearch, Qdrant, LibreTranslate, Ollama, and Redpanda health.
+- PostgreSQL, Meilisearch, Qdrant, LibreTranslate, Ollama, and Redpanda health.
 - Container restarts, CPU, memory, disk use, and volume free space.
-- Elasticsearch shard/index health and Qdrant collection size.
+- Meilisearch index health and Qdrant collection size.
 
 ## Alerting Rules
 
@@ -301,7 +301,7 @@ Initial alert rules should prefer sustained conditions:
 | --- | --- | --- | --- |
 | API down | Critical | Prometheus cannot scrape API or `/health` fails. | 2 minutes |
 | PostgreSQL unavailable | Critical | `tomorrowland_dependency_up{dependency="postgres"} == 0`. | 2 minutes |
-| Search unavailable | Critical | Elasticsearch or Qdrant dependency down. | 5 minutes |
+| Search unavailable | Critical | Meilisearch or Qdrant dependency down. | 5 minutes |
 | High API error rate | Warning | 5xx rate exceeds 2% of requests. | 10 minutes |
 | Search SLO breach | Warning | p95 search latency exceeds 300 ms. | 15 minutes |
 | Q&A SLO breach | Warning | p95 RAG latency exceeds 10 seconds. | 15 minutes |
@@ -350,7 +350,7 @@ not lose documents or permissions.
   propagation.
 - Instrumented service tests verify success and failure counters without live
   external services.
-- Readiness tests mock PostgreSQL, Elasticsearch, Qdrant, LibreTranslate, and
+- Readiness tests mock PostgreSQL, Meilisearch, Qdrant, LibreTranslate, and
   Ollama outcomes.
 - Compose validation covers optional monitoring profile configuration.
 - Documentation validation confirms no secret examples or document-content labels

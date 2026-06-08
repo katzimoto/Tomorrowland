@@ -28,7 +28,7 @@ queue first.
 | 03 | `phase-03-core-search-mvp.md` | Ingestion, indexing, search, preview (overview) | Done ✅ |
 | 03a | `phase-03a-extraction-persistence.md` | Document persistence and text extraction | Done ✅ |
 | 03b | `phase-03b-translation-chunking.md` | Translation and chunking | Done ✅ |
-| 03c | `phase-03c-search-infrastructure.md` | Elasticsearch + Qdrant with mock embeddings | Done ✅ |
+| 03c | `phase-03c-search-infrastructure.md` | Meilisearch + Qdrant with mock embeddings | Done ✅ |
 | 03d | `phase-03d-worker-pipeline.md` | Fast worker pipeline and admin ingestion | Done ✅ |
 | 03e | `phase-03e-search-apis.md` | Search, preview, and download APIs | Done ✅ |
 | 04 | `phase-04-admin-operations.md` | Admin APIs, DLQ, audit, config | Done ✅ |

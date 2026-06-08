@@ -5,6 +5,9 @@ on:
     paths:
       - "**/*.md"
       - "docs/**"
+      - "mkdocs.yml"
+      - "pyproject.toml"
+      - "uv.lock"
       - ".github/ISSUE_TEMPLATE/**"
       - ".github/pull_request_template.md"
       - ".github/workflows/docs.yml"
@@ -18,6 +21,9 @@ on:
     paths:
       - "**/*.md"
       - "docs/**"
+      - "mkdocs.yml"
+      - "pyproject.toml"
+      - "uv.lock"
       - ".github/ISSUE_TEMPLATE/**"
       - ".github/pull_request_template.md"
       - ".github/workflows/docs.yml"
@@ -28,6 +34,10 @@ permissions:
 concurrency:
   group: docs-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+  UV_SYSTEM_PYTHON: "1"
 
 jobs:
   docs:
@@ -40,8 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           test -f docs/logical-spec.md
-          test -f docs/review/spec-gaps.md
-          test -f docs/implementation/README.md
+          test -f docs/index.md
           test -f .github/pull_request_template.md
 
       - name: Check markdown structure
@@ -53,5 +62,28 @@ jobs:
             -not -path './frontend/node_modules/*' \
             -not -path './node_modules/*' \
             -not -path './dist/*' \
+            -not -path './site/*' \
+            -not -path './docs/api/*' \
             -print0 |
             xargs -0 -I {} sh -c 'first="$(head -n 1 "$1")"; test "${first#\#}" != "$first" || test "$first" = "---"' sh {}
+
+  mkdocs:
+    name: MkDocs build (strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dev dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Build docs (strict)
+        run: mkdocs build --strict

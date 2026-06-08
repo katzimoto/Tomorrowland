@@ -54,7 +54,7 @@ Recreated from the production codebase:
   → `ChatView.jsx`
 - English copy lifted verbatim from `frontend/src/i18n/locales/en.ts`
 
-Behaviour is intentionally cosmetic — the backend services (Elasticsearch,
+Behaviour is intentionally cosmetic — the backend services (Meilisearch,
 Qdrant, Ollama, LibreTranslate, Kafka) are not stubbed. If you need to
 prototype a real flow, drop the existing API client in and replace the
 mock `data.js`.

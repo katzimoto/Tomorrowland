@@ -67,7 +67,7 @@ After logs are stable, add optional OpenTelemetry span creation for:
 
 - HTTP request handling (route template as span name).
 - Database transactions.
-- Elasticsearch and Qdrant calls.
+- Meilisearch and Qdrant calls.
 - LibreTranslate calls.
 - Ollama calls.
 - Pipeline stages (extract, translate, chunk, embed, index, intelligence).

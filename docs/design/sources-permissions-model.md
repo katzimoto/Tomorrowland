@@ -79,36 +79,9 @@ Every document stored in a search index carries a field listing the group IDs
 that may see it. The filter is enforced server-side at query time; the frontend
 never sends a filter and never contacts the index directly.
 
-### 4.1 Elasticsearch (current)
+### 4.1 Meilisearch (current)
 
-Index mapping:
-
-```json
-"allowed_group_ids": { "type": "keyword" }
-```
-
-Filter applied at query time (`elastic.py`):
-
-```python
-if group_ids:                                         # admin path: no filter
-    es_query["bool"]["filter"] = {
-        "terms": {"allowed_group_ids": group_ids}
-    }
-```
-
-`group_ids` is derived from `get_allowed_groups(user)`. For `is_admin=True`
-users the caller passes an empty list, triggering the no-filter branch.
-
-**Edge case:** A non-admin user with no group memberships also produces an empty
-`group_ids` list, which currently skips the filter and returns all results. This
-is safe only because `assert_source_access` blocks those users before they reach
-search. Any future refactor must preserve this guard ordering or explicitly
-handle the empty-group case in the index query (see §4.2 for the correct
-pattern).
-
-### 4.2 Meilisearch (planned — issue #302)
-
-The equivalent helper lives in `src/services/search/meili_acl.py`:
+Filter applied at query time (`meili_acl.py`):
 
 ```python
 def build_permission_filter(user: TokenPayload | UserIdentity) -> str:
@@ -121,9 +94,19 @@ def build_permission_filter(user: TokenPayload | UserIdentity) -> str:
     return f"allowedGroupIds IN [{quoted}]"
 ```
 
-This differs from the Elasticsearch implementation in one important way: the
-no-group case is **explicit** (`IS EMPTY` matches nothing) rather than
-implicitly safe. This removes reliance on the route-level guard as a backstop.
+`group_ids` is derived from `get_allowed_groups(user)`. For `is_admin=True`
+users the caller returns an empty string, triggering the no-filter branch.
+
+**Edge case:** A non-admin user with no group memberships produces `IS EMPTY`
+which explicitly matches nothing, removing reliance on the route-level guard as
+a backstop.
+
+### 4.2 Elasticsearch (removed — replaced by Meilisearch)
+
+The previous Elasticsearch backend has been fully removed. The ACL model
+now applies through Meilisearch (`meili_acl.py`) at the query filter level.
+The no-group case is **explicit** (`IS EMPTY` matches nothing) rather than
+implicitly safe, removing reliance on the route-level guard as a backstop.
 
 ### 4.3 Populating the ACL field at index time
 
@@ -209,8 +192,7 @@ the source**, not just the directly-granted ones. Concretely, if source `S` is
 granted to group `Parent`, and `Child` is a member of `Parent`, then the indexed
 field for documents from `S` must include both `Parent.id` and `Child.id`.
 
-Alternatively the field can contain only the directly-granted group IDs, and the
-Meilisearch/Elasticsearch filter can be built from the **effective** (transitive)
+Alternatively the field can contain only the directly-granted group IDs, andthe Meilisearch filter can be built from the **effective** (transitive)
 group IDs of the current user. Both approaches are equivalent; the user-side
 expansion is simpler to keep consistent when permissions change but requires
 larger filter strings for deeply-nested hierarchies.
@@ -263,8 +245,8 @@ Source permissions must be evaluated equivalently in all of:
 | Path | Current hook | Notes |
 |---|---|---|
 | REST document read/preview | `assert_doc_access` | enforcer.py |
-| REST search results | `get_allowed_groups` → ES filter | search route |
-| Meilisearch search | `build_permission_filter` | meili_acl.py (#302) |
+| REST search results | `get_allowed_groups` → Meilisearch filter | search route |
+| Meilisearch search | `build_permission_filter` | meili_acl.py |
 | Qdrant vector search | `group_ids` filter | qdrant.py |
 | RAG / Q&A retrieval | inherits search filter | rag service |
 | Related documents | `source_permissions` join | related service |
@@ -280,11 +262,11 @@ paths is unsafe and must not be merged without a cross-cutting integration test.
 
 ### Phase A — current (shipped)
 
-Flat groups. `user_groups` + `source_permissions`. Elasticsearch `allowed_group_ids` filter.
+Flat groups. `user_groups` + `source_permissions`. Meilisearch `allowedGroupIds` filter.
 
-### Phase B — Meilisearch ACL (issue #302)
+| Phase B — Meilisearch ACL (shipped)
 
-Add `meili_acl.py` with explicit no-group and admin-bypass handling.
+`meili_acl.py` with explicit no-group and admin-bypass handling shipped.
 No schema change required.
 
 ### Phase C — Nested groups (issue #177)

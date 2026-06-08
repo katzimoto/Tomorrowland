@@ -1,182 +1,185 @@
 # Tomorrowland
 
-Tomorrowland is a local-first knowledge intelligence system for private document
-corpora. It indexes files and enterprise sources into a private search workspace
-with previews, permissions, translation, collaboration, and optional local
-LLM-powered intelligence. It is designed to run without runtime internet access
-when installed from the air-gapped release artifacts.
+<p align="center">
+  <strong>Local-first knowledge intelligence for private document corpora</strong>
+</p>
 
-Canonical requirements live in `spec.md` and `spec-v4.pdf`; operational guidance
-lives under `docs/`.
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.11+-blue" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/react-19-61dafb" alt="React 19">
+  <img src="https://img.shields.io/badge/license-proprietary-red" alt="License">
+</p>
 
-## What it is
+---
 
-- A private document discovery platform for local and air-gapped environments.
-- A Docker Compose application with FastAPI, React, PostgreSQL, Meilisearch,
-  Qdrant, Kafka-compatible event plumbing, LibreTranslate, and optional Ollama.
-- A release artifact workflow that separates a small platform archive from large
-  split Docker image parts and optional model bundles.
+## ✨ What is Tomorrowland?
 
-## Key capabilities
+Tomorrowland indexes your files and enterprise sources into a **private, permission-filtered search workspace** with previews, translation, collaboration, and optional local LLM-powered intelligence. It runs fully air-gapped — no internet required at runtime.
 
-- Hybrid keyword/vector search with permission filtering.
-- Document preview, safe download paths, comments, annotations, subscriptions,
-  related documents, and expertise evidence.
-- Local users/groups with LDAP integration boundaries.
-- Translation through a bundled LibreTranslate image for supported languages.
-- Optional local Q&A/RAG and intelligence features when an approved Ollama model
-  bundle is loaded.
-- Admin source management for supported connectors.
+| 🚀 **Search** | 📄 **Preview** | 🤖 **RAG Q&A** | 🌐 **Translate** |
+|---|---|---|---|
+| Hybrid BM25/vector search with source, date & tag filters | Type-specific renderers for documents in-browser | Permission-filtered chunk retrieval with local models | Auto-enrichment & manual translation via LibreTranslate |
 
-## Quick start
+| 🔒 **Permissions** | 🔔 **Alerts** | 🧠 **Intelligence** | 📦 **Air-Gapped** |
+|---|---|---|---|
+| Group-based access control at source granularity | Topic subscriptions with ingest-time notifications | Summaries, entities & tags generated per document | Offline deployment with split image parts & optional model bundle |
 
-Run this from the repository root for a connected development or evaluation
-machine:
+---
+
+## 🚀 Quick Start
 
 ```bash
 cp .env.example .env
-# Edit .env: set POSTGRES_PASSWORD, POSTGRES_URL, JWT_SECRET, and any local ports.
 docker compose up --build
 ```
 
-Open:
+| | URL |
+|---|---|
+| Frontend | [localhost:8080](http://localhost:8080) |
+| API Health | [localhost:8000/health](http://localhost:8000/health) |
 
-- Frontend: <http://localhost:8080>
-- API health: <http://localhost:8000/health>
-- Frontend health: <http://localhost:8080/health>
+[:books: Full setup guide](docs/development/local-dev.md) · [:package: Production deployment](docs/operations/production-compose.md) · [:lock: Air-gapped install](docs/operations/air-gapped-deployment.md)
 
-Useful non-destructive commands:
+---
+
+## 🏗️ Architecture
+
+```
+┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐
+│  React   │  │ FastAPI  │  │ Pipeline │  │ Intelligence │
+│ Frontend │──│ Backend  │──│ Workers  │──│   Workers    │
+└──────────┘  └──────────┘  └──────────┘  └──────────────┘
+                    │              │              │
+              ┌─────┴──────┬───────┴──────┬───────────────┐
+              │  Postgres  │  Meilisearch │    Qdrant     │
+              │  (metadata)│  (full-text) │   (vectors)   │
+              └────────────┴──────────────┴───────────────┘
+```
+
+| Service | Role |
+|---|---|
+| **FastAPI** | Auth, admin, search, preview, RAG, documents API |
+| **React + TypeScript** | Modern SPA frontend with Vite |
+| **PostgreSQL** | Application metadata, users, groups, permissions |
+| **Meilisearch** | BM25 full-text search with typo tolerance |
+| **Qdrant** | Vector search for semantic & hybrid retrieval |
+| **RabbitMQ** | Pipeline stage message bus (parse → translate → embed → index) |
+| **LibreTranslate** | Bundled offline translation |
+| **Kafka** (Redpanda) | NiFi event ingestion bus |
+| **Ollama** (optional) | Local LLM for RAG, summaries, entities, tags |
+
+[:books: Full architecture](docs/architecture/overview.md)
+
+---
+
+## 📦 Air-Gapped Deployment
+
+Tomorrowland ships as a small platform archive plus split Docker image parts — no runtime internet, no SaaS dependencies, no external API calls.
 
 ```bash
-docker compose config
-docker compose run --rm migrate
-docker compose logs -f api frontend migrate
-docker compose down
-```
-
-> **Never use `docker compose down -v` for upgrades.** The `-v` flag deletes
-> persistent product data volumes.
-
-See [`docs/operations/production-compose.md`](docs/operations/production-compose.md)
-for production-style Compose operations.
-
-## Air-gapped deployment
-
-Use the air-gapped release when the target host cannot reach the internet at
-runtime. The preferred operator entrypoint is:
-
-```bash
-./scripts/tomorrowland-airgap.sh
-```
-
-The platform starts with only the files below. Local AI is optional and
-degraded until a model bundle is loaded.
-
-Required release files:
-
-```text
-tomorrowland-release-<version>.tar.gz              platform archive (small, no model weights)
-tomorrowland-release-<version>.tar.gz.sha256
-tomorrowland-images-<version>.tar.part-*           split Docker image parts
-tomorrowland-images-<version>.tar.parts.sha256
-```
-
-Optional release files (not required for platform startup):
-
-```text
-tomorrowland-ollama-bundle-<model>-<version>.tar.gz     local AI model weights
-tomorrowland-ollama-bundle-<model>-<version>.tar.gz.sha256
-```
-
-Run this from the directory containing the downloaded release files:
-
-```bash
-sha256sum -c tomorrowland-release-<version>.tar.gz.sha256
-sha256sum -c tomorrowland-images-<version>.tar.parts.sha256
-
-tar xzf tomorrowland-release-<version>.tar.gz
-cd tomorrowland-release-<version>
-
-cp .env.airgap.example .env
-nano .env
-
 ./scripts/tomorrowland-airgap.sh validate --load-images
 ./scripts/tomorrowland-airgap.sh up
-./scripts/tomorrowland-airgap.sh status
 ```
 
-The platform starts without local AI. Missing model bundle is a warning, not
-an error. For the complete offline install guide, read
-[`README-airgap.md`](README-airgap.md) first, then
-[`docs/operations/air-gapped-deployment.md`](docs/operations/air-gapped-deployment.md).
+| Required | Optional |
+|---|---|
+| `tomorrowland-release-<version>.tar.gz` | `tomorrowland-ollama-bundle-<model>-<version>.tar.gz` |
+| `tomorrowland-images-<version>.tar.part-*` | _(local AI model weights — not needed for platform startup)_ |
 
-## Upgrade without data loss
+[:books: Air-gapped deployment guide](docs/operations/air-gapped-deployment.md) · [:book: README-airgap](README-airgap.md)
 
-Air-gapped upgrades preserve `.env` and persistent Docker volumes. Always back up
-first, load images from local artifacts only, run the documented migration path,
-and validate after startup.
+---
 
-Run this from the existing deployment directory, not from the new artifact:
+## ⬆️ Upgrade
+
+Upgrades preserve `.env` and persistent Docker volumes:
 
 ```bash
 ./scripts/tomorrowland-airgap.sh upgrade \
   --artifact-dir ../tomorrowland-release-<version>
 ```
 
-Read [`docs/operations/air-gapped-upgrade.md`](docs/operations/air-gapped-upgrade.md)
-before upgrading.
+> **Never use `docker compose down -v` for upgrades.** The `-v` flag deletes persistent product data volumes.
 
-## Supported connectors
+[:arrow_up: Full upgrade guide](docs/operations/air-gapped-upgrade.md)
 
-Current operator-facing source paths include:
+---
 
-- Folder sources from host-mounted paths.
-- Host-mounted SMB/CIFS shares exposed as read-only folder sources.
-- Confluence Server/Data Center polling sources.
-- Jira Server/Data Center polling sources.
-- NiFi-produced Kafka event ingestion for deployments that already provide the
-  event stream and staged files.
-
-Some connector hardening remains intentionally optional or deferred, including
-native NTFS ACL sync and optional Atlassian permission hardening.
-
-## Release artifacts
-
-Terminology used across the docs:
+## 📋 Release Artifacts
 
 | Term | Meaning |
-| --- | --- |
-| Platform archive | Small `tomorrowland-release-<version>.tar.gz` archive containing Compose files, env templates, docs, scripts, manifests, and checksums. |
-| Image parts | Required `tomorrowland-images-<version>.tar.part-*` files. The wrapper streams them into Docker; operators do not manually concatenate them. |
-| Local AI models | Optional `tomorrowland-ollama-bundle-<model>-<version>.tar.gz` with Ollama model weights. Needed for offline Q&A/RAG/local intelligence, not for platform startup. The platform starts and functions without them. |
-| Legacy names | Earlier `neverland-*` release asset names may appear in historical notes only. `tomorrowland-*` is canonical for new operator-facing examples. |
+|---|---|
+| Platform archive | `tomorrowland-release-<version>.tar.gz` — Compose files, env templates, docs, scripts, manifests, checksums |
+| Image parts | `tomorrowland-images-<version>.tar.part-*` — split Docker images, loaded by the wrapper automatically |
+| Local AI models | `tomorrowland-ollama-bundle-<model>-<version>.tar.gz` — optional Ollama model weights for offline Q&A/RAG |
+| Legacy names | Earlier `neverland-*` release asset names may appear in historical notes only. `tomorrowland-*` is canonical for all operator-facing examples. |
 
-Future OCR or additional model packs should remain optional add-on artifacts
-unless release notes explicitly say otherwise. The base platform ships without
-local AI model weights; AI features are degraded until a model bundle is loaded.
+---
 
-## Development setup
+## 🔌 Connectors
 
-- Backend: Python 3.11+, FastAPI, SQLAlchemy, PostgreSQL, Meilisearch, Qdrant.
-- Frontend: React 19, TypeScript, Vite in `frontend/`.
-- Start with [`docs/development/local-dev.md`](docs/development/local-dev.md).
-- Test commands are summarized in [`docs/development/testing.md`](docs/development/testing.md).
+| Connector | Status |
+|---|---|
+| Folder (host-mounted paths) | ✅ Available |
+| SMB/CIFS (host-mounted, read-only) | ✅ Available |
+| Confluence Server/Data Center | ✅ Available |
+| Jira Server/Data Center | ✅ Available |
+| NiFi (Kafka event ingestion) | ✅ Available |
 
-## Documentation index
+> Some connector hardening remains intentionally optional or deferred, including native NTFS ACL sync and optional Atlassian permission hardening.
 
-Start with [`docs/README.md`](docs/README.md), which routes by audience:
+---
 
-- Operators: deployment, upgrade, production Compose, release notes.
-- Developers: local development, testing, architecture overview.
-- Agents: issue-first context loading, token efficiency, and handoff templates.
+## 🛠️ Development
 
-## Security and data-safety notes
+| | |
+|---|---|
+| **Backend** | Python 3.11+, FastAPI, SQLAlchemy, Alembic |
+| **Frontend** | React 19, TypeScript, Vite |
+| **Package manager** | [uv](https://docs.astral.sh/uv/) |
+| **Testing** | pytest (90% coverage floor), Vitest, Playwright |
 
-- Keep real secrets out of release artifacts, docs, screenshots, and source
-  control. `.env.airgap.example` contains placeholders only.
-- Preserve `.env`, named volumes, and host-mounted source paths across upgrades.
-- Do not assume runtime internet exists in air-gapped mode; validate that images
-  and optional model bundles are already loaded locally.
-- Use source grants and groups for Tomorrowland authorization. Host-mounted SMB
-  service accounts control what files are visible to ingestion, not per-user UI
-  access after ingestion.
+```bash
+# Backend
+uv run ruff check --fix src/ tests/ migrations/
+uv run mypy src --strict
+uv run pytest
+
+# Frontend
+cd frontend && npm run lint && npx vitest run
+```
+
+[:books: Dev setup](docs/development/local-dev.md) · [:test_tube: Testing guide](docs/development/testing.md)
+
+---
+
+## 📚 Documentation
+
+Full documentation at the [MkDocs wiki](docs/index.md):
+
+| Section | For |
+|---|---|
+| [Getting Started](docs/development/local-dev.md) | Newcomers — setup, architecture, logical spec |
+| [Deploy & Operate](docs/operations/production-compose.md) | Operators — deployment, air-gapped, pipeline, monitoring |
+| [Develop](docs/context/README.md) | Developers — backend, search, extraction, frontend, ACL |
+| [Design & Specs](docs/design/README.md) | Architects — feature specs, permissions, logging, metrics |
+| [API Reference](docs/api/search.md) | Developers — auto-generated from docstrings |
+| [Agent Guide](docs/agents/README.md) | AI coding agents — workflow, templates, documentation policy |
+
+[:globe_with_meridians: Open wiki](docs/index.md) · [:memo: CHANGELOG](CHANGELOG.md) · [:rocket: Roadmap & History](docs/roadmap.md)
+
+---
+
+## 🔒 Security
+
+- JWT-based authentication with local accounts and LDAP integration
+- Group-based document access control at source granularity
+- Air-gapped mode: no external API calls at runtime
+- Secrets never stored in release artifacts, docs, or source control
+- SSRF protection on external provider URLs
+
+---
+
+## 📄 License
+
+Proprietary. All rights reserved.

@@ -48,7 +48,6 @@ rg --files frontend/src frontend/tests
 ## Document versioning UI
 
 Added in `feature/document-versioning` (#201 / #204 / #205).
-Plan: `docs/implementation/document-versioning.md`.
 
 ### Version badges (search results)
 

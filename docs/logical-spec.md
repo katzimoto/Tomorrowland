@@ -60,9 +60,10 @@ document surfacing, and admin-configurable operation.
 
 - REST APIs expose auth, search, Q&A, preview, download, annotations, activity,
   subscriptions, notifications, expertise, related documents, and admin panels.
-- Kafka topics carry raw document events, enrichment requests, intelligence
-  requests, and dead-lettered events.
-- Elasticsearch stores document-level full-text search data.
+- RabbitMQ carries pipeline stage messages (parse, translate, embed, index, intelligence,
+  alert, enrichment) and dead-lettered events. Kafka (Redpanda) delivers NiFi-produced
+  document events where the NiFi connector is configured.
+- Meilisearch stores document-level full-text (BM25) search data.
 - Qdrant stores chunk-level vectors and payloads.
 - Postgres stores users, permissions, sources, activity, generated intelligence,
   subscriptions, notifications, config, and ingestion state.
@@ -72,7 +73,7 @@ document surfacing, and admin-configurable operation.
 - Fully air-gapped in v1: no external LLM, translation, or SaaS API calls.
 - The final local deployment runs through Docker Compose with API, worker, and
   infrastructure services wired together for smoke tests without mocked
-  Elasticsearch, Qdrant, translation, or database clients.
+  Meilisearch, Qdrant, translation, or database clients.
 - Target document capacity is 500K+ documents.
 - Search latency target is below 300 ms.
 - Q&A latency target is below 10 seconds.

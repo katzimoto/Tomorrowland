@@ -39,7 +39,7 @@ Response shape:
   "checked_at": "<RFC 3339 UTC timestamp>",
   "dependencies": {
     "postgres":        {"status": "ok|degraded|down", "latency_ms": 7},
-    "elasticsearch":   {"status": "ok|degraded|down", "latency_ms": 21},
+    "meilisearch":    {"status": "ok|degraded|down", "latency_ms": 21},
     "qdrant":          {"status": "ok|degraded|down", "latency_ms": 13},
     "libretranslate":  {"status": "ok|degraded|down", "latency_ms": 1000},
     "ollama":          {"status": "ok|degraded|down", "latency_ms": 45}

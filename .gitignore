@@ -30,6 +30,9 @@ tmp/
 *.log
 ruvector.db
 
+# MkDocs build output
+site/
+
 # Release artifacts (the build script writes to dist/ by default; these guard
 # against a root-level build being committed accidentally)
 /tomorrowland-release-*.tar.gz

@@ -1,12 +1,13 @@
 # Search Context
 
-Use this map for Elasticsearch, Qdrant, hybrid search, ranking, query behavior, and search-related tests.
+Use this map for Meilisearch (BM25/keyword), Qdrant (vector/semantic), hybrid search, ranking, query behavior, and search-related tests.
 
 ## Main files
 
-- `src/services/search/` — Elasticsearch, Qdrant, hybrid merge, search orchestration.
+- `src/services/search/` — Meilisearch provider, Qdrant client, hybrid merge, search orchestration.
 - `src/services/documents/` — document metadata that search may depend on.
-- `src/services/api/main.py` — search routes if API behavior changes.
+- `src/services/api/routers/search.py` — search routes if API behavior changes.
+- `src/services/api/main.py` — search backend initialization (Meilisearch client creation).
 - Search-related tests under `tests/unit/` and `tests/integration/`.
 
 ## Common tests
@@ -20,7 +21,7 @@ If exact test names are unknown, use `rg --files tests | rg search` before openi
 
 ## Patterns to preserve
 
-- Keep Elasticsearch/Qdrant boundaries explicit.
+- Keep Meilisearch/Qdrant boundaries explicit.
 - Avoid changing ranking semantics unless the mission says so.
 - Preserve permission filtering before returning protected document results.
 - Mock or stub external services in unit tests.
@@ -44,16 +45,15 @@ rg --files src/services/search tests | rg search
 ## Document versioning
 
 Added in `feature/document-versioning` (#201 / #203 / #205).
-Plan: `docs/implementation/document-versioning.md`.
 
 ### Default behavior — latest-only filter
 
-Both Elasticsearch and Qdrant queries must include an `is_latest = true` filter
+Both Meilisearch and Qdrant queries must include an `is_latest = true` filter
 by default. Remove it only when the caller sends `include_older_versions: true`.
 
 ```python
-# Elasticsearch
-{"filter": {"term": {"is_latest": True}}}
+# Meilisearch filter
+"is_latest = true"
 
 # Qdrant
 {"must": [{"key": "is_latest", "match": {"value": True}}]}
@@ -62,11 +62,11 @@ by default. Remove it only when the caller sends `include_older_versions: true`.
 ### `include_older_versions` flag
 
 The `/search` request accepts `include_older_versions: bool = False`.
-When `True`, omit the `is_latest` filter from both ES and Qdrant queries.
+When `True`, omit the `is_latest` filter from both Meilisearch and Qdrant queries.
 All result objects must include `version_number`, `is_latest`,
 `has_newer_version`, and `latest_document_id` so the UI can label results.
 
-### Version payload fields (ES and Qdrant)
+### Version payload fields (Meilisearch and Qdrant)
 
 ```json
 {
