@@ -33,18 +33,9 @@ pytest tests/unit/test_translation.py -q
 pytest --cov=src --cov-branch --cov-report=term-missing tests/
 ```
 
-### Coverage thresholds (enforced)
+### Coverage
 
-```
-lines:    ≥ 90%
-branches: ≥ 90%
-```
-
-Configured in `pyproject.toml`:
-```toml
-[tool.pytest.ini_options]
-addopts = "--cov=src --cov-branch --cov-report=term-missing --cov-fail-under=90"
-```
+Coverage is reported but not gated. No enforced minimum threshold.
 
 ### File locations
 

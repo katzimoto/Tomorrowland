@@ -20,6 +20,20 @@ _USE_POSTGRES = os.environ.get("PGTEST", "").lower() in ("1", "true", "yes")
 
 
 @pytest.fixture(autouse=True)
+def _clear_config_cache() -> None:
+    """Clear the module-level system_config TTL cache between tests.
+
+    config_cache._system_config_cache is a process-level singleton shared
+    across tests. Without this, a test that stores a "false" value for
+    feature.document_chat will poison subsequent tests that use a fresh
+    in-memory DB with the flag enabled.
+    """
+    from shared.config_cache import invalidate_config_cache
+
+    invalidate_config_cache()
+
+
+@pytest.fixture(autouse=True)
 def _writable_files_root(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     """Point FILES_ROOT at a writable, per-test directory.
 

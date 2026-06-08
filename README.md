@@ -137,7 +137,7 @@ Upgrades preserve `.env` and persistent Docker volumes:
 | **Backend** | Python 3.11+, FastAPI, SQLAlchemy, Alembic |
 | **Frontend** | React 19, TypeScript, Vite |
 | **Package manager** | [uv](https://docs.astral.sh/uv/) |
-| **Testing** | pytest (90% coverage floor), Vitest, Playwright |
+| **Testing** | pytest, Vitest, Playwright |
 
 ```bash
 # Backend

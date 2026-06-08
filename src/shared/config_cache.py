@@ -8,6 +8,7 @@ Thread-safe: single lock per cache instance.
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from typing import Any
@@ -98,15 +99,20 @@ def get_cached_config(connection: Any, key: str) -> str | None:
     raw_value = row["value"]
     if raw_value is None:
         value: str | None = None
-    elif isinstance(raw_value, (dict, list)):
-        # system_config.value is sa.JSON(); on Postgres the driver may return
-        # a deserialised dict/list.  Serialise back to a JSON string so that
-        # downstream callers always receive a str (e.g. json.loads(value)).
-        value = json.dumps(raw_value)
-    elif isinstance(raw_value, bool):
-        value = "true" if raw_value else "false"
     else:
-        value = str(raw_value)
+        # system_config.value is sa.JSON().  Raw text queries bypass type
+        # processors, so SQLite returns the JSON-serialised string (e.g.
+        # '"old"' for the Python string "old").  Try to deserialise here so
+        # both SQLite and PostgreSQL callers receive the same plain value.
+        if isinstance(raw_value, str):
+            with contextlib.suppress(json.JSONDecodeError, ValueError):
+                raw_value = json.loads(raw_value)
+        if isinstance(raw_value, (dict, list)):
+            value = json.dumps(raw_value)
+        elif isinstance(raw_value, bool):
+            value = "true" if raw_value else "false"
+        else:
+            value = str(raw_value)
     _system_config_cache.set(key, value)
     return value
 

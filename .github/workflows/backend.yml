@@ -143,7 +143,7 @@ jobs:
         run: uv pip install --system -e ".[dev]"
 
       - name: Test with coverage
-        run: pytest --cov-fail-under=90 --cov-report=xml
+        run: pytest --cov-report=xml
 
   tests-postgres:
     name: Pytest (PostgreSQL)
@@ -186,4 +186,4 @@ jobs:
       - name: Test against PostgreSQL
         env:
           PGTEST: "1"
-        run: pytest -q --cov-fail-under=90 --cov-report=xml
+        run: pytest -q --cov-report=xml

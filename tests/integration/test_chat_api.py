@@ -799,8 +799,13 @@ def test_current_search_results_behaves_like_selected_documents(migrated_engine:
     assert any(getattr(c, "key", None) == "document_id" for c in (flt.must or []))
 
 
-def test_all_accessible_scope_uses_search_filtered(migrated_engine: Engine) -> None:
-    """all_accessible_documents scope calls search_filtered (not search)."""
+def test_all_accessible_scope_uses_search_unfiltered(migrated_engine: Engine) -> None:
+    """all_accessible_documents scope for admin calls search (no filter) not search_filtered.
+
+    build_qdrant_filter returns None when allow_all=True and scope is
+    all_accessible_documents (admin sees everything; no Qdrant filter needed).
+    The RAG service therefore calls QdrantSearchClient.search, not search_filtered.
+    """
     _setup_users(migrated_engine)
     mock_qdrant = _make_qdrant_mock()
 
@@ -826,8 +831,8 @@ def test_all_accessible_scope_uses_search_filtered(migrated_engine: Engine) -> N
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    mock_qdrant.search_filtered.assert_called_once()
-    mock_qdrant.search.assert_not_called()
+    mock_qdrant.search.assert_called_once()
+    mock_qdrant.search_filtered.assert_not_called()
 
 
 def test_folder_scope_returns_400(migrated_engine: Engine) -> None:

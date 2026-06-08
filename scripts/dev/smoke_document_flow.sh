@@ -50,6 +50,8 @@ AUTH_TOKEN=""
 FIRST_DOC_ID=""
 SOURCE_ID=""
 CURL_JSON_HTTP_CODE=0
+# File used to pass the HTTP status code out of the curl_json subshell.
+_HTTP_CODE_FILE="${TMPDIR:-/tmp}/.smoke_http_code_$$"
 
 # ---------------------------------------------------------------------------
 # Help
@@ -304,6 +306,7 @@ curl_json() {
   fi
 
   CURL_JSON_HTTP_CODE="$http_code"
+  echo "$http_code" > "$_HTTP_CODE_FILE"
   cat "$tmp_file"
   rm -f "$tmp_file"
 }
@@ -344,8 +347,17 @@ frontend_health() {
 
 mcp_health() {
   log_info "Probing MCP adapter at localhost:${MCP_HOST_PORT}"
-  wait_for_url "MCP adapter" "http://localhost:${MCP_HOST_PORT}/mcp" || return 1
-  log_ok "MCP adapter is reachable"
+  local deadline=$(( SECONDS + TIMEOUT_SECONDS ))
+  # Use TCP check: /mcp returns 406 for plain GET (requires Accept headers), so
+  # curl -f would always fail. Port reachability is sufficient as a health signal.
+  until bash -c ":> /dev/tcp/127.0.0.1/${MCP_HOST_PORT}" 2>/dev/null; do
+    if (( SECONDS >= deadline )); then
+      echo "Timed out waiting for MCP adapter on port ${MCP_HOST_PORT} after ${TIMEOUT_SECONDS}s." >&2
+      return 1
+    fi
+    sleep "$POLL_SECONDS"
+  done
+  log_ok "MCP adapter is reachable on port ${MCP_HOST_PORT}"
 }
 
 auth_login() {
@@ -431,9 +443,16 @@ doc_ingest() {
   fi
 
   log_info "Triggering sync for source ${SOURCE_ID}"
-  local response
-  response="$(curl_json POST "${API_URL}/admin/ingestion/${SOURCE_ID}/sync-now")"
-  local http_code="$CURL_JSON_HTTP_CODE"
+  local response http_code tmp_resp
+  tmp_resp="$(mktemp)"
+  # Call curl directly so the http_code is captured in this shell, not a subshell
+  # (curl_json sets CURL_JSON_HTTP_CODE inside $() which is a subshell and the
+  # assignment does not propagate back to the caller).
+  http_code="$(curl -sS -o "$tmp_resp" -w '%{http_code}' -X POST \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    "${API_URL}/admin/ingestion/${SOURCE_ID}/sync-now")"
+  response="$(cat "$tmp_resp")"
+  rm -f "$tmp_resp"
 
   if (( http_code < 200 || http_code >= 300 )); then
     echo "Sync returned HTTP ${http_code}" >&2
@@ -442,9 +461,9 @@ doc_ingest() {
   fi
 
   local indexed skipped failed_count
-  indexed="$(echo "$response" | json_get 'data.get("indexed", 0)')"
+  indexed="$(echo "$response" | json_get 'data.get("created", 0)')"
   skipped="$(echo "$response" | json_get 'data.get("skipped", 0)')"
-  failed_count="$(echo "$response" | json_get 'data.get("failed", 0)')"
+  failed_count="$(echo "$response" | json_get 'data.get("failed_discovery", 0) + data.get("failed_enqueue", 0)')"
 
   if [[ "$failed_count" != "0" ]]; then
     echo "Ingestion reported failed=${failed_count}" >&2
@@ -478,7 +497,8 @@ doc_search() {
   log_info "Searching for '${SMOKE_QUERY}'"
   local response
   response="$(curl_json POST "${API_URL}/search" "$body")"
-  local http_code="$CURL_JSON_HTTP_CODE"
+  local http_code
+  http_code="$(cat "$_HTTP_CODE_FILE" 2>/dev/null || echo 0)"
 
   if (( http_code < 200 || http_code >= 300 )); then
     echo "Search returned HTTP ${http_code}" >&2
@@ -514,7 +534,8 @@ doc_preview() {
   log_info "Fetching preview for ${FIRST_DOC_ID}"
   local response
   response="$(curl_json GET "${API_URL}/preview/${FIRST_DOC_ID}")"
-  local http_code="$CURL_JSON_HTTP_CODE"
+  local http_code
+  http_code="$(cat "$_HTTP_CODE_FILE" 2>/dev/null || echo 0)"
 
   if (( http_code < 200 || http_code >= 300 )); then
     echo "Preview returned HTTP ${http_code}" >&2
@@ -544,7 +565,8 @@ doc_text() {
   log_info "Fetching full text for ${FIRST_DOC_ID}"
   local response
   response="$(curl_json GET "${API_URL}/documents/${FIRST_DOC_ID}/text")"
-  local http_code="$CURL_JSON_HTTP_CODE"
+  local http_code
+  http_code="$(cat "$_HTTP_CODE_FILE" 2>/dev/null || echo 0)"
 
   if (( http_code < 200 || http_code >= 300 )); then
     echo "Document text returned HTTP ${http_code}" >&2
