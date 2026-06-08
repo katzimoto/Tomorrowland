@@ -38,7 +38,7 @@ from services.rag.reranker import NoOpReranker
 from services.rag.service import RagService
 from services.related.repository import RelatedRepository
 from services.related.service import RelatedService
-from services.search.factory import build_encoder
+from services.search.factory import build_encoder, build_reranker
 from services.search.hybrid import SearchResult, merge_results
 from services.search.meili_types import DocumentSearchFilters, DocumentSearchQuery
 from services.search.qdrant import QdrantSearchClient
@@ -332,6 +332,21 @@ def search_documents(
                 vector_weight=0.0,
                 bm25_weight=1.0,
             )
+
+        # --- Reranker pass (post-retrieval relevance scoring) ---
+        if settings.search_reranker_enabled and merged:
+            try:
+                reranker = build_reranker(
+                    settings,
+                    llm_provider=getattr(request.app.state, "llm_provider", None),
+                )
+                merged = reranker.rerank(body.query, merged)
+            except Exception:
+                logger.warning(
+                    "Agent search reranker degraded route=/api/agent/v1/search_documents "
+                    "correlation_id=%s",
+                    get_correlation_id(),
+                )
 
         # Hydrate via DocumentRepository so we drop orphaned vectors and apply
         # the standard latest-version filter used by /search.

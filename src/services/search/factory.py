@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+from typing import Any
+
 from shared.config import Settings
 
 from .encoder import (
@@ -8,6 +11,14 @@ from .encoder import (
     OpenAICompatibleEmbeddingEncoder,
     TextEncoder,
 )
+from .reranker import (
+    EndpointSearchReranker,
+    LLMSearchReranker,
+    NoOpSearchReranker,
+    SearchReranker,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def build_encoder(
@@ -68,3 +79,45 @@ def build_encoder(
         )
 
     raise ValueError(f"Unknown embedding provider: {provider}")
+
+
+def build_reranker(
+    settings: Settings,
+    *,
+    llm_provider: Any | None = None,
+) -> SearchReranker:
+    """Build and return a search reranker based on *settings*.
+
+    Resolution order:
+    1. If ``search_reranker_enabled`` is False, return NoOpSearchReranker.
+    2. If ``search_reranker_url`` is set, use the endpoint-based reranker
+       (preferred — calls a dedicated cross-encoder service).
+    3. Otherwise, fall back to the LLM-based (Ollama prompt) reranker.
+       Requires *llm_provider* to be passed in.
+    """
+    if not settings.search_reranker_enabled:
+        return NoOpSearchReranker()
+
+    if settings.search_reranker_url:
+        return EndpointSearchReranker(
+            url=settings.search_reranker_url,
+            model=settings.search_reranker_model,
+            min_score=settings.search_reranker_min_score,
+            top_n=settings.search_reranker_depth,
+            timeout=settings.search_reranker_timeout,
+        )
+
+    # LLM-based fallback: requires the Ollama client from app state.
+    if llm_provider is None:
+        logger.warning(
+            "Search reranker enabled but no reranker_url and no llm_provider "
+            "— falling back to NoOpSearchReranker"
+        )
+        return NoOpSearchReranker()
+
+    return LLMSearchReranker(
+        llm_provider=llm_provider,
+        min_score=settings.search_reranker_min_score,
+        top_n=settings.search_reranker_depth,
+        model=settings.effective_reranker_model,
+    )

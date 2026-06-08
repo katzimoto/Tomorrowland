@@ -17,7 +17,7 @@ from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
 from services.documents.models import DocumentRow
 from services.documents.repository import DocumentRepository
-from services.search.factory import build_encoder
+from services.search.factory import build_encoder, build_reranker
 from services.search.hybrid import SearchResult, merge_results
 from services.search.meili_types import DocumentSearchFilters, DocumentSearchQuery
 from services.search.qdrant import QdrantSearchClient
@@ -187,6 +187,26 @@ def search(
             vector_weight=0.0,
             bm25_weight=1.0,
         )
+
+    # --- Reranker pass (post-retrieval relevance scoring) ---
+    _settings = http_request.app.state.settings
+    if _settings.search_reranker_enabled and merged:
+        try:
+            reranker = build_reranker(
+                _settings,
+                llm_provider=getattr(http_request.app.state, "llm_provider", None),
+            )
+            rerank_start = time.perf_counter()
+            merged = reranker.rerank(request.query, merged)
+            http_request.app.state.metrics.search_backend_duration_seconds.labels(
+                "reranker", "rerank"
+            ).observe(time.perf_counter() - rerank_start)
+        except Exception:
+            logger.warning(
+                "Search reranker degraded route=/search stage=rerank correlation_id=%s",
+                get_correlation_id(),
+            )
+            # Continue with un-reranked results — reranker is best-effort.
 
     # Load all merged doc rows in one query — used for both is_latest filtering and enrichment.
     # Deduplicate before the batch query to avoid redundant IN-clause entries.

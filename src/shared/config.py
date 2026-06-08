@@ -153,6 +153,24 @@ class Settings(BaseSettings):
     search_embedding_timeout: float = 5.0
     embedding_provider_unsafe_allow_test_in_prod: bool = False
 
+    # --- Search reranker (BGE / cross-encoder) ---
+    # When enabled, the top search_reranker_depth results from the hybrid merge
+    # are re-scored and re-sorted by a cross-encoder reranker.
+    search_reranker_enabled: bool = False
+    # Number of top candidates (after merge) to send to the reranker.
+    search_reranker_depth: int = Field(default=20, ge=1, le=200)
+    # URL of a TEI-compatible /rerank endpoint.
+    # When set, the endpoint-based reranker is used (preferred for BGE models).
+    # When empty but search_reranker_enabled is True, falls back to Ollama
+    # prompt-based reranking via ollama_reranker_model.
+    search_reranker_url: str = ""
+    # Model name sent to the /rerank endpoint.
+    search_reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    # Minimum relevance score (0-1) to keep a result after reranking.
+    search_reranker_min_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    # HTTP timeout for the /rerank call.
+    search_reranker_timeout: float = 10.0
+
     meilisearch_url: str = "http://meilisearch:7700"
     meilisearch_master_key: str = ""
     meilisearch_search_key: str = ""
