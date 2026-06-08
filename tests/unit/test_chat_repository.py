@@ -9,10 +9,10 @@ from uuid import UUID, uuid4
 import sqlalchemy as sa
 from sqlalchemy import Engine
 
-_USE_POSTGRES = os.environ.get("PGTEST", "").lower() in ("1", "true", "yes")
-
 from services.chat.models import ChatMessageCreate, ChatSessionCreate, ChatSessionUpdate
 from services.chat.repository import ChatRepository
+
+_USE_POSTGRES = os.environ.get("PGTEST", "").lower() in ("1", "true", "yes")
 
 
 def _create_user(connection: sa.Connection) -> UUID:
