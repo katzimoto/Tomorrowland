@@ -44,9 +44,7 @@ class RedisClient:
 
     # ── Rate-limiting helpers ──────────────────────────────────────
 
-    def rate_limit_check(
-        self, key: str, window_seconds: int, max_calls: int
-    ) -> bool:
+    def rate_limit_check(self, key: str, window_seconds: int, max_calls: int) -> bool:
         """Return True if the call is allowed, False if rate-limited.
 
         Uses a Redis sorted-set sliding-window.  Returns True (allowed) when

@@ -1345,6 +1345,7 @@ def test_admin_config_non_sensitive_keys_not_masked(migrated_engine: Engine) -> 
 # Config cache invalidation on admin writes (performance optimisation)
 # ---------------------------------------------------------------------------
 
+
 def test_admin_config_write_invalidates_cache(migrated_engine: Engine) -> None:
     """When a config value is updated via the service layer, the in-memory
     config cache must be invalidated so the next read returns the fresh value.

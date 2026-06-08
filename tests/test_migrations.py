@@ -240,14 +240,8 @@ def test_performance_indexes_exist(migrated_engine: Engine) -> None:
     inspector = sa.inspect(migrated_engine)
 
     # Collect all index names from the relevant tables
-    doc_indexes = {
-        idx["name"]
-        for idx in inspector.get_indexes("documents")
-    }
-    src_perm_indexes = {
-        idx["name"]
-        for idx in inspector.get_indexes("source_permissions")
-    }
+    doc_indexes = {idx["name"] for idx in inspector.get_indexes("documents")}
+    src_perm_indexes = {idx["name"] for idx in inspector.get_indexes("source_permissions")}
 
     # Verify the new performance indexes exist
     assert "ix_documents_version_family_id" in doc_indexes, (

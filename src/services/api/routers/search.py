@@ -236,8 +236,7 @@ def search(
             _non_latest_fids: list[UUID] = [
                 fid
                 for doc in all_docs.values()
-                if not doc.is_latest
-                and (fid := doc.version_family_id) is not None
+                if not doc.is_latest and (fid := doc.version_family_id) is not None
             ]
             if _non_latest_fids:
                 family_current = _doc_repo.get_family_current_doc_ids(_non_latest_fids)

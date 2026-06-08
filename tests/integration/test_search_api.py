@@ -797,9 +797,7 @@ def test_search_backends_execute_in_parallel(
     )
     token = _user_token(client)
 
-    with patch(
-        "concurrent.futures.ThreadPoolExecutor.submit", _tracking_submit
-    ):
+    with patch("concurrent.futures.ThreadPoolExecutor.submit", _tracking_submit):
         response = client.post(
             "/search",
             json={"query": "parallel", "page": 1, "page_size": 10},

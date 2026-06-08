@@ -27,9 +27,7 @@ class TestRedisClientConnect:
         mock_redis = MagicMock()
         mock_redis.ping.return_value = True
 
-        with patch(
-            "redis.Redis.from_url", return_value=mock_redis
-        ):
+        with patch("redis.Redis.from_url", return_value=mock_redis):
             client = RedisClient()
             client.connect()
             assert client.connected is True
@@ -47,9 +45,7 @@ class TestRedisClientConnect:
         mock_redis = MagicMock()
         mock_redis.ping.side_effect = Exception("timeout")
 
-        with patch(
-            "redis.Redis.from_url", return_value=mock_redis
-        ):
+        with patch("redis.Redis.from_url", return_value=mock_redis):
             client = RedisClient()
             client.connect()
             assert client.connected is False
@@ -61,6 +57,7 @@ class TestRedisClientConnect:
 
         original_import = builtins.__import__
         try:
+
             def _block_redis(name, *args, **kwargs):
                 if name == "redis":
                     raise ImportError("no redis-py")
@@ -314,9 +311,7 @@ class TestRedisClientLifecycle:
         mock_redis.ping.return_value = True
         mock_redis.get.side_effect = [None, b"my_value"]
 
-        with patch(
-            "redis.Redis.from_url", return_value=mock_redis
-        ):
+        with patch("redis.Redis.from_url", return_value=mock_redis):
             client = RedisClient()
             client.connect()
             assert client.connected is True

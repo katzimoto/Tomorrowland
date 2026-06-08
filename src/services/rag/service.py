@@ -441,9 +441,7 @@ class RagService:
         if self._meili is not None:
             # Pre-compute callable + kwargs to simplify mypy inference.
             _qdrant_callable = (
-                self._qdrant.search_filtered
-                if qdrant_filter is not None
-                else self._qdrant.search
+                self._qdrant.search_filtered if qdrant_filter is not None else self._qdrant.search
             )
             _qdrant_kwargs: dict[str, Any] = (
                 {
@@ -501,16 +499,12 @@ class RagService:
                     vector_results = qdrant_future.result(timeout=30)
                 except Exception:
                     vector_results = []
-                    logger.warning(
-                        "RAG vector retrieval degraded — Qdrant future failed"
-                    )
+                    logger.warning("RAG vector retrieval degraded — Qdrant future failed")
                 try:
                     raw_bm25 = bm25_future.result(timeout=30)
                 except Exception:
                     raw_bm25 = []
-                    logger.warning(
-                        "RAG BM25 retrieval degraded — Meilisearch future failed"
-                    )
+                    logger.warning("RAG BM25 retrieval degraded — Meilisearch future failed")
                 if meta_future is not None:
                     try:
                         raw_meta = meta_future.result(timeout=30)

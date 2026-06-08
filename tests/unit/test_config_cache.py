@@ -379,9 +379,7 @@ class TestInvalidateConfigCache:
 
 
 class TestConfigCacheWithDB:
-    def test_get_cached_config_reads_real_db(
-        self, migrated_engine: Engine
-    ) -> None:
+    def test_get_cached_config_reads_real_db(self, migrated_engine: Engine) -> None:
         _system_config_cache.invalidate_all()
 
         # Seed a config value
@@ -395,18 +393,14 @@ class TestConfigCacheWithDB:
             result = get_cached_config(conn, "test.feature")
             assert result == "enabled"
 
-    def test_get_cached_config_returns_none_for_missing_key(
-        self, migrated_engine: Engine
-    ) -> None:
+    def test_get_cached_config_returns_none_for_missing_key(self, migrated_engine: Engine) -> None:
         _system_config_cache.invalidate_all()
 
         with migrated_engine.begin() as conn:
             result = get_cached_config(conn, "does.not.exist")
             assert result is None
 
-    def test_get_cached_admins_group_reads_real_db(
-        self, migrated_engine: Engine
-    ) -> None:
+    def test_get_cached_admins_group_reads_real_db(self, migrated_engine: Engine) -> None:
         _admins_group_cache.invalidate_all()
 
         # Seed an admins group since tests start with a clean DB
@@ -422,9 +416,7 @@ class TestConfigCacheWithDB:
             assert result is not None
             assert len(result) > 0
 
-    def test_invalidate_then_refetch_from_db(
-        self, migrated_engine: Engine
-    ) -> None:
+    def test_invalidate_then_refetch_from_db(self, migrated_engine: Engine) -> None:
         _system_config_cache.invalidate_all()
 
         # Seed initial value

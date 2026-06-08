@@ -423,9 +423,7 @@ def test_rag_retrieval_uses_thread_pool_executor() -> None:
         submit_calls.append(fn_name)
         return real_submit(self, fn, *args, **kwargs)
 
-    with patch(
-        "concurrent.futures.ThreadPoolExecutor.submit", _tracking_submit
-    ):
+    with patch("concurrent.futures.ThreadPoolExecutor.submit", _tracking_submit):
         srv.answer("test question", group_ids=["group-1"])
 
     # At minimum, qdrant search and bm25 search must have been submitted
