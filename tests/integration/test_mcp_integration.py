@@ -55,21 +55,29 @@ def _make_client(**overrides: Any) -> AsyncMock:
     """Build a mock TomorrowlandClient preset for all six tools."""
     mock = AsyncMock(spec=TomorrowlandClient)
     mock.search_documents.return_value = {
-        "results": [], "total": 0, "query": "t",
+        "results": [],
+        "total": 0,
+        "query": "t",
     }
     mock.get_document.return_value = {"document_id": "abc"}
     mock.get_passages.return_value = {
-        "document_id": "abc", "passages": [], "total": 0,
+        "document_id": "abc",
+        "passages": [],
+        "total": 0,
     }
     mock.ask_corpus.return_value = {
-        "question": "q", "answer": "a", "citations": [], "model": "m",
+        "question": "q",
+        "answer": "a",
+        "citations": [],
+        "model": "m",
     }
     mock.get_related_documents.return_value = {
-        "document_id": "abc", "related": [],
+        "document_id": "abc",
+        "related": [],
     }
     mock.list_facets.return_value = {"facets": {}}
     for k, v in overrides.items():
-        setattr(mock, k, v)
+        getattr(mock, k).return_value = v
     return mock
 
 
@@ -269,7 +277,8 @@ class TestErrorTranslation:
     def test_401_returns_auth_error_message(self) -> None:
         mock = _make_client()
         mock.search_documents.side_effect = TomorrowlandClientError(
-            "Unauthorized", status_code=401,
+            "Unauthorized",
+            status_code=401,
         )
         mcp = _make_server(mock)
         fn = _get_tool_fn(mcp, "tomorrowland_search_documents")
@@ -279,7 +288,8 @@ class TestErrorTranslation:
     def test_403_returns_access_denied_message(self) -> None:
         mock = _make_client()
         mock.get_document.side_effect = TomorrowlandClientError(
-            "Forbidden", status_code=403,
+            "Forbidden",
+            status_code=403,
         )
         mcp = _make_server(mock)
         fn = _get_tool_fn(mcp, "tomorrowland_get_document")
@@ -289,7 +299,8 @@ class TestErrorTranslation:
     def test_404_returns_not_found_message(self) -> None:
         mock = _make_client()
         mock.get_passages.side_effect = TomorrowlandClientError(
-            "Not found", status_code=404,
+            "Not found",
+            status_code=404,
         )
         mcp = _make_server(mock)
         fn = _get_tool_fn(mcp, "tomorrowland_get_passages")
@@ -299,7 +310,8 @@ class TestErrorTranslation:
     def test_503_returns_service_unavailable_message(self) -> None:
         mock = _make_client()
         mock.list_facets.side_effect = TomorrowlandClientError(
-            "Down", status_code=503,
+            "Down",
+            status_code=503,
         )
         mcp = _make_server(mock)
         fn = _get_tool_fn(mcp, "tomorrowland_list_facets")
@@ -309,7 +321,8 @@ class TestErrorTranslation:
     def test_429_returns_rate_limit_message(self) -> None:
         mock = _make_client()
         mock.ask_corpus.side_effect = TomorrowlandClientError(
-            "Too many", status_code=429,
+            "Too many",
+            status_code=429,
         )
         mcp = _make_server(mock)
         fn = _get_tool_fn(mcp, "tomorrowland_ask_corpus")
@@ -321,7 +334,8 @@ class TestErrorTranslation:
         secret_detail = "SECRET-INTERNAL-DETAIL-MUST-NOT-LEAK"
         mock = _make_client()
         mock.search_documents.side_effect = TomorrowlandClientError(
-            secret_detail, status_code=401,
+            secret_detail,
+            status_code=401,
         )
         mcp = _make_server(mock)
         fn = _get_tool_fn(mcp, "tomorrowland_search_documents")
@@ -348,7 +362,8 @@ class TestFeatureFlagsIntegration:
         mock.get_document.assert_not_called()
 
     def test_disabling_one_tool_does_not_affect_others(
-        self, monkeypatch: Any,
+        self,
+        monkeypatch: Any,
     ) -> None:
         monkeypatch.setenv("MCP_ENABLE_ASK_CORPUS", "false")
         mock = _make_client()
@@ -419,8 +434,9 @@ class TestAuditLoggingIntegration:
         fn = _get_tool_fn(mcp, "tomorrowland_search_documents")
         _invoke_tool(fn, query="test")
 
-        audit = [r for r in caplog.records
-                 if getattr(r, "message", "") and "mcp_audit" in r.message]
+        audit = [
+            r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
+        ]
         assert len(audit) == 1
         msg = audit[0].message
         assert "tool=search_documents" in msg
@@ -430,15 +446,17 @@ class TestAuditLoggingIntegration:
         caplog.set_level("INFO")
         mock = _make_client()
         mock.get_document.side_effect = TomorrowlandClientError(
-            "Not found", status_code=404,
+            "Not found",
+            status_code=404,
         )
         mcp = _make_server(mock)
         fn = _get_tool_fn(mcp, "tomorrowland_get_document")
         with pytest.raises(ValueError):
             _invoke_tool(fn, document_id="missing")
 
-        audit = [r for r in caplog.records
-                 if getattr(r, "message", "") and "mcp_audit" in r.message]
+        audit = [
+            r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
+        ]
         assert len(audit) == 1
         msg = audit[0].message
         assert "tool=get_document" in msg
@@ -462,13 +480,18 @@ class TestAuditLoggingIntegration:
             fn = _get_tool_fn(mcp, name)
             _invoke_tool(fn, **kwargs)
 
-        audit = [r for r in caplog.records
-                 if getattr(r, "message", "") and "mcp_audit" in r.message]
+        audit = [
+            r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
+        ]
         assert len(audit) == 6
         seen = {re.search(r"tool=(\w+)", r.message).group(1) for r in audit}  # type: ignore[union-attr]
         assert seen == {
-            "search_documents", "get_document", "get_passages",
-            "ask_corpus", "get_related_documents", "list_facets",
+            "search_documents",
+            "get_document",
+            "get_passages",
+            "ask_corpus",
+            "get_related_documents",
+            "list_facets",
         }
 
 
@@ -584,7 +607,8 @@ class TestProgressNotificationsIntegration:
     def test_progress_sent_on_error(self) -> None:
         mock = _make_client()
         mock.ask_corpus.side_effect = TomorrowlandClientError(
-            "Down", status_code=503,
+            "Down",
+            status_code=503,
         )
         mcp = _make_server(mock)
         fn = _get_tool_fn(mcp, "tomorrowland_ask_corpus")
@@ -703,13 +727,15 @@ class TestMetricsIntegration:
         fn = _get_tool_fn(mcp, "tomorrowland_search_documents")
 
         before = _mcp_metrics.tool_calls_total.labels(
-            tool="search_documents", outcome="ok",
+            tool="search_documents",
+            outcome="ok",
         )._value.get()
 
         _invoke_tool(fn, query="t")
 
         after = _mcp_metrics.tool_calls_total.labels(
-            tool="search_documents", outcome="ok",
+            tool="search_documents",
+            outcome="ok",
         )._value.get()
         assert after == before + 1
 
@@ -718,20 +744,23 @@ class TestMetricsIntegration:
 
         mock = _make_client()
         mock.get_document.side_effect = TomorrowlandClientError(
-            "Not found", status_code=404,
+            "Not found",
+            status_code=404,
         )
         mcp = _make_server(mock)
         fn = _get_tool_fn(mcp, "tomorrowland_get_document")
 
         before = _mcp_metrics.tool_call_errors_total.labels(
-            tool="get_document", error_type="HTTP_404",
+            tool="get_document",
+            error_type="HTTP_404",
         )._value.get()
 
         with pytest.raises(ValueError):
             _invoke_tool(fn, document_id="abc")
 
         after = _mcp_metrics.tool_call_errors_total.labels(
-            tool="get_document", error_type="HTTP_404",
+            tool="get_document",
+            error_type="HTTP_404",
         )._value.get()
         assert after == before + 1
 
@@ -768,8 +797,12 @@ class TestMetricsIntegration:
             ("tomorrowland_list_facets", {}),
         ]
         expected = {
-            "search_documents", "get_document", "get_passages",
-            "ask_corpus", "get_related_documents", "list_facets",
+            "search_documents",
+            "get_document",
+            "get_passages",
+            "ask_corpus",
+            "get_related_documents",
+            "list_facets",
         }
 
         for name, kwargs in tools:
@@ -778,7 +811,8 @@ class TestMetricsIntegration:
 
         for tool_name in expected:
             val = _mcp_metrics.tool_calls_total.labels(
-                tool=tool_name, outcome="ok",
+                tool=tool_name,
+                outcome="ok",
             )._value.get()
             assert val >= 1, f"No ok counter for {tool_name}"
 
@@ -832,8 +866,9 @@ class TestCorrelationIDIntegration:
         fn = _get_tool_fn(mcp, "tomorrowland_search_documents")
         _invoke_tool(fn, query="t")
 
-        audit = [r for r in caplog.records
-                 if getattr(r, "message", "") and "mcp_audit" in r.message]
+        audit = [
+            r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
+        ]
         assert len(audit) >= 1
         msg = audit[0].message
         assert re.search(

@@ -64,8 +64,7 @@ class CircuitBreakerOpenError(Exception):
     def __init__(self, cooldown_remaining: float = 0) -> None:
         self.cooldown_remaining = cooldown_remaining
         super().__init__(
-            f"Circuit breaker is open. "
-            f"{cooldown_remaining:.0f}s remaining in cooldown."
+            f"Circuit breaker is open. {cooldown_remaining:.0f}s remaining in cooldown."
         )
 
 
@@ -106,16 +105,7 @@ class CircuitBreaker:
 
     @property
     def state(self) -> str:
-        """Current state, transitioning OPEN → HALF_OPEN when cooldown expires."""
-        if self._state == self.OPEN and self._opened_at is not None and (
-            time.monotonic() - self._opened_at >= self._cooldown_seconds
-        ):
-                self._state = self.HALF_OPEN
-                logger.info(
-                    "Circuit breaker transitioned to half_open "
-                    "(cooldown expired after %.0fs)",
-                    self._cooldown_seconds,
-                )
+        """Current state (read-only — use _maybe_transition() to advance)."""
         return self._state
 
     @property
@@ -131,15 +121,31 @@ class CircuitBreaker:
         elapsed = time.monotonic() - self._opened_at
         return max(0.0, self._cooldown_seconds - elapsed)
 
+    def _maybe_transition(self) -> None:
+        """Transition OPEN → HALF_OPEN when the cooldown has expired.
+
+        Separated from the :attr:`state` property so that concurrent
+        :meth:`before_request` callers do not race — callers must invoke
+        this once and then atomically inspect ``self.state``.
+        """
+        if (
+            self._state == self.OPEN
+            and self._opened_at is not None
+            and (time.monotonic() - self._opened_at >= self._cooldown_seconds)
+        ):
+            self._state = self.HALF_OPEN
+            logger.info(
+                "Circuit breaker transitioned to half_open (cooldown expired after %.0fs)",
+                self._cooldown_seconds,
+            )
+
     def _update_prometheus_gauge(self) -> None:
         """Sync the Prometheus gauge with the current state."""
         try:
             from services.mcp.metrics import _mcp_metrics
 
             state_map = {self.CLOSED: 0, self.OPEN: 1, self.HALF_OPEN: 2}
-            _mcp_metrics.circuit_breaker_state.set(
-                state_map.get(self._state, -1)
-            )
+            _mcp_metrics.circuit_breaker_state.set(state_map.get(self._state, -1))
         except Exception:
             pass  # metrics are best-effort
 
@@ -148,18 +154,21 @@ class CircuitBreaker:
     def before_request(self) -> None:
         """Check the circuit before making a request.
 
+        Calls :meth:`_maybe_transition` to advance OPEN → HALF_OPEN
+        when the cooldown has expired, then inspects the (now read-only)
+        :attr:`state`.
+
         Raises :class:`CircuitBreakerOpenError` if the breaker is OPEN.
         In HALF_OPEN state, the request is allowed through as a probe.
         """
+        self._maybe_transition()
         if self.state == self.OPEN:
             raise CircuitBreakerOpenError(self.cooldown_remaining)
 
     def on_success(self) -> None:
         """Record a successful request — reset the breaker to CLOSED."""
         if self._state != self.CLOSED:
-            logger.info(
-                "Circuit breaker reset to closed after successful probe"
-            )
+            logger.info("Circuit breaker reset to closed after successful probe")
         self._failure_count = 0
         self._state = self.CLOSED
         self._opened_at = None
@@ -177,8 +186,7 @@ class CircuitBreaker:
             self._state = self.OPEN
             self._opened_at = time.monotonic()
             logger.warning(
-                "Circuit breaker opened after %d consecutive failures "
-                "(cooldown=%.0fs)",
+                "Circuit breaker opened after %d consecutive failures (cooldown=%.0fs)",
                 self._failure_count,
                 self._cooldown_seconds,
             )
@@ -303,9 +311,7 @@ class TomorrowlandClient:
         # Request coalescing — maps coalesce keys to (Event, result_holder)
         # tuples.  When a second caller arrives with the same key it awaits
         # the Event instead of making a duplicate backend call.
-        self._inflight: dict[
-            str, tuple[asyncio.Event, dict[str, Any]]
-        ] = {}
+        self._inflight: dict[str, tuple[asyncio.Event, dict[str, Any]]] = {}
         self._warmed_up = False
 
     # ------------------------------------------------------------------
@@ -402,8 +408,13 @@ class TomorrowlandClient:
         """
         # --- request coalescing -----------------------------------------
         ckey = _coalesce_key(
-            method, path, json_body, params,
-            auth_header, correlation_id, traceparent,
+            method,
+            path,
+            json_body,
+            params,
+            auth_header,
+            correlation_id,
+            traceparent,
         )
         existing = self._inflight.get(ckey)
         if existing is not None:
@@ -463,7 +474,9 @@ class TomorrowlandClient:
             self._circuit_breaker.before_request()
         except CircuitBreakerOpenError:
             logger.warning(
-                "MCP circuit breaker open — blocking %s %s", method, path,
+                "MCP circuit breaker open — blocking %s %s",
+                method,
+                path,
             )
             raise
 
@@ -551,10 +564,7 @@ class TomorrowlandClient:
                 # circuit breaker.  401/403/404/422 are client errors.
                 if response.status_code in _CIRCUIT_BREAKER_STATUSES:
                     _breaker_failure = True
-                if (
-                    response.status_code in _RETRYABLE_STATUSES
-                    and attempt < _MAX_RETRIES
-                ):
+                if response.status_code in _RETRYABLE_STATUSES and attempt < _MAX_RETRIES:
                     backoff = _RETRY_BACKOFF_BASE * (2 ** (attempt - 1))
                     await asyncio.sleep(backoff)
                     continue

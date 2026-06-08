@@ -87,9 +87,16 @@ def _validate_int(value: int, min_val: int, max_val: int, name: str) -> None:
 # Whitelisted filter keys matching the backend AgentSearchFilters schema.
 # Any key NOT in this set is rejected before the API call, giving the MCP
 # client a fast, clear error instead of a round-trip 422.
-_VALID_FILTER_KEYS = frozenset({
-    "sources", "mime_types", "languages", "tags", "date_from", "date_to",
-})
+_VALID_FILTER_KEYS = frozenset(
+    {
+        "sources",
+        "mime_types",
+        "languages",
+        "tags",
+        "date_from",
+        "date_to",
+    }
+)
 
 
 def _validate_filters(filters: dict[str, Any] | None) -> None:
@@ -102,9 +109,7 @@ def _validate_filters(filters: dict[str, Any] | None) -> None:
     if filters is None:
         return
     if not isinstance(filters, dict):
-        raise ValueError(
-            f"filters must be a dict, got {type(filters).__name__}"
-        )
+        raise ValueError(f"filters must be a dict, got {type(filters).__name__}")
     invalid_keys = set(filters.keys()) - _VALID_FILTER_KEYS
     if invalid_keys:
         raise ValueError(
@@ -117,16 +122,12 @@ def _validate_filters(filters: dict[str, Any] | None) -> None:
         if list_key in filters:
             val = filters[list_key]
             if not isinstance(val, list):
-                raise ValueError(
-                    f"filters.{list_key} must be a list, "
-                    f"got {type(val).__name__}"
-                )
+                raise ValueError(f"filters.{list_key} must be a list, got {type(val).__name__}")
             # Shallow check: list elements should be strings.
             for i, el in enumerate(val):
                 if not isinstance(el, str):
                     raise ValueError(
-                        f"filters.{list_key}[{i}] must be a string, "
-                        f"got {type(el).__name__}"
+                        f"filters.{list_key}[{i}] must be a string, got {type(el).__name__}"
                     )
     # Validate date values are non-empty strings (or absent)
     for date_key in ("date_from", "date_to"):
@@ -134,8 +135,7 @@ def _validate_filters(filters: dict[str, Any] | None) -> None:
             val = filters[date_key]
             if not isinstance(val, str):
                 raise ValueError(
-                    f"filters.{date_key} must be a string or absent, "
-                    f"got {type(val).__name__}"
+                    f"filters.{date_key} must be a string or absent, got {type(val).__name__}"
                 )
 
 
@@ -161,10 +161,7 @@ def _check_tool_enabled(tool_name: str) -> None:
         return  # unknown tool — allow (safety default)
     value = os.environ.get(env_var, "").strip().lower()
     if value in _DISABLED_VALUES:
-        raise ValueError(
-            f"Tool '{tool_name}' is disabled. "
-            f"Set {env_var}=1 to enable it."
-        )
+        raise ValueError(f"Tool '{tool_name}' is disabled. Set {env_var}=1 to enable it.")
 
 
 def _translate_error(exc: TomorrowlandClientError) -> str:
@@ -232,7 +229,9 @@ def _mcp_audit_log(
 
 
 def _record_circuit_breaker_error(
-    tool: str, elapsed: float, correlation_id: str,
+    tool: str,
+    elapsed: float,
+    correlation_id: str,
 ) -> None:
     """Record metrics and audit log for a circuit breaker open error."""
     _mcp_audit_log(
@@ -243,13 +242,15 @@ def _record_circuit_breaker_error(
         error_type="circuit_breaker_open",
     )
     _mcp_metrics.tool_calls_total.labels(
-        tool=tool, outcome="error",
+        tool=tool,
+        outcome="error",
     ).inc()
     _mcp_metrics.tool_call_duration_seconds.labels(
         tool=tool,
     ).observe(elapsed)
     _mcp_metrics.tool_call_errors_total.labels(
-        tool=tool, error_type="circuit_breaker_open",
+        tool=tool,
+        error_type="circuit_breaker_open",
     ).inc()
 
 
@@ -373,7 +374,9 @@ def create_mcp_server(
         except CircuitBreakerOpenError as exc:
             elapsed = time.perf_counter() - t0
             _record_circuit_breaker_error(
-                "search_documents", elapsed, correlation_id,
+                "search_documents",
+                elapsed,
+                correlation_id,
             )
             raise ValueError(str(exc)) from exc
 
@@ -451,7 +454,9 @@ def create_mcp_server(
         except CircuitBreakerOpenError as exc:
             elapsed = time.perf_counter() - t0
             _record_circuit_breaker_error(
-                "get_document", elapsed, correlation_id,
+                "get_document",
+                elapsed,
+                correlation_id,
             )
             raise ValueError(str(exc)) from exc
 
@@ -540,7 +545,9 @@ def create_mcp_server(
         except CircuitBreakerOpenError as exc:
             elapsed = time.perf_counter() - t0
             _record_circuit_breaker_error(
-                "get_passages", elapsed, correlation_id,
+                "get_passages",
+                elapsed,
+                correlation_id,
             )
             raise ValueError(str(exc)) from exc
 
@@ -645,7 +652,9 @@ def create_mcp_server(
         except CircuitBreakerOpenError as exc:
             elapsed = time.perf_counter() - t0
             _record_circuit_breaker_error(
-                "ask_corpus", elapsed, correlation_id,
+                "ask_corpus",
+                elapsed,
+                correlation_id,
             )
             if ctx is not None:
                 with suppress(Exception):
@@ -724,7 +733,9 @@ def create_mcp_server(
         except CircuitBreakerOpenError as exc:
             elapsed = time.perf_counter() - t0
             _record_circuit_breaker_error(
-                "get_related_documents", elapsed, correlation_id,
+                "get_related_documents",
+                elapsed,
+                correlation_id,
             )
             raise ValueError(str(exc)) from exc
 
@@ -802,7 +813,9 @@ def create_mcp_server(
         except CircuitBreakerOpenError as exc:
             elapsed = time.perf_counter() - t0
             _record_circuit_breaker_error(
-                "list_facets", elapsed, correlation_id,
+                "list_facets",
+                elapsed,
+                correlation_id,
             )
             raise ValueError(str(exc)) from exc
 

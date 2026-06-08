@@ -191,9 +191,11 @@ class TestExtractTraceparent:
 
     def test_extracts_lowercase_traceparent(self) -> None:
         """ASGI normalises headers to lowercase."""
-        ctx = _mock_context({
-            "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
-        })
+        ctx = _mock_context(
+            {
+                "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+            }
+        )
         result = _extract_traceparent(ctx)
         assert result == "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
 
@@ -234,17 +236,25 @@ class TestTraceparentForwarding:
         )
         mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.search_documents.return_value = {
-            "results": [], "total": 0, "query": "t",
+            "results": [],
+            "total": 0,
+            "query": "t",
         }
         mock_client.get_document.return_value = {"document_id": "abc"}
         mock_client.get_passages.return_value = {
-            "document_id": "abc", "passages": [], "total": 0,
+            "document_id": "abc",
+            "passages": [],
+            "total": 0,
         }
         mock_client.ask_corpus.return_value = {
-            "question": "q", "answer": "a", "citations": [], "model": "m",
+            "question": "q",
+            "answer": "a",
+            "citations": [],
+            "model": "m",
         }
         mock_client.get_related_documents.return_value = {
-            "document_id": "abc", "related": [],
+            "document_id": "abc",
+            "related": [],
         }
         mock_client.list_facets.return_value = {"facets": {}}
         return create_mcp_server(settings, client=mock_client), mock_client
@@ -305,10 +315,7 @@ class TestTraceparentForwarding:
         _invoke_tool(fn, document_id="abc", ctx=ctx)
 
         mock_client.get_related_documents.assert_called_once()
-        assert (
-            mock_client.get_related_documents.call_args[1]["traceparent"]
-            == self._TRACEPARENT
-        )
+        assert mock_client.get_related_documents.call_args[1]["traceparent"] == self._TRACEPARENT
 
     def test_traceparent_forwarded_to_list_facets(self) -> None:
         mcp, mock_client = self._make_server_with_trace_client()
@@ -472,10 +479,12 @@ class TestTomorrowlandClient:
         )
         client._client.request = mock  # type: ignore[method-assign]
 
-        asyncio.run(client.search_documents(
-            query="test",
-            filters={"sources": ["src1"], "mime_types": ["application/pdf"]},
-        ))
+        asyncio.run(
+            client.search_documents(
+                query="test",
+                filters={"sources": ["src1"], "mime_types": ["application/pdf"]},
+            )
+        )
 
         call_kwargs = mock.call_args[1]
         assert call_kwargs["json"]["filters"] == {
@@ -725,7 +734,8 @@ class TestTomorrowlandClient:
 
     def test_api_500_raises_error(self) -> None:
         client = TomorrowlandClient(api_url="http://localhost:8000")
-        mock = AsyncMock(return_value=_error_response(500, detail="Internal error"),
+        mock = AsyncMock(
+            return_value=_error_response(500, detail="Internal error"),
         )
         client._client.request = mock  # type: ignore[method-assign]
 
@@ -770,7 +780,7 @@ class TestRetryBehaviour:
         client._client.request = mock  # type: ignore[method-assign]
 
         with patch("asyncio.sleep", return_value=None) as sleep_mock:
-            result =            asyncio.run(client.search_documents(query="test"))
+            result = asyncio.run(client.search_documents(query="test"))
 
         assert mock.call_count == 3
         assert sleep_mock.call_count == 2
@@ -812,7 +822,7 @@ class TestRetryBehaviour:
         client._client.request = mock  # type: ignore[method-assign]
 
         with patch("asyncio.sleep", return_value=None) as sleep_mock:
-            result =            asyncio.run(client.search_documents(query="test"))
+            result = asyncio.run(client.search_documents(query="test"))
 
         assert mock.call_count == 2
         assert sleep_mock.call_count == 1
@@ -831,7 +841,7 @@ class TestRetryBehaviour:
         client._client.request = mock  # type: ignore[method-assign]
 
         with patch("asyncio.sleep", return_value=None) as sleep_mock:
-            result =            asyncio.run(client.search_documents(query="test"))
+            result = asyncio.run(client.search_documents(query="test"))
 
         assert mock.call_count == 2
         assert sleep_mock.call_count == 1
@@ -850,7 +860,7 @@ class TestRetryBehaviour:
         client._client.request = mock  # type: ignore[method-assign]
 
         with patch("asyncio.sleep", return_value=None) as sleep_mock:
-            result =            asyncio.run(client.search_documents(query="test"))
+            result = asyncio.run(client.search_documents(query="test"))
 
         assert mock.call_count == 2
         assert sleep_mock.call_count == 1
@@ -1241,14 +1251,16 @@ class TestFilterValidation:
         _validate_filters({})  # Should not raise.
 
     def test_valid_filters_pass(self) -> None:
-        _validate_filters({
-            "sources": ["engineering-wiki"],
-            "mime_types": ["application/pdf"],
-            "languages": ["en"],
-            "tags": ["archived"],
-            "date_from": "2024-01-01",
-            "date_to": "2024-12-31",
-        })
+        _validate_filters(
+            {
+                "sources": ["engineering-wiki"],
+                "mime_types": ["application/pdf"],
+                "languages": ["en"],
+                "tags": ["archived"],
+                "date_from": "2024-01-01",
+                "date_to": "2024-12-31",
+            }
+        )
 
     def test_non_dict_rejected(self) -> None:
         with pytest.raises(ValueError, match="filters must be a dict"):
@@ -1256,90 +1268,110 @@ class TestFilterValidation:
 
     def test_unknown_key_rejected(self) -> None:
         with pytest.raises(
-            ValueError, match="Unknown filter keys: foo",
+            ValueError,
+            match="Unknown filter keys: foo",
         ):
             _validate_filters({"sources": ["eng"], "foo": "bar"})
 
     def test_multiple_unknown_keys_listed(self) -> None:
         with pytest.raises(ValueError, match="foo, invalid_key"):
-            _validate_filters({
-                "sources": ["eng"], "foo": 1, "invalid_key": 2,
-            })
+            _validate_filters(
+                {
+                    "sources": ["eng"],
+                    "foo": 1,
+                    "invalid_key": 2,
+                }
+            )
 
     def test_sources_must_be_list(self) -> None:
         with pytest.raises(
-            ValueError, match="filters.sources must be a list",
+            ValueError,
+            match="filters.sources must be a list",
         ):
             _validate_filters({"sources": "not-a-list"})
 
     def test_mime_types_must_be_list(self) -> None:
         with pytest.raises(
-            ValueError, match="filters.mime_types must be a list",
+            ValueError,
+            match="filters.mime_types must be a list",
         ):
             _validate_filters({"mime_types": 123})
 
     def test_languages_must_be_list(self) -> None:
         with pytest.raises(
-            ValueError, match="filters.languages must be a list",
+            ValueError,
+            match="filters.languages must be a list",
         ):
             _validate_filters({"languages": None})
 
     def test_tags_must_be_list(self) -> None:
         with pytest.raises(
-            ValueError, match="filters.tags must be a list",
+            ValueError,
+            match="filters.tags must be a list",
         ):
             _validate_filters({"tags": {"wrong": "type"}})
 
     def test_date_from_must_be_string(self) -> None:
         with pytest.raises(
-            ValueError, match="filters.date_from must be a string",
+            ValueError,
+            match="filters.date_from must be a string",
         ):
             _validate_filters({"date_from": 2024})
 
     def test_date_to_must_be_string(self) -> None:
         with pytest.raises(
-            ValueError, match="filters.date_to must be a string",
+            ValueError,
+            match="filters.date_to must be a string",
         ):
             _validate_filters({"date_to": True})
 
     def test_sources_explicit_none_rejected(self) -> None:
         """Explicit None for a list filter key is rejected."""
         with pytest.raises(
-            ValueError, match="filters.sources must be a list",
+            ValueError,
+            match="filters.sources must be a list",
         ):
             _validate_filters({"sources": None})
 
     def test_date_from_explicit_none_rejected(self) -> None:
         """Explicit None for a date filter key is rejected."""
         with pytest.raises(
-            ValueError, match="filters.date_from must be a string or absent",
+            ValueError,
+            match="filters.date_from must be a string or absent",
         ):
             _validate_filters({"date_from": None})
 
     def test_sources_list_element_must_be_string(self) -> None:
         """List elements must be strings."""
         with pytest.raises(
-            ValueError, match="filters.sources\\[1\\] must be a string",
+            ValueError,
+            match="filters.sources\\[1\\] must be a string",
         ):
             _validate_filters({"sources": ["valid", 42]})
 
     def test_tags_list_element_must_be_string(self) -> None:
         with pytest.raises(
-            ValueError, match="filters.tags\\[0\\] must be a string",
+            ValueError,
+            match="filters.tags\\[0\\] must be a string",
         ):
             _validate_filters({"tags": [3.14, "valid", True]})
 
     def test_valid_filter_keys_set_matches_backend(self) -> None:
         """The whitelist must match AgentSearchFilters exactly."""
         assert {
-            "sources", "mime_types", "languages", "tags",
-            "date_from", "date_to",
+            "sources",
+            "mime_types",
+            "languages",
+            "tags",
+            "date_from",
+            "date_to",
         } == _VALID_FILTER_KEYS
 
     def test_filter_validation_in_tool_rejects_bad_filters(self) -> None:
         """Integration: the search tool calls _validate_filters before API."""
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = AsyncMock(spec=TomorrowlandClient)
         mcp = create_mcp_server(settings, client=mock_client)
@@ -1361,11 +1393,14 @@ class TestFilterValidation:
     ) -> None:
         """Valid filters must pass through to the client."""
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.search_documents.return_value = {
-            "results": [], "total": 0, "query": "t",
+            "results": [],
+            "total": 0,
+            "query": "t",
         }
         mcp = create_mcp_server(settings, client=mock_client)
         for t in mcp._tool_manager.list_tools():
@@ -1399,7 +1434,9 @@ class TestFeatureFlags:
 
     @pytest.mark.parametrize("value", ["0", "false", "no", "off"])
     def test_disabled_values(
-        self, monkeypatch, value: str,  # type: ignore[no-untyped-def]
+        self,
+        monkeypatch,
+        value: str,  # type: ignore[no-untyped-def]
     ) -> None:
         monkeypatch.setenv("MCP_ENABLE_GET_PASSAGES", value)
         with pytest.raises(ValueError, match="get_passages.*disabled"):
@@ -1412,7 +1449,9 @@ class TestFeatureFlags:
 
     @pytest.mark.parametrize("value", ["1", "true", "yes", "enabled", "", "anything"])
     def test_non_disabled_values_allow_tool(
-        self, monkeypatch, value: str,  # type: ignore[no-untyped-def]
+        self,
+        monkeypatch,
+        value: str,  # type: ignore[no-untyped-def]
     ) -> None:
         monkeypatch.setenv("MCP_ENABLE_ASK_CORPUS", value)
         _check_tool_enabled("ask_corpus")  # Should not raise.
@@ -1423,7 +1462,8 @@ class TestFeatureFlags:
     def test_disabled_tool_in_server_returns_error(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
         monkeypatch.setenv("MCP_ENABLE_SEARCH_DOCUMENTS", "0")
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = AsyncMock(spec=TomorrowlandClient)
         mcp = create_mcp_server(settings, client=mock_client)
@@ -1441,15 +1481,19 @@ class TestFeatureFlags:
         mock_client.search_documents.assert_not_called()
 
     def test_disabled_expensive_tool_other_tools_still_work(
-        self, monkeypatch,  # type: ignore[no-untyped-def]
+        self,
+        monkeypatch,  # type: ignore[no-untyped-def]
     ) -> None:
         monkeypatch.setenv("MCP_ENABLE_ASK_CORPUS", "0")
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.search_documents.return_value = {
-            "results": [], "total": 0, "query": "t",
+            "results": [],
+            "total": 0,
+            "query": "t",
         }
         mcp = create_mcp_server(settings, client=mock_client)
 
@@ -1478,12 +1522,15 @@ class TestProgressNotifications:
 
     def test_ask_corpus_sends_progress_on_success(self) -> None:
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.ask_corpus.return_value = {
-            "question": "q", "answer": "a",
-            "citations": [], "model": "m",
+            "question": "q",
+            "answer": "a",
+            "citations": [],
+            "model": "m",
         }
         ctx = AsyncMock(spec=Context)
         mcp = create_mcp_server(settings, client=mock_client)
@@ -1505,11 +1552,13 @@ class TestProgressNotifications:
 
     def test_ask_corpus_sends_progress_on_error(self) -> None:
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.ask_corpus.side_effect = TomorrowlandClientError(
-            "Down", status_code=503,
+            "Down",
+            status_code=503,
         )
         ctx = AsyncMock(spec=Context)
         mcp = create_mcp_server(settings, client=mock_client)
@@ -1527,7 +1576,6 @@ class TestProgressNotifications:
         # Progress should still be sent on error path.
         assert ctx.report_progress.call_count >= 1
         assert ctx.report_progress.call_args_list[-1][1]["progress"] == 100
-
 
 
 # ======================================================================
@@ -1650,11 +1698,14 @@ class TestMCPAuthorizationParity:
         ],
     )
     def test_all_tools_translate_403_to_safe_error(
-        self, tool_name: str, tool_kwargs: dict[str, Any],
+        self,
+        tool_name: str,
+        tool_kwargs: dict[str, Any],
     ) -> None:
         hidden_resource_id = "hidden-resource-id-must-not-appear-in-error"
         mcp = self._make_server_raising(
-            403, f"Cannot access {hidden_resource_id}",
+            403,
+            f"Cannot access {hidden_resource_id}",
         )
         fn = self._get_tool_fn(mcp, tool_name)
 
@@ -1983,7 +2034,8 @@ class TestCircuitBreaker:
 
     def test_cooldown_remaining_is_positive_when_open(self) -> None:
         cb = CircuitBreaker(
-            failure_threshold=1, cooldown_seconds=10.0,
+            failure_threshold=1,
+            cooldown_seconds=10.0,
         )
         cb.on_failure()
 
@@ -1993,20 +2045,24 @@ class TestCircuitBreaker:
 
     def test_transitions_to_half_open_after_cooldown(self) -> None:
         cb = CircuitBreaker(
-            failure_threshold=1, cooldown_seconds=0.01,
+            failure_threshold=1,
+            cooldown_seconds=0.01,
         )
         cb.on_failure()
         assert cb.state == CircuitBreaker.OPEN
 
         time.sleep(0.02)
+        cb._maybe_transition()
         assert cb.state == CircuitBreaker.HALF_OPEN
 
     def test_allows_request_in_half_open(self) -> None:
         cb = CircuitBreaker(
-            failure_threshold=1, cooldown_seconds=0.01,
+            failure_threshold=1,
+            cooldown_seconds=0.01,
         )
         cb.on_failure()
         time.sleep(0.02)
+        cb._maybe_transition()
         assert cb.state == CircuitBreaker.HALF_OPEN
 
         cb.before_request()  # Should not raise.
@@ -2022,10 +2078,12 @@ class TestCircuitBreaker:
 
     def test_success_from_half_open_closes_circuit(self) -> None:
         cb = CircuitBreaker(
-            failure_threshold=1, cooldown_seconds=0.01,
+            failure_threshold=1,
+            cooldown_seconds=0.01,
         )
         cb.on_failure()
         time.sleep(0.02)
+        cb._maybe_transition()
         assert cb.state == CircuitBreaker.HALF_OPEN
 
         cb.on_success()
@@ -2033,10 +2091,12 @@ class TestCircuitBreaker:
 
     def test_failure_in_half_open_reopens_circuit(self) -> None:
         cb = CircuitBreaker(
-            failure_threshold=1, cooldown_seconds=0.01,
+            failure_threshold=1,
+            cooldown_seconds=0.01,
         )
         cb.on_failure()
         time.sleep(0.02)
+        cb._maybe_transition()
         assert cb.state == CircuitBreaker.HALF_OPEN
 
         cb.on_failure()
@@ -2060,7 +2120,8 @@ class TestCircuitBreaker:
 
     def test_open_error_includes_cooldown_remaining(self) -> None:
         cb = CircuitBreaker(
-            failure_threshold=1, cooldown_seconds=30.0,
+            failure_threshold=1,
+            cooldown_seconds=30.0,
         )
         cb.on_failure()
 
@@ -2090,10 +2151,7 @@ class TestCircuitBreakerClientIntegration:
         # call.  3 calls × 3 = 9 items, threshold=3 opens after 3 calls.
         client._circuit_breaker._failure_threshold = 3
         mock = AsyncMock(
-            side_effect=[
-                _error_response(503, "fail")
-                for _ in range(9)
-            ],
+            side_effect=[_error_response(503, "fail") for _ in range(9)],
         )
         client._client.request = mock  # type: ignore[method-assign]
 
@@ -2115,10 +2173,7 @@ class TestCircuitBreakerClientIntegration:
         client._circuit_breaker._failure_threshold = 2
         # 2 calls × 3 retries = 6 items.
         mock = AsyncMock(
-            side_effect=[
-                _error_response(503, "fail")
-                for _ in range(6)
-            ],
+            side_effect=[_error_response(503, "fail") for _ in range(6)],
         )
         client._client.request = mock  # type: ignore[method-assign]
 
@@ -2129,7 +2184,8 @@ class TestCircuitBreakerClientIntegration:
 
             # Breaker is now open — next request fails fast.
             with pytest.raises(
-                CircuitBreakerOpenError, match="Circuit breaker is open",
+                CircuitBreakerOpenError,
+                match="Circuit breaker is open",
             ):
                 asyncio.run(client.search_documents(query="test"))
 
@@ -2157,15 +2213,14 @@ class TestCircuitBreakerClientIntegration:
             client = TomorrowlandClient(api_url="http://localhost:8000")
             # Each retries 3 times → 3 side_effect items per call.
             mock = AsyncMock(
-                side_effect=[
-                    _error_response(status, "error")
-                    for _ in range(3)
-                ],
+                side_effect=[_error_response(status, "error") for _ in range(3)],
             )
             client._client.request = mock  # type: ignore[method-assign]
 
-            with patch("services.mcp.client.asyncio.sleep", return_value=None), \
-                    pytest.raises(TomorrowlandClientError):
+            with (
+                patch("services.mcp.client.asyncio.sleep", return_value=None),
+                pytest.raises(TomorrowlandClientError),
+            ):
                 asyncio.run(client.search_documents(query="test"))
 
             assert client._circuit_breaker.failure_count == 1
@@ -2175,10 +2230,7 @@ class TestCircuitBreakerClientIntegration:
         # Each timeout call retries 3 times → 3 items per top-level call.
         # 2 calls × 3 = 6 items.
         mock = AsyncMock(
-            side_effect=[
-                httpx.TimeoutException("timed out")
-                for _ in range(6)
-            ],
+            side_effect=[httpx.TimeoutException("timed out") for _ in range(6)],
         )
         client._client.request = mock  # type: ignore[method-assign]
 
@@ -2213,7 +2265,9 @@ class TestCircuitBreakerClientIntegration:
             assert client._circuit_breaker.state == CircuitBreaker.CLOSED
             assert client._circuit_breaker.failure_count == 0
             assert result == {
-                "results": [], "total": 0, "query": "t",
+                "results": [],
+                "total": 0,
+                "query": "t",
             }
 
 
@@ -2233,7 +2287,8 @@ class TestCircuitBreakerServerIntegration:
 
     def test_tool_returns_safe_error_when_breaker_open(self) -> None:
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.search_documents.side_effect = CircuitBreakerOpenError(
@@ -2249,7 +2304,8 @@ class TestCircuitBreakerServerIntegration:
         from services.mcp.metrics import _mcp_metrics
 
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.get_document.side_effect = CircuitBreakerOpenError(
@@ -2259,21 +2315,24 @@ class TestCircuitBreakerServerIntegration:
         fn = self._get_tool_fn(mcp, "tomorrowland_get_document")
 
         before = _mcp_metrics.tool_call_errors_total.labels(
-            tool="get_document", error_type="circuit_breaker_open",
+            tool="get_document",
+            error_type="circuit_breaker_open",
         )._value.get()
 
         with pytest.raises(ValueError, match="Circuit breaker is open"):
             _invoke_tool(fn, document_id="abc")
 
         after = _mcp_metrics.tool_call_errors_total.labels(
-            tool="get_document", error_type="circuit_breaker_open",
+            tool="get_document",
+            error_type="circuit_breaker_open",
         )._value.get()
         assert after == before + 1
 
     def test_circuit_breaker_error_audit_logged(self, caplog) -> None:  # type: ignore[no-untyped-def]
         caplog.set_level("INFO")
         settings = Settings(
-            tomorrowland_api_url="http://localhost:8000", app_env="test",
+            tomorrowland_api_url="http://localhost:8000",
+            app_env="test",
         )
         mock_client = AsyncMock(spec=TomorrowlandClient)
         mock_client.list_facets.side_effect = CircuitBreakerOpenError(
@@ -2286,8 +2345,7 @@ class TestCircuitBreakerServerIntegration:
             _invoke_tool(fn)
 
         audit_lines = [
-            r for r in caplog.records
-            if getattr(r, "message", "") and "mcp_audit" in r.message
+            r for r in caplog.records if getattr(r, "message", "") and "mcp_audit" in r.message
         ]
         assert len(audit_lines) == 1
         msg = audit_lines[0].message
