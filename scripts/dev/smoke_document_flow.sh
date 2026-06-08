@@ -50,6 +50,8 @@ AUTH_TOKEN=""
 FIRST_DOC_ID=""
 SOURCE_ID=""
 CURL_JSON_HTTP_CODE=0
+# File used to pass the HTTP status code out of the curl_json subshell.
+_HTTP_CODE_FILE="${TMPDIR:-/tmp}/.smoke_http_code_$$"
 
 # ---------------------------------------------------------------------------
 # Help
@@ -304,6 +306,7 @@ curl_json() {
   fi
 
   CURL_JSON_HTTP_CODE="$http_code"
+  echo "$http_code" > "$_HTTP_CODE_FILE"
   cat "$tmp_file"
   rm -f "$tmp_file"
 }
@@ -494,7 +497,8 @@ doc_search() {
   log_info "Searching for '${SMOKE_QUERY}'"
   local response
   response="$(curl_json POST "${API_URL}/search" "$body")"
-  local http_code="$CURL_JSON_HTTP_CODE"
+  local http_code
+  http_code="$(cat "$_HTTP_CODE_FILE" 2>/dev/null || echo 0)"
 
   if (( http_code < 200 || http_code >= 300 )); then
     echo "Search returned HTTP ${http_code}" >&2
@@ -530,7 +534,8 @@ doc_preview() {
   log_info "Fetching preview for ${FIRST_DOC_ID}"
   local response
   response="$(curl_json GET "${API_URL}/preview/${FIRST_DOC_ID}")"
-  local http_code="$CURL_JSON_HTTP_CODE"
+  local http_code
+  http_code="$(cat "$_HTTP_CODE_FILE" 2>/dev/null || echo 0)"
 
   if (( http_code < 200 || http_code >= 300 )); then
     echo "Preview returned HTTP ${http_code}" >&2
@@ -560,7 +565,8 @@ doc_text() {
   log_info "Fetching full text for ${FIRST_DOC_ID}"
   local response
   response="$(curl_json GET "${API_URL}/documents/${FIRST_DOC_ID}/text")"
-  local http_code="$CURL_JSON_HTTP_CODE"
+  local http_code
+  http_code="$(cat "$_HTTP_CODE_FILE" 2>/dev/null || echo 0)"
 
   if (( http_code < 200 || http_code >= 300 )); then
     echo "Document text returned HTTP ${http_code}" >&2
