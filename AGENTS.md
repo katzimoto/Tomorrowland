@@ -142,6 +142,20 @@ targets `main`.
 - Do not merge broken intermediate states into `main`.
 - Do not bypass branch protection or CI.
 - Keep subtask branches small and reviewable even when they target a feature branch.
+- **Every coding mission MUST end with a PR.** Never leave work as local-only commits, dangling branches, or uncommitted changes in worktrees. Push the branch and open a PR — even for drafts. If you can't push (e.g., no network), at minimum commit with a clear message and tell Chief of Staff where the branch lives. Work without a PR is lost work.
+
+## Mandatory PR policy (all crew coding agents)
+
+**For any task that changes code, config, or tests in the repo:**
+
+1. **Commit** your changes to a named branch (never leave uncommitted worktree state).
+2. **Push** the branch to `origin`.
+3. **Create a PR** with a descriptive title and body referencing the kanban task ID.
+4. **Post the PR URL** in the kanban task comment when completing — this is part of the handoff.
+
+**Why:** Remote branches survive worktree GC; local-only commits don't. PRs create a durable, reviewable record. The pre-PR checklist (`scripts/check-pr-cleanliness.sh`) catches agent artifacts before merge.
+
+**Enforcement:** The board self-healing cron (`217969c3ed9e`) will flag completed coding tasks without linked PRs. Chief of Staff will chase these up.
 
 ## Shared-file conflicts (short)
 
