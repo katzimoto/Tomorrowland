@@ -344,8 +344,17 @@ frontend_health() {
 
 mcp_health() {
   log_info "Probing MCP adapter at localhost:${MCP_HOST_PORT}"
-  wait_for_url "MCP adapter" "http://localhost:${MCP_HOST_PORT}/mcp" || return 1
-  log_ok "MCP adapter is reachable"
+  local deadline=$(( SECONDS + TIMEOUT_SECONDS ))
+  # Use TCP check: /mcp returns 406 for plain GET (requires Accept headers), so
+  # curl -f would always fail. Port reachability is sufficient as a health signal.
+  until bash -c ":> /dev/tcp/127.0.0.1/${MCP_HOST_PORT}" 2>/dev/null; do
+    if (( SECONDS >= deadline )); then
+      echo "Timed out waiting for MCP adapter on port ${MCP_HOST_PORT} after ${TIMEOUT_SECONDS}s." >&2
+      return 1
+    fi
+    sleep "$POLL_SECONDS"
+  done
+  log_ok "MCP adapter is reachable on port ${MCP_HOST_PORT}"
 }
 
 auth_login() {

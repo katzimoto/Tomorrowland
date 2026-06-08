@@ -130,9 +130,9 @@ jobs:
           done
           echo "Frontend is healthy"
 
-          echo "Waiting for MCP server at http://localhost:8001/mcp ..."
+          echo "Waiting for MCP server on port 8001 ..."
           deadline=$((SECONDS + 120))
-          until curl -sfS -o /dev/null http://localhost:8001/mcp 2>/dev/null; do
+          until bash -c ":> /dev/tcp/127.0.0.1/8001" 2>/dev/null; do
             if (( SECONDS >= deadline )); then
               echo "Timed out waiting for MCP server" >&2
               docker compose ps >&2
