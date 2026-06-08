@@ -385,7 +385,9 @@ class TestConfigCacheWithDB:
         # Seed a config value
         with migrated_engine.begin() as conn:
             conn.execute(
-                sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)"),
+                sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)").bindparams(
+                    sa.bindparam("v", type_=sa.JSON())
+                ),
                 {"k": "test.feature", "v": "enabled"},
             )
 
@@ -419,10 +421,14 @@ class TestConfigCacheWithDB:
     def test_invalidate_then_refetch_from_db(self, migrated_engine: Engine) -> None:
         _system_config_cache.invalidate_all()
 
+        _json_bind = sa.bindparam("v", type_=sa.JSON())
+
         # Seed initial value
         with migrated_engine.begin() as conn:
             conn.execute(
-                sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)"),
+                sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)").bindparams(
+                    _json_bind
+                ),
                 {"k": "mutable.key", "v": "old"},
             )
 
@@ -434,7 +440,9 @@ class TestConfigCacheWithDB:
         # Update DB value
         with migrated_engine.begin() as conn:
             conn.execute(
-                sa.text("UPDATE system_config SET value = :v WHERE key = :k"),
+                sa.text("UPDATE system_config SET value = :v WHERE key = :k").bindparams(
+                    _json_bind
+                ),
                 {"k": "mutable.key", "v": "new"},
             )
 

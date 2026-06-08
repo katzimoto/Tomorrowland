@@ -1359,7 +1359,9 @@ def test_admin_config_write_invalidates_cache(migrated_engine: Engine) -> None:
     # Seed a config value
     with migrated_engine.begin() as conn:
         conn.execute(
-            sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)"),
+            sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)").bindparams(
+                sa.bindparam("v", type_=sa.JSON())
+            ),
             {"k": "test.cache.key", "v": "old"},
         )
 
@@ -1371,7 +1373,9 @@ def test_admin_config_write_invalidates_cache(migrated_engine: Engine) -> None:
     # Update DB directly (simulating admin config write)
     with migrated_engine.begin() as conn:
         conn.execute(
-            sa.text("UPDATE system_config SET value = :v WHERE key = :k"),
+            sa.text("UPDATE system_config SET value = :v WHERE key = :k").bindparams(
+                sa.bindparam("v", type_=sa.JSON())
+            ),
             {"k": "test.cache.key", "v": "new"},
         )
         # Manually invalidate (what the admin router does)
@@ -1391,14 +1395,16 @@ def test_admin_config_write_multiple_keys_cache_coherence(
 
     _system_config_cache.invalidate_all()
 
+    _json_bind = sa.bindparam("v", type_=sa.JSON())
+
     # Seed two config values
     with migrated_engine.begin() as conn:
         conn.execute(
-            sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)"),
+            sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)").bindparams(_json_bind),
             {"k": "cache.key.a", "v": "value-a"},
         )
         conn.execute(
-            sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)"),
+            sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)").bindparams(_json_bind),
             {"k": "cache.key.b", "v": "value-b"},
         )
 
@@ -1410,7 +1416,7 @@ def test_admin_config_write_multiple_keys_cache_coherence(
     # Update and invalidate only key A
     with migrated_engine.begin() as conn:
         conn.execute(
-            sa.text("UPDATE system_config SET value = :v WHERE key = :k"),
+            sa.text("UPDATE system_config SET value = :v WHERE key = :k").bindparams(_json_bind),
             {"k": "cache.key.a", "v": "new-a"},
         )
         _system_config_cache.invalidate("cache.key.a")

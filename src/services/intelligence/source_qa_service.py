@@ -162,8 +162,8 @@ def _count_missing_metadata(connection: Connection, source_id: UUID) -> int:
             WHERE source_id = :source_id
               AND (
                   metadata IS NULL
-                  OR metadata = ''
-                  OR metadata = '{}'
+                  OR CAST(metadata AS TEXT) = ''
+                  OR CAST(metadata AS TEXT) = '{}'
               )
         """),
         {"source_id": db_uuid(source_id)},

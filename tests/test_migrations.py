@@ -133,7 +133,7 @@ def test_source_permissions_support_source_level_grants(migrated_engine: Engine)
             connection.execute(sa.text("SELECT group_id FROM source_permissions")).scalars().all()
         )
 
-    assert rows == [group_id.hex]
+    assert [str(r).replace("-", "") for r in rows] == [group_id.hex]
 
 
 def test_model_provider_registry_tables_created(migrated_engine: Engine) -> None:

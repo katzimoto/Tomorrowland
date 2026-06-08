@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from sqlalchemy import Engine
+
+_USE_POSTGRES = os.environ.get("PGTEST", "").lower() in ("1", "true", "yes")
 
 from services.chat.models import ChatMessageCreate, ChatSessionCreate, ChatSessionUpdate
 from services.chat.repository import ChatRepository
@@ -278,9 +281,9 @@ def test_delete_session_cascades_to_messages(migrated_engine: Engine) -> None:
         msgs = repo.list_messages(session.id)
 
     assert deleted is True
-    # Messages may persist in SQLite (no FK cascade enforced without PRAGMA)
-    # but the session itself is gone. Production Postgres enforces cascade.
-    assert len(msgs) == 2  # known SQLite limitation
+    # PostgreSQL enforces ON DELETE CASCADE so messages are gone.
+    # SQLite skips FK cascade without PRAGMA foreign_keys=ON.
+    assert len(msgs) == (0 if _USE_POSTGRES else 2)
 
 
 # ------------------------------------------------------------------

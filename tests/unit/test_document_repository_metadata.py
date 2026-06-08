@@ -191,4 +191,7 @@ def test_sync_now_persists_connector_metadata(
             {"source_id": source_id.hex},
         ).scalar_one()
 
-    assert metadata == '{"server": "fileserver", "remote_path": "legal/report.txt"}'
+    expected = {"server": "fileserver", "remote_path": "legal/report.txt"}
+    # PostgreSQL returns JSON columns as dicts; SQLite returns the raw string.
+    actual = metadata if isinstance(metadata, dict) else __import__("json").loads(metadata)
+    assert actual == expected
