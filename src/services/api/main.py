@@ -133,17 +133,18 @@ def create_app(
         except Exception:
             app.state.admins_group_id = None
 
+    # Redis client — gracefully degrades when Redis is unavailable.
+    redis_client = RedisClient(url=app.state.settings.redis_url)
+    redis_client.connect()
+    app.state.redis_client = redis_client
+
     app.state.agent_rate_limiter = AgentRateLimiter(
         enabled=app.state.settings.agent_rate_limit_enabled,
         window_seconds=app.state.settings.agent_rate_limit_window_seconds,
         calls_per_window=app.state.settings.agent_rate_limit_calls_per_window,
         ask_corpus_calls_per_window=app.state.settings.agent_rate_limit_ask_corpus_calls_per_window,
+        redis_client=redis_client,
     )
-
-    # Redis client — gracefully degrades when Redis is unavailable.
-    redis_client = RedisClient(url=app.state.settings.redis_url)
-    redis_client.connect()
-    app.state.redis_client = redis_client
 
     app.state.readiness_checker = ReadinessChecker(
         engine=app.state.engine,
