@@ -53,7 +53,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 ALL_STATUSES: list[str] = [
     "triage",
@@ -130,8 +130,8 @@ def _format_metrics(
     lines.append(f"tomorrowland_oldest_ready_age_seconds {oldest if oldest is not None else 0}")
 
     # -- scrape metadata line (not strictly required but helpful for debugging) --
-    scrape_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    lines.append(f"# HELP tomorrowland_metrics_scrape_seconds Timestamp of last scrape.")
+    datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    lines.append("# HELP tomorrowland_metrics_scrape_seconds Timestamp of last scrape.")
     lines.append("# TYPE tomorrowland_metrics_scrape_seconds gauge")
     lines.append(
         f"tomorrowland_metrics_scrape_seconds {stats.get('now', 0)}"
