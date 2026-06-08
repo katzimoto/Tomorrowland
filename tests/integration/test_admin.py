@@ -1400,15 +1400,15 @@ def test_admin_config_write_multiple_keys_cache_coherence(
     # Seed two config values
     with migrated_engine.begin() as conn:
         conn.execute(
-            sa.text(
-                "INSERT INTO system_config (key, value) VALUES (:k, :v)"
-            ).bindparams(_json_bind),
+            sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)").bindparams(
+                _json_bind
+            ),
             {"k": "cache.key.a", "v": "value-a"},
         )
         conn.execute(
-            sa.text(
-                "INSERT INTO system_config (key, value) VALUES (:k, :v)"
-            ).bindparams(_json_bind),
+            sa.text("INSERT INTO system_config (key, value) VALUES (:k, :v)").bindparams(
+                _json_bind
+            ),
             {"k": "cache.key.b", "v": "value-b"},
         )
 
