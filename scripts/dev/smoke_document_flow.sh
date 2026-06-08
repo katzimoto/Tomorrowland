@@ -618,9 +618,14 @@ else
   write_result "frontend_health" "skip" "FRONTEND_URL not set"
 fi
 
-# Stage 3b — MCP adapter health
-MCP_HOST_PORT="${MCP_HOST_PORT:-8001}"
-run_stage "mcp_health" mcp_health
+# Stage 3b — MCP adapter health (skip if MCP_URL not explicitly set)
+if [[ -n "${MCP_URL:-}" ]]; then
+  MCP_HOST_PORT="${MCP_HOST_PORT:-8001}"
+  run_stage "mcp_health" mcp_health
+else
+  log_skip "MCP health check skipped (MCP_URL not set)"
+  write_result "mcp_health" "skip" "MCP_URL not set"
+fi
 
 # Stage 4 — document bootstrap via Docker (skip if Docker absent)
 run_stage "doc_bootstrap" doc_bootstrap
