@@ -1,7 +1,7 @@
 """add document_extractions table
 
-Revision ID: y2z3a4b5c6d7
-Revises: x1y2z3a4b5c6
+Revision ID: 8cca35f87327
+Revises: e46868074714
 Create Date: 2026-06-11
 """
 
@@ -12,8 +12,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "y2z3a4b5c6d7"
-down_revision: str | Sequence[str] | None = "x1y2z3a4b5c6"
+revision: str = "8cca35f87327"
+down_revision: str | Sequence[str] | None = "e46868074714"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -30,10 +30,13 @@ def upgrade() -> None:
         ),
         sa.Column("parser_name", sa.Text(), nullable=False),
         sa.Column("parser_version", sa.Text(), nullable=False),
-        sa.Column("duration_ms", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("duration_ms", sa.Integer(), nullable=False,
+                  server_default=sa.text("0")),
         sa.Column("confidence", sa.Float(), nullable=True),
-        sa.Column("warnings", sa.JSON(), nullable=False, server_default=sa.text("'[]'")),
-        sa.Column("attempts", sa.JSON(), nullable=False, server_default=sa.text("'[]'")),
+        sa.Column("warnings", sa.JSON(), nullable=False,
+                  server_default=sa.text("'[]'")),
+        sa.Column("attempts", sa.JSON(), nullable=False,
+                  server_default=sa.text("'[]'")),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -54,6 +57,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_document_extractions_parser_name", table_name="document_extractions")
-    op.drop_index("ix_document_extractions_document_id", table_name="document_extractions")
+    op.drop_index("ix_document_extractions_parser_name",
+                  table_name="document_extractions")
+    op.drop_index("ix_document_extractions_document_id",
+                  table_name="document_extractions")
     op.drop_table("document_extractions")

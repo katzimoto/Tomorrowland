@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import MetaData
@@ -13,6 +16,23 @@ def db_uuid(value: UUID | str) -> str:
 def to_uuid(value: object) -> UUID:
     """Convert a database value back to a UUID."""
     return value if isinstance(value, UUID) else UUID(str(value))
+
+
+def db_now() -> datetime:
+    """Return the current UTC datetime — shared across all repositories."""
+    return datetime.now(UTC)
+
+
+def db_resolve_json(value: Any) -> Any:
+    """Deserialize a JSON column value from the database."""
+    if value is None:
+        return None
+    if isinstance(value, (list, dict)):
+        return value
+    try:
+        return json.loads(str(value)) if value else None
+    except (json.JSONDecodeError, TypeError):
+        return None
 
 
 metadata = MetaData(

@@ -114,4 +114,10 @@ class BaseExtractor:
     _CAPS: ClassVar[ParserCapabilities]
 
     def capabilities(self) -> ParserCapabilities:
-        return self._CAPS
+        try:
+            return self._CAPS
+        except AttributeError:
+            raise NotImplementedError(
+                f"{type(self).__name__} must set _CAPS or provide its own "
+                f"capabilities() implementation"
+            ) from None

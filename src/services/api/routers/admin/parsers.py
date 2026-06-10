@@ -92,6 +92,18 @@ class ParserPolicyOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _to_out(caps: object) -> ParserCapabilitiesOut:
+    """Convert a ParserCapabilities to a ParserCapabilitiesOut."""
+    return ParserCapabilitiesOut(
+        parser_name=caps.parser_name,  # type: ignore[attr-defined]
+        parser_version=caps.parser_version,  # type: ignore[attr-defined]
+        supported_mime_types=list(caps.supported_mime_types),  # type: ignore[attr-defined]
+        quality_tier=caps.quality_tier.value,  # type: ignore[attr-defined]
+        requires_ocr=caps.requires_ocr,  # type: ignore[attr-defined]
+        max_file_size=caps.max_file_size,  # type: ignore[attr-defined]
+    )
+
+
 @router.get("/admin/parsers")
 def admin_list_parsers(
     request: Request,
@@ -99,19 +111,7 @@ def admin_list_parsers(
 ) -> list[ParserCapabilitiesOut]:
     require_admin(user)
     registry: ExtractorRegistry = request.app.state.extractor_registry
-    result: list[ParserCapabilitiesOut] = []
-    for caps in registry.list():
-        result.append(
-            ParserCapabilitiesOut(
-                parser_name=caps.parser_name,
-                parser_version=caps.parser_version,
-                supported_mime_types=list(caps.supported_mime_types),
-                quality_tier=caps.quality_tier.value,
-                requires_ocr=caps.requires_ocr,
-                max_file_size=caps.max_file_size,
-            )
-        )
-    return result
+    return [_to_out(c) for c in registry.list()]
 
 
 @router.get("/admin/parsers/{parser_name}")
@@ -125,14 +125,7 @@ def admin_get_parser(
     caps = registry.capabilities(parser_name)
     if caps is None:
         raise HTTPException(status_code=404, detail="Parser not found")
-    return ParserCapabilitiesOut(
-        parser_name=caps.parser_name,
-        parser_version=caps.parser_version,
-        supported_mime_types=list(caps.supported_mime_types),
-        quality_tier=caps.quality_tier.value,
-        requires_ocr=caps.requires_ocr,
-        max_file_size=caps.max_file_size,
-    )
+    return _to_out(caps)
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +196,7 @@ def admin_create_policy(
 
         repo = ParserPolicyRepository(connection)
         policy_id = repo.create(
+            created_by=str(user.sub) if user.sub else None,
             source_id=body.source_id,
             mime_pattern=body.mime_pattern,
             parser_chain=body.parser_chain,

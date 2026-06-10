@@ -6,30 +6,14 @@ Follows the same SQLAlchemy Core + Connection pattern.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection
 
-from shared.db import db_uuid, to_uuid
-
-
-def _now() -> datetime:
-    return datetime.now(UTC)
-
-
-def _resolve_json(value: Any) -> Any:
-    """Deserialize a JSON column from the database."""
-    if value is None:
-        return None
-    if isinstance(value, (list, dict)):
-        return value
-    try:
-        return json.loads(str(value)) if value else None
-    except (json.JSONDecodeError, TypeError):
-        return None
+from shared.db import db_now, db_resolve_json, db_uuid, to_uuid
 
 
 def _row_to_dict(row: sa.RowMapping) -> dict[str, Any]:
@@ -41,8 +25,8 @@ def _row_to_dict(row: sa.RowMapping) -> dict[str, Any]:
         "parser_version": row["parser_version"],
         "duration_ms": int(row["duration_ms"]),
         "confidence": row.get("confidence"),
-        "warnings": _resolve_json(row["warnings"]) or [],
-        "attempts": _resolve_json(row["attempts"]) or [],
+        "warnings": db_resolve_json(row["warnings"]) or [],
+        "attempts": db_resolve_json(row["attempts"]) or [],
         "created_at": (
             row["created_at"].isoformat()
             if isinstance(row.get("created_at"), datetime)
@@ -72,7 +56,7 @@ class DocumentExtractionRepository:
     ) -> UUID:
         """Insert a new extraction record. Returns the record UUID."""
         extraction_id = uuid4()
-        now = _now()
+        now = db_now()
         self._connection.execute(
             sa.text(
                 """\

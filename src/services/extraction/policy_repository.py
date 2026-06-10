@@ -6,18 +6,14 @@ Follows the same SQLAlchemy Core + Connection pattern as ProfileRepository.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection
 
-from shared.db import db_uuid, to_uuid
-
-
-def _now() -> datetime:
-    return datetime.now(UTC)
+from shared.db import db_now, db_resolve_json, db_uuid, to_uuid
 
 
 def _ensure_json(value: Any) -> str:
@@ -45,8 +41,8 @@ def _row_to_dict(row: sa.RowMapping) -> dict[str, Any]:
         "id": str(to_uuid(row["id"])),
         "source_id": str(to_uuid(row["source_id"])) if row.get("source_id") else None,
         "mime_pattern": row["mime_pattern"],
-        "parser_chain": _resolve_json(row["parser_chain"]) or [],
-        "options": _resolve_json(row["options"]) or {},
+        "parser_chain": db_resolve_json(row["parser_chain"]) or [],
+        "options": db_resolve_json(row["options"]) or {},
         "enabled": bool(row["enabled"]),
         "priority": int(row["priority"]),
         "created_by": row.get("created_by"),
@@ -82,6 +78,19 @@ _ALLOWED_COLUMNS = frozenset(
 )
 
 
+def _assert_no_sql_wildcards(mime_pattern: str) -> None:
+    """Raise ValueError if *mime_pattern* contains SQL LIKE wildcards.
+
+    MIME patterns stored in the DB are used in LIKE clauses where ``%`` and
+    ``_`` are interpreted as wildcards.  Accidentally storing a pattern that
+    contains these characters would produce incorrect matching behaviour.
+    """
+    if "%" in mime_pattern or "_" in mime_pattern:
+        raise ValueError(
+            f"mime_pattern must not contain SQL wildcards: {mime_pattern!r}"
+        )
+
+
 class ParserPolicyRepository:
     """CRUD for parser_policies with source+mime matching."""
 
@@ -91,6 +100,7 @@ class ParserPolicyRepository:
     def create(
         self,
         *,
+        created_by: str | None = None,
         source_id: UUID | None = None,
         mime_pattern: str,
         parser_chain: list[str],
@@ -99,17 +109,18 @@ class ParserPolicyRepository:
         priority: int = 0,
     ) -> UUID:
         """Create a parser policy. Returns the new policy's UUID."""
+        _assert_no_sql_wildcards(mime_pattern)
         policy_id = uuid4()
-        now = _now()
+        now = db_now()
         self._connection.execute(
             sa.text(
                 """\
                 INSERT INTO parser_policies (
                     id, source_id, mime_pattern, parser_chain, options,
-                    enabled, priority, created_at, updated_at
+                    enabled, priority, created_by, created_at, updated_at
                 ) VALUES (
                     :id, :source_id, :mime, :chain, :options,
-                    :enabled, :priority, :now, :now
+                    :enabled, :priority, :created_by, :now, :now
                 )
                 """
             ),
@@ -121,6 +132,7 @@ class ParserPolicyRepository:
                 "options": _ensure_json(options or {}),
                 "enabled": enabled,
                 "priority": priority,
+                "created_by": created_by,
                 "now": now,
             },
         )
@@ -164,7 +176,7 @@ class ParserPolicyRepository:
         if "source_id" in fields:
             fields["source_id"] = db_uuid(fields["source_id"]) if fields["source_id"] else None
 
-        fields["updated_at"] = _now()
+        fields["updated_at"] = db_now()
         fields["id"] = db_uuid(policy_id)
 
         unknown = set(fields) - _ALLOWED_COLUMNS

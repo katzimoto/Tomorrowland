@@ -8,7 +8,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from services.extraction.policy_repository import ParserPolicyRepository
-from services.extraction.registry import ExtractorRegistry, _caps
+from services.extraction.registry import ExtractorRegistry, caps_from_extractor
 
 
 class ParserPolicyResolver:
@@ -46,4 +46,4 @@ class ParserPolicyResolver:
                 return chain
 
         # Implicit default: quality-ordered registered candidates.
-        return [_caps(c).parser_name for c in self._registry.candidates(canonical)]
+        return [caps_from_extractor(c).parser_name for c in self._registry.candidates(canonical)]

@@ -13,11 +13,9 @@ from shared.db import db_uuid
 def admin_client(migrated_engine: sa.Engine) -> TestClient:
     """Return a TestClient with admin auth and the migrated engine."""
     from services.api.main import create_app
-    from services.extraction.registry import ExtractorRegistry
     from shared.config import Settings
 
     app = create_app(migrated_engine, Settings())
-    app.state.extractor_registry = ExtractorRegistry()
     return TestClient(app)
 
 
@@ -49,12 +47,6 @@ def _ensure_admins_group(connection) -> None:
             "name": "admins",
         },
     )
-
-
-def _db(admin_client: TestClient):
-    """Return a connection on the admin client's app engine."""
-    with admin_client.app.state.engine.begin() as conn:
-        yield conn
 
 
 class TestListParsers:

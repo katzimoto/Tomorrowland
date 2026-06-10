@@ -101,7 +101,7 @@ _QUALITY_ORDER = {
 }
 
 
-def _caps(extractor: object) -> ParserCapabilities:
+def caps_from_extractor(extractor: object) -> ParserCapabilities:
     """Return extractor.capabilities() if available, else a synthetic fallback."""
     try:
         return extractor.capabilities()  # type: ignore[attr-defined,no-any-return]
@@ -214,7 +214,7 @@ class ExtractorRegistry:
     def _register(self, mime_type: str, extractor: object) -> None:
         """Append extractor to the chain for mime_type and index by name."""
         self._by_mime.setdefault(mime_type, []).append(extractor)
-        caps = _caps(extractor)
+        caps = caps_from_extractor(extractor)
         self._by_name[caps.parser_name] = extractor
 
     def register(self, mime_type: str, extractor: object) -> None:
@@ -256,7 +256,7 @@ class ExtractorRegistry:
         """
         canonical = _ALIASES.get(mime_type, mime_type)
         chain = list(self._by_mime.get(canonical, []))
-        chain.sort(key=lambda e: _QUALITY_ORDER.get(_caps(e).quality_tier, 99))
+        chain.sort(key=lambda e: _QUALITY_ORDER.get(caps_from_extractor(e).quality_tier, 99))
         return chain
 
     def list(self) -> list[ParserCapabilities]:
@@ -265,7 +265,7 @@ class ExtractorRegistry:
         result: list[ParserCapabilities] = []
         for chain in self._by_mime.values():
             for extractor in chain:
-                caps = _caps(extractor)
+                caps = caps_from_extractor(extractor)
                 if caps.parser_name not in seen:
                     seen.add(caps.parser_name)
                     result.append(caps)
@@ -274,7 +274,7 @@ class ExtractorRegistry:
     def capabilities(self, parser_name: str) -> ParserCapabilities | None:
         """Return capabilities for a named parser, or None."""
         ext = self._by_name.get(parser_name)
-        return _caps(ext) if ext is not None else None
+        return caps_from_extractor(ext) if ext is not None else None
 
     def canonical_mime(self, mime_type: str) -> str:
         """Return the canonical MIME type after alias resolution."""

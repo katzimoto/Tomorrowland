@@ -12,7 +12,7 @@ from uuid import UUID
 
 from services.extraction.base import ExtractionResult
 from services.extraction.policy import ParserPolicyResolver
-from services.extraction.registry import ExtractorRegistry, _caps
+from services.extraction.registry import ExtractorRegistry, caps_from_extractor
 
 
 def _confidence(result: ExtractionResult, quality_tier: str) -> float | None:
@@ -79,7 +79,7 @@ class ParserRouter:
             if extractor is None:
                 continue
 
-            caps = _caps(extractor)
+            caps = caps_from_extractor(extractor)
             try:
                 file_size = path.stat().st_size
             except OSError:
@@ -106,12 +106,14 @@ class ParserRouter:
             warnings.append(f"{parser_name}: produced empty text")
 
         # Whole chain failed → generic fallback, mirroring today's behaviour.
+        start = time.monotonic()
         fallback_result = self._registry.extract(path, mime_type)
+        duration_ms = int((time.monotonic() - start) * 1000)
         return RoutedExtraction(
             result=fallback_result,
             parser_name="generic",
             parser_version="1.0",
-            duration_ms=0,
+            duration_ms=duration_ms,
             confidence=_confidence(fallback_result, "basic"),
             warnings=warnings,
             attempts=attempts,
