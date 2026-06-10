@@ -310,7 +310,7 @@ class ExtractorRegistry:
                 path,
             )
             extractor = self._fallback
-        result = extractor.extract(path)  # type: ignore[attr-defined,no-any-return]
+        result = extractor.extract(path)  # type: ignore[attr-defined]
 
         # Sniff-and-retry strategy:
         # * For generic MIME types (application/zip, application/octet-stream) we
@@ -351,4 +351,4 @@ class ExtractorRegistry:
                 path,
                 path.exists(),
             )
-        return result
+        return result  # type: ignore[no-any-return]
