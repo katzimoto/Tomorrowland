@@ -126,8 +126,9 @@ describe("EvidencePanel", () => {
     );
 
     expect(await screen.findByText("Contract.pdf")).toBeInTheDocument();
-    expect(screen.getByText(/p\. 3/)).toBeInTheDocument();
-    expect(screen.getByText(/Termination/)).toBeInTheDocument();
+    // Location appears in both the header and the Evidence tab meta row
+    expect(screen.getAllByText(/p\. 3/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Termination/).length).toBeGreaterThan(0);
   });
 
   it("renders excerpt text", async () => {
