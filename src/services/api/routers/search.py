@@ -198,6 +198,7 @@ def search(
 
     # --- Reranker pass (post-retrieval relevance scoring) ---
     _settings = http_request.app.state.settings
+    reranker_applied = False
     if _settings.search_reranker_enabled and merged:
         try:
             reranker = build_reranker(
@@ -209,6 +210,7 @@ def search(
             http_request.app.state.metrics.search_backend_duration_seconds.labels(
                 "reranker", "rerank"
             ).observe(time.perf_counter() - rerank_start)
+            reranker_applied = True
         except Exception:
             logger.warning(
                 "Search reranker degraded route=/search stage=rerank correlation_id=%s",
@@ -314,6 +316,7 @@ def search(
         total=len(merged),
         query=request.query,
         facets=meili_facets,
+        reranker_applied=reranker_applied,
     )
 
 

@@ -2,13 +2,13 @@ import { useMemo } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { useT } from "@/i18n/index";
-import type { ChatMessage, DocumentChatCitation } from "@/api/chat";
+import type { ChatMessage, DocumentChatCitation, RetrievalTrace } from "@/api/chat";
 import { ChatCitationList } from "./ChatCitationList";
 import styles from "./MessageBubble.module.css";
 
 interface MessageBubbleProps {
   message: ChatMessage;
-  onOpenCitation?: (citation: DocumentChatCitation) => void;
+  onOpenCitation?: (citation: DocumentChatCitation, trace?: RetrievalTrace | null) => void;
 }
 
 function renderMarkdown(content: string): string {
@@ -38,7 +38,11 @@ export function MessageBubble({ message, onOpenCitation }: MessageBubbleProps) {
         <p className={styles.content}>{message.content}</p>
       )}
       {isAssistant && message.citations && message.citations.length > 0 && (
-        <ChatCitationList citations={message.citations} onOpenCitation={onOpenCitation} />
+        <ChatCitationList
+          citations={message.citations}
+          trace={message.retrieval_trace}
+          onOpenCitation={onOpenCitation}
+        />
       )}
       {isAssistant && (
         <p className={styles.groundingNote}>{t.chat.groundingNote}</p>

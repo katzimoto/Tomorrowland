@@ -43,6 +43,7 @@ class SearchResponse(BaseModel):
     total: int
     query: str = ""
     facets: dict[str, dict[str, int]] = Field(default_factory=dict)
+    reranker_applied: bool = False
 
 
 class PreviewResponse(BaseModel):

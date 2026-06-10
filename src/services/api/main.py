@@ -211,6 +211,7 @@ def create_app(
     from services.api.routers.annotations import router as annotations_router
     from services.api.routers.auth import router as auth_router
     from services.api.routers.chat import router as chat_router
+    from services.api.routers.citation_feedback import router as citation_feedback_router
     from services.api.routers.documents import router as documents_router
     from services.api.routers.search import router as search_router
     from services.api.routers.system import router as system_router
@@ -239,5 +240,6 @@ def create_app(
     app.include_router(admin_sync_runs_router)
     app.include_router(vault_router)
     app.include_router(agent_router)
+    app.include_router(citation_feedback_router)
 
     return app
