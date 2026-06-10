@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock
+from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
@@ -12,6 +13,8 @@ from sqlalchemy import Engine
 from services.api.main import create_app
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
+from services.chat.models import ChatMessageCreate, ChatSessionCreate
+from services.chat.repository import ChatRepository
 from services.search.qdrant import QdrantSearchClient
 from shared.config import Settings
 
@@ -978,3 +981,142 @@ def test_request_body_cannot_override_scope(migrated_engine: Engine) -> None:
     doc_condition = next(c for c in (flt.must or []) if getattr(c, "key", None) == "document_id")
     # single_document uses MatchValue, not MatchAny
     assert doc_condition.match.value == scoped_doc_id
+
+
+# ---------------------------------------------------------------------------
+# Retrieval trace endpoint
+# ---------------------------------------------------------------------------
+
+_SAMPLE_TRACE = {
+    "stages": [{"stage": "vector", "candidate_count": 10, "timing_ms": 42.0}],
+    "candidates": [],
+    "reranker_enabled": False,
+    "total_latency_ms": 42.0,
+}
+
+
+def _seed_session_with_message(
+    engine: Engine,
+    user_id_hex: str,
+    *,
+    trace: dict | None = None,
+) -> tuple[str, str]:
+    """Insert a session and an assistant message directly in DB.
+
+    Returns (session_id, message_id) as strings.
+    """
+    from uuid import UUID
+
+    with engine.begin() as conn:
+        user_id = UUID(user_id_hex)
+        repo = ChatRepository(conn)
+        session = repo.create_session(
+            ChatSessionCreate(user_id=user_id, scope_type="all_accessible_documents")
+        )
+        msg = repo.create_message(
+            ChatMessageCreate(
+                session_id=session.id,
+                role="assistant",
+                content="Answer with trace.",
+                retrieval_trace=trace,
+            )
+        )
+        return str(session.id), str(msg.id)
+
+
+def _get_admin_user_id(engine: Engine) -> str:
+    with engine.begin() as conn:
+        row = conn.execute(
+            sa.text("SELECT id FROM users WHERE email = 'admin@example.com' LIMIT 1")
+        ).fetchone()
+        assert row is not None
+        # SQLite stores UUIDs as hex without dashes; normalise to standard form.
+        raw = row[0]
+        if isinstance(raw, bytes):
+            import uuid
+
+            return str(uuid.UUID(bytes=raw))
+        # hex string (no dashes) or already dashed
+        raw = str(raw).replace("-", "")
+        if len(raw) == 32:
+            return str(uuid4().__class__(hex=raw))
+        return raw
+
+
+def test_get_trace_admin_returns_trace(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    admin_id = _get_admin_user_id(migrated_engine)
+    session_id, message_id = _seed_session_with_message(
+        migrated_engine, admin_id, trace=_SAMPLE_TRACE
+    )
+
+    client = TestClient(create_app(migrated_engine, _settings(feature_document_chat=True)))
+    token = _admin_token(client)
+
+    resp = client.get(
+        f"/chat/sessions/{session_id}/messages/{message_id}/trace",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["message_id"] == message_id
+    assert data["retrieval_trace"]["total_latency_ms"] == 42.0
+    assert data["retrieval_trace"]["reranker_enabled"] is False
+    assert len(data["retrieval_trace"]["stages"]) == 1
+
+
+def test_get_trace_non_admin_returns_403(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+
+    client = TestClient(create_app(migrated_engine, _settings(feature_document_chat=True)))
+    token = _user_token(client, "user@example.com")
+
+    resp = client.get(
+        f"/chat/sessions/{uuid4()}/messages/{uuid4()}/trace",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+def test_get_trace_missing_message_returns_404(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    admin_id = _get_admin_user_id(migrated_engine)
+    session_id, _ = _seed_session_with_message(migrated_engine, admin_id, trace=_SAMPLE_TRACE)
+
+    client = TestClient(create_app(migrated_engine, _settings(feature_document_chat=True)))
+    token = _admin_token(client)
+
+    resp = client.get(
+        f"/chat/sessions/{session_id}/messages/{uuid4()}/trace",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+def test_get_trace_message_without_trace_returns_404(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    admin_id = _get_admin_user_id(migrated_engine)
+    session_id, message_id = _seed_session_with_message(migrated_engine, admin_id, trace=None)
+
+    client = TestClient(create_app(migrated_engine, _settings(feature_document_chat=True)))
+    token = _admin_token(client)
+
+    resp = client.get(
+        f"/chat/sessions/{session_id}/messages/{message_id}/trace",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+    assert "trace" in resp.json()["detail"].lower()
+
+
+def test_get_trace_missing_session_returns_404(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+
+    client = TestClient(create_app(migrated_engine, _settings(feature_document_chat=True)))
+    token = _admin_token(client)
+
+    resp = client.get(
+        f"/chat/sessions/{uuid4()}/messages/{uuid4()}/trace",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
