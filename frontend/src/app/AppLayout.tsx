@@ -1,12 +1,14 @@
 import { useEffect, Suspense } from "react";
 import { Outlet } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { ErrorBoundary } from "react-error-boundary";
 import { getCurrentUser } from "@/api/auth";
 import { listNotifications } from "@/api/notifications";
 import { AppShell } from "@/components/layout/AppShell";
 import { CommandMenu } from "@/components/feedback/CommandMenu";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { Skeleton } from "@/components/primitives/Skeleton";
+import { RouteErrorFallback } from "@/components/primitives/RouteErrorFallback";
 import { useT } from "@/i18n/index";
 import { finishNamedPerformanceTimer } from "@/lib/performanceTelemetry";
 import styles from "./AppLayout.module.css";
@@ -66,9 +68,11 @@ export function AppLayout() {
       userEmail={user?.email ?? null}
     >
       <CommandMenu />
-      <Suspense fallback={null}>
-        <Outlet />
-      </Suspense>
+      <ErrorBoundary FallbackComponent={RouteErrorFallback}>
+        <Suspense fallback={null}>
+          <Outlet />
+        </Suspense>
+      </ErrorBoundary>
     </AppShell>
   );
 }

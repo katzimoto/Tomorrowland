@@ -1,3 +1,4 @@
+import { EventSourceParserStream } from "eventsource-parser/stream";
 import { api } from "./client";
 
 export type ChatScopeType =
@@ -139,44 +140,29 @@ export async function sendChatMessageStream(
     throw new Error(message);
   }
 
-  const reader = res.body?.getReader();
-  if (!reader) return;
+  if (!res.body) return;
 
-  const decoder = new TextDecoder();
-  let buffer = "";
+  const stream = res.body
+    .pipeThrough(new TextDecoderStream())
+    .pipeThrough(new EventSourceParserStream());
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-
-    let currentEvent = "";
-    for (const line of lines) {
-      if (line.startsWith("event: ")) {
-        currentEvent = line.slice(7).trim();
-      } else if (line.startsWith("data: ") && currentEvent) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          if (currentEvent === "phase") {
-            onEvent({ type: "phase", phase: data.phase });
-          } else if (currentEvent === "token") {
-            onEvent({ type: "token", token: data.token });
-          } else if (currentEvent === "done") {
-            onEvent({
-              type: "done",
-              answer: data.answer,
-              citations: data.citations,
-              message_id: data.message_id,
-              model: data.model,
-              latency_ms: data.latency_ms,
-            });
-          }
-        } catch { /* skip malformed JSON line */ }
-        currentEvent = "";
+  for await (const event of stream) {
+    try {
+      const data = JSON.parse(event.data) as Record<string, unknown>;
+      if (event.event === "phase") {
+        onEvent({ type: "phase", phase: data.phase as ChatStreamPhase });
+      } else if (event.event === "token") {
+        onEvent({ type: "token", token: data.token as string });
+      } else if (event.event === "done") {
+        onEvent({
+          type: "done",
+          answer: data.answer as string,
+          citations: data.citations as DocumentChatCitation[],
+          message_id: data.message_id as string,
+          model: data.model as string,
+          latency_ms: data.latency_ms as number,
+        });
       }
-    }
+    } catch { /* skip malformed JSON */ }
   }
 }

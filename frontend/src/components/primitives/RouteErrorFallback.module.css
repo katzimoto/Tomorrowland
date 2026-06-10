@@ -1,0 +1,8 @@
+.root {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 200px;
+  padding: var(--spacing-8);
+}
