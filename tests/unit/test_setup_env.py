@@ -208,6 +208,8 @@ class TestSetupEnvScript:
                 "--env-file",
                 str(out),
                 "-f",
+                "docker-compose.yml",
+                "-f",
                 "docker-compose.airgap.yml",
                 "config",
             ],
