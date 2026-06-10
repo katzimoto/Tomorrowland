@@ -37,22 +37,22 @@ AIRGAP_VOLUMES = {
     "kafka_data": "/var/lib/redpanda/data",
     "qdrant_data": "/qdrant/storage",
     "libretranslate_data": "/home/libretranslate/.local",
-    "ollama_data": "/root/.ollama",
+    "ollama_llm_data": "/root/.ollama",
+    "ollama_embed_data": "/root/.ollama",
 }
 
 
 def _compose_config(
-    compose_file: Path,
+    compose_files: Path | list[Path],
     env: dict[str, str] | None = None,
     profiles: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run docker compose config --format json and return the parsed result."""
-    cmd = [
-        "docker",
-        "compose",
-        "-f",
-        str(compose_file),
-    ]
+    if isinstance(compose_files, Path):
+        compose_files = [compose_files]
+    cmd = ["docker", "compose"]
+    for cf in compose_files:
+        cmd += ["-f", str(cf)]
     for profile in profiles or []:
         cmd += ["--profile", profile]
     cmd += ["config", "--format", "json"]
@@ -104,7 +104,7 @@ class TestComposeVolumeDefaults:
     """Default volume name rendering."""
 
     def test_standard_compose_defaults(self) -> None:
-        config = _compose_config(COMPOSE_FILE)
+        config = _compose_config(COMPOSE_FILE, profiles=["local-llm"])
         names = _volume_names(config)
         for key, default_name in [
             ("files_data", "tomorrowland_files_data"),
@@ -124,9 +124,9 @@ class TestComposeVolumeDefaults:
         assert names.get("grafana_data") == "tomorrowland_grafana_data"
 
     def test_airgap_compose_defaults(self) -> None:
-        # ollama is gated behind the opt-in "local-llm" profile in airgap; activate
-        # it so ollama_data resolves (other volumes are unaffected by the profile).
-        config = _compose_config(COMPOSE_AIRGAP_FILE, profiles=["local-llm"])
+        # Airgap overlay is layered on top of the canonical compose file.
+        # Activate local-llm so ollama volumes are included in the rendered config.
+        config = _compose_config([COMPOSE_FILE, COMPOSE_AIRGAP_FILE], profiles=["local-llm"])
         names = _volume_names(config)
         for key, default_name in [
             ("files_data", "tomorrowland_files_data"),
@@ -134,13 +134,14 @@ class TestComposeVolumeDefaults:
             ("kafka_data", "tomorrowland_kafka_data"),
             ("qdrant_data", "tomorrowland_qdrant_data"),
             ("libretranslate_data", "tomorrowland_libretranslate_data"),
-            ("ollama_data", "tomorrowland_ollama_data"),
+            ("ollama_llm_data", "tomorrowland_ollama_llm_data"),
+            ("ollama_embed_data", "tomorrowland_ollama_embed_data"),
         ]:
             assert names.get(key) == default_name, f"{key} default mismatch"
 
     @pytest.mark.parametrize("key,expected_target", list(STANDARD_VOLUMES.items()))
     def test_standard_mount_targets(self, key: str, expected_target: str) -> None:
-        config = _compose_config(COMPOSE_FILE)
+        config = _compose_config(COMPOSE_FILE, profiles=["local-llm"])
         # Find which service mounts this volume
         found = False
         for service_name in config.get("services", {}):
@@ -163,9 +164,9 @@ class TestComposeVolumeDefaults:
 
     @pytest.mark.parametrize("key,expected_target", list(AIRGAP_VOLUMES.items()))
     def test_airgap_mount_targets(self, key: str, expected_target: str) -> None:
-        # ollama is gated behind the opt-in "local-llm" profile in airgap; activate
-        # it so ollama_data resolves (other volumes are unaffected by the profile).
-        config = _compose_config(COMPOSE_AIRGAP_FILE, profiles=["local-llm"])
+        # Airgap overlay is layered on top of the canonical compose file.
+        # Activate local-llm so ollama volumes are included in the rendered config.
+        config = _compose_config([COMPOSE_FILE, COMPOSE_AIRGAP_FILE], profiles=["local-llm"])
         found = False
         for service_name in config.get("services", {}):
             target = _service_mount_target(config, service_name, key)
@@ -204,12 +205,12 @@ class TestComposeVolumeCustomization:
     def test_airgap_compose_custom_names(self) -> None:
         env = {
             "TOMORROWLAND_FILES_VOLUME": "airgap_files",
-            "TOMORROWLAND_OLLAMA_VOLUME": "airgap_ollama",
+            "TOMORROWLAND_OLLAMA_LLM_VOLUME": "airgap_ollama_llm",
         }
-        config = _compose_config(COMPOSE_AIRGAP_FILE, env, profiles=["local-llm"])
+        config = _compose_config([COMPOSE_FILE, COMPOSE_AIRGAP_FILE], env, profiles=["local-llm"])
         names = _volume_names(config)
         assert names["files_data"] == "airgap_files"
-        assert names["ollama_data"] == "airgap_ollama"
+        assert names["ollama_llm_data"] == "airgap_ollama_llm"
         assert names["postgres_data"] == "tomorrowland_postgres_data"
 
     def test_standard_mount_targets_unchanged_with_custom_names(self) -> None:
@@ -217,7 +218,7 @@ class TestComposeVolumeCustomization:
             "TOMORROWLAND_FILES_VOLUME": "custom_files",
             "TOMORROWLAND_POSTGRES_VOLUME": "custom_postgres",
         }
-        config = _compose_config(COMPOSE_FILE, env)
+        config = _compose_config(COMPOSE_FILE, env, profiles=["local-llm"])
         for key, expected_target in STANDARD_VOLUMES.items():
             found = False
             for service_name in config.get("services", {}):
@@ -246,7 +247,7 @@ class TestComposeVolumeCustomization:
         env = {
             "TOMORROWLAND_FILES_VOLUME": "custom_files",
         }
-        config = _compose_config(COMPOSE_AIRGAP_FILE, env, profiles=["local-llm"])
+        config = _compose_config([COMPOSE_FILE, COMPOSE_AIRGAP_FILE], env, profiles=["local-llm"])
         for key, expected_target in AIRGAP_VOLUMES.items():
             found = False
             for service_name in config.get("services", {}):

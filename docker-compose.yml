@@ -62,6 +62,7 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
     command: ["alembic", "upgrade", "head"]
     environment: *app-environment
     depends_on:
@@ -69,11 +70,13 @@ services:
         condition: service_healthy
     volumes:
       - files_data:/data
+      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
 
   api:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
     restart: unless-stopped
     cpus: ${API_CPUS:-1.00}
     mem_limit: ${API_MEM_LIMIT:-1g}
@@ -81,7 +84,7 @@ services:
     pids_limit: ${API_PIDS_LIMIT:-512}
     environment: *app-environment
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${BIND_HOST:-127.0.0.1}:${API_PORT:-8000}:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -105,6 +108,7 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
     command: ["tomorrowland-mcp-server"]
     restart: unless-stopped
     cpus: ${MCP_SERVER_CPUS:-0.50}
@@ -119,7 +123,7 @@ services:
       MCP_PORT: ${MCP_PORT:-8001}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
-      - "127.0.0.1:${MCP_HOST_PORT:-8001}:8001"
+      - "${BIND_HOST:-127.0.0.1}:${MCP_HOST_PORT:-8001}:8001"
     depends_on:
       api:
         condition: service_healthy
@@ -136,9 +140,10 @@ services:
     build:
       context: .
       dockerfile: docker/frontend.Dockerfile
+    image: ${TOMORROWLAND_FRONTEND_IMAGE:-tomorrowland/frontend:airgap}
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-8080}:8080"
+      - "${BIND_HOST:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080"
     depends_on:
       api:
         condition: service_healthy
@@ -163,7 +168,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -195,7 +200,7 @@ services:
       - --advertise-kafka-addr
       - PLAINTEXT://kafka:9092
     ports:
-      - "${KAFKA_PORT:-9092}:9092"
+      - "${BIND_HOST:-127.0.0.1}:${KAFKA_PORT:-9092}:9092"
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
       interval: 15s
@@ -215,9 +220,9 @@ services:
     pids_limit: ${MEILISEARCH_PIDS_LIMIT:-512}
     environment:
       MEILI_MASTER_KEY: ${MEILISEARCH_MASTER_KEY:-dev-meilisearch-master-key}
-      MEILI_ENV: ${MEILISEARCH_ENV:-development}
+      MEILI_ENV: ${MEILISEARCH_ENV:-production}
     ports:
-      - "${MEILISEARCH_PORT:-7700}:7700"
+      - "${BIND_HOST:-127.0.0.1}:${MEILISEARCH_PORT:-7700}:7700"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7700/health | grep -q 'available'"]
       interval: 15s
@@ -237,7 +242,7 @@ services:
     mem_reservation: ${QDRANT_MEM_RESERVATION:-512m}
     pids_limit: ${QDRANT_PIDS_LIMIT:-512}
     ports:
-      - "${QDRANT_PORT:-6333}:6333"
+      - "${BIND_HOST:-127.0.0.1}:${QDRANT_PORT:-6333}:6333"
     healthcheck:
       test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333'"]
       interval: 15s
@@ -252,7 +257,7 @@ services:
     build:
       context: .
       dockerfile: docker/libretranslate.Dockerfile
-    image: tomorrowland/libretranslate:airgap
+    image: ${TOMORROWLAND_LIBRETRANSLATE_IMAGE:-tomorrowland/libretranslate:airgap}
     restart: unless-stopped
     cpus: ${LIBRETRANSLATE_CPUS:-1.00}
     mem_limit: ${LIBRETRANSLATE_MEM_LIMIT:-2g}
@@ -264,7 +269,7 @@ services:
       LT_LOAD_ONLY: ${LT_LOAD_ONLY:-en,he,zh,ko,th,ar,fr,ru,es}
       ARGOS_CHUNK_TYPE: ${ARGOS_CHUNK_TYPE:-MINISBD}
     ports:
-      - "${LIBRETRANSLATE_PORT:-5000}:5000"
+      - "${BIND_HOST:-127.0.0.1}:${LIBRETRANSLATE_PORT:-5000}:5000"
     healthcheck:
       test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/languages', timeout=5).close()\""]
       interval: 30s
@@ -277,6 +282,10 @@ services:
       - libretranslate_data:/home/libretranslate/.local
 
   ollama-llm:
+    # Bundled LLM/inference runtime. Gated behind the "local-llm" profile so it
+    # is opt-in: activate with --profile local-llm or COMPOSE_PROFILES=local-llm.
+    # The tomorrowland-airgap.sh wrapper activates the profile automatically when
+    # LLM_PROVIDER is empty, and skips it when LLM_PROVIDER is set (external endpoint).
     build:
       context: .
       dockerfile: docker/ollama-llm.Dockerfile
@@ -284,6 +293,8 @@ services:
         OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
         OLLAMA_UTILITY_MODEL: ${OLLAMA_UTILITY_MODEL:-qwen3:1.7b}
         OLLAMA_RERANKER_MODEL: ${OLLAMA_RERANKER_MODEL:-}
+    image: ${TOMORROWLAND_OLLAMA_IMAGE:-tomorrowland/ollama-llm:airgap}
+    profiles: ["local-llm"]
     restart: unless-stopped
     cpus: ${OLLAMA_CPUS:-2.00}
     mem_limit: ${OLLAMA_MEM_LIMIT:-8g}
@@ -297,7 +308,7 @@ services:
       OLLAMA_MAX_QUEUE: ${OLLAMA_MAX_QUEUE:-8}
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-24h}
     ports:
-      - "${OLLAMA_PORT:-11434}:11434"
+      - "${BIND_HOST:-127.0.0.1}:${OLLAMA_PORT:-11434}:11434"
     healthcheck:
       test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
       interval: 10s
@@ -310,11 +321,16 @@ services:
       - ollama_llm_data:/root/.ollama
 
   ollama-embed:
+    # Bundled embedding runtime. Gated behind the "local-llm" profile alongside
+    # ollama-llm. When LLM_PROVIDER is set, use EMBEDDING_URL to point at an
+    # external OpenAI-compatible embedding endpoint instead.
     build:
       context: .
       dockerfile: docker/ollama-embed.Dockerfile
       args:
         EMBEDDING_MODEL: ${EMBEDDING_MODEL:-qwen3-embedding:8b}
+    image: ${TOMORROWLAND_OLLAMA_EMBED_IMAGE:-tomorrowland/ollama-embed:airgap}
+    profiles: ["local-llm"]
     restart: unless-stopped
     cpus: ${OLLAMA_EMBED_CPUS:-1.00}
     mem_limit: ${OLLAMA_EMBED_MEM_LIMIT:-8g}
@@ -328,7 +344,7 @@ services:
       OLLAMA_MAX_QUEUE: ${OLLAMA_EMBED_MAX_QUEUE:-16}
       OLLAMA_KEEP_ALIVE: ${OLLAMA_EMBED_KEEP_ALIVE:-4h}
     ports:
-      - "${OLLAMA_EMBED_PORT:-11435}:11434"
+      - "${BIND_HOST:-127.0.0.1}:${OLLAMA_EMBED_PORT:-11435}:11434"
     healthcheck:
       test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
       interval: 10s
@@ -347,8 +363,8 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-tomorrowland}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-changeme}
     ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
-      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+      - "${BIND_HOST:-127.0.0.1}:${RABBITMQ_PORT:-5672}:5672"
+      - "${BIND_HOST:-127.0.0.1}:${RABBITMQ_MGMT_PORT:-15672}:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 15s
@@ -364,7 +380,7 @@ services:
     mem_limit: ${REDIS_MEM_LIMIT:-256m}
     mem_reservation: ${REDIS_MEM_RESERVATION:-64m}
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${BIND_HOST:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -379,6 +395,7 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
     command: ["tomorrowland-parse-worker"]
     restart: unless-stopped
     cpus: ${WORKER_CPUS:-1.00}
@@ -399,11 +416,13 @@ services:
     volumes:
       - files_data:/data
       - ./data:/data/mounted:ro
+      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
 
   translate-worker:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
     command: ["tomorrowland-translate-worker"]
     restart: unless-stopped
     cpus: ${WORKER_CPUS:-1.00}
@@ -426,11 +445,13 @@ services:
     volumes:
       - files_data:/data
       - ./data:/data/mounted:ro
+      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
 
   embed-worker:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
     command: ["tomorrowland-embed-worker"]
     restart: unless-stopped
     cpus: ${WORKER_CPUS:-1.00}
@@ -442,10 +463,10 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      ollama-embed:
-        condition: service_healthy
       qdrant:
         condition: service_healthy
+    # No depends_on: ollama-embed — the worker calls the embedding provider per
+    # job so it must start whether or not local Ollama is running.
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8083/health"]
       interval: 30s
@@ -460,6 +481,7 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
     command: ["tomorrowland-index-worker"]
     restart: unless-stopped
     cpus: ${WORKER_CPUS:-1.00}
@@ -486,6 +508,7 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
     command: ["tomorrowland-intelligence-worker"]
     restart: unless-stopped
     cpus: ${WORKER_CPUS:-1.00}
@@ -497,8 +520,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      ollama-llm:
-        condition: service_healthy
+    # No depends_on: ollama-llm — the worker calls the LLM provider per job so
+    # it must start whether or not local Ollama is running.
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8085/health"]
       interval: 30s
@@ -508,11 +531,13 @@ services:
     volumes:
       - files_data:/data
       - ./data:/data/mounted:ro
+      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
 
   alert-worker:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
     command: ["tomorrowland-alert-worker"]
     restart: unless-stopped
     cpus: ${WORKER_CPUS:-1.00}
@@ -538,6 +563,7 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
     command: ["tomorrowland-enrich-worker"]
     restart: unless-stopped
     cpus: ${WORKER_CPUS:-1.00}
@@ -558,6 +584,7 @@ services:
     volumes:
       - files_data:/data
       - ./data:/data/mounted:ro
+      - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
 
   prometheus:
     profiles: ["monitoring"]
@@ -570,7 +597,7 @@ services:
       - --web.console.libraries=/usr/share/prometheus/console_libraries
       - --web.console.templates=/usr/share/prometheus/consoles
     ports:
-      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+      - "${BIND_HOST:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
       api:
         condition: service_healthy
@@ -587,7 +614,7 @@ services:
     restart: unless-stopped
     command: -config.file=/etc/loki/config.yml
     ports:
-      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
+      - "${BIND_HOST:-127.0.0.1}:${LOKI_PORT:-3100}:3100"
     healthcheck:
       test: ["CMD-SHELL", "wget -q --tries=1 -O- http://127.0.0.1:3100/ready || exit 1"]
       interval: 15s
@@ -628,7 +655,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     ports:
-      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+      - "${BIND_HOST:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
     depends_on:
       prometheus:
         condition: service_started
