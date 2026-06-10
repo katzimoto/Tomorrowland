@@ -73,7 +73,7 @@ describe("EvidencePanel", () => {
       <EvidencePanel citation={makeCitation()} onClose={vi.fn()} />,
     );
 
-    expect(screen.getByText("Loading preview…")).toBeInTheDocument();
+    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
   });
 
   it("shows document not found error on 404", async () => {
@@ -164,7 +164,7 @@ describe("EvidencePanel", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("shows no preview message when excerpt and location are missing", async () => {
+  it("renders preview even when excerpt and location are missing", async () => {
     vi.mocked(documentsApi.getPreview).mockResolvedValue(SAMPLE_PREVIEW);
 
     render(
@@ -179,6 +179,6 @@ describe("EvidencePanel", () => {
       />,
     );
 
-    expect(await screen.findByText("No preview available.")).toBeInTheDocument();
+    expect(await screen.findByTestId("preview-with-highlight")).toBeInTheDocument();
   });
 });

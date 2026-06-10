@@ -132,7 +132,7 @@ describe("ChatCitationCard", () => {
     );
     const card = screen.getByRole("button");
     fireEvent.click(card);
-    expect(onOpen).toHaveBeenCalledWith(citation);
+    expect(onOpen).toHaveBeenCalledWith(citation, undefined);
   });
 
   it("calls onOpenCitation on Enter key", () => {
@@ -145,7 +145,7 @@ describe("ChatCitationCard", () => {
     );
     const card = screen.getByRole("button");
     fireEvent.keyDown(card, { key: "Enter" });
-    expect(onOpen).toHaveBeenCalledWith(citation);
+    expect(onOpen).toHaveBeenCalledWith(citation, undefined);
   });
 
   it("calls onOpenCitation on Space key", () => {
@@ -158,7 +158,7 @@ describe("ChatCitationCard", () => {
     );
     const card = screen.getByRole("button");
     fireEvent.keyDown(card, { key: " " });
-    expect(onOpen).toHaveBeenCalledWith(citation);
+    expect(onOpen).toHaveBeenCalledWith(citation, undefined);
   });
 
   it("stops propagation on Open link click so card click is not triggered", () => {
