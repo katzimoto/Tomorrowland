@@ -193,8 +193,7 @@ export function DocumentPage() {
 
   const searchable = !preview.mime_type.startsWith("image/") &&
     !preview.mime_type.startsWith("audio/") &&
-    !preview.mime_type.startsWith("video/") &&
-    !["application/zip", "application/x-tar", "application/x-7z-compressed", "application/x-rar-compressed"].includes(preview.mime_type);
+    !preview.mime_type.startsWith("video/");
 
   function handlePageKeyDown(e: React.KeyboardEvent) {
     if ((e.ctrlKey || e.metaKey) && e.key === "f" && searchable) {
@@ -251,6 +250,7 @@ export function DocumentPage() {
             searchQuery={debouncedQuery}
             activeSearchIndex={activeSearchIndex}
             onMatchCountChange={handleMatchCountChange}
+            initialPage={docSearch.page}
           />
         </div>
         <div className={styles.insightCol}>

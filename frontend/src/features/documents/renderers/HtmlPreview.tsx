@@ -119,7 +119,6 @@ export function HtmlPreview({
     const doc = iframeRef.current?.contentDocument;
     if (!doc?.body) return;
     applyActiveMatch(doc);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSearchIndex, searchQuery, matchCount]);
 
   return (

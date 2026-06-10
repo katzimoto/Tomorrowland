@@ -58,6 +58,16 @@ export function TablePreview({
 
   const flatText = useMemo(() => rows.flat().join(" "), [rows]);
 
+  // Precompute the starting flat-cell index for each row so the mapping from
+  // (rowIdx, colIdx) → flatCellIdx is correct even for jagged tables.
+  const rowStartIndices = useMemo(() => {
+    const starts: number[] = [0];
+    for (let i = 0; i < rows.length - 1; i++) {
+      starts.push(starts[i] + rows[i].length);
+    }
+    return starts;
+  }, [rows]);
+
   // Per-cell cumulative offsets for mapping globalActiveIndex → cell highlight.
   const cellMatchCounts = useMemo(() => {
     if (!searchQuery) return [] as number[];
@@ -84,7 +94,7 @@ export function TablePreview({
   const getCellHighlight = useCallback(
     (rowIdx: number, colIdx: number, cell: string) => {
       if (!searchQuery || !cellMatches(cell, searchQuery)) return cell;
-      const flatCellIdx = rowIdx * (rows[rowIdx]?.length ?? 0) + colIdx;
+      const flatCellIdx = (rowStartIndices[rowIdx] ?? 0) + colIdx;
       const localIndex = activeSearchIndex - (cumulativeOffsets[flatCellIdx] ?? 0);
       const { nodes } = highlightMatches(
         cell,
@@ -95,7 +105,7 @@ export function TablePreview({
       );
       return nodes;
     },
-    [rows, searchQuery, activeSearchIndex, cumulativeOffsets],
+    [rowStartIndices, searchQuery, activeSearchIndex, cumulativeOffsets],
   );
 
   const RowComponent = useCallback(

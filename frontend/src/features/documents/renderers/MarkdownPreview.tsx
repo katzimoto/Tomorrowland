@@ -46,6 +46,8 @@ export function MarkdownPreview({
   const [copied, setCopied] = useState(false);
   const renderedRef = useRef<HTMLDivElement>(null);
   const rawRef = useRef<HTMLPreElement>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); }, []);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["doc-text", docId, showOriginal],
@@ -115,7 +117,8 @@ export function MarkdownPreview({
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       // clipboard API unavailable — silently ignore
     }

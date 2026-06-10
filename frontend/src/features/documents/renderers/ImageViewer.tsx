@@ -48,6 +48,17 @@ export function ImageViewer({ docId, mimeType, alt, zoom, onZoomChange }: ImageV
     startTransition(() => { setPan({ x: 0, y: 0 }); });
   }, [zoom]);
 
+  // Reset view state when navigating to a different image so a previous error
+  // or stale dimensions do not bleed into the next document.
+  useEffect(() => {
+    startTransition(() => {
+      setLoading(true);
+      setError(false);
+      setDimensions(null);
+      setPan({ x: 0, y: 0 });
+    });
+  }, [docId]);
+
   const imageLoadTimer = useRef<string | null>(null);
   useEffect(() => {
     if (mimeType === "image/tiff") return;
