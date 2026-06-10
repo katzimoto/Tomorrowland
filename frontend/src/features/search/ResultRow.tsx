@@ -39,7 +39,7 @@ interface ResultRowProps {
   selected?: boolean;
   onClick?: () => void;
   onSelect?: () => void;
-  onPreview?: () => void;
+  onPreview?: (triggerEl: HTMLButtonElement) => void;
   onPrefetch?: () => void;
 }
 
@@ -97,7 +97,7 @@ export function ResultRow({ result, id, selected = false, onClick, onSelect, onP
               onClick={(event) => {
                 event.stopPropagation();
                 onSelect?.();
-                onPreview();
+                onPreview?.(event.currentTarget);
               }}
             >
               <Eye size={14} />

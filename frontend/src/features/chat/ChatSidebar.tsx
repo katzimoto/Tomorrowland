@@ -99,6 +99,7 @@ export function ChatSidebar({
               className={styles.itemBtn}
               onClick={() => onSelect(s)}
               aria-current={s.id === selectedId ? "true" : undefined}
+              title={s.title}
             >
               <span className={styles.itemTitle}>{s.title}</span>
             </button>
