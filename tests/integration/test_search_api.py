@@ -850,3 +850,134 @@ def test_search_drops_orphaned_qdrant_vector(
     returned_ids = [r["document_id"] for r in data["results"]]
     assert orphaned_id not in returned_ids
     assert real_doc_id in returned_ids
+
+
+# ---------------------------------------------------------------------------
+# reranker_applied flag
+# ---------------------------------------------------------------------------
+
+
+def test_search_reranker_applied_false_when_disabled(
+    migrated_engine: Engine,
+) -> None:
+    _setup_users(migrated_engine)
+    _, document_id = _create_source_with_doc(migrated_engine, "users")
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = [
+        SearchResult(document_id=document_id, score=0.9, chunk_text="chunk")
+    ]
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(
+                auth_provider="local",
+                jwt_secret=TEST_JWT_SECRET,
+                search_reranker_enabled=False,
+            ),
+            qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.post(
+        "/search",
+        json={"query": "test", "page": 1, "page_size": 10},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["reranker_applied"] is False
+
+
+def test_search_reranker_applied_true_when_rerank_succeeds(
+    migrated_engine: Engine,
+) -> None:
+    _setup_users(migrated_engine)
+    _, document_id = _create_source_with_doc(migrated_engine, "users")
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = [
+        SearchResult(document_id=document_id, score=0.9, chunk_text="chunk")
+    ]
+
+    mock_reranker = MagicMock()
+    mock_reranker.rerank.side_effect = lambda _query, results: results
+
+    with patch(
+        "services.api.routers.search.build_reranker",
+        return_value=mock_reranker,
+    ):
+        client = TestClient(
+            create_app(
+                migrated_engine,
+                Settings(
+                    auth_provider="local",
+                    jwt_secret=TEST_JWT_SECRET,
+                    search_reranker_enabled=True,
+                    search_reranker_url="http://fake-reranker",
+                ),
+                qdrant_client=mock_qdrant,
+                meili_provider=_meili(migrated_engine),
+            )
+        )
+        token = _user_token(client)
+
+        response = client.post(
+            "/search",
+            json={"query": "test", "page": 1, "page_size": 10},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["reranker_applied"] is True
+    mock_reranker.rerank.assert_called_once()
+
+
+def test_search_reranker_applied_false_when_reranker_raises(
+    migrated_engine: Engine,
+) -> None:
+    """Reranker exception degrades gracefully: results still returned, reranker_applied=False."""
+    _setup_users(migrated_engine)
+    _, document_id = _create_source_with_doc(migrated_engine, "users")
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = [
+        SearchResult(document_id=document_id, score=0.9, chunk_text="chunk")
+    ]
+
+    mock_reranker = MagicMock()
+    mock_reranker.rerank.side_effect = RuntimeError("reranker unavailable")
+
+    with patch(
+        "services.api.routers.search.build_reranker",
+        return_value=mock_reranker,
+    ):
+        client = TestClient(
+            create_app(
+                migrated_engine,
+                Settings(
+                    auth_provider="local",
+                    jwt_secret=TEST_JWT_SECRET,
+                    search_reranker_enabled=True,
+                    search_reranker_url="http://fake-reranker",
+                ),
+                qdrant_client=mock_qdrant,
+                meili_provider=_meili(migrated_engine),
+            )
+        )
+        token = _user_token(client)
+
+        response = client.post(
+            "/search",
+            json={"query": "test", "page": 1, "page_size": 10},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["reranker_applied"] is False
+    # Results still returned despite reranker failure
+    assert len(data["results"]) == 1

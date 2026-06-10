@@ -65,8 +65,8 @@ def _session_response(session: ChatSession) -> dict[str, Any]:
     }
 
 
-def _message_response(msg: ChatMessage) -> dict[str, Any]:
-    return {
+def _message_response(msg: ChatMessage, *, include_trace: bool = False) -> dict[str, Any]:
+    resp: dict[str, Any] = {
         "id": str(msg.id),
         "session_id": str(msg.session_id),
         "role": msg.role,
@@ -77,6 +77,9 @@ def _message_response(msg: ChatMessage) -> dict[str, Any]:
         "latency_ms": msg.latency_ms,
         "created_at": msg.created_at.isoformat(),
     }
+    if include_trace:
+        resp["retrieval_trace"] = msg.retrieval_trace
+    return resp
 
 
 def _check_system_config_flag(connection: sa.Connection) -> None:
@@ -161,7 +164,7 @@ def get_session(
         messages = session.metadata.pop("_messages", [])
         return {
             **_session_response(session),
-            "messages": [_message_response(m) for m in messages],
+            "messages": [_message_response(m, include_trace=user.is_admin) for m in messages],
         }
 
 
@@ -418,12 +421,42 @@ def create_message(
                 content=result.answer,
                 rewritten_query=rewritten_query,
                 citations=citations,
+                retrieval_trace=(
+                    result.retrieval_trace.model_dump() if result.retrieval_trace else None
+                ),
                 model=result.model,
                 latency_ms=latency_ms,
             )
         )
 
-        return _message_response(assistant_msg)
+        return _message_response(assistant_msg, include_trace=user.is_admin)
+
+
+@router.get("/sessions/{session_id}/messages/{message_id}/trace")
+def get_message_trace(
+    session_id: UUID,
+    message_id: UUID,
+    request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> dict[str, Any]:
+    """Return the retrieval trace for an assistant message (admin/developer only)."""
+    _require_chat_enabled(request)
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    with request.app.state.engine.begin() as connection:
+        _check_system_config_flag(connection)
+        repo = ChatRepository(connection)
+        session = repo.get_session(user.sub, session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        messages = repo.list_messages(session_id)
+        msg = next((m for m in messages if m.id == message_id), None)
+        if msg is None:
+            raise HTTPException(status_code=404, detail="Message not found")
+        if msg.retrieval_trace is None:
+            raise HTTPException(status_code=404, detail="No retrieval trace for this message")
+        return {"message_id": str(msg.id), "retrieval_trace": msg.retrieval_trace}
 
 
 @router.post("/sessions/{session_id}/messages/stream")
@@ -618,6 +651,7 @@ def create_message_stream(
                                 content=answer_text,
                                 rewritten_query=rewritten_query,
                                 citations=data.get("citations") or [],
+                                retrieval_trace=data.get("retrieval_trace"),
                                 model=data.get("model"),
                                 latency_ms=data.get("latency_ms"),
                             )

@@ -1,12 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import type { DocumentChatCitation } from "@/api/chat";
+import type { DocumentChatCitation, RetrievalTrace } from "@/api/chat";
 import { useT } from "@/i18n/index";
 import styles from "./ChatCitationCard.module.css";
 
 interface ChatCitationCardProps {
   citation: DocumentChatCitation;
   index: number;
-  onOpenCitation?: (citation: DocumentChatCitation) => void;
+  trace?: RetrievalTrace | null;
+  onOpenCitation?: (citation: DocumentChatCitation, trace?: RetrievalTrace | null) => void;
 }
 
 function locationLine(citation: DocumentChatCitation): string {
@@ -20,7 +21,7 @@ function locationLine(citation: DocumentChatCitation): string {
   return parts.join(" · ");
 }
 
-export function ChatCitationCard({ citation, index, onOpenCitation }: ChatCitationCardProps) {
+export function ChatCitationCard({ citation, index, trace, onOpenCitation }: ChatCitationCardProps) {
   const t = useT();
   const title =
     citation.document_title ?? citation.doc_title ?? t.chat.untitledDocument;
@@ -29,13 +30,13 @@ export function ChatCitationCard({ citation, index, onOpenCitation }: ChatCitati
   const isTranslated = citation.translated_from != null;
 
   function handleClick() {
-    onOpenCitation?.(citation);
+    onOpenCitation?.(citation, trace);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      onOpenCitation?.(citation);
+      onOpenCitation?.(citation, trace);
     }
   }
 

@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added (v0.3 — Trust and Retrieval Quality)
+- **BGE Reranker (#650)**: `SearchResponse` now includes `reranker_applied: bool`
+  so callers can tell whether cross-encoder reranking was performed. The BGE
+  endpoint-based reranker (`BAAI/bge-reranker-v2-m3`) is enabled via
+  `SEARCH_RERANKER_ENABLED=true` + `SEARCH_RERANKER_URL`.
+- **Retrieval trace in chat (#665)**: Assistant messages now persist and expose
+  their `retrieval_trace` (pipeline stages, timings, candidate scores). Admins
+  receive the trace in every message response; a dedicated
+  `GET /chat/sessions/{id}/messages/{id}/trace` endpoint is available for
+  admin/developer inspection. The frontend Evidence Inspector's Retrieval tab
+  shows stage counts, timings, and the final candidate list.
+- **Evidence Inspector v1 (#664)**: The citation side-panel is upgraded to a
+  tabbed inspector with Evidence, Source, Retrieval (admin), and Actions tabs.
+  The Evidence tab shows the excerpt, chunk index, and translation metadata;
+  Source shows document and source info; Actions includes copy-citation and a
+  report-bad-citation feedback form.
+- **Citation feedback (#666)**: New `citation_feedback` table and
+  `POST /citation-feedback` endpoint let users report citation quality problems
+  (wrong passage, missing source, unsupported claim, etc.). Permission-gated:
+  users can only submit feedback for documents they can access. Admin query
+  endpoints allow eval code to read feedback by document, message, or type.
+- **Offline eval harness (#667)**: `tests/eval/` provides a `pytest --eval`
+  runner with fixtures across 9 categories (factual, citation-required,
+  no-answer, Hebrew/multilingual, permission boundary, multi-doc, follow-up,
+  table-heavy). Emits machine-readable JSON; supports comparing two
+  configurations (e.g. reranker on/off via `--eval-config`). Metrics: recall@k,
+  MRR, citation accuracy, no-answer accuracy, unauthorized-leakage count, and
+  per-stage latency.
+
 ### Added
 - Air-gapped (and default) Docker Compose now pass the external model-provider
   settings — `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, and

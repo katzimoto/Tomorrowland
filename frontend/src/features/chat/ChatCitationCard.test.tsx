@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import { render } from "@/test/render";
 import { ChatCitationCard } from "./ChatCitationCard";
-import type { DocumentChatCitation } from "@/api/chat";
+import type { DocumentChatCitation, RetrievalTrace } from "@/api/chat";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -132,7 +132,7 @@ describe("ChatCitationCard", () => {
     );
     const card = screen.getByRole("button");
     fireEvent.click(card);
-    expect(onOpen).toHaveBeenCalledWith(citation);
+    expect(onOpen).toHaveBeenCalledWith(citation, undefined);
   });
 
   it("calls onOpenCitation on Enter key", () => {
@@ -145,7 +145,7 @@ describe("ChatCitationCard", () => {
     );
     const card = screen.getByRole("button");
     fireEvent.keyDown(card, { key: "Enter" });
-    expect(onOpen).toHaveBeenCalledWith(citation);
+    expect(onOpen).toHaveBeenCalledWith(citation, undefined);
   });
 
   it("calls onOpenCitation on Space key", () => {
@@ -158,7 +158,7 @@ describe("ChatCitationCard", () => {
     );
     const card = screen.getByRole("button");
     fireEvent.keyDown(card, { key: " " });
-    expect(onOpen).toHaveBeenCalledWith(citation);
+    expect(onOpen).toHaveBeenCalledWith(citation, undefined);
   });
 
   it("stops propagation on Open link click so card click is not triggered", () => {
@@ -184,5 +184,25 @@ describe("ChatCitationCard", () => {
       </ul>,
     );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("forwards trace to onOpenCitation when trace prop is provided", () => {
+    const onOpen = vi.fn();
+    const citation = makeCitation({ citation_id: "cit-trace" });
+    const trace: RetrievalTrace = {
+      stages: [{ stage: "vector", candidate_count: 5, timing_ms: 10.0, description: null }],
+      candidates: [],
+      reranker_enabled: false,
+      total_latency_ms: 10.0,
+    };
+
+    render(
+      <ul>
+        <ChatCitationCard citation={citation} index={0} trace={trace} onOpenCitation={onOpen} />
+      </ul>,
+    );
+
+    fireEvent.click(screen.getByRole("button"));
+    expect(onOpen).toHaveBeenCalledWith(citation, trace);
   });
 });

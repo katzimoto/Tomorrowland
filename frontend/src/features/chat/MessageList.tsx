@@ -1,12 +1,12 @@
 import { useEffect, useRef } from "react";
-import type { ChatMessage, DocumentChatCitation } from "@/api/chat";
+import type { ChatMessage, DocumentChatCitation, RetrievalTrace } from "@/api/chat";
 import { MessageBubble } from "./MessageBubble";
 import styles from "./MessageList.module.css";
 
 interface MessageListProps {
   messages: ChatMessage[];
   busy?: boolean;
-  onOpenCitation?: (citation: DocumentChatCitation) => void;
+  onOpenCitation?: (citation: DocumentChatCitation, trace?: RetrievalTrace | null) => void;
 }
 
 export function MessageList({ messages, busy, onOpenCitation }: MessageListProps) {

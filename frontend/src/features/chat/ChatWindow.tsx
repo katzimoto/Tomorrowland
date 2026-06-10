@@ -8,6 +8,7 @@ import {
   type ChatScopeType,
   type ChatStreamPhase,
   type DocumentChatCitation,
+  type RetrievalTrace,
 } from "@/api/chat";
 import { useToast } from "@/components/primitives/ToastContext";
 import { useT } from "@/i18n/index";
@@ -25,7 +26,7 @@ interface ChatWindowProps {
   session: ChatSession;
   onRequestNewScope?: (scopeType: ChatScopeType, scopeIds: string[]) => void;
   isCreatingScope?: boolean;
-  onOpenCitation?: (citation: DocumentChatCitation) => void;
+  onOpenCitation?: (citation: DocumentChatCitation, trace?: RetrievalTrace | null) => void;
 }
 
 export function ChatWindow({

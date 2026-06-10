@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { render } from "@/test/render";
 import { EvidencePanel } from "./EvidencePanel";
-import type { DocumentChatCitation } from "@/api/chat";
+import type { DocumentChatCitation, RetrievalTrace } from "@/api/chat";
 import * as documentsApi from "@/api/documents";
 import { ApiError } from "@/api/client";
+import * as citationFeedbackApi from "@/api/citationFeedback";
 
 vi.mock("@/api/documents");
+vi.mock("@/api/citationFeedback");
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -73,7 +75,7 @@ describe("EvidencePanel", () => {
       <EvidencePanel citation={makeCitation()} onClose={vi.fn()} />,
     );
 
-    expect(screen.getByText("Loading preview…")).toBeInTheDocument();
+    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
   });
 
   it("shows document not found error on 404", async () => {
@@ -124,8 +126,9 @@ describe("EvidencePanel", () => {
     );
 
     expect(await screen.findByText("Contract.pdf")).toBeInTheDocument();
-    expect(screen.getByText(/p\. 3/)).toBeInTheDocument();
-    expect(screen.getByText(/Termination/)).toBeInTheDocument();
+    // Location appears in both the header and the Evidence tab meta row
+    expect(screen.getAllByText(/p\. 3/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Termination/).length).toBeGreaterThan(0);
   });
 
   it("renders excerpt text", async () => {
@@ -139,6 +142,22 @@ describe("EvidencePanel", () => {
     );
 
     expect(await screen.findByText("This is the excerpt.")).toBeInTheDocument();
+  });
+
+  it("does not show retrieval tab for non-admin (default)", () => {
+    vi.mocked(documentsApi.getPreview).mockReturnValue(new Promise(() => {}));
+
+    render(<EvidencePanel citation={makeCitation()} onClose={vi.fn()} isAdmin={false} />);
+
+    expect(screen.queryByRole("tab", { name: "Retrieval" })).not.toBeInTheDocument();
+  });
+
+  it("shows retrieval tab for admin", () => {
+    vi.mocked(documentsApi.getPreview).mockReturnValue(new Promise(() => {}));
+
+    render(<EvidencePanel citation={makeCitation()} onClose={vi.fn()} isAdmin={true} />);
+
+    expect(screen.getByRole("tab", { name: "Retrieval" })).toBeInTheDocument();
   });
 
   it("renders PreviewWithHighlight when preview loads", async () => {
@@ -164,7 +183,7 @@ describe("EvidencePanel", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("shows no preview message when excerpt and location are missing", async () => {
+  it("renders preview even when excerpt and location are missing", async () => {
     vi.mocked(documentsApi.getPreview).mockResolvedValue(SAMPLE_PREVIEW);
 
     render(
@@ -179,6 +198,146 @@ describe("EvidencePanel", () => {
       />,
     );
 
-    expect(await screen.findByText("No preview available.")).toBeInTheDocument();
+    expect(await screen.findByTestId("preview-with-highlight")).toBeInTheDocument();
+  });
+});
+
+describe("EvidencePanel tab navigation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(documentsApi.getPreview).mockReturnValue(new Promise(() => {}));
+  });
+
+  it("renders Evidence tab as active by default", () => {
+    render(<EvidencePanel citation={makeCitation()} onClose={vi.fn()} />);
+
+    const evidenceTab = screen.getByRole("tab", { name: "Evidence" });
+    expect(evidenceTab).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("clicking Source tab shows source content", () => {
+    render(<EvidencePanel citation={makeCitation()} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Source" }));
+
+    expect(screen.getByRole("tab", { name: "Source" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Score")).toBeInTheDocument();
+  });
+
+  it("clicking Actions tab shows copy and report buttons", () => {
+    render(<EvidencePanel citation={makeCitation()} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
+
+    expect(screen.getByText("Copy citation")).toBeInTheDocument();
+    expect(screen.getByText("Report problem")).toBeInTheDocument();
+  });
+});
+
+const SAMPLE_TRACE: RetrievalTrace = {
+  stages: [{ stage: "vector", candidate_count: 10, timing_ms: 25.5, description: null }],
+  candidates: [],
+  reranker_enabled: false,
+  total_latency_ms: 100.0,
+};
+
+describe("EvidencePanel retrieval trace tab", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(documentsApi.getPreview).mockReturnValue(new Promise(() => {}));
+  });
+
+  it("shows no trace message when retrievalTrace is absent", () => {
+    render(<EvidencePanel citation={makeCitation()} onClose={vi.fn()} isAdmin={true} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Retrieval" }));
+
+    expect(
+      screen.getByText("No retrieval trace available for this message."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows latency and stage data from the trace", () => {
+    render(
+      <EvidencePanel
+        citation={makeCitation()}
+        onClose={vi.fn()}
+        isAdmin={true}
+        retrievalTrace={SAMPLE_TRACE}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Retrieval" }));
+
+    expect(screen.getByText("100 ms")).toBeInTheDocument();
+    expect(screen.getByText("vector")).toBeInTheDocument();
+    expect(screen.getByText("25.5")).toBeInTheDocument();
+  });
+
+  it("shows Reranked badge when reranker_enabled is true", () => {
+    render(
+      <EvidencePanel
+        citation={makeCitation()}
+        onClose={vi.fn()}
+        isAdmin={true}
+        retrievalTrace={{ ...SAMPLE_TRACE, reranker_enabled: true }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Retrieval" }));
+
+    expect(screen.getByText("Reranked")).toBeInTheDocument();
+  });
+});
+
+describe("EvidencePanel feedback form", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(documentsApi.getPreview).mockReturnValue(new Promise(() => {}));
+  });
+
+  it("shows feedback form after clicking Report problem", () => {
+    render(<EvidencePanel citation={makeCitation()} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
+    fireEvent.click(screen.getByText("Report problem"));
+
+    expect(screen.getByRole("button", { name: "Submit" })).toBeInTheDocument();
+  });
+
+  it("calls submitCitationFeedback with citation data on submit", async () => {
+    vi.mocked(citationFeedbackApi.submitCitationFeedback).mockResolvedValue({ id: "fb-1", ok: true });
+
+    const citation = makeCitation({ citation_id: "cit-test", document_id: "doc-test" });
+    render(<EvidencePanel citation={citation} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
+    fireEvent.click(screen.getByText("Report problem"));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => {
+      expect(citationFeedbackApi.submitCitationFeedback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          document_id: "doc-test",
+          citation_id: "cit-test",
+          feedback_type: "wrong_passage",
+        }),
+      );
+    });
+  });
+
+  it("disables form while submission is pending", async () => {
+    // Never resolves so mutation stays pending
+    vi.mocked(citationFeedbackApi.submitCitationFeedback).mockReturnValue(new Promise(() => {}));
+
+    render(<EvidencePanel citation={makeCitation()} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
+    fireEvent.click(screen.getByText("Report problem"));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Submitting…" })).toBeDisabled();
+    });
   });
 });

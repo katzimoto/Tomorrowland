@@ -25,6 +25,32 @@ export interface DocumentChatCitation {
   translated_from?: string | null;
 }
 
+export interface RetrievalStageTrace {
+  stage: string;
+  candidate_count: number;
+  timing_ms: number;
+  description?: string | null;
+}
+
+export interface RetrievalCandidateTrace {
+  document_id: string;
+  chunk_id?: string | null;
+  chunk_index?: number | null;
+  score: number;
+  source_id?: string | null;
+  doc_title?: string | null;
+  page_number?: number | null;
+  section_heading?: string | null;
+  language?: string | null;
+}
+
+export interface RetrievalTrace {
+  stages: RetrievalStageTrace[];
+  candidates: RetrievalCandidateTrace[];
+  reranker_enabled: boolean;
+  total_latency_ms: number;
+}
+
 export interface ChatMessage {
   id: string;
   session_id: string;
@@ -32,6 +58,7 @@ export interface ChatMessage {
   content: string;
   rewritten_query?: string | null;
   citations?: DocumentChatCitation[];
+  retrieval_trace?: RetrievalTrace | null;
   model?: string | null;
   latency_ms?: number | null;
   created_at: string;

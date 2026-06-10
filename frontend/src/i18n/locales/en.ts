@@ -220,6 +220,36 @@ export interface Translations {
     evidenceForbidden: string;
     evidenceNoPreview: string;
     evidenceOpenFullPage: string;
+    evidenceTabEvidence: string;
+    evidenceTabSource: string;
+    evidenceTabRetrieval: string;
+    evidenceTabActions: string;
+    evidenceChunkIndex: string;
+    evidenceOriginalLanguage: string;
+    evidenceTranslatedFrom: string;
+    evidenceSourceId: string;
+    evidencePageSection: string;
+    evidenceRetrievalTrace: string;
+    evidenceRetrievalStages: string;
+    evidenceRetrievalCandidates: string;
+    evidenceRetrievalNoTrace: string;
+    evidenceRetrievalReranked: string;
+    evidenceCopyCitation: string;
+    evidenceCopied: string;
+    evidenceReportBadCitation: string;
+    feedbackTypeCorrect: string;
+    feedbackTypeWrongPassage: string;
+    feedbackTypeWrongLocation: string;
+    feedbackTypeMissingSource: string;
+    feedbackTypeUnsupported: string;
+    feedbackTypePermission: string;
+    feedbackTypeOther: string;
+    feedbackComment: string;
+    feedbackSubmit: string;
+    feedbackSubmitting: string;
+    feedbackSuccess: string;
+    feedbackError: string;
+    feedbackDuplicate: string;
     phaseSearching: string;
     phaseReadingSources: string;
     phaseGenerating: string;
@@ -626,6 +656,36 @@ export const en: Translations = {
     evidenceForbidden: "Access denied.",
     evidenceNoPreview: "No preview available.",
     evidenceOpenFullPage: "Open in full page",
+    evidenceTabEvidence: "Evidence",
+    evidenceTabSource: "Source",
+    evidenceTabRetrieval: "Retrieval",
+    evidenceTabActions: "Actions",
+    evidenceChunkIndex: "Chunk",
+    evidenceOriginalLanguage: "Language",
+    evidenceTranslatedFrom: "Translated from",
+    evidenceSourceId: "Source",
+    evidencePageSection: "Location",
+    evidenceRetrievalTrace: "Retrieval trace",
+    evidenceRetrievalStages: "Pipeline stages",
+    evidenceRetrievalCandidates: "Candidates",
+    evidenceRetrievalNoTrace: "No retrieval trace available for this message.",
+    evidenceRetrievalReranked: "Reranked",
+    evidenceCopyCitation: "Copy citation",
+    evidenceCopied: "Copied!",
+    evidenceReportBadCitation: "Report problem",
+    feedbackTypeCorrect: "Citation is correct",
+    feedbackTypeWrongPassage: "Wrong passage",
+    feedbackTypeWrongLocation: "Right document, wrong location",
+    feedbackTypeMissingSource: "Missing better source",
+    feedbackTypeUnsupported: "Claim not supported",
+    feedbackTypePermission: "Permission concern",
+    feedbackTypeOther: "Other",
+    feedbackComment: "Additional comments (optional)",
+    feedbackSubmit: "Submit",
+    feedbackSubmitting: "Submitting…",
+    feedbackSuccess: "Feedback submitted. Thank you.",
+    feedbackError: "Failed to submit feedback.",
+    feedbackDuplicate: "You already submitted feedback for this citation.",
     phaseSearching: "Searching documents",
     phaseReadingSources: "Reading sources",
     phaseGenerating: "Generating answer",

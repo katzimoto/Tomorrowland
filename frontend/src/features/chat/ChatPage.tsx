@@ -4,8 +4,9 @@ import { useSearch, useNavigate } from "@tanstack/react-router";
 import { useT } from "@/i18n/index";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createChatSession, type ChatSession, type ChatScopeType, type DocumentChatCitation } from "@/api/chat";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createChatSession, type ChatSession, type ChatScopeType, type DocumentChatCitation, type RetrievalTrace } from "@/api/chat";
+import { getCurrentUser } from "@/api/auth";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatWindow } from "./ChatWindow";
 import { EvidencePanel } from "./EvidencePanel";
@@ -43,8 +44,10 @@ export function ChatPage() {
   const routeSearch = useSearch({ from: "/app/chat" }) as Record<string, unknown>;
   const { scope: urlScope, ids: urlIds } = parseScopeFromSearch(routeSearch);
 
+  const { data: currentUser } = useQuery({ queryKey: ["current-user"], queryFn: getCurrentUser, staleTime: 5 * 60_000 });
   const [selectedSession, setSelectedSession] = useState<ChatSession | null>(null);
   const [selectedCitation, setSelectedCitation] = useState<DocumentChatCitation | null>(null);
+  const [selectedTrace, setSelectedTrace] = useState<RetrievalTrace | null | undefined>(undefined);
   const lastScopeKey = useRef<string | null>(null);
 
   const createMutation = useMutation({
@@ -79,6 +82,7 @@ export function ChatPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedCitation(null);
+    setSelectedTrace(undefined);
   }, [selectedSession?.id]);
 
   function handleScopeChange(scopeType: ChatScopeType, scopeIds: string[]) {
@@ -116,7 +120,10 @@ export function ChatPage() {
               session={selectedSession}
               onRequestNewScope={handleScopeChange}
               isCreatingScope={createMutation.isPending}
-              onOpenCitation={setSelectedCitation}
+              onOpenCitation={(citation, trace) => {
+                setSelectedCitation(citation);
+                setSelectedTrace(trace);
+              }}
             />
           ) : (
             <div className={styles.emptyWrapper}>
@@ -139,7 +146,9 @@ export function ChatPage() {
         {selectedCitation && (
           <EvidencePanel
             citation={selectedCitation}
-            onClose={() => setSelectedCitation(null)}
+            retrievalTrace={selectedTrace}
+            isAdmin={currentUser?.is_admin ?? false}
+            onClose={() => { setSelectedCitation(null); setSelectedTrace(undefined); }}
           />
         )}
       </div>
