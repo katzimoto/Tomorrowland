@@ -8,6 +8,8 @@ import sqlalchemy as sa
 from sqlalchemy import Engine
 
 from services.chat.citation_feedback import CitationFeedbackCreate, CitationFeedbackRepository
+from services.chat.models import ChatMessageCreate, ChatSessionCreate
+from services.chat.repository import ChatRepository
 
 
 def _create_user(connection: sa.Connection) -> UUID:
@@ -17,6 +19,22 @@ def _create_user(connection: sa.Connection) -> UUID:
         {"id": user_id.hex, "email": f"{uuid4().hex}@test.com"},
     )
     return user_id
+
+
+def _create_message(connection: sa.Connection, user_id: UUID) -> UUID:
+    """Insert a chat session + assistant message and return the message ID.
+
+    Required for tests that pass message_id to CitationFeedbackCreate —
+    PostgreSQL enforces the FK constraint chat_messages.id.
+    """
+    repo = ChatRepository(connection)
+    session = repo.create_session(
+        ChatSessionCreate(user_id=user_id, scope_type="all_accessible_documents")
+    )
+    msg = repo.create_message(
+        ChatMessageCreate(session_id=session.id, role="assistant", content="Test")
+    )
+    return msg.id
 
 
 def _make(
@@ -37,7 +55,7 @@ def test_create_returns_feedback_with_all_fields(migrated_engine: Engine) -> Non
     with migrated_engine.begin() as conn:
         user_id = _create_user(conn)
         doc_id = uuid4()
-        msg_id = uuid4()
+        msg_id = _create_message(conn, user_id)
 
         repo = CitationFeedbackRepository(conn)
         result = repo.create(
@@ -133,8 +151,8 @@ def test_list_by_message_returns_only_matching_rows(migrated_engine: Engine) -> 
     with migrated_engine.begin() as conn:
         user_id = _create_user(conn)
         doc_id = uuid4()
-        msg_id = uuid4()
-        other_msg_id = uuid4()
+        msg_id = _create_message(conn, user_id)
+        other_msg_id = _create_message(conn, user_id)
 
         repo = CitationFeedbackRepository(conn)
         repo.create(_make(doc_id, user_id, "correct", message_id=msg_id))
