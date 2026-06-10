@@ -1,6 +1,6 @@
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { List } from "react-window";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { getDocumentText } from "@/api/documents";
 import { countMatches, highlightMatches } from "../highlightMatches";
 import {
@@ -33,6 +33,7 @@ export function TextPreview({
   onMatchCountChange,
 }: TextPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [extraChunks, setExtraChunks] = useState<string[]>([]);
   const [extraTruncated, setExtraTruncated] = useState<boolean | null>(null);
   const [nextOffset, setNextOffset] = useState(CHUNK_SIZE);
@@ -55,7 +56,7 @@ export function TextPreview({
   });
 
   useEffect(() => {
-    loadGenRef.current += 1; // invalidate any in-flight Load-more requests
+    loadGenRef.current += 1;
     startTransition(() => {
       setExtraChunks([]);
       setExtraTruncated(null);
@@ -66,7 +67,6 @@ export function TextPreview({
   const textLoadTimer = useRef<string | null>(null);
   useEffect(() => {
     if (!docId) return;
-    // Abandon any timer from a previous doc and start a fresh one.
     textLoadTimer.current = `text-load-${Date.now()}`;
     startNamedPerformanceTimer(textLoadTimer.current);
   }, [docId, translationVersionId, showOriginal]);
@@ -117,6 +117,13 @@ export function TextPreview({
     return offsets;
   }, [perLineMatchCounts]);
 
+  const rowVirtualizer = useVirtualizer({
+    count: isVirtualized ? lines.length : 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 10,
+  });
+
   function renderLine(line: string, lineIndex: number) {
     if (searchQuery) {
       const localIndex = activeSearchIndex - (cumulativeMatchOffsets[lineIndex] ?? 0);
@@ -131,17 +138,6 @@ export function TextPreview({
     }
     return line;
   }
-
-  const RowComponent = useCallback(
-    ({ index, style }: { index: number; style: React.CSSProperties }) => (
-      <div style={style} className={styles.virtualRow}>
-        {renderLine(lines[index] ?? "", index)}
-      </div>
-    ),
-    [lines, searchQuery, activeSearchIndex, cumulativeMatchOffsets],
-  );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rc: any = RowComponent;
 
   if (!docId) {
     return (
@@ -170,7 +166,6 @@ export function TextPreview({
         translationVersionId,
         showOriginal,
       });
-      // Discard the result if the doc/version changed while this was in-flight.
       if (loadGenRef.current !== gen) return;
       setExtraChunks((prev) => [...prev, result.text]);
       setExtraTruncated(result.truncated);
@@ -183,13 +178,32 @@ export function TextPreview({
   if (isVirtualized) {
     return (
       <div ref={containerRef} className={styles.virtualContainer}>
-        <List
-          rowCount={lines.length}
-          rowHeight={ROW_HEIGHT}
-          rowComponent={rc}
-          rowProps={{}}
-          style={{ height: Math.min(lines.length * ROW_HEIGHT, 600), width: "100%" }}
-        />
+        <div
+          ref={scrollRef}
+          style={{ height: Math.min(lines.length * ROW_HEIGHT, 600), width: "100%", overflow: "auto" }}
+        >
+          <div
+            role="list"
+            style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => (
+              <div
+                key={virtualRow.key}
+                className={styles.virtualRow}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                {renderLine(lines[virtualRow.index] ?? "", virtualRow.index)}
+              </div>
+            ))}
+          </div>
+        </div>
         {isTruncated && (
           <button
             className={styles.loadMoreBtn}

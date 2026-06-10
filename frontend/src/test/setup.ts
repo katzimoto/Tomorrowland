@@ -8,7 +8,7 @@ import {
 // jsdom does not implement scrollIntoView
 Element.prototype.scrollIntoView = vi.fn();
 
-// jsdom does not implement ResizeObserver (needed by react-window)
+// jsdom does not implement ResizeObserver (needed by virtualizers)
 class ResizeObserverMock {
   observe() {}
   unobserve() {}

@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import Papa from "papaparse";
-import { List } from "react-window";
 import { countMatches, highlightMatches } from "../highlightMatches";
 import { getDocumentText } from "@/api/documents";
 import styles from "./renderers.module.css";
 
 const VIRTUALIZE_THRESHOLD = 1_000;
 const ROW_HEIGHT = 32;
-// Fetch up to 500 KB so most spreadsheets fit in one request.
 const TABLE_FETCH_LIMIT = 500_000;
 
 interface TablePreviewProps {
@@ -43,6 +42,8 @@ export function TablePreview({
   activeSearchIndex = 0,
   onMatchCountChange,
 }: TablePreviewProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   const { data, isLoading } = useQuery({
     queryKey: ["doc-table-text", docId, delimiter],
     queryFn: () =>
@@ -58,8 +59,6 @@ export function TablePreview({
 
   const flatText = useMemo(() => rows.flat().join(" "), [rows]);
 
-  // Precompute the starting flat-cell index for each row so the mapping from
-  // (rowIdx, colIdx) → flatCellIdx is correct even for jagged tables.
   const rowStartIndices = useMemo(() => {
     const starts: number[] = [0];
     for (let i = 0; i < rows.length - 1; i++) {
@@ -68,7 +67,6 @@ export function TablePreview({
     return starts;
   }, [rows]);
 
-  // Per-cell cumulative offsets for mapping globalActiveIndex → cell highlight.
   const cellMatchCounts = useMemo(() => {
     if (!searchQuery) return [] as number[];
     return rows.flatMap((row) => row.map((cell) => countMatches(cell, searchQuery)));
@@ -91,6 +89,16 @@ export function TablePreview({
     onMatchCountChange?.(matchCount);
   }, [matchCount, onMatchCountChange]);
 
+  const [header, ...body] = rows;
+  const isVirtualized = body.length > VIRTUALIZE_THRESHOLD;
+
+  const rowVirtualizer = useVirtualizer({
+    count: isVirtualized ? body.length : 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 5,
+  });
+
   const getCellHighlight = useCallback(
     (rowIdx: number, colIdx: number, cell: string) => {
       if (!searchQuery || !cellMatches(cell, searchQuery)) return cell;
@@ -108,26 +116,6 @@ export function TablePreview({
     [rowStartIndices, searchQuery, activeSearchIndex, cumulativeOffsets],
   );
 
-  const RowComponent = useCallback(
-    ({ index, style }: { index: number; style: React.CSSProperties }) => {
-      const row = rows[index + 1]; // +1 to skip the header
-      return (
-        <div style={style} role="row">
-          {row?.map((cell, ci) => (
-            <div
-              key={ci}
-              role="cell"
-              className={`${styles.td} ${cellMatches(cell, searchQuery) ? styles.match : ""}`}
-            >
-              {getCellHighlight(index + 1, ci, cell)}
-            </div>
-          ))}
-        </div>
-      );
-    },
-    [rows, searchQuery, getCellHighlight],
-  );
-
   if (isLoading) {
     return <div className={styles.muted}>Loading…</div>;
   }
@@ -135,11 +123,6 @@ export function TablePreview({
   if (!rows.length) {
     return <p className={styles.muted}>No table data available.</p>;
   }
-
-  const [header, ...body] = rows;
-  const isVirtualized = body.length > VIRTUALIZE_THRESHOLD;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rc: any = RowComponent;
 
   return (
     <>
@@ -161,13 +144,43 @@ export function TablePreview({
               </div>
             </div>
             <div role="rowgroup">
-              <List
-                rowCount={body.length}
-                rowHeight={ROW_HEIGHT}
-                rowComponent={rc}
-                rowProps={{}}
-                style={{ height: Math.min(body.length * ROW_HEIGHT, 600), width: "100%" }}
-              />
+              <div
+                ref={scrollRef}
+                style={{ height: Math.min(body.length * ROW_HEIGHT, 600), width: "100%", overflow: "auto" }}
+              >
+                <div
+                  role="rowgroup"
+                  style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const row = body[virtualRow.index];
+                    return (
+                      <div
+                        key={virtualRow.key}
+                        role="row"
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          height: `${virtualRow.size}px`,
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                      >
+                        {row?.map((cell, ci) => (
+                          <div
+                            key={ci}
+                            role="cell"
+                            className={`${styles.td} ${cellMatches(cell, searchQuery) ? styles.match : ""}`}
+                          >
+                            {getCellHighlight(virtualRow.index + 1, ci, cell)}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         ) : (
