@@ -10,7 +10,9 @@ from typing import Any
 from uuid import UUID
 
 from services.documents.repository import DocumentRelationshipRepository, DocumentRepository
+from services.extraction.extraction_repository import DocumentExtractionRepository
 from services.extraction.registry import ExtractorRegistry
+from services.extraction.router import ParserRouter
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
@@ -70,12 +72,16 @@ class ParseConsumer(BaseConsumer):
         doc_repo: DocumentRepository,
         publisher: DocumentPublisher,
         extractor: ExtractorRegistry | None = None,
+        router: ParserRouter | None = None,
+        extraction_repo: DocumentExtractionRepository | None = None,
         health_port: int = 8081,
     ) -> None:
         super().__init__(rabbit, job_repo, health_port)
         self._doc_repo = doc_repo
         self._publisher = publisher
         self._extractor = extractor or ExtractorRegistry()
+        self._router = router
+        self._extraction_repo = extraction_repo
 
     def handle_message(
         self,
@@ -96,12 +102,28 @@ class ParseConsumer(BaseConsumer):
         location_segments: list[dict[str, Any]] = []
         _extraction_attachments: list[Any] = []
         if not content_text and doc.path:
-            result = self._extractor.extract(Path(doc.path), doc.mime_type)
-            content_text = result.text
-            location_segments = [seg.to_dict() for seg in result.location_segments]
+            if self._router is not None:
+                routed = self._router.route(Path(doc.path), doc.mime_type, source_id)
+                content_text = routed.result.text
+                location_segments = [seg.to_dict() for seg in routed.result.location_segments]
+                _extraction_attachments = routed.result.attachments
+                if self._extraction_repo is not None:
+                    self._extraction_repo.record(
+                        document_id=document_id,
+                        parser_name=routed.parser_name,
+                        parser_version=routed.parser_version,
+                        duration_ms=routed.duration_ms,
+                        confidence=routed.confidence,
+                        warnings=routed.warnings,
+                        attempts=routed.attempts,
+                    )
+            else:
+                result = self._extractor.extract(Path(doc.path), doc.mime_type)
+                content_text = result.text
+                location_segments = [seg.to_dict() for seg in result.location_segments]
+                _extraction_attachments = result.attachments
             if location_segments:
                 self._job_repo.update_extraction_metadata(document_id, location_segments)
-            _extraction_attachments = result.attachments
             # Release connector-owned temp files after extraction
             _maybe_delete_connector_temp(doc.path)
 
@@ -195,6 +217,11 @@ def main() -> None:
     import sqlalchemy as sa
 
     from services.documents.repository import DocumentRepository
+    from services.extraction.extraction_repository import DocumentExtractionRepository
+    from services.extraction.policy import ParserPolicyResolver
+    from services.extraction.policy_repository import ParserPolicyRepository
+    from services.extraction.registry import ExtractorRegistry
+    from services.extraction.router import ParserRouter
     from services.pipeline.jobs import PipelineJobRepository
     from services.pipeline.publisher import DocumentPublisher
     from shared.config import Settings
@@ -208,15 +235,22 @@ def main() -> None:
     job_repo = PipelineJobRepository(connection)
     doc_repo = DocumentRepository(connection)
     publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
+    extractor_registry = ExtractorRegistry(
+        enable_ocr=settings.enable_ocr,
+        enable_legacy_office=settings.enable_legacy_office,
+        enable_markitdown=settings.enable_markitdown,
+    )
+    policy_repo = ParserPolicyRepository(connection)
+    resolver = ParserPolicyResolver(policy_repo, extractor_registry)
+    router = ParserRouter(registry=extractor_registry, resolver=resolver)
+    extraction_repo = DocumentExtractionRepository(connection)
     consumer = ParseConsumer(
         rabbit=rabbit,
         job_repo=job_repo,
         doc_repo=doc_repo,
         publisher=publisher,
-        extractor=ExtractorRegistry(
-            enable_ocr=settings.enable_ocr,
-            enable_legacy_office=settings.enable_legacy_office,
-            enable_markitdown=settings.enable_markitdown,
-        ),
+        extractor=extractor_registry,
+        router=router,
+        extraction_repo=extraction_repo,
     )
     consumer.run()

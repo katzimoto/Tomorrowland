@@ -5,7 +5,11 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from services.extraction.base import ExtractionResult, Extractor
+from services.extraction.base import (
+    ExtractionResult,
+    ParserCapabilities,
+    QualityTier,
+)
 from services.extraction.docx import DocxExtractor
 from services.extraction.eml import EmlExtractor
 from services.extraction.epub import EpubExtractor
@@ -90,9 +94,34 @@ _ALIASES: dict[str, str] = {
     "text/x-typescript": "text/plain",
 }
 
+_QUALITY_ORDER = {
+    QualityTier.HIGH: 0,
+    QualityTier.STANDARD: 1,
+    QualityTier.BASIC: 2,
+}
+
+
+def _caps(extractor: object) -> ParserCapabilities:
+    """Return extractor.capabilities() if available, else a synthetic fallback."""
+    try:
+        return extractor.capabilities()  # type: ignore[attr-defined,no-any-return]
+    except Exception:
+        return ParserCapabilities(
+            parser_name=type(extractor).__name__,
+            parser_version="0",
+            supported_mime_types=(),
+            quality_tier=QualityTier.STANDARD,
+        )
+
 
 class ExtractorRegistry:
-    """Map MIME types to concrete extractors."""
+    """Map MIME types to concrete extractors.
+
+    Each MIME type maps to an **ordered list** of extractors (the fallback
+    chain candidates).  ``get()`` returns the first extractor for backward
+    compatibility; ``candidates()`` returns the full chain ordered by quality
+    tier.
+    """
 
     def __init__(
         self,
@@ -103,43 +132,33 @@ class ExtractorRegistry:
     ) -> None:
         pdf_extractor = PdfExtractor(ocr_fallback=enable_ocr)
 
-        self._extractors: dict[str, Extractor] = {
-            # Plain text family
-            "text/plain": PlainExtractor(),
-            "text/markdown": PlainExtractor(),
-            "text/csv": PlainExtractor(),
-            # HTML / XML
-            "text/html": HtmlExtractor(),
-            "text/xml": XmlExtractor(),
-            "application/xml": XmlExtractor(),
-            "application/xhtml+xml": HtmlExtractor(),
-            # RTF
-            "text/rtf": RtfExtractor(),
-            "application/rtf": RtfExtractor(),
-            # JSON
-            "application/json": JsonExtractor(),
-            # PDF
-            "application/pdf": pdf_extractor,
-            # Microsoft Office (Open XML)
-            _DOCX_MIME: DocxExtractor(),
-            _PPTX_MIME: PptxExtractor(),
-            _XLSX_MIME: XlsxExtractor(),
-            # Microsoft Office legacy binary (xlrd — pure Python, no system deps)
-            "application/vnd.ms-excel": XlsExtractor(),
-            # OpenDocument
-            _ODT_MIME: OdtExtractor(),
-            _ODS_MIME: OdsExtractor(),
-            _ODP_MIME: OdpExtractor(),
-            # EPUB
-            "application/epub+zip": EpubExtractor(),
-            # Email
-            "message/rfc822": EmlExtractor(),
-            "application/vnd.ms-outlook": MsgExtractor(),
-            # Archives
-            "application/zip": ZipExtractor(),
-            "application/x-tar": TarExtractor(),
-            "application/gzip": TarExtractor(),
-        }
+        self._by_mime: dict[str, list[object]] = {}
+        self._by_name: dict[str, object] = {}
+
+        self._register("text/plain", PlainExtractor())
+        self._register("text/markdown", PlainExtractor())
+        self._register("text/csv", PlainExtractor())
+        self._register("text/html", HtmlExtractor())
+        self._register("text/xml", XmlExtractor())
+        self._register("application/xml", XmlExtractor())
+        self._register("application/xhtml+xml", HtmlExtractor())
+        self._register("text/rtf", RtfExtractor())
+        self._register("application/rtf", RtfExtractor())
+        self._register("application/json", JsonExtractor())
+        self._register("application/pdf", pdf_extractor)
+        self._register(_DOCX_MIME, DocxExtractor())
+        self._register(_PPTX_MIME, PptxExtractor())
+        self._register(_XLSX_MIME, XlsxExtractor())
+        self._register("application/vnd.ms-excel", XlsExtractor())
+        self._register(_ODT_MIME, OdtExtractor())
+        self._register(_ODS_MIME, OdsExtractor())
+        self._register(_ODP_MIME, OdpExtractor())
+        self._register("application/epub+zip", EpubExtractor())
+        self._register("message/rfc822", EmlExtractor())
+        self._register("application/vnd.ms-outlook", MsgExtractor())
+        self._register("application/zip", ZipExtractor())
+        self._register("application/x-tar", TarExtractor())
+        self._register("application/gzip", TarExtractor())
 
         if enable_legacy_office:
             self._register_legacy_office()
@@ -152,8 +171,6 @@ class ExtractorRegistry:
             self._register_markitdown()
 
         # Fallback used when no specific extractor is registered.
-        # GenericExtractor tries UTF-8 then charset-normalizer but does NOT
-        # fall back to latin-1, so true binary files still return "".
         self._fallback = GenericExtractor()
 
     def _register_legacy_office(self) -> None:
@@ -161,9 +178,9 @@ class ExtractorRegistry:
         from services.extraction.legacy_office import LegacyOfficeExtractor
 
         extractor = LegacyOfficeExtractor()
-        self._extractors["application/msword"] = extractor
-        self._extractors["application/vnd.ms-excel"] = extractor
-        self._extractors["application/vnd.ms-powerpoint"] = extractor
+        self._register("application/msword", extractor)
+        self._register("application/vnd.ms-excel", extractor)
+        self._register("application/vnd.ms-powerpoint", extractor)
 
     def _register_ocr(self) -> None:
         """Register the OCR extractor for raster image MIME types."""
@@ -171,14 +188,10 @@ class ExtractorRegistry:
 
         extractor = OcrExtractor()
         for mime in ("image/png", "image/jpeg", "image/tiff", "image/bmp", "image/webp"):
-            self._extractors[mime] = extractor
+            self._register(mime, extractor)
 
     def _register_markitdown(self) -> None:
-        """Wrap OOXML extractors with Markdown converters for structured output.
-
-        The original extractor is kept as a fallback: if conversion returns
-        empty text, the original extractor is called instead.
-        """
+        """Wrap OOXML extractors with Markdown converters for structured output."""
         from services.extraction.markitdown_extractor import (
             MarkItDownExtractor,
             _docx_to_markdown,
@@ -191,22 +204,32 @@ class ExtractorRegistry:
             (_PPTX_MIME, _pptx_to_markdown),
             (_XLSX_MIME, _xlsx_to_markdown),
         ]:
-            self._extractors[mime] = MarkItDownExtractor(
-                convert=convert_fn,
-                fallback=self._extractors[mime],
+            existing = self._by_mime.get(mime, [])
+            fallback = existing[0] if existing else None
+            self._register(
+                mime,
+                MarkItDownExtractor(convert=convert_fn, fallback=fallback),  # type: ignore[arg-type]
             )
 
-    def register(self, mime_type: str, extractor: Extractor) -> None:
+    def _register(self, mime_type: str, extractor: object) -> None:
+        """Append extractor to the chain for mime_type and index by name."""
+        self._by_mime.setdefault(mime_type, []).append(extractor)
+        caps = _caps(extractor)
+        self._by_name[caps.parser_name] = extractor
+
+    def register(self, mime_type: str, extractor: object) -> None:
         """Add or override an extractor for a MIME type."""
-        self._extractors[mime_type] = extractor
+        self._register(mime_type, extractor)
 
-    def get(self, mime_type: str) -> Extractor | None:
-        """Return the extractor for *mime_type* when registered.
+    def get(self, mime_type: str) -> object | None:
+        """Return the first extractor for *mime_type* when registered.
 
-        Resolves MIME type aliases before looking up the extractor dict.
+        Resolves MIME type aliases before looking up the extractor list.
+        Returns the first extractor for backward compatibility.
         """
         canonical = _ALIASES.get(mime_type, mime_type)
-        return self._extractors.get(canonical)
+        chain = self._by_mime.get(canonical)
+        return chain[0] if chain else None
 
     def has_extractor(self, mime_type: str) -> bool:
         """Return True when *mime_type* has a specific extractor or a text alias.
@@ -220,6 +243,42 @@ class ExtractorRegistry:
             return True
         canonical = _ALIASES.get(mime_type, mime_type)
         return canonical.startswith("text/")
+
+    def get_by_name(self, parser_name: str) -> object | None:
+        """Return the extractor registered under *parser_name*, or None."""
+        return self._by_name.get(parser_name)
+
+    def candidates(self, mime_type: str) -> list[object]:
+        """Return the full chain for a canonical MIME type, quality-tier-ordered.
+
+        The list is sorted by quality tier (high → standard → basic) so the
+        implicit default chain prefers higher-quality extractors.
+        """
+        canonical = _ALIASES.get(mime_type, mime_type)
+        chain = list(self._by_mime.get(canonical, []))
+        chain.sort(key=lambda e: _QUALITY_ORDER.get(_caps(e).quality_tier, 99))
+        return chain
+
+    def list(self) -> list[ParserCapabilities]:
+        """Return distinct capabilities of every registered parser."""
+        seen: set[str] = set()
+        result: list[ParserCapabilities] = []
+        for chain in self._by_mime.values():
+            for extractor in chain:
+                caps = _caps(extractor)
+                if caps.parser_name not in seen:
+                    seen.add(caps.parser_name)
+                    result.append(caps)
+        return result
+
+    def capabilities(self, parser_name: str) -> ParserCapabilities | None:
+        """Return capabilities for a named parser, or None."""
+        ext = self._by_name.get(parser_name)
+        return _caps(ext) if ext is not None else None
+
+    def canonical_mime(self, mime_type: str) -> str:
+        """Return the canonical MIME type after alias resolution."""
+        return _ALIASES.get(mime_type, mime_type)
 
     def extract(self, path: Path, mime_type: str) -> ExtractionResult:
         """Extract content from *path* using the extractor for *mime_type*.
@@ -251,7 +310,7 @@ class ExtractorRegistry:
                 path,
             )
             extractor = self._fallback
-        result = extractor.extract(path)
+        result = extractor.extract(path)  # type: ignore[attr-defined,no-any-return]
 
         # Sniff-and-retry strategy:
         # * For generic MIME types (application/zip, application/octet-stream) we
@@ -267,13 +326,14 @@ class ExtractorRegistry:
                 # MsgExtractor in _ALIASES, so bypass get() and use XlsExtractor
                 # directly (xlrd handles .xls OLE natively; fails fast on .doc/.ppt).
                 if sniffed == "application/x-ole-storage":
-                    retry_extractor: Extractor | None = self._extractors.get(
-                        "application/vnd.ms-excel"
-                    )
+                    retry_extractor: object | None = None
+                    for ext in self._by_mime.get("application/vnd.ms-excel", []):
+                        retry_extractor = ext
+                        break
                 else:
                     retry_extractor = self.get(sniffed)
                 if retry_extractor is not None:
-                    retry_result = retry_extractor.extract(path)
+                    retry_result = retry_extractor.extract(path)  # type: ignore[attr-defined]
                     if retry_result.text:
                         logger.debug(
                             "extraction recovered via content sniffing "
