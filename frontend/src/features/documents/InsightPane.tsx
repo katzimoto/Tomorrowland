@@ -251,7 +251,7 @@ function RelatedTab({ docId }: { docId: string }) {
                       e.stopPropagation();
                       setExpandedId(isExpanded ? null : doc.document_id);
                     }}
-                    aria-label="Why related?"
+                    aria-label={t.insight.whyRelated}
                   >
                     {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   </button>
@@ -260,14 +260,14 @@ function RelatedTab({ docId }: { docId: string }) {
             </Link>
             {isExpanded && doc.reasons && (
               <div style={{ padding: "8px 12px", fontSize: 12, color: "var(--color-text-secondary)", background: "var(--color-bg)", borderRadius: 4 }}>
-                <p style={{ fontWeight: 600, marginBottom: 4 }}>Why related?</p>
+                <p style={{ fontWeight: 600, marginBottom: 4 }}>{t.insight.whyRelated}</p>
                 <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 4 }}>
                   {doc.reasons.map((r) => (
                     <li key={r.type} style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <Badge variant="neutral">{r.label}</Badge>
                       {r.weight && (
                         <span style={{ color: "var(--color-text-secondary)" }}>
-                          (score: {r.weight})
+                          ({t.insight.relationScore(String(r.weight))})
                         </span>
                       )}
                       {r.items && r.items.length > 0 && (
@@ -280,7 +280,7 @@ function RelatedTab({ docId }: { docId: string }) {
                 </ul>
                 {doc.relation_score != null && (
                   <p style={{ marginTop: 4 }}>
-                    Relation score: <strong>{doc.relation_score}</strong>
+                    {t.insight.relationScore(String(doc.relation_score))}
                   </p>
                 )}
               </div>

@@ -157,9 +157,17 @@ export function ChatWindow({
         },
       );
     } catch {
+      // Keep the user message so the user can see what they sent and retry.
+      // Remove only the streaming placeholder; replace optimistic id with a
+      // stable user-prefixed id so the message stays in the list.
       setMessages((prev) =>
-        prev.filter((m) => m.id !== optimisticId && !m.id.startsWith("stream-")),
+        prev
+          .filter((m) => !m.id.startsWith("stream-"))
+          .map((m) =>
+            m.id === optimisticId ? { ...m, id: `user-${optimisticId}` } : m,
+          ),
       );
+      setInput(trimmed);
       showToast("error", t.chat.sendError);
     } finally {
       if (streamFlushTimer.current) {

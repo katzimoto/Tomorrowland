@@ -14,14 +14,14 @@ interface ChatInputProps {
   autoFocus?: boolean;
 }
 
-const phaseLabels: Record<ChatStreamPhase, string> = {
-  searching: "Searching documents",
-  reading_sources: "Reading sources",
-  generating: "Generating answer",
-};
-
 export function ChatInput({ value, onChange, onSubmit, disabled, phase, autoFocus }: ChatInputProps) {
   const t = useT();
+
+  const phaseLabels: Record<ChatStreamPhase, string> = {
+    searching: t.chat.phaseSearching,
+    reading_sources: t.chat.phaseReadingSources,
+    generating: t.chat.phaseGenerating,
+  };
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {

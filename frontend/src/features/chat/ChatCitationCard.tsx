@@ -52,9 +52,9 @@ export function ChatCitationCard({ citation, index, onOpenCitation }: ChatCitati
       <div className={styles.body}>
         <span className={styles.title}>{title}</span>
         {location && <span className={styles.location}>{location}</span>}
-        {isTranslated && (
+        {isTranslated && citation.translated_from && (
           <span className={styles.translated}>
-            Translated from {citation.translated_from}
+            {t.chat.translatedFrom(citation.translated_from)}
           </span>
         )}
         {excerpt && <p className={styles.excerpt}>{excerpt}</p>}

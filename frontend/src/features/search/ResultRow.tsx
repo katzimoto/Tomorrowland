@@ -2,6 +2,7 @@ import { FileText, Image, Archive, Mail, File, Info, Eye } from "lucide-react";
 import { Badge } from "@/components/primitives/Badge";
 import { VersionBadge } from "@/features/documents/VersionBadge";
 import DOMPurify from "dompurify";
+import { useT } from "@/i18n/index";
 import type { SearchResult } from "@/api/search";
 import styles from "./ResultRow.module.css";
 
@@ -24,12 +25,12 @@ function MimeIcon({ mimeType }: { mimeType: string }) {
   return <File size={18} />;
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, today: string, daysAgo: (n: number) => string): string {
   const d = new Date(iso);
   const now = Date.now();
   const diff = now - d.getTime();
-  if (diff < 86_400_000) return "Today";
-  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  if (diff < 86_400_000) return today;
+  if (diff < 7 * 86_400_000) return daysAgo(Math.floor(diff / 86_400_000));
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
@@ -44,6 +45,7 @@ interface ResultRowProps {
 }
 
 export function ResultRow({ result, id, selected = false, onClick, onSelect, onPreview, onPrefetch }: ResultRowProps) {
+  const t = useT();
   const visibleTags = result.tags.slice(0, 4);
   const extraTags = result.tags.length - visibleTags.length;
 
@@ -80,19 +82,19 @@ export function ResultRow({ result, id, selected = false, onClick, onSelect, onP
           )}
           {result.translation_quality && (
             <Badge variant="translation">
-              {result.translation_quality === "fast" ? "Fast translation" : "High quality"}
+              {result.translation_quality === "fast" ? t.filters.transFast : t.filters.transHigh}
             </Badge>
           )}
         </div>
       </div>
 
       <div className={styles.right}>
-        <span className={styles.date}>{formatDate(result.updated_at)}</span>
+        <span className={styles.date}>{formatDate(result.updated_at, t.search.today, t.search.daysAgo)}</span>
         <div className={styles.actions}>
           {onPreview && (
             <button
               className={styles.previewBtn}
-              aria-label={`Quick preview: ${result.title}`}
+              aria-label={t.search.preview(result.title ?? "")}
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
@@ -101,13 +103,13 @@ export function ResultRow({ result, id, selected = false, onClick, onSelect, onP
               }}
             >
               <Eye size={14} />
-              <span>Preview</span>
+              <span>{t.search.previewLabel}</span>
             </button>
           )}
           {result.why && result.why.length > 0 && (
             <button
               className={styles.whyBtn}
-              aria-label="Why this result?"
+              aria-label={t.search.whyThisResult}
               type="button"
               onClick={(event) => event.stopPropagation()}
             >

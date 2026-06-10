@@ -28,9 +28,9 @@ export function FilterPanel({ filters, facets, onChange }: FilterPanelProps) {
   ];
 
   const SORT_OPTS: { value: SearchFilters["sort_by"]; label: string }[] = [
-    { value: "relevance", label: "Relevance" },
-    { value: "updated_at", label: "Updated" },
-    { value: "created_at", label: "Created" },
+    { value: "relevance", label: t.filters.sortRelevance },
+    { value: "updated_at", label: t.filters.sortUpdated },
+    { value: "created_at", label: t.filters.sortCreated },
   ];
 
   const hasAny =
@@ -151,7 +151,7 @@ export function FilterPanel({ filters, facets, onChange }: FilterPanelProps) {
       {topTags.length > 0 && (
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
-            <span className={styles.sectionLabel}>Tags</span>
+            <span className={styles.sectionLabel}>{t.filters.tags}</span>
             {(filters.tags?.length ?? 0) > 0 && (
               <button
                 className={styles.clearBtn}
@@ -180,7 +180,7 @@ export function FilterPanel({ filters, facets, onChange }: FilterPanelProps) {
       {topSources.length > 0 && (
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
-            <span className={styles.sectionLabel}>Source</span>
+            <span className={styles.sectionLabel}>{t.filters.source}</span>
             {(filters.source?.length ?? 0) > 0 && (
               <button
                 className={styles.clearBtn}
@@ -207,7 +207,7 @@ export function FilterPanel({ filters, facets, onChange }: FilterPanelProps) {
 
       {/* Sort */}
       <div className={styles.section}>
-        <label className={styles.sectionLabel}>Sort by</label>
+        <label className={styles.sectionLabel}>{t.filters.sortBy}</label>
         <select
           className={styles.select}
           value={filters.sort_by ?? "relevance"}
@@ -229,12 +229,12 @@ export function FilterPanel({ filters, facets, onChange }: FilterPanelProps) {
           aria-expanded={advancedOpen}
           onClick={() => setAdvancedOpen(!advancedOpen)}
         >
-          Advanced
+          {t.filters.advanced}
         </button>
         {advancedOpen && (
           <div className={styles.advancedBody}>
             <label className={styles.fieldLabel}>
-              Extension
+              {t.filters.extension}
               <input
                 type="text"
                 className={styles.textInput}

@@ -158,9 +158,16 @@
   gap: var(--space-2);
 }
 
+.loadMoreWrapper {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6) var(--page-padding-desktop);
+}
+
 @media (max-width: 767px) {
   .header { padding: var(--space-4) var(--page-padding-mobile); }
   .toolbar { padding: var(--space-2) var(--page-padding-mobile); }
   .activeFilters { padding: var(--space-2) var(--page-padding-mobile); }
   .keyboardHelp { padding: var(--space-2) var(--page-padding-mobile); }
+  .loadMoreWrapper { padding: var(--space-4) var(--page-padding-mobile); }
 }

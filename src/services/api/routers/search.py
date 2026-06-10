@@ -251,7 +251,7 @@ def search(
     start = (request.page - 1) * request.page_size
     end = start + request.page_size
     page = merged[start:end]
-    logger.info("The search results are page=%s", page)
+    logger.debug("search page_size=%d correlation_id=%s", len(page), get_correlation_id())
 
     now = datetime.now(UTC).isoformat()
     results: list[SearchResultItem] = []
