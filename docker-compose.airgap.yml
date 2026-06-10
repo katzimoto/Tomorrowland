@@ -45,6 +45,7 @@ services:
   meilisearch:
     pull_policy: never
   qdrant:
+    image: qdrant/qdrant:v1.10.1
     pull_policy: never
   libretranslate:
     pull_policy: never
