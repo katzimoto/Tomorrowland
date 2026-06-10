@@ -50,11 +50,11 @@ export function ImageViewer({ docId, mimeType, alt, zoom, onZoomChange }: ImageV
 
   const imageLoadTimer = useRef<string | null>(null);
   useEffect(() => {
-    if (mimeType !== "image/tiff" && !imageLoadTimer.current) {
-      imageLoadTimer.current = `image-load-${Date.now()}`;
-      startNamedPerformanceTimer(imageLoadTimer.current);
-    }
-  }, [mimeType]);
+    if (mimeType === "image/tiff") return;
+    // Restart the timer for every new image so same-MIME navigation is measured.
+    imageLoadTimer.current = `image-load-${Date.now()}`;
+    startNamedPerformanceTimer(imageLoadTimer.current);
+  }, [docId, mimeType]);
 
   if (mimeType === "image/tiff") {
     return <UnsupportedPreview mimeType={mimeType} downloadUrl={src} />;

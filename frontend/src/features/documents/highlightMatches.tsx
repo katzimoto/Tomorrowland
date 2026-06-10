@@ -56,3 +56,27 @@ export function countMatches(text: string, query: string): number {
   const regex = new RegExp(escapeRegex(query), "gi");
   return (text.match(regex) ?? []).length;
 }
+
+/**
+ * Inject <mark> tags into an already-sanitized HTML string without touching
+ * tag internals. Returns the annotated HTML and the match count.
+ *
+ * Safe to use on DOMPurify- or backend-sanitized HTML where raw `>` cannot
+ * appear inside attribute values.
+ */
+export function highlightInHtml(
+  html: string,
+  query: string,
+): { html: string; count: number } {
+  if (!query.trim()) return { html, count: 0 };
+  const escaped = escapeRegex(query);
+  // First alternative captures full HTML tags so we skip over them entirely;
+  // second alternative captures text matches outside of tags.
+  const re = new RegExp(`(<[^>]*>)|(${escaped})`, "gi");
+  let idx = 0;
+  const result = html.replace(re, (m, tag) => {
+    if (tag !== undefined) return tag;
+    return `<mark data-match-index="${idx++}" class="preview-match">${m}</mark>`;
+  });
+  return { html: result, count: idx };
+}

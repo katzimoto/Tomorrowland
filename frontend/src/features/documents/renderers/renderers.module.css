@@ -336,6 +336,20 @@
   border-radius: 2px;
 }
 
+/* Used by highlightInHtml for dangerouslySetInnerHTML / iframe contexts
+   where CSS-module scoping does not apply. */
+:global(.preview-match) {
+  background: #fef08a;
+  color: inherit;
+  border-radius: 2px;
+}
+
+:global(.preview-match-active) {
+  background: #fb923c;
+  color: #fff;
+  border-radius: 2px;
+}
+
 /* Generic / fallback preview ------------------------------------------ */
 .genericWrapper {
   display: flex;

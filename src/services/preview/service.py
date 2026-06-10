@@ -317,12 +317,14 @@ class PreviewService:
         if not path.exists():
             return ""
 
-        # Archives: list filenames
+        # Archives: list filenames.
+        # application/gzip is intentionally excluded — a plain .gz file is not
+        # a container and _archive_snippet cannot enumerate its contents; it
+        # falls through to the text extractor instead.
         if mime_type in {
             "application/zip",
             "application/x-zip-compressed",
             "application/x-tar",
-            "application/gzip",
         }:
             return self._archive_snippet(path)
 

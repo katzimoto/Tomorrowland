@@ -1,7 +1,12 @@
+import { useEffect, useMemo, useRef } from "react";
+import { highlightInHtml } from "../highlightMatches";
 import styles from "./renderers.module.css";
 
 interface HtmlPreviewProps {
   html: string;
+  searchQuery?: string;
+  activeSearchIndex?: number;
+  onMatchCountChange?: (count: number) => void;
 }
 
 /** Dark-mode override injected into the iframe so HTML previews
@@ -43,6 +48,16 @@ const DARK_OVERRIDE = `
     background: rgba(210, 153, 34, 0.22);
     color: #e6edf3;
   }
+  .preview-match {
+    background: #fef08a;
+    color: #1a1a1a;
+    border-radius: 2px;
+  }
+  .preview-match-active {
+    background: #fb923c;
+    color: #fff;
+    border-radius: 2px;
+  }
 </style>
 `;
 
@@ -56,13 +71,65 @@ function prependDarkOverride(html: string): string {
   return DARK_OVERRIDE + html;
 }
 
-export function HtmlPreview({ html }: HtmlPreviewProps) {
+export function HtmlPreview({
+  html,
+  searchQuery = "",
+  activeSearchIndex = 0,
+  onMatchCountChange,
+}: HtmlPreviewProps) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Inject marks for all matches. Active mark is promoted via DOM manipulation
+  // so activeSearchIndex changes don't reload the iframe.
+  const { markedHtml, matchCount } = useMemo(() => {
+    const base = prependDarkOverride(html ?? "");
+    if (!searchQuery) return { markedHtml: base, matchCount: 0 };
+    const { html: marked, count } = highlightInHtml(base, searchQuery);
+    return { markedHtml: marked, matchCount: count };
+  }, [html, searchQuery]);
+
+  useEffect(() => {
+    onMatchCountChange?.(matchCount);
+  }, [matchCount, onMatchCountChange]);
+
+  function applyActiveMatch(doc: Document) {
+    doc.querySelectorAll<HTMLElement>(".preview-match-active").forEach((el) => {
+      el.classList.remove("preview-match-active");
+    });
+    if (!searchQuery || matchCount === 0) return;
+    const el = doc.querySelector<HTMLElement>(
+      `[data-match-index="${activeSearchIndex}"]`,
+    );
+    if (el) {
+      el.classList.add("preview-match-active");
+      el.scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  // After the iframe loads with new search content, highlight the first match.
+  function handleIframeLoad() {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc) return;
+    applyActiveMatch(doc);
+  }
+
+  // When the user navigates between matches the srcDoc doesn't change, so we
+  // update the active mark directly in the already-loaded iframe document.
+  useEffect(() => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc?.body) return;
+    applyActiveMatch(doc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSearchIndex, searchQuery, matchCount]);
+
   return (
     <iframe
-      srcDoc={prependDarkOverride(html)}
+      ref={iframeRef}
+      srcDoc={markedHtml}
       sandbox="allow-same-origin"
       title="HTML document preview"
       className={styles.htmlFrame}
+      onLoad={handleIframeLoad}
     />
   );
 }

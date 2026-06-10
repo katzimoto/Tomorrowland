@@ -10,7 +10,12 @@ interface SlidesPreviewProps {
   onMatchCountChange?: (count: number) => void;
 }
 
-export function SlidesPreview({ text, searchQuery = "", activeSearchIndex = 0, onMatchCountChange }: SlidesPreviewProps) {
+export function SlidesPreview({
+  text,
+  searchQuery = "",
+  activeSearchIndex = 0,
+  onMatchCountChange,
+}: SlidesPreviewProps) {
   const slides = text.split(/\n---+\n/).filter(Boolean);
   const [index, setIndex] = useState(0);
   const current = slides[index] ?? "";
@@ -19,13 +24,52 @@ export function SlidesPreview({ text, searchQuery = "", activeSearchIndex = 0, o
     () => countMatches(text, searchQuery),
     [text, searchQuery],
   );
+
   useEffect(() => {
     onMatchCountChange?.(matchCount);
   }, [matchCount, onMatchCountChange]);
 
+  // Per-slide match counts so the global activeSearchIndex can be mapped to a
+  // slide-local index, matching the pattern used in TextPreview per-line.
+  const perSlideMatchCounts = useMemo(() => {
+    if (!searchQuery) return slides.map(() => 0);
+    return slides.map((s) => countMatches(s, searchQuery));
+  }, [slides, searchQuery]);
+
+  const cumulativeOffsets = useMemo(() => {
+    const offsets: number[] = [0];
+    for (let i = 0; i < perSlideMatchCounts.length - 1; i++) {
+      offsets.push(offsets[i] + perSlideMatchCounts[i]);
+    }
+    return offsets;
+  }, [perSlideMatchCounts]);
+
+  // Auto-navigate to the slide that owns the active match.
+  useEffect(() => {
+    if (!searchQuery || matchCount === 0) return;
+    for (let i = 0; i < perSlideMatchCounts.length; i++) {
+      if (
+        activeSearchIndex >= cumulativeOffsets[i] &&
+        activeSearchIndex < cumulativeOffsets[i] + perSlideMatchCounts[i]
+      ) {
+        setIndex(i);
+        return;
+      }
+    }
+  }, [activeSearchIndex, searchQuery, matchCount, cumulativeOffsets, perSlideMatchCounts]);
+
+  const localActiveIndex = activeSearchIndex - (cumulativeOffsets[index] ?? 0);
+
   const { nodes: contentNodes } = useMemo(
-    () => highlightMatches(current, searchQuery, activeSearchIndex, styles.match, styles.activeMatch),
-    [current, searchQuery, activeSearchIndex],
+    () =>
+      highlightMatches(
+        current,
+        searchQuery,
+        localActiveIndex,
+        styles.match,
+        styles.activeMatch,
+      ),
+    [current, searchQuery, localActiveIndex],
   );
 
   if (!slides.length) {

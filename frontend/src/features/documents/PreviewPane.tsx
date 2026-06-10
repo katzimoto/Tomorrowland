@@ -94,6 +94,7 @@ export function PreviewPane({
   const dl = downloadUrl(preview.document_id);
 
   // In extracted/translation mode, all non-image types render as text.
+  // "original" mode is handled per-renderer below (e.g. HTML → raw text, PDF → PDF viewer).
   if (
     !mime.startsWith("image/") &&
     (activeMode === "extracted" ||
@@ -114,9 +115,28 @@ export function PreviewPane({
   }
 
   if (mime === "text/html") {
+    // "original" mode shows the extracted source text rather than the rendered HTML.
+    if (activeMode === "original") {
+      return (
+        <div className={styles.pane}>
+          <TextPreview
+            docId={preview.document_id}
+            showOriginal
+            searchQuery={searchQuery}
+            activeSearchIndex={activeSearchIndex}
+            onMatchCountChange={onMatchCountChange}
+          />
+        </div>
+      );
+    }
     return (
       <div className={styles.pane}>
-        <HtmlPreview html={text} />
+        <HtmlPreview
+          html={text ?? ""}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
       </div>
     );
   }
@@ -134,17 +154,34 @@ export function PreviewPane({
           docId={preview.document_id}
           fallbackText={text ?? ""}
           showOriginal={activeMode !== "translation"}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
         />
       </div>
     );
   }
 
-  if (mime === "text/plain" || mime === "text/csv") {
+  if (mime === "text/plain") {
     return (
       <div className={styles.pane}>
         <TextPreview
           docId={preview.document_id}
           showOriginal={activeMode !== "translation"}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
+        />
+      </div>
+    );
+  }
+
+  if (mime === "text/csv") {
+    return (
+      <div className={styles.pane}>
+        <TablePreview
+          docId={preview.document_id}
+          delimiter=","
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
@@ -178,7 +215,8 @@ export function PreviewPane({
     return (
       <div className={styles.pane}>
         <TablePreview
-          text={text}
+          docId={preview.document_id}
+          delimiter="\t"
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
@@ -209,7 +247,8 @@ export function PreviewPane({
     return (
       <div className={styles.pane}>
         <EmailPreview
-          text={text}
+          docId={preview.document_id}
+          text={text ?? ""}
           metadata={preview.metadata}
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
@@ -312,6 +351,9 @@ export function PreviewPane({
           docId={preview.document_id}
           fallbackText={text ?? ""}
           showOriginal={activeMode !== "translation"}
+          searchQuery={searchQuery}
+          activeSearchIndex={activeSearchIndex}
+          onMatchCountChange={onMatchCountChange}
         />
       </div>
     );
