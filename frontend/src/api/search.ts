@@ -49,14 +49,16 @@ export function search(
   query: string,
   mode: SearchMode = "hybrid",
   filters: SearchFilters = {},
-  top_k = 20,
+  page = 1,
 ): Promise<SearchResponse> {
   const { include_older_versions, sort_by, sort_dir, ...backendFilters } = filters;
   return api.post<SearchResponse>("/search", {
     query,
     mode,
     filters: backendFilters,
-    top_k,
+    top_k: 100,
+    page,
+    page_size: 20,
     include_older_versions: include_older_versions ?? false,
     sort_by: sort_by ?? "relevance",
     sort_dir: sort_dir ?? "desc",

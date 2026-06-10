@@ -65,6 +65,13 @@ export interface Translations {
     quickPreviewTitle: string;
     openSelected: string;
     closePreview: string;
+    loadMore: string;
+    loadingMore: string;
+    previewLabel: string;
+    preview: (title: string) => string;
+    whyThisResult: string;
+    today: string;
+    daysAgo: (n: number) => string;
   };
   filters: {
     panel: string;
@@ -81,6 +88,14 @@ export interface Translations {
     transFast: string;
     transHigh: string;
     includeOlderVersions: string;
+    sortBy: string;
+    sortRelevance: string;
+    sortUpdated: string;
+    sortCreated: string;
+    advanced: string;
+    extension: string;
+    tags: string;
+    source: string;
   };
   document: {
     notFoundTitle: string;
@@ -157,6 +172,8 @@ export interface Translations {
     commentDeleteError: string;
     subscriptionsTitle: string;
     subscriptionsBody: string;
+    whyRelated: string;
+    relationScore: (score: string) => string;
   };
   qa: {
     title: string;
@@ -203,6 +220,10 @@ export interface Translations {
     evidenceForbidden: string;
     evidenceNoPreview: string;
     evidenceOpenFullPage: string;
+    phaseSearching: string;
+    phaseReadingSources: string;
+    phaseGenerating: string;
+    translatedFrom: (lang: string) => string;
   };
   notifications: {
     title: string;
@@ -445,6 +466,13 @@ export const en: Translations = {
     quickPreviewTitle: "Quick preview",
     openSelected: "Open document",
     closePreview: "Close preview",
+    loadMore: "Load more results",
+    loadingMore: "Loading more…",
+    previewLabel: "Preview",
+    preview: (title) => `Quick preview: ${title}`,
+    whyThisResult: "Why this result?",
+    today: "Today",
+    daysAgo: (n) => `${n}d ago`,
   },
   filters: {
     panel: "Search filters",
@@ -461,6 +489,14 @@ export const en: Translations = {
     transFast: "Fast translation",
     transHigh: "High quality",
     includeOlderVersions: "Include older versions",
+    sortBy: "Sort by",
+    sortRelevance: "Relevance",
+    sortUpdated: "Updated",
+    sortCreated: "Created",
+    advanced: "Advanced",
+    extension: "Extension",
+    tags: "Tags",
+    source: "Source",
   },
   document: {
     notFoundTitle: "Document not found",
@@ -539,6 +575,8 @@ export const en: Translations = {
     subscriptionsTitle: "Subscriptions",
     subscriptionsBody:
       "Subscribe to alerts for this document. Coming in Phase 08e.",
+    whyRelated: "Why related?",
+    relationScore: (score) => `Relation score: ${score}`,
   },
   qa: {
     title: "Q&A",
@@ -588,6 +626,10 @@ export const en: Translations = {
     evidenceForbidden: "Access denied.",
     evidenceNoPreview: "No preview available.",
     evidenceOpenFullPage: "Open in full page",
+    phaseSearching: "Searching documents",
+    phaseReadingSources: "Reading sources",
+    phaseGenerating: "Generating answer",
+    translatedFrom: (lang) => `Translated from ${lang}`,
   },
   notifications: {
     title: "Notifications",

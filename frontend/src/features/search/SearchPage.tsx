@@ -7,7 +7,7 @@ import {
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   keepPreviousData,
-  useQuery,
+  useInfiniteQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { Search as SearchIcon, X } from "lucide-react";
@@ -158,12 +158,25 @@ export function SearchPage() {
     return () => clearTimeout(id);
   }, [inputValue, mode, filters, navigate]);
 
-  const { data, isLoading, isFetching, isError } = useQuery({
+  const {
+    data: infiniteData,
+    isLoading,
+    isFetching,
+    isError,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ["search", submittedQuery, mode, filters],
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       measurePerformance("search.request", () =>
-        search(submittedQuery, mode, filters, 20)
+        search(submittedQuery, mode, filters, pageParam as number)
       ),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + p.results.length, 0);
+      return loaded < lastPage.total ? allPages.length + 1 : undefined;
+    },
     enabled: submittedQuery.trim().length > 0,
     placeholderData: keepPreviousData,
     staleTime: 45_000,
@@ -176,6 +189,10 @@ export function SearchPage() {
       staleTime: 2 * 60_000,
     });
   }
+
+  const results = infiniteData?.pages.flatMap((p) => p.results) ?? [];
+  const facets = infiniteData?.pages[0]?.facets ?? {};
+  const totalCount = infiniteData?.pages[0]?.total ?? 0;
 
   useEffect(() => {
     if (isError) {
@@ -192,17 +209,16 @@ export function SearchPage() {
   }, [isError, showToast, t]);
 
   useEffect(() => {
-    if (!data || !finishFirstResultTimer.current) return;
-    if (data.results.length > 0) {
+    if (!infiniteData || !finishFirstResultTimer.current) return;
+    if (results.length > 0) {
       recordPerformanceEvent(
         "search.firstResult",
         finishFirstResultTimer.current()
       );
       finishFirstResultTimer.current = null;
     }
-  }, [data]);
+  }, [infiniteData, results.length]);
 
-  const results = data?.results ?? [];
   const activeSelectedIndex = Math.min(
     selectedIndex,
     Math.max(results.length - 1, 0)
@@ -349,9 +365,9 @@ export function SearchPage() {
             {t.search.updating}
           </span>
         ) : (
-          data && (
+          totalCount > 0 && (
             <span className={styles.resultCount}>
-              {t.search.resultCount(data.total)}
+              {t.search.resultCount(totalCount)}
             </span>
           )
         )}
@@ -380,7 +396,7 @@ export function SearchPage() {
       <div className={styles.body}>
         <FilterPanel
           filters={filters}
-          facets={data?.facets ?? {}}
+          facets={facets}
           onChange={(nextFilters) => {
             resetSearchWorkflow();
             setFilters(nextFilters);
@@ -420,7 +436,7 @@ export function SearchPage() {
             {!isLoading &&
               !isError &&
               showResults &&
-              data?.results.length === 0 && (
+              results.length === 0 && (
                 <EmptyState
                   title={t.search.noResultsTitle}
                   body={t.search.noResultsBody}
@@ -449,6 +465,18 @@ export function SearchPage() {
                   onPrefetch={() => prefetchPreview(result.document_id)}
                 />
               ))}
+            {!isLoading && !isError && hasNextPage && (
+              <div className={styles.loadMoreWrapper}>
+                <Button
+                  variant="secondary"
+                  onClick={() => void fetchNextPage()}
+                  loading={isFetchingNextPage}
+                  disabled={isFetchingNextPage}
+                >
+                  {isFetchingNextPage ? t.search.loadingMore : t.search.loadMore}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

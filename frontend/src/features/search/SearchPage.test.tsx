@@ -118,7 +118,7 @@ describe("SearchPage", () => {
         "vendor risk",
         "hybrid",
         {},
-        20
+        1
       );
     });
     expect(navigateMock).toHaveBeenCalledWith({
@@ -142,7 +142,7 @@ describe("SearchPage", () => {
         "vendor risk",
         "hybrid",
         {},
-        20
+        1
       );
     });
   });
@@ -337,7 +337,7 @@ describe("SearchPage", () => {
         "vendor risk",
         "hybrid",
         expect.objectContaining({ include_older_versions: true }),
-        20
+        1
       );
     });
   });
