@@ -58,7 +58,7 @@ jobs:
         run: python scripts/check-qdrant-compat.py
 
   quality:
-    name: Ruff & mypy
+    name: Ruff, mypy & unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,11 +81,21 @@ jobs:
       - name: Ruff format check
         run: ruff format --check src/ tests/ migrations/
 
+      - name: Mypy cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.mypy_cache
+          key: mypy-${{ runner.os }}-${{ hashFiles('src/**/*.py', 'pyproject.toml') }}
+          restore-keys: mypy-${{ runner.os }}-
+
       - name: Mypy strict type check
-        run: mypy src --strict
+        run: mypy src --strict --cache-dir /tmp/.mypy_cache
 
       - name: Check boolean-integer SQL comparisons
         run: python scripts/check-boolean-int-sql.py
+
+      - name: Unit tests (fast, no services needed)
+        run: pytest tests/unit/ tests/ -n auto -q --ignore=tests/integration
 
   migrations:
     name: Alembic migrations
@@ -125,30 +135,9 @@ jobs:
         run: alembic upgrade head
 
   tests:
-    name: Pytest
+    name: Integration tests (PostgreSQL)
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
-      - name: Install backend dev dependencies
-        run: uv pip install --system -e ".[dev]"
-
-      - name: Test with coverage
-        run: pytest --cov-report=xml
-
-  tests-postgres:
-    name: Pytest (PostgreSQL)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -183,7 +172,7 @@ jobs:
       - name: Run migrations against PostgreSQL
         run: alembic upgrade head
 
-      - name: Test against PostgreSQL
+      - name: Integration tests (needs PostgreSQL)
         env:
           PGTEST: "1"
-        run: pytest -q --cov-report=xml
+        run: pytest tests/integration/ -n auto -q --cov-report=xml
