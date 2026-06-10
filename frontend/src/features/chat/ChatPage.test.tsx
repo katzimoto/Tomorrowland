@@ -238,6 +238,10 @@ describe("ChatPage", () => {
     const deleteBtns = screen.getAllByRole("button", { name: "Delete chat" });
     fireEvent.click(deleteBtns[0]);
 
+    // Confirm dialog appears — click the "Delete" confirm button
+    const confirmBtn = await screen.findByRole("button", { name: "Delete" });
+    fireEvent.click(confirmBtn);
+
     await waitFor(() => {
       expect(chatApi.deleteChatSession).toHaveBeenCalledWith("session-1");
     });
