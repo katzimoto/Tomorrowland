@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { countMatches, highlightMatches } from "../highlightMatches";
 import styles from "./renderers.module.css";
@@ -52,7 +52,7 @@ export function SlidesPreview({
         activeSearchIndex >= cumulativeOffsets[i] &&
         activeSearchIndex < cumulativeOffsets[i] + perSlideMatchCounts[i]
       ) {
-        setIndex(i);
+        startTransition(() => { setIndex(i); });
         return;
       }
     }

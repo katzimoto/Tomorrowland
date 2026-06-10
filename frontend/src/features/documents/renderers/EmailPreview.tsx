@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getDocumentText } from "@/api/documents";
 import { highlightMatches } from "../highlightMatches";
@@ -40,9 +40,11 @@ export function EmailPreview({
 
   useEffect(() => {
     loadGenRef.current += 1;
-    setExtraChunks([]);
-    setExtraTruncated(null);
-    setNextOffset(CHUNK_SIZE);
+    startTransition(() => {
+      setExtraChunks([]);
+      setExtraTruncated(null);
+      setNextOffset(CHUNK_SIZE);
+    });
   }, [docId]);
 
   const bodyText = docId
