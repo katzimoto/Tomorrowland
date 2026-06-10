@@ -4,6 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { createSubscription, deleteSubscription, listSubscriptions, updateSubscription, type Subscription, type SubscriptionWrite } from "@/api/subscriptions";
 import { Badge } from "@/components/primitives/Badge";
 import { Button } from "@/components/primitives/Button";
+import { ConfirmDialog } from "@/components/primitives/ConfirmDialog";
 import { Dialog } from "@/components/primitives/Dialog";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { useToast } from "@/components/primitives/ToastContext";
@@ -19,6 +20,7 @@ export function SubscriptionsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Subscription | null>(null);
   const [defaults, setDefaults] = useState<SubscriptionWrite>(DEFAULT_FORM);
+  const [deleteTarget, setDeleteTarget] = useState<Subscription | null>(null);
   const { show: showToast } = useToast();
   const queryClient = useQueryClient();
   const { data = [], isLoading, isError } = useQuery({ queryKey: ["subscriptions"], queryFn: listSubscriptions, staleTime: 2 * 60_000 });
@@ -74,9 +76,18 @@ export function SubscriptionsPage() {
           {isLoading && <p className={styles.muted}>{t.subscriptions.loading}</p>}
           {isError && <EmptyState title={t.subscriptions.failedTitle} body={t.subscriptions.failedBody} />}
           {!isLoading && !isError && data.length === 0 && <EmptyState title={t.subscriptions.emptyTitle} body={t.subscriptions.emptyBody} action={<Button onClick={() => openCreate()}>{t.subscriptions.createBtn}</Button>} />}
-          {data.length > 0 && <ul className={styles.list}>{data.map((sub) => <li key={sub.id} className={styles.row}><div className={styles.rowMain}><button className={styles.rowName} onClick={() => openEdit(sub)}>{sub.name}</button><span className={styles.rowQuery}>{sub.query}</span></div><div className={styles.rowMeta}>{sub.unread_count > 0 && <Badge variant="warning">{t.subscriptions.newCount(sub.unread_count)}</Badge>}<Badge variant={sub.enabled ? "success" : "neutral"}>{sub.enabled ? t.subscriptions.statusActive : t.subscriptions.statusPaused}</Badge><button className={styles.toggleBtn} onClick={() => toggle.mutate(sub)}>{sub.enabled ? t.subscriptions.pause : t.subscriptions.resume}</button><button className={styles.deleteBtn} onClick={() => remove.mutate(sub.id)} aria-label={t.subscriptions.deleteLabel(sub.name)}><Trash2 size={14} /></button></div></li>)}</ul>}
+          {data.length > 0 && <ul className={styles.list}>{data.map((sub) => <li key={sub.id} className={styles.row}><div className={styles.rowMain}><button className={styles.rowName} onClick={() => openEdit(sub)}>{sub.name}</button><span className={styles.rowQuery}>{sub.query}</span></div><div className={styles.rowMeta}>{sub.unread_count > 0 && <Badge variant="warning">{t.subscriptions.newCount(sub.unread_count)}</Badge>}<Badge variant={sub.enabled ? "success" : "neutral"}>{sub.enabled ? t.subscriptions.statusActive : t.subscriptions.statusPaused}</Badge><button className={styles.toggleBtn} onClick={() => toggle.mutate(sub)}>{sub.enabled ? t.subscriptions.pause : t.subscriptions.resume}</button><button className={styles.deleteBtn} onClick={() => setDeleteTarget(sub)} aria-label={t.subscriptions.deleteLabel(sub.name)}><Trash2 size={14} /></button></div></li>)}</ul>}
         </section>
       </div>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title={deleteTarget ? t.subscriptions.deleteLabel(deleteTarget.name) : ""}
+        body="This subscription and its alerts will be permanently removed."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => { remove.mutate(deleteTarget!.id); setDeleteTarget(null); }}
+        onClose={() => setDeleteTarget(null)}
+      />
       <Dialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditing(null); }} title={editing ? t.subscriptions.editTitle : t.subscriptions.newTitle}>
         <SubscriptionForm key={`${editing?.id ?? "new"}-${defaults.query}`} defaultValues={defaults} onSubmit={(values) => save.mutate(values)} onCancel={() => setDialogOpen(false)} loading={save.isPending} />
       </Dialog>

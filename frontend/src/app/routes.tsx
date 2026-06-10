@@ -1,154 +1,69 @@
 /* eslint-disable react-refresh/only-export-components */
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ComponentType } from "react";
 import {
   createRouter,
   createRoute,
   createRootRoute,
   redirect,
 } from "@tanstack/react-router";
+import { ErrorBoundary } from "react-error-boundary";
 import { authStorage } from "@/api/auth";
+import { RouteErrorFallback } from "@/components/primitives/RouteErrorFallback";
 import { AppLayout } from "./AppLayout";
 
+// Wraps a named export from a lazy-loaded module into a React.lazy() component.
+function lazyRoute<M extends Record<string, ComponentType>>(
+  importFn: () => Promise<M>,
+  pick: keyof M,
+) {
+  return lazy(() => importFn().then((m) => ({ default: m[pick] as ComponentType })));
+}
+
 // --- Route-level code splitting ---
-// Auth pages sit outside AppLayout so they carry their own Suspense wrapper.
-// App pages render inside AppLayout whose <Outlet> is already wrapped in Suspense.
+// Auth pages sit outside AppLayout so they carry their own Suspense + ErrorBoundary.
+// App pages render inside AppLayout whose <Outlet> is already wrapped in both.
 
-const LazyLoginPage = lazy(() =>
-  import("@/features/auth/LoginPage").then((m) => ({ default: m.LoginPage })),
-);
-const LazySignUpPage = lazy(() =>
-  import("@/features/auth/SignUpPage").then((m) => ({ default: m.SignUpPage })),
-);
-const LazySearchPage = lazy(() =>
-  import("@/features/search/SearchPage").then((m) => ({
-    default: m.SearchPage,
-  })),
-);
-const LazyDocumentPage = lazy(() =>
-  import("@/features/documents/DocumentPage").then((m) => ({
-    default: m.DocumentPage,
-  })),
-);
-const LazyChatPage = lazy(() =>
-  import("@/features/chat/ChatPage").then((m) => ({ default: m.ChatPage })),
-);
-const LazySubscriptionsPage = lazy(() =>
-  import("@/features/subscriptions/SubscriptionsPage").then((m) => ({
-    default: m.SubscriptionsPage,
-  })),
-);
-const LazyNotificationsPage = lazy(() =>
-  import("@/features/notifications/NotificationsPage").then((m) => ({
-    default: m.NotificationsPage,
-  })),
-);
-const LazyHistoryPage = lazy(() =>
-  import("@/features/history/HistoryPage").then((m) => ({
-    default: m.HistoryPage,
-  })),
-);
-const LazyExpertisePage = lazy(() =>
-  import("@/features/expertise/ExpertisePage").then((m) => ({
-    default: m.ExpertisePage,
-  })),
-);
-const LazyAdminHubPage = lazy(() =>
-  import("@/features/admin/AdminHubPage").then((m) => ({
-    default: m.AdminHubPage,
-  })),
-);
-const LazyAdminIngestionPage = lazy(() =>
-  import("@/features/admin/AdminIngestionPage").then((m) => ({
-    default: m.AdminIngestionPage,
-  })),
-);
-const LazyAdminSourcesPage = lazy(() =>
-  import("@/features/admin/AdminSourcesPage").then((m) => ({
-    default: m.AdminSourcesPage,
-  })),
-);
-const LazyAdminSourceDetailPage = lazy(() =>
-  import("@/features/admin/AdminSourceDetailPage").then((m) => ({
-    default: m.AdminSourceDetailPage,
-  })),
-);
-const LazyAdminAddSourceWizard = lazy(() =>
-  import("@/features/admin/AdminAddSourceWizard").then((m) => ({
-    default: m.AdminAddSourceWizard,
-  })),
-);
-const LazyAdminEditSourcePage = lazy(() =>
-  import("@/features/admin/AdminEditSourcePage").then((m) => ({
-    default: m.AdminEditSourcePage,
-  })),
-);
-const LazyAdminGroupsPage = lazy(() =>
-  import("@/features/admin/AdminGroupsPage").then((m) => ({
-    default: m.AdminGroupsPage,
-  })),
-);
-const LazyAdminGroupDetailPage = lazy(() =>
-  import("@/features/admin/AdminGroupDetailPage").then((m) => ({
-    default: m.AdminGroupDetailPage,
-  })),
-);
-const LazyAdminUsersPage = lazy(() =>
-  import("@/features/admin/AdminUsersPage").then((m) => ({
-    default: m.AdminUsersPage,
-  })),
-);
-const LazyAdminUserDetailPage = lazy(() =>
-  import("@/features/admin/AdminUserDetailPage").then((m) => ({
-    default: m.AdminUserDetailPage,
-  })),
-);
-const LazyAdminModelProvidersPage = lazy(() =>
-  import("@/features/admin/AdminModelProvidersPage").then((m) => ({
-    default: m.AdminModelProvidersPage,
-  })),
-);
-const LazyAdminLdapPage = lazy(() =>
-  import("@/features/admin/AdminLdapPage").then((m) => ({
-    default: m.AdminLdapPage,
-  })),
-);
+const LazyLoginPage = lazyRoute(() => import("@/features/auth/LoginPage"), "LoginPage");
+const LazySignUpPage = lazyRoute(() => import("@/features/auth/SignUpPage"), "SignUpPage");
+const SearchPage = lazyRoute(() => import("@/features/search/SearchPage"), "SearchPage");
+const DocumentPage = lazyRoute(() => import("@/features/documents/DocumentPage"), "DocumentPage");
+const ChatPage = lazyRoute(() => import("@/features/chat/ChatPage"), "ChatPage");
+const SubscriptionsPage = lazyRoute(() => import("@/features/subscriptions/SubscriptionsPage"), "SubscriptionsPage");
+const NotificationsPage = lazyRoute(() => import("@/features/notifications/NotificationsPage"), "NotificationsPage");
+const HistoryPage = lazyRoute(() => import("@/features/history/HistoryPage"), "HistoryPage");
+const ExpertisePage = lazyRoute(() => import("@/features/expertise/ExpertisePage"), "ExpertisePage");
+const AdminHubPage = lazyRoute(() => import("@/features/admin/AdminHubPage"), "AdminHubPage");
+const AdminIngestionPage = lazyRoute(() => import("@/features/admin/AdminIngestionPage"), "AdminIngestionPage");
+const AdminSourcesPage = lazyRoute(() => import("@/features/admin/AdminSourcesPage"), "AdminSourcesPage");
+const AdminSourceDetailPage = lazyRoute(() => import("@/features/admin/AdminSourceDetailPage"), "AdminSourceDetailPage");
+const AdminAddSourceWizard = lazyRoute(() => import("@/features/admin/AdminAddSourceWizard"), "AdminAddSourceWizard");
+const AdminEditSourcePage = lazyRoute(() => import("@/features/admin/AdminEditSourcePage"), "AdminEditSourcePage");
+const AdminGroupsPage = lazyRoute(() => import("@/features/admin/AdminGroupsPage"), "AdminGroupsPage");
+const AdminGroupDetailPage = lazyRoute(() => import("@/features/admin/AdminGroupDetailPage"), "AdminGroupDetailPage");
+const AdminUsersPage = lazyRoute(() => import("@/features/admin/AdminUsersPage"), "AdminUsersPage");
+const AdminUserDetailPage = lazyRoute(() => import("@/features/admin/AdminUserDetailPage"), "AdminUserDetailPage");
+const AdminModelProvidersPage = lazyRoute(() => import("@/features/admin/AdminModelProvidersPage"), "AdminModelProvidersPage");
+const AdminLdapPage = lazyRoute(() => import("@/features/admin/AdminLdapPage"), "AdminLdapPage");
 
-// Auth pages need their own Suspense boundary (no AppLayout shell above them).
+// Auth pages need their own Suspense + ErrorBoundary (no AppLayout shell above them).
 function LoginPage() {
   return (
-    <Suspense fallback={null}>
-      <LazyLoginPage />
-    </Suspense>
+    <ErrorBoundary FallbackComponent={RouteErrorFallback}>
+      <Suspense fallback={null}>
+        <LazyLoginPage />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 function SignUpPage() {
   return (
-    <Suspense fallback={null}>
-      <LazySignUpPage />
-    </Suspense>
+    <ErrorBoundary FallbackComponent={RouteErrorFallback}>
+      <Suspense fallback={null}>
+        <LazySignUpPage />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
-
-// App pages delegate to AppLayout's Suspense-wrapped Outlet.
-const SearchPage = LazySearchPage;
-const DocumentPage = LazyDocumentPage;
-const ChatPage = LazyChatPage;
-const SubscriptionsPage = LazySubscriptionsPage;
-const NotificationsPage = LazyNotificationsPage;
-const HistoryPage = LazyHistoryPage;
-const ExpertisePage = LazyExpertisePage;
-const AdminHubPage = LazyAdminHubPage;
-const AdminIngestionPage = LazyAdminIngestionPage;
-const AdminSourcesPage = LazyAdminSourcesPage;
-const AdminSourceDetailPage = LazyAdminSourceDetailPage;
-const AdminAddSourceWizard = LazyAdminAddSourceWizard;
-const AdminEditSourcePage = LazyAdminEditSourcePage;
-const AdminGroupsPage = LazyAdminGroupsPage;
-const AdminGroupDetailPage = LazyAdminGroupDetailPage;
-const AdminUsersPage = LazyAdminUsersPage;
-const AdminUserDetailPage = LazyAdminUserDetailPage;
-const AdminModelProvidersPage = LazyAdminModelProvidersPage;
-const AdminLdapPage = LazyAdminLdapPage;
 
 function requireAuth() {
   if (!authStorage.hasToken()) {

@@ -30,6 +30,7 @@ interface DocumentToolbarProps {
   searchable?: boolean;
   searchOpen?: boolean;
   onSearchToggle?: () => void;
+  searchBtnRef?: React.RefObject<HTMLButtonElement | null>;
 }
 
 export function DocumentToolbar({
@@ -47,6 +48,7 @@ export function DocumentToolbar({
   searchable = false,
   searchOpen = false,
   onSearchToggle,
+  searchBtnRef,
 }: DocumentToolbarProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -144,6 +146,7 @@ export function DocumentToolbar({
           )}
           {searchable && onSearchToggle && (
             <button
+              ref={searchBtnRef}
               className={`${styles.searchBtn} ${searchOpen ? styles.searchBtnActive : ""}`}
               aria-label="Search within document"
               aria-pressed={searchOpen}

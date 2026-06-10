@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import {
@@ -6,6 +7,7 @@ import {
   deleteChatSession,
   type ChatSession,
 } from "@/api/chat";
+import { ConfirmDialog } from "@/components/primitives/ConfirmDialog";
 import { useToast } from "@/components/primitives/ToastContext";
 import { useT } from "@/i18n/index";
 import { Button } from "@/components/primitives/Button";
@@ -28,6 +30,7 @@ export function ChatSidebar({
   const t = useT();
   const qc = useQueryClient();
   const { show: showToast } = useToast();
+  const [deleteTarget, setDeleteTarget] = useState<ChatSession | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["chat-sessions"],
@@ -96,13 +99,13 @@ export function ChatSidebar({
               className={styles.itemBtn}
               onClick={() => onSelect(s)}
               aria-current={s.id === selectedId ? "true" : undefined}
+              title={s.title}
             >
               <span className={styles.itemTitle}>{s.title}</span>
             </button>
             <button
               className={styles.deleteBtn}
-              onClick={() => deleteMutation.mutate(s.id)}
-              disabled={deleteMutation.isPending}
+              onClick={() => setDeleteTarget(s)}
               aria-label={t.chat.deleteSession}
               title={t.chat.deleteSession}
             >
@@ -111,6 +114,16 @@ export function ChatSidebar({
           </div>
         ))}
       </div>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title={t.chat.deleteSession}
+        body="This chat and its history will be permanently deleted."
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleteMutation.isPending}
+        onConfirm={() => { deleteMutation.mutate(deleteTarget!.id); setDeleteTarget(null); }}
+        onClose={() => setDeleteTarget(null)}
+      />
     </aside>
   );
 }

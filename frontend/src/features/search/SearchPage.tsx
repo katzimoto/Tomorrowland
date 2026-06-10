@@ -105,6 +105,7 @@ export function SearchPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const finishFirstResultTimer = useRef<(() => number) | null>(null);
   const resultsListRef = useRef<HTMLDivElement>(null);
+  const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -236,7 +237,9 @@ export function SearchPage() {
 
   function closePreview() {
     setPreviewResult(null);
-    window.setTimeout(() => resultsListRef.current?.focus(), 0);
+    const target = previewTriggerRef.current ?? resultsListRef.current;
+    previewTriggerRef.current = null;
+    window.setTimeout(() => target?.focus(), 0);
   }
 
   function handleResultsKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
@@ -441,7 +444,7 @@ export function SearchPage() {
                   result={result}
                   selected={index === activeSelectedIndex}
                   onSelect={() => setSelectedIndex(index)}
-                  onPreview={() => setPreviewResult(result)}
+                  onPreview={(triggerEl) => { previewTriggerRef.current = triggerEl; setPreviewResult(result); }}
                   onClick={() => openResult(result)}
                   onPrefetch={() => prefetchPreview(result.document_id)}
                 />

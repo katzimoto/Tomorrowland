@@ -7,6 +7,7 @@ import {
   type TagVisibility,
   type UserDocumentTag,
 } from "@/api/documents";
+import { useToast } from "@/components/primitives/ToastContext";
 import styles from "./UserTagEditor.module.css";
 
 interface UserTagEditorProps {
@@ -15,6 +16,7 @@ interface UserTagEditorProps {
 
 export function UserTagEditor({ docId }: UserTagEditorProps) {
   const queryClient = useQueryClient();
+  const { show: showToast } = useToast();
   const [input, setInput] = useState("");
   const [visibility, setVisibility] = useState<TagVisibility>("private");
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +44,9 @@ export function UserTagEditor({ docId }: UserTagEditorProps) {
     mutationFn: (tagId: string) => deleteUserTag(docId, tagId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["user-tags", docId] });
+    },
+    onError: () => {
+      showToast("error", "Failed to remove tag");
     },
   });
 

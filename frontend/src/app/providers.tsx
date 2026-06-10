@@ -1,8 +1,10 @@
-import { useEffect } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { ToastProvider } from "@/components/primitives/Toast";
+import { useToast } from "@/components/primitives/ToastContext";
 import { LanguageProvider } from "@/i18n/LanguageProvider";
+import { ApiError } from "@/api/client";
 import {
   installPerformanceTelemetryDiagnostics,
   recordPerformanceEvent,
@@ -10,7 +12,18 @@ import {
 } from "@/lib/performanceTelemetry";
 import { router } from "./routes";
 
+// Module-level so the MutationCache closure doesn't close over any React ref.
+// InnerApp registers the live show callback via useEffect.
+let _showError: ((type: "error", message: string) => void) | null = null;
+
 const queryClient = new QueryClient({
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      if (error instanceof ApiError && error.status >= 500) {
+        _showError?.("error", "Server error — please try again");
+      }
+    },
+  }),
   defaultOptions: {
     queries: {
       retry: 1,
@@ -21,9 +34,22 @@ const queryClient = new QueryClient({
   },
 });
 
-export function Providers() {
+// Lives inside ToastProvider so it can reach useToast.
+function InnerApp() {
+  const { show } = useToast();
+
   useEffect(() => {
+    _showError = show;
+    return () => { _showError = null; };
+  }, [show]);
+
+  const [perfReady] = useState(() => {
     installPerformanceTelemetryDiagnostics();
+    return true;
+  });
+  void perfReady;
+
+  useEffect(() => {
     let finishRouteTimer: (() => number) | null = null;
     const unsubscribeStart = router.subscribe("onBeforeNavigate", (event) => {
       if (event.hrefChanged || event.pathChanged)
@@ -41,12 +67,18 @@ export function Providers() {
   }, []);
 
   return (
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  );
+}
+
+export function Providers() {
+  return (
     <LanguageProvider>
-      <QueryClientProvider client={queryClient}>
-        <ToastProvider>
-          <RouterProvider router={router} />
-        </ToastProvider>
-      </QueryClientProvider>
+      <ToastProvider>
+        <InnerApp />
+      </ToastProvider>
     </LanguageProvider>
   );
 }

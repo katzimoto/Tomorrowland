@@ -33,6 +33,7 @@ export function DocumentPage() {
   const qc = useQueryClient();
   const hadInProgressRef = useRef(false);
   const viewerRef = useRef<HTMLDivElement>(null);
+  const searchBtnRef = useRef<HTMLButtonElement | null>(null);
   const docSearch = useSearch({ from: "/app/doc/$docId" }) as { page?: number; chunk?: number };
 
   const showOriginal = activeMode === "original" || activeMode === "extracted";
@@ -61,11 +62,7 @@ export function DocumentPage() {
     setSearchOpen(false);
     setRawQuery("");
     setDebouncedQuery("");
-    setTimeout(() => {
-      document
-        .querySelector<HTMLButtonElement>('[aria-label="Search within document"]')
-        ?.focus();
-    }, 0);
+    setTimeout(() => searchBtnRef.current?.focus(), 0);
   }, []);
 
   // Focus viewer area when view mode changes
@@ -219,6 +216,7 @@ export function DocumentPage() {
         searchable={searchable}
         searchOpen={searchOpen}
         onSearchToggle={() => setSearchOpen((o) => !o)}
+        searchBtnRef={searchBtnRef}
       />
       {preview.has_newer_version && preview.latest_document_id && (
         <VersionBanner latestDocumentId={preview.latest_document_id} />

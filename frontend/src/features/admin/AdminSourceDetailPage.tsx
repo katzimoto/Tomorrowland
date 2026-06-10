@@ -5,6 +5,7 @@ import { ArrowLeft, Plus, X, Pencil, ChevronDown, ChevronRight, Trash2 } from "l
 import { adminApi } from "@/api/admin";
 import { Button } from "@/components/primitives/Button";
 import { Badge } from "@/components/primitives/Badge";
+import { ConfirmDialog } from "@/components/primitives/ConfirmDialog";
 import { Dialog } from "@/components/primitives/Dialog";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { EmptyState } from "@/components/primitives/EmptyState";
@@ -449,6 +450,7 @@ export function AdminSourceDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editLang, setEditLang] = useState("");
+  const [confirmDeleteSource, setConfirmDeleteSource] = useState(false);
 
   const { data: source, isLoading, isError } = useQuery({
     queryKey: ["admin-source", sourceId],
@@ -530,6 +532,16 @@ export function AdminSourceDetailPage() {
 
   return (
     <div className={styles.page}>
+      <ConfirmDialog
+        open={confirmDeleteSource}
+        title="Delete source?"
+        body={`"${source.name}" and all its indexed documents will be permanently deleted. This cannot be undone.`}
+        confirmLabel="Delete source"
+        variant="danger"
+        loading={deleteSourceMutation.isPending}
+        onConfirm={() => { deleteSourceMutation.mutate(); setConfirmDeleteSource(false); }}
+        onClose={() => setConfirmDeleteSource(false)}
+      />
       <div className={styles.header}>
         <Button variant="secondary" size="sm" onClick={() => navigate({ to: "/admin/sources" })}>
           <ArrowLeft size={16} />
@@ -543,7 +555,7 @@ export function AdminSourceDetailPage() {
           <Pencil size={14} />
           Edit Source
         </Button>
-        <Button variant="secondary" size="sm" onClick={() => { if (confirm("Delete this source and all its documents?")) deleteSourceMutation.mutate(); }}>
+        <Button variant="secondary" size="sm" onClick={() => setConfirmDeleteSource(true)}>
           <Trash2 size={14} />
           Delete
         </Button>
