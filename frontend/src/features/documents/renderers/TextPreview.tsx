@@ -37,6 +37,9 @@ export function TextPreview({
   const [extraTruncated, setExtraTruncated] = useState<boolean | null>(null);
   const [nextOffset, setNextOffset] = useState(CHUNK_SIZE);
   const [loadingMore, setLoadingMore] = useState(false);
+  // Generation counter: incremented on every doc/version change so stale
+  // in-flight "Load more" responses never write into the new document's state.
+  const loadGenRef = useRef(0);
 
   const { data, isLoading } = useQuery({
     queryKey: ["doc-text", docId, translationVersionId, showOriginal],
@@ -52,6 +55,7 @@ export function TextPreview({
   });
 
   useEffect(() => {
+    loadGenRef.current += 1; // invalidate any in-flight Load-more requests
     startTransition(() => {
       setExtraChunks([]);
       setExtraTruncated(null);
@@ -61,11 +65,11 @@ export function TextPreview({
 
   const textLoadTimer = useRef<string | null>(null);
   useEffect(() => {
-    if (docId && !textLoadTimer.current) {
-      textLoadTimer.current = `text-load-${Date.now()}`;
-      startNamedPerformanceTimer(textLoadTimer.current);
-    }
-  }, [docId]);
+    if (!docId) return;
+    // Abandon any timer from a previous doc and start a fresh one.
+    textLoadTimer.current = `text-load-${Date.now()}`;
+    startNamedPerformanceTimer(textLoadTimer.current);
+  }, [docId, translationVersionId, showOriginal]);
 
   useEffect(() => {
     if (data && textLoadTimer.current) {
@@ -158,6 +162,7 @@ export function TextPreview({
   async function handleLoadMore() {
     if (!docId || loadingMore) return;
     setLoadingMore(true);
+    const gen = loadGenRef.current;
     try {
       const result = await getDocumentText(docId, {
         offset: nextOffset,
@@ -165,11 +170,13 @@ export function TextPreview({
         translationVersionId,
         showOriginal,
       });
+      // Discard the result if the doc/version changed while this was in-flight.
+      if (loadGenRef.current !== gen) return;
       setExtraChunks((prev) => [...prev, result.text]);
       setExtraTruncated(result.truncated);
       setNextOffset(result.offset + result.limit);
     } finally {
-      setLoadingMore(false);
+      if (loadGenRef.current === gen) setLoadingMore(false);
     }
   }
 

@@ -40,12 +40,6 @@ export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMa
 
   const pdfLoadTimer = useRef<string | null>(null);
   const appliedInitialPageRef = useRef<number | undefined>(undefined);
-  useEffect(() => {
-    if (!pdfLoadTimer.current) {
-      pdfLoadTimer.current = `pdf-load-${Date.now()}`;
-      startNamedPerformanceTimer(pdfLoadTimer.current);
-    }
-  }, []);
 
   // Render current page to canvas — also report pdf load telemetry on first render
   useEffect(() => {
@@ -72,6 +66,9 @@ export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMa
 
   // Load PDF document
   useEffect(() => {
+    // Start a fresh timer for every new PDF document.
+    pdfLoadTimer.current = `pdf-load-${Date.now()}`;
+    startNamedPerformanceTimer(pdfLoadTimer.current);
     startTransition(() => {
       setLoading(true);
       setError(false);
