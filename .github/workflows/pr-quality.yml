@@ -1,0 +1,136 @@
+name: PR Quality Gate
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "migrations/**"
+      - "frontend/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "scripts/**"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHON_VERSION: "3.13"
+  UV_SYSTEM_PYTHON: "1"
+
+jobs:
+  pre-pr-checklist:
+    name: Pre-PR cleanliness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run pre-PR checklist
+        run: bash scripts/check-pr-cleanliness.sh ${{ github.base_ref }}
+
+  code-quality:
+    name: Ruff, mypy & tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install backend dev dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check src/ tests/ migrations/
+
+      - name: Ruff format check
+        run: ruff format --check src/ tests/ migrations/
+
+      - name: Mypy strict type check
+        run: mypy src --strict
+
+      - name: Check boolean-integer SQL comparisons
+        run: python scripts/check-boolean-int-sql.py
+
+      - name: Unit tests
+        run: pytest tests/unit/ -q
+
+  integration-tests:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: app
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d app"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      POSTGRES_URL: postgresql+psycopg://postgres:postgres@localhost:5432/app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install backend dev dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run migrations
+        run: alembic upgrade head
+
+      - name: Integration tests
+        env:
+          PGTEST: "1"
+        run: pytest tests/integration/ -q
+
+  docs:
+    name: Documentation build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install docs dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Build docs
+        run: mkdocs build --strict

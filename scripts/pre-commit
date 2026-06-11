@@ -1,43 +1,79 @@
-#!/bin/sh
-# Pre-commit hook for Tomorrowland
-# Runs fast checks (lint, format, type check) but NOT tests.
-# Tests run in CI on every push and PR.
+#!/usr/bin/env bash
+# check-pr-cleanliness.sh — Block commits that would break CI
+#
+# Usage: bash scripts/pre-commit
+# Install as hook: cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 
-set -e
+set -uo pipefail
 
-echo "Running pre-commit checks..."
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
 
-# Check if we're in the project root
-if [ ! -f "pyproject.toml" ]; then
-    echo "Error: pyproject.toml not found. Are you in the project root?"
-    exit 1
+echo "=== Pre-commit CI gate ==="
+
+FAILED=0
+
+# ── 1. Block agent artifacts ──────────────────────────────────────────────────
+ARTIFACTS=(".opencode_auth.json" "token_opencode.txt")
+for artifact in "${ARTIFACTS[@]}"; do
+    if git diff --cached --name-only | grep -qxF "$artifact"; then
+        echo "FAIL: Agent artifact '$artifact' is staged for commit."
+        echo "  Add it to .git/info/exclude instead."
+        FAILED=1
+    fi
+done
+
+# Block root-level 'main' file (no extension)
+if git diff --cached --name-only | grep -qxE "main"; then
+    echo "FAIL: Root-level file 'main' (no extension) is staged — likely an agent artifact."
+    FAILED=1
 fi
 
-# Determine Python executable
-if [ -f ".venv/bin/python" ]; then
-    PYTHON=".venv/bin/python"
-elif [ -f ".venv/Scripts/python.exe" ]; then
-    PYTHON=".venv/Scripts/python.exe"
+# ── 2. Ruff lint (only staged Python files) ───────────────────────────────────
+STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.py$' || true)
+if [ -n "$STAGED_PY" ]; then
+    echo "Running ruff check on staged Python files..."
+    RUFF_OUTPUT=$(echo "$STAGED_PY" | xargs uv run ruff check 2>&1)
+    RUFF_EXIT=$?
+    if [ $RUFF_EXIT -ne 0 ]; then
+        echo "$RUFF_OUTPUT"
+        echo "FAIL: ruff check failed. Run: uv run ruff check --fix"
+        FAILED=1
+    fi
+fi
+
+# ── 3. Ruff format check (only staged Python files) ───────────────────────────
+if [ -n "$STAGED_PY" ]; then
+    echo "Running ruff format check on staged Python files..."
+    FMT_OUTPUT=$(echo "$STAGED_PY" | xargs uv run ruff format --check 2>&1)
+    FMT_EXIT=$?
+    if [ $FMT_EXIT -ne 0 ]; then
+        echo "$FMT_OUTPUT"
+        echo "FAIL: ruff format check failed. Run: uv run ruff format"
+        FAILED=1
+    fi
+fi
+
+# ── 4. Block known dangerous patterns in Python files only ────────────────────
+STAGED_PY_DIFF=$(git diff --cached -U0 -- '*.py' 2>/dev/null || true)
+if [ -n "$STAGED_PY_DIFF" ]; then
+    DANGEROUS=("shell=True" "pickle.loads" "pickle.load" "exec(" "eval(" "os.system(")
+    for pattern in "${DANGEROUS[@]}"; do
+        if echo "$STAGED_PY_DIFF" | grep -q "$pattern"; then
+            echo "FAIL: Dangerous pattern detected in staged Python diff: $pattern"
+            echo "  Review the change and remove if not intentional."
+            FAILED=1
+        fi
+    done
+fi
+
+# ── Result ────────────────────────────────────────────────────────────────────
+echo
+if [ "$FAILED" -eq 0 ]; then
+    echo "PASS: All pre-commit checks passed."
+    exit 0
 else
-    echo "Error: Virtual environment not found. Please activate your venv."
+    echo "FAIL: Pre-commit checks failed. Fix the issues above before committing."
+    echo "  To bypass (not recommended): git commit --no-verify"
     exit 1
 fi
-
-echo "1/3 Running ruff check with auto-fix..."
-$PYTHON -m ruff check --fix src/ tests/ migrations/
-if [ -n "$(git diff --name-only)" ]; then
-    echo "  ruff fixed some issues. Staging changes..."
-    git add -A
-fi
-
-echo "2/3 Running ruff format with auto-fix..."
-$PYTHON -m ruff format src/ tests/ migrations/
-if [ -n "$(git diff --name-only)" ]; then
-    echo "  ruff formatted some files. Staging changes..."
-    git add -A
-fi
-
-echo "3/3 Running mypy..."
-$PYTHON -m mypy src --strict
-
-echo "All checks passed! (Tests run in CI)"

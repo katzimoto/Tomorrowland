@@ -1,8 +1,22 @@
 # AGENTS.md — Tomorrowland (compact)
 
 Read this first. Keep context minimal and prefer the narrowest command that proves
-your change. For non-trivial tasks, read `docs/agents/token-efficiency.md` and
-`docs/agents/coding-behavior.md` first.
+your change. For non-trivial tasks, read `docs/agents/token-efficiency.md`,
+`docs/agents/coding-behavior.md`, and `docs/agents/ci-hardening.md` first.
+
+## CI Hardening (MANDATORY)
+
+**Every agent MUST pass the local quality gate before committing or pushing.**
+See `docs/agents/ci-hardening.md` for the full rules. Summary:
+
+1. Run `uv run ruff check --fix src/ tests/ migrations/` — fix all issues
+2. Run `uv run ruff format src/ tests/ migrations/` — no formatting changes
+3. Run `uv run mypy src --strict` — zero errors
+4. Run `uv run pytest tests/unit/test_<area>.py -q` — tests pass
+5. Before push: run `uv run pytest tests/unit/ -q`
+
+**Never commit code that fails these checks.** Never use `--no-verify` for PR-ready code.
+Never suppress ruff/mypy errors to make CI pass.
 
 ## Dev commands (exact)
 
