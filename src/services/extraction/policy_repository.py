@@ -86,9 +86,7 @@ def _assert_no_sql_wildcards(mime_pattern: str) -> None:
     contains these characters would produce incorrect matching behaviour.
     """
     if "%" in mime_pattern or "_" in mime_pattern:
-        raise ValueError(
-            f"mime_pattern must not contain SQL wildcards: {mime_pattern!r}"
-        )
+        raise ValueError(f"mime_pattern must not contain SQL wildcards: {mime_pattern!r}")
 
 
 class ParserPolicyRepository:
