@@ -14,6 +14,7 @@ from services.api.readiness import ReadinessChecker
 from services.auth.jwt import JwtService
 from services.auth.ldap import LdapAuthenticator
 from services.auth.models import TokenPayload
+from services.extraction.registry import ExtractorRegistry
 from services.intelligence.factory import build_llm_provider
 from services.intelligence.llm_provider import LLMProvider
 from services.intelligence.provider_registry import ProviderRegistry
@@ -82,6 +83,15 @@ def create_app(
     app.state.translator = translator
     app.state.qdrant_client = qdrant_client
     app.state.llm_provider = llm_provider or build_llm_provider(app.state.settings)
+
+    # Extractor registry — built at startup with the same Settings flags
+    # the parse worker uses so the admin UI shows exactly the parsers that
+    # can actually run.
+    app.state.extractor_registry = ExtractorRegistry(
+        enable_ocr=app.state.settings.enable_ocr,
+        enable_legacy_office=app.state.settings.enable_legacy_office,
+        enable_markitdown=app.state.settings.enable_markitdown,
+    )
 
     # Provider registry — holds runtime adapter instances keyed by provider name.
     # Not yet used by chat / RAG / embedding consumers (that change is #578).
@@ -200,6 +210,7 @@ def create_app(
     from services.api.routers.admin.jobs import router as admin_jobs_router
     from services.api.routers.admin.ldap import router as admin_ldap_router
     from services.api.routers.admin.model_providers import router as admin_model_providers_router
+    from services.api.routers.admin.parsers import router as admin_parsers_router
     from services.api.routers.admin.rabbit import router as admin_rabbit_router
     from services.api.routers.admin.source_profiles import router as admin_source_profiles_router
     from services.api.routers.admin.source_qa import router as admin_source_qa_router
@@ -234,6 +245,7 @@ def create_app(
     app.include_router(admin_jobs_router)
     app.include_router(admin_ldap_router)
     app.include_router(admin_model_providers_router)
+    app.include_router(admin_parsers_router)
     app.include_router(admin_rabbit_router)
     app.include_router(admin_source_profiles_router)
     app.include_router(admin_source_qa_router)

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, NamedTuple, Protocol
+from typing import Any, ClassVar, NamedTuple, Protocol
 
 
 class AttachmentData(NamedTuple):
@@ -64,6 +65,30 @@ class ExtractionResult:
     location_segments: list[LocationSegment] = field(default_factory=list)
 
 
+class QualityTier(StrEnum):
+    """Extraction quality tier for ordering the default fallback chain."""
+
+    HIGH = "high"  # layout-aware / structured (Docling, MarkItDown)
+    STANDARD = "standard"  # native text extraction (pypdf, python-docx)
+    BASIC = "basic"  # best-effort / lossy (striprtf, generic decode)
+
+
+@dataclass(frozen=True)
+class ParserCapabilities:
+    """Self-declared metadata for an Extractor.
+
+    ``parser_name`` is the stable key used by policies, the audit trail,
+    and the admin API.
+    """
+
+    parser_name: str
+    parser_version: str
+    supported_mime_types: tuple[str, ...]
+    quality_tier: QualityTier = QualityTier.STANDARD
+    requires_ocr: bool = False
+    max_file_size: int | None = None  # bytes; None = no limit
+
+
 class Extractor(Protocol):
     """Boundary for file-type-specific text extractors."""
 
@@ -77,3 +102,22 @@ class Extractor(Protocol):
         documents.
         """
         ...
+
+    def capabilities(self) -> ParserCapabilities:
+        """Return self-declared metadata for this extractor."""
+        ...
+
+
+class BaseExtractor:
+    """Optional base providing capabilities(); concrete extractors set _CAPS."""
+
+    _CAPS: ClassVar[ParserCapabilities]
+
+    def capabilities(self) -> ParserCapabilities:
+        try:
+            return self._CAPS
+        except AttributeError:
+            raise NotImplementedError(
+                f"{type(self).__name__} must set _CAPS or provide its own "
+                f"capabilities() implementation"
+            ) from None
