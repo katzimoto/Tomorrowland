@@ -252,12 +252,20 @@ class ParseConsumer(BaseConsumer):
                     document_id=child_doc.id,
                     source_id=source_id,
                 )
-                self._publisher.publish_parse(
-                    job_id=child_job_id,
-                    document_id=child_doc.id,
-                    source_id=source_id,
-                    attempt=1,
-                )
+                # Mark running before publishing so the child job is in a
+                # known state if the publish fails and we need to dead-letter.
+                self._job_repo.mark_running_stage(child_job_id, "parse")
+                try:
+                    self._publisher.publish_parse(
+                        job_id=child_job_id,
+                        document_id=child_doc.id,
+                        source_id=source_id,
+                        attempt=1,
+                    )
+                except Exception as publish_exc:
+                    self._job_repo.mark_dead_letter(child_job_id, publish_exc)
+                    self._job_repo.commit()
+                    raise
                 logger.info(
                     "attachment enqueued: parent_id=%s child_id=%s filename=%s",
                     document_id,
