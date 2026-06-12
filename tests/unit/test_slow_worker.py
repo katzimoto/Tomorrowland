@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from services.pipeline.slow_worker import run_enrich_once
+import pytest
+
+from services.pipeline.slow_worker import EnrichmentSubtaskError, SlowWorker, run_enrich_once
 from shared.metrics import MetricsRegistry
 
 
@@ -176,3 +178,155 @@ class TestRunEnrichOnce:
 
         result = run_enrich_once(repo, worker, worker_id="ew1", metrics=None)
         assert result is True
+
+
+def _make_mock_doc(doc_id: object = None) -> MagicMock:
+    doc = MagicMock()
+    doc.id = doc_id or uuid4()
+    doc.source_id = uuid4()
+    doc.source_language = "en"
+    doc.target_language = "en"
+    doc.title = "Test Doc"
+    doc.source = "folder"
+    doc.mime_type = "text/plain"
+    doc.path = "/tmp/test.txt"
+    return doc
+
+
+class TestEnrichmentSubtaskErrors:
+    """Enrichment subtask (alert/intelligence) failures surface as dead-letter jobs."""
+
+    def _make_worker(
+        self,
+        *,
+        alert_raises: Exception | None = None,
+        intelligence_raises: Exception | None = None,
+        doc: MagicMock | None = None,
+    ) -> SlowWorker:
+        mock_doc = doc or _make_mock_doc()
+
+        doc_repo = MagicMock()
+        doc_repo.get_by_id.return_value = mock_doc
+        doc_repo.source_group_ids.return_value = []
+
+        translator = MagicMock()
+        translator.translate.return_value = "translated"
+
+        encoder = MagicMock()
+        encoder.encode_batch.return_value = []
+
+        qdrant = MagicMock()
+
+        alert_matcher: MagicMock | None = None
+        if alert_raises is not None:
+            alert_matcher = MagicMock()
+            alert_matcher.match_document.side_effect = alert_raises
+
+        intelligence: MagicMock | None = None
+        if intelligence_raises is not None:
+            intelligence = MagicMock()
+            intelligence.process_document.side_effect = intelligence_raises
+
+        with patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])):
+            worker = SlowWorker(
+                document_repository=doc_repo,
+                translator=translator,
+                encoder=encoder,
+                qdrant_client=qdrant,
+                version_repository=None,
+                alert_matcher=alert_matcher,
+                intelligence_worker=intelligence,
+            )
+        worker._doc_repo = doc_repo
+        worker._translator = translator
+        worker._encoder = encoder
+        worker._qdrant = qdrant
+        worker._alert_matcher = alert_matcher
+        worker._intelligence = intelligence
+        return worker
+
+    def test_alert_failure_raises_enrichment_subtask_error(self) -> None:
+        worker = self._make_worker(alert_raises=RuntimeError("alert boom"))
+        doc_id = uuid4()
+        worker._doc_repo.get_by_id.return_value = _make_mock_doc(doc_id)
+
+        with (
+            pytest.raises(EnrichmentSubtaskError),
+            patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])),
+        ):
+            worker.process_document(doc_id)
+
+    def test_intelligence_failure_raises_enrichment_subtask_error(self) -> None:
+        worker = self._make_worker(intelligence_raises=RuntimeError("llm down"))
+        doc_id = uuid4()
+        worker._doc_repo.get_by_id.return_value = _make_mock_doc(doc_id)
+
+        with (
+            pytest.raises(EnrichmentSubtaskError),
+            patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])),
+        ):
+            worker.process_document(doc_id)
+
+    def test_alert_failure_does_not_mark_document_status_failed(self) -> None:
+        worker = self._make_worker(alert_raises=RuntimeError("alert boom"))
+        doc_id = uuid4()
+        worker._doc_repo.get_by_id.return_value = _make_mock_doc(doc_id)
+
+        with (
+            pytest.raises(EnrichmentSubtaskError),
+            patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])),
+        ):
+            worker.process_document(doc_id)
+
+        worker._doc_repo.update_status.assert_not_called()
+
+    def test_alert_failure_dead_letters_job_at_max_attempts(self) -> None:
+        worker = self._make_worker(alert_raises=RuntimeError("alert boom"))
+        doc_id = uuid4()
+        worker._doc_repo.get_by_id.return_value = _make_mock_doc(doc_id)
+
+        job = _make_enrich_job(attempts=5, max_attempts=5)
+        job["document_id"] = doc_id
+        repo = _FakeEnrichRepo(claimed_job=job)
+
+        with patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])):
+            run_enrich_once(repo, worker, worker_id="ew1")
+
+        assert repo.dead_lettered is not None
+        assert repo.dead_lettered[0] is job["id"]
+        assert repo.succeeded is None
+
+    def test_intelligence_failure_retries_job_below_max_attempts(self) -> None:
+        worker = self._make_worker(intelligence_raises=RuntimeError("llm down"))
+        doc_id = uuid4()
+        worker._doc_repo.get_by_id.return_value = _make_mock_doc(doc_id)
+
+        job = _make_enrich_job(attempts=2, max_attempts=5)
+        job["document_id"] = doc_id
+        repo = _FakeEnrichRepo(claimed_job=job)
+
+        with patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])):
+            run_enrich_once(repo, worker, worker_id="ew1")
+
+        assert repo.retried is not None
+        assert repo.retried[0] is job["id"]
+        assert repo.dead_lettered is None
+        assert repo.succeeded is None
+
+    def test_both_subtasks_run_even_when_alert_fails(self) -> None:
+        """Intelligence still runs even when alert raises first."""
+        worker = self._make_worker(
+            alert_raises=RuntimeError("alert boom"),
+            intelligence_raises=RuntimeError("llm down"),
+        )
+        doc_id = uuid4()
+        worker._doc_repo.get_by_id.return_value = _make_mock_doc(doc_id)
+
+        with (
+            pytest.raises(EnrichmentSubtaskError),
+            patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])),
+        ):
+            worker.process_document(doc_id)
+
+        worker._alert_matcher.match_document.assert_called_once()
+        worker._intelligence.process_document.assert_called_once()

@@ -48,6 +48,7 @@ export interface RetrievalTrace {
   stages: RetrievalStageTrace[];
   candidates: RetrievalCandidateTrace[];
   reranker_enabled: boolean;
+  retrieval_degraded?: boolean;
   total_latency_ms: number;
 }
 

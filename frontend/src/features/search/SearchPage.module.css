@@ -72,6 +72,14 @@
   color: var(--color-text-muted);
 }
 
+.degradedChip {
+  font-size: 0.75rem;
+  background: var(--color-warning, #f59e0b);
+  color: #fff;
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
 /* Active filter chips */
 .activeFilters {
   display: flex;

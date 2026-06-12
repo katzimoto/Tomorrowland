@@ -101,3 +101,33 @@ Older versions of inaccessible documents must not appear even when
 rg "is_latest\|include_older_versions\|version_family" src/services/search src/services/api tests
 pytest tests/unit/test_*search*.py tests/integration/test_*search*.py -q -k version
 ```
+
+## `retrieval_degraded` flag (#698)
+
+Added 2026-06-12. Surfaces when either Qdrant or Meilisearch is unavailable during a search request.
+
+### Where it lives
+
+| Layer | Location | Field |
+|---|---|---|
+| RAG service | `src/services/rag/service.py` — `_retrieve_chunks` return type | 3rd tuple element `retrieval_degraded: bool` |
+| Trace model | `src/services/rag/trace_models.py` — `RetrievalTrace` | `retrieval_degraded: bool = False` |
+| Search API | `src/services/api/schemas.py` — `SearchResponse` | `retrieval_degraded: bool = False` |
+| Search router | `src/services/api/routers/search.py` | `retrieval_degraded` tracked from `_run_meilisearch`/`_run_qdrant` return values |
+| Frontend types | `frontend/src/api/search.ts` — `SearchResponse`; `frontend/src/api/chat.ts` — `RetrievalTrace` | optional fields |
+| Search UI | `frontend/src/features/search/SearchPage.tsx` | warning chip when `retrieval_degraded` |
+| Chat UI | `frontend/src/features/chat/EvidencePanel.tsx` | warning chip in admin retrieval trace tab |
+
+### Semantics
+
+- `retrieval_degraded = True` when any backend (Qdrant or Meilisearch) throws an exception during the search futures.
+- The encoder failing to produce a query vector (BM25-only fallback) also sets `retrieval_degraded = True` in the search router.
+- Results are still returned from whichever backend remained healthy — the flag is visibility only, not a blocking error.
+- The RAG `_retrieve_chunks` method tracks degradation independently; the search router has its own tracking via function return values.
+
+### Tests
+
+```bash
+pytest tests/unit/test_rag_trace.py -q -k degraded
+npx vitest run src/features/search/
+```

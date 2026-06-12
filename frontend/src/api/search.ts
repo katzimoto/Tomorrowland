@@ -43,6 +43,8 @@ export interface SearchResponse {
   total: number;
   query: string;
   facets?: Record<string, Record<string, number>>;
+  reranker_applied?: boolean;
+  retrieval_degraded?: boolean;
 }
 
 export function search(

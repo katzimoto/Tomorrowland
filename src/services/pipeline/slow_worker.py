@@ -29,6 +29,13 @@ logger = logging.getLogger(__name__)
 _ALLOWED_JOB_TYPES = ["enrich_document"]
 
 
+class EnrichmentSubtaskError(RuntimeError):
+    """Raised when alert matching or intelligence fails after indexing succeeds.
+
+    The document remains indexed; only the job is marked for retry/dead-letter.
+    """
+
+
 class SlowWorker:
     """Re-translate, re-chunk, and re-index documents with pending_high quality."""
 
@@ -68,16 +75,16 @@ class SlowWorker:
         """
         try:
             self._run(document_id, content_text=content_text)
-        except Exception:
+        except Exception as exc:
             logger.exception(
                 "Slow worker failed for document_id=%s correlation=%s",
                 document_id,
                 get_correlation_id(),
             )
-            # Best-effort: mark the document status as failed only if no
-            # version repository is wired (backward compat). When versioned,
-            # only the version is marked failed.
-            if self._version_repo is None:
+            # EnrichmentSubtaskError: indexing already succeeded; do not mark
+            # the document failed. The job will be retried/dead-lettered by the
+            # caller, but the document remains searchable.
+            if not isinstance(exc, EnrichmentSubtaskError) and self._version_repo is None:
                 self._doc_repo.update_status(document_id, "failed")
             raise
 
@@ -155,7 +162,9 @@ class SlowWorker:
             # 6. Update document summary quality
             self._doc_repo.update_translation_quality(doc.id, "high")
 
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, EnrichmentSubtaskError):
+                raise  # version already marked available; job retried/dead-lettered above
             self._version_repo.update_version_status(
                 version_id, "failed", error_summary="Translation failed"
             )
@@ -298,18 +307,23 @@ class SlowWorker:
                 get_correlation_id(),
             )
 
-        # Alert matching (best-effort, never blocking)
+        # Alert matching and intelligence run after indexing. Failures are
+        # collected and surfaced as EnrichmentSubtaskError so the job is
+        # retried/dead-lettered rather than silently marked succeeded. Both
+        # steps always run so a single failure doesn't skip the other.
+        _subtask_error: Exception | None = None
+
         if self._alert_matcher is not None:
             try:
                 self._alert_matcher.match_document(doc, translated)
-            except Exception:
+            except Exception as exc:
                 logger.exception(
                     "Alert matching failed during enrichment for document_id=%s correlation=%s",
                     document_id,
                     get_correlation_id(),
                 )
+                _subtask_error = exc
 
-        # Intelligence (best-effort, never blocking)
         if self._intelligence is not None:
             try:
                 results = self._intelligence.process_document(doc.id, translated)
@@ -319,12 +333,19 @@ class SlowWorker:
                         document_id,
                         get_correlation_id(),
                     )
-            except Exception:
+            except Exception as exc:
                 logger.exception(
                     "Intelligence failed during enrichment for document_id=%s correlation=%s",
                     document_id,
                     get_correlation_id(),
                 )
+                if _subtask_error is None:
+                    _subtask_error = exc
+
+        if _subtask_error is not None:
+            raise EnrichmentSubtaskError(
+                f"Enrichment subtask failed for document_id={document_id}"
+            ) from _subtask_error
 
 
 def run_enrich_once(

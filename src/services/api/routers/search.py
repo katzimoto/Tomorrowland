@@ -103,7 +103,7 @@ def search(
     meili_sort = _map_sort(request.sort_by, request.sort_dir)
     meili_provider = http_request.app.state.meili_provider
 
-    def _run_meilisearch() -> tuple[list[SearchResult], dict[str, dict[str, int]]]:
+    def _run_meilisearch() -> tuple[list[SearchResult], dict[str, dict[str, int]], bool]:
         backend_start = time.perf_counter()
         try:
             meili_results = meili_provider.search(
@@ -118,17 +118,17 @@ def search(
             http_request.app.state.metrics.search_backend_duration_seconds.labels(
                 "meilisearch", "search"
             ).observe(time.perf_counter() - backend_start)
-            return meili_results.results, meili_results.facets
+            return meili_results.results, meili_results.facets, False
         except Exception:
             logger.warning(
                 "Meilisearch search degraded route=/search stage=bm25_search correlation_id=%s",
                 get_correlation_id(),
             )
-            return [], {}
+            return [], {}, True
 
     def _run_qdrant(
         query_vector: list[float],
-    ) -> list[SearchResult]:
+    ) -> tuple[list[SearchResult], bool]:
         backend_start = time.perf_counter()
         try:
             results = qdrant_client.search(
@@ -140,7 +140,7 @@ def search(
             http_request.app.state.metrics.search_backend_duration_seconds.labels(
                 "qdrant", "search"
             ).observe(time.perf_counter() - backend_start)
-            return results
+            return results, False
         except Exception as exc:
             logger.warning(
                 "Vector search degraded route=/search stage=vector_search "
@@ -149,7 +149,9 @@ def search(
                 get_correlation_id(),
             )
             http_request.app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
-            return []
+            return [], True
+
+    retrieval_degraded = False
 
     # Fire both backends concurrently.
     # Note: the closures capture ``http_request`` (a Starlette Request).  We only
@@ -162,24 +164,28 @@ def search(
             meili_future = pool.submit(_run_meilisearch)
             qdrant_future = pool.submit(_run_qdrant, query_vector)
             try:
-                bm25_results, meili_facets = meili_future.result(timeout=30)
+                bm25_results, meili_facets, _meili_degraded = meili_future.result(timeout=30)
             except Exception:
-                bm25_results, meili_facets = [], {}
+                bm25_results, meili_facets, _meili_degraded = [], {}, True
                 logger.warning("Meilisearch future failed/timed out — degraded to BM25-only")
             try:
-                vector_results = qdrant_future.result(timeout=30)
+                vector_results, _qdrant_degraded = qdrant_future.result(timeout=30)
             except Exception:
-                vector_results = []
+                vector_results, _qdrant_degraded = [], True
                 logger.warning("Qdrant future failed/timed out — no vector results")
+            retrieval_degraded = _meili_degraded or _qdrant_degraded
     elif meili_provider is not None:
-        # Encoder failed — run BM25 alone (no vector to parallelise).
-        bm25_results, meili_facets = _run_meilisearch()
+        # Encoder failed — vector unavailable; BM25-only is a degraded state.
+        bm25_results, meili_facets, _meili_degraded = _run_meilisearch()
+        retrieval_degraded = True
     elif query_vector is not None:
         # Meilisearch not configured — run Qdrant only.
-        vector_results = _run_qdrant(query_vector)
+        vector_results, _qdrant_degraded = _run_qdrant(query_vector)
+        retrieval_degraded = _qdrant_degraded
     else:
         # Neither backend available.
         vector_results = []
+        retrieval_degraded = True
 
     if vector_results:
         merged = merge_results(
@@ -317,6 +323,7 @@ def search(
         query=request.query,
         facets=meili_facets,
         reranker_applied=reranker_applied,
+        retrieval_degraded=retrieval_degraded,
     )
 
 

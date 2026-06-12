@@ -46,6 +46,7 @@ class SearchResponse(BaseModel):
     query: str = ""
     facets: dict[str, dict[str, int]] = Field(default_factory=dict)
     reranker_applied: bool = False
+    retrieval_degraded: bool = False
 
 
 class LayoutBlockSummary(BaseModel):

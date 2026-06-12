@@ -137,7 +137,7 @@ class RagService:
         request_start = time.perf_counter()
         # 1. Retrieve relevant chunks
         phase_start = time.perf_counter()
-        chunks, stages = self._retrieve_chunks(
+        chunks, stages, retrieval_degraded = self._retrieve_chunks(
             question,
             group_ids,
             effective_top_k,
@@ -155,6 +155,7 @@ class RagService:
                 stages=stages,
                 candidates=[],
                 reranker_enabled=self._reranker is not None,
+                retrieval_degraded=retrieval_degraded,
                 total_latency_ms=(time.perf_counter() - request_start) * 1000,
             )
             if metrics is not None:
@@ -255,6 +256,7 @@ class RagService:
                 for c in chunks
             ],
             reranker_enabled=reranker_enabled,
+            retrieval_degraded=retrieval_degraded,
             total_latency_ms=(time.perf_counter() - request_start) * 1000,
         )
 
@@ -292,7 +294,7 @@ class RagService:
         effective_top_k = top_k if top_k is not None else self._max_chunks
         request_start = time.perf_counter()
 
-        chunks, stages = self._retrieve_chunks(
+        chunks, stages, retrieval_degraded = self._retrieve_chunks(
             question,
             group_ids,
             effective_top_k,
@@ -317,6 +319,7 @@ class RagService:
                 stages=stages,
                 candidates=[],
                 reranker_enabled=reranker_enabled,
+                retrieval_degraded=retrieval_degraded,
                 total_latency_ms=(time.perf_counter() - request_start) * 1000,
             )
             yield (
@@ -389,6 +392,7 @@ class RagService:
                 for c in chunks
             ],
             reranker_enabled=reranker_enabled,
+            retrieval_degraded=retrieval_degraded,
             total_latency_ms=(time.perf_counter() - request_start) * 1000,
         )
 
@@ -412,7 +416,7 @@ class RagService:
         document_id: str | None = None,
         allow_all: bool = False,
         scope: ChatScope | None = None,
-    ) -> tuple[list[dict[str, Any]], list[RetrievalStageTrace]]:
+    ) -> tuple[list[dict[str, Any]], list[RetrievalStageTrace], bool]:
         """Retrieve chunks from Qdrant (+ Meilisearch when available).
 
         All backend queries (Qdrant + up to 3 Meilisearch branches) are fired
@@ -423,9 +427,11 @@ class RagService:
 
         query_vector = self._encoder.encode(question)
 
+        _retrieval_degraded = False
+
         if scope is not None:
             if not group_ids and not allow_all:
-                return [], stages
+                return [], stages, _retrieval_degraded
             qdrant_filter = build_qdrant_filter(scope, group_ids, allow_all)
         else:
             qdrant_filter = None
@@ -499,11 +505,13 @@ class RagService:
                     vector_results = qdrant_future.result(timeout=30)
                 except Exception:
                     vector_results = []
+                    _retrieval_degraded = True
                     logger.warning("RAG vector retrieval degraded — Qdrant future failed")
                 try:
                     raw_bm25 = bm25_future.result(timeout=30)
                 except Exception:
                     raw_bm25 = []
+                    _retrieval_degraded = True
                     logger.warning("RAG BM25 retrieval degraded — Meilisearch future failed")
                 if meta_future is not None:
                     try:
@@ -620,7 +628,7 @@ class RagService:
             for r in unique_results
         ]
 
-        return chunks, stages
+        return chunks, stages, _retrieval_degraded
 
     @staticmethod
     def _build_stage_trace(

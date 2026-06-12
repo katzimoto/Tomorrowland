@@ -50,4 +50,5 @@ class RetrievalTrace(BaseModel):
     stages: list[RetrievalStageTrace] = Field(default_factory=list)
     candidates: list[RetrievalCandidateTrace] = Field(default_factory=list)
     reranker_enabled: bool = False
+    retrieval_degraded: bool = False
     total_latency_ms: float = 0.0
