@@ -95,7 +95,7 @@ jobs:
         run: python scripts/check-boolean-int-sql.py
 
       - name: Unit tests (fast, no services needed)
-        run: pytest tests/ -n auto -q --ignore=tests/integration
+        run: pytest tests/ -n auto -q --ignore=tests/integration --cov=src --cov-branch --cov-fail-under=60
 
   tests:
     name: Integration tests (PostgreSQL)

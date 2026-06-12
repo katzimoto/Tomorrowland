@@ -1,0 +1,122 @@
+name: Nightly Integration & Eval
+
+# Catches regressions that per-PR CI cannot:
+#   - retrieval-quality drift (eval harness, artifact for trending)
+#   - irreversible migrations (downgrade smoke, both SQLite and Postgres)
+#   - environment flakes against the real service stack
+#
+# Related: #703, #667 (eval harness design)
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 02:00 UTC every night
+  workflow_dispatch:        # allow manual trigger for validation
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.13"
+  UV_SYSTEM_PYTHON: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Job 1: full integration suite + migration downgrade smoke (PostgreSQL)
+  # -------------------------------------------------------------------------
+  integration:
+    name: Integration suite + downgrade smoke (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: app
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d app"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      POSTGRES_URL: postgresql+psycopg://postgres:postgres@localhost:5432/app
+      PGTEST: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dev dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run migrations against PostgreSQL
+        run: alembic upgrade head
+
+      - name: Integration tests
+        run: pytest tests/integration/ -q
+
+      - name: Migration downgrade smoke (last 5 revisions, SQLite + PostgreSQL)
+        run: pytest tests/test_migration_downgrade.py -v
+
+  # -------------------------------------------------------------------------
+  # Job 2: retrieval eval (trending; not a hard gate)
+  # Requires live Qdrant. Ollama is optional — tests skip gracefully when
+  # no models are available. Results are uploaded as an artifact for trending.
+  # -------------------------------------------------------------------------
+  eval:
+    name: Retrieval eval (Qdrant, artifact upload)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true   # eval is trending-only; failures don't block the nightly
+    services:
+      qdrant:
+        image: qdrant/qdrant:v1.10.1
+        ports:
+          - 6333:6333
+        options: >-
+          --health-cmd="wget -qO- http://localhost:6333/healthz || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dev dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run eval suite
+        env:
+          QDRANT_URL: http://localhost:6333
+        run: >
+          pytest tests/eval/ --eval
+          --eval-output eval-results.json
+          -v
+
+      - name: Upload eval results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-${{ github.run_id }}
+          path: eval-results.json
+          if-no-files-found: ignore
+          retention-days: 90
