@@ -162,6 +162,10 @@ class ParseConsumer(BaseConsumer):
                         attempts=routed.attempts,
                     )
             else:
+                # Extractor path (no router).  Layout blocks can still be
+                # derived from location_segments; the parser name is recorded
+                # as "generic" because we don't know which extractor
+                # produced the result.
                 result = self._extractor.extract(Path(doc.path), doc.mime_type)
                 content_text = result.text
                 location_segments = [seg.to_dict() for seg in result.location_segments]

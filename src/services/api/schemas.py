@@ -4,6 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from services.documents.models import LayoutBlockType
+
 
 class SearchRequest(BaseModel):
     query: str = Field(..., max_length=500)
@@ -48,7 +50,7 @@ class SearchResponse(BaseModel):
 
 class LayoutBlockSummary(BaseModel):
     page_number: int | None = None
-    block_type: str
+    block_type: LayoutBlockType
     count: int
 
 

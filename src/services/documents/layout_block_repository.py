@@ -7,25 +7,23 @@ repositories in this project.  No ORM, no SQLModel.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, get_args
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection, RowMapping
 
-from services.documents.models import LayoutBlockRow
+from services.documents.models import LayoutBlockRow, LayoutBlockType
 from shared.db import db_now, db_resolve_json, db_uuid, to_uuid
 
-_BLOCK_TYPES = frozenset(
-    {
-        "paragraph",
-        "heading",
-        "table",
-        "figure",
-        "caption",
-        "footer",
-        "header",
-    }
+# Derived from the canonical Literal so the two never drift.
+_VALID_BLOCK_TYPES: frozenset[str] = frozenset(get_args(LayoutBlockType))
+
+# Column list used by every read query so future schema additions don't
+# accidentally widen result sets.
+_COLUMNS = (
+    "id, document_id, page_number, block_type, text, "
+    "bbox, parser, confidence, reading_order, created_at"
 )
 
 
@@ -94,11 +92,16 @@ class LayoutBlockRepository:
         rows: list[dict[str, Any]] = []
         for block in blocks:
             block_type = str(block["block_type"])
-            if block_type not in _BLOCK_TYPES:
+            if block_type not in _VALID_BLOCK_TYPES:
                 raise ValueError(
-                    f"Invalid block_type: {block_type!r}. Must be one of {sorted(_BLOCK_TYPES)}"
+                    f"Invalid block_type: {block_type!r}. "
+                    f"Must be one of {sorted(_VALID_BLOCK_TYPES)}"
                 )
 
+            # json.dumps for SQLite compatibility — sa.JSON() stores
+            # text on SQLite and serialised objects on PostgreSQL;
+            # json.dumps works correctly on both.  db_resolve_json
+            # handles deserialisation on read regardless of driver.
             bbox = block.get("bbox")
             bbox_json: str | None = None
             if bbox is not None:
@@ -120,7 +123,8 @@ class LayoutBlockRepository:
             )
 
         self._connection.execute(
-            sa.text("""\
+            sa.text(
+                """\
                 INSERT INTO document_layout_blocks (
                     id, document_id, page_number, block_type, text,
                     bbox, parser, confidence, reading_order, created_at
@@ -129,7 +133,8 @@ class LayoutBlockRepository:
                     :id, :document_id, :page_number, :block_type, :text,
                     :bbox, :parser, :confidence, :reading_order, :created_at
                 )
-                """),
+                """
+            ),
             rows,
         )
         return len(rows)
@@ -144,27 +149,14 @@ class LayoutBlockRepository:
 
         When *block_type* is given, only blocks of that type are returned.
         """
+        sql = f"SELECT {_COLUMNS} FROM document_layout_blocks WHERE document_id = :doc_id"
+        params: dict[str, Any] = {"doc_id": db_uuid(document_id)}
         if block_type is not None:
-            rows = self._connection.execute(
-                sa.text("""\
-                    SELECT * FROM document_layout_blocks
-                    WHERE document_id = :doc_id AND block_type = :block_type
-                    ORDER BY reading_order NULLS LAST, created_at
-                    """),
-                {
-                    "doc_id": db_uuid(document_id),
-                    "block_type": block_type,
-                },
-            ).mappings()
-        else:
-            rows = self._connection.execute(
-                sa.text("""\
-                    SELECT * FROM document_layout_blocks
-                    WHERE document_id = :doc_id
-                    ORDER BY reading_order NULLS LAST, created_at
-                    """),
-                {"doc_id": db_uuid(document_id)},
-            ).mappings()
+            sql += " AND block_type = :block_type"
+            params["block_type"] = block_type
+        sql += " ORDER BY reading_order NULLS LAST, created_at"
+
+        rows = self._connection.execute(sa.text(sql), params).mappings()
         return [_row_to_model(r) for r in rows]
 
     def count_by_document(self, document_id: UUID) -> int:
@@ -191,7 +183,8 @@ class LayoutBlockRepository:
         every block.
         """
         rows = self._connection.execute(
-            sa.text("""\
+            sa.text(
+                """\
                 SELECT
                     page_number,
                     block_type,
@@ -200,7 +193,8 @@ class LayoutBlockRepository:
                 WHERE document_id = :doc_id
                 GROUP BY page_number, block_type
                 ORDER BY page_number, block_type
-                """),
+                """
+            ),
             {"doc_id": db_uuid(document_id)},
         ).mappings()
         return [

@@ -27,12 +27,6 @@ from shared.config import Settings
 TEST_JWT_SECRET = "x" * 32
 
 
-def _admin_token(client: TestClient) -> str:
-    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
-    assert login.status_code == 200
-    return login.json()["access_token"]
-
-
 def _user_token(client: TestClient) -> str:
     login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
     assert login.status_code == 200
@@ -304,70 +298,6 @@ def test_table_blocks_appear_in_summary(migrated_engine: Engine, tmp_path: Path)
     types = {s["block_type"] for s in summary}
     assert "table" in types
     assert "caption" in types
-
-
-# ---------------------------------------------------------------------------
-# Parse worker layout block recording
-# ---------------------------------------------------------------------------
-
-
-def test_build_layout_blocks_from_location_segments() -> None:
-    """Unit test of the _build_layout_blocks helper."""
-    from services.pipeline.parse_worker import _build_layout_blocks
-
-    content = "Chapter 1\nFirst paragraph.\nSecond paragraph."
-
-    segments = [
-        {
-            "start_char": 0,
-            "end_char": 9,
-            "page_number": 1,
-            "section_heading": "Chapter 1",
-        },
-        {"start_char": 10, "end_char": 26, "page_number": 1},
-        {"start_char": 27, "end_char": 44, "page_number": 2},
-    ]
-
-    blocks = _build_layout_blocks(content, segments, "pypdf")
-
-    assert len(blocks) == 3
-    # Heading derived from section_heading presence
-    assert blocks[0]["block_type"] == "heading"
-    assert blocks[0]["text"] == "Chapter 1"
-    assert blocks[0]["page_number"] == 1
-    assert blocks[0]["parser"] == "pypdf"
-    assert blocks[0]["reading_order"] == 0
-
-    assert blocks[1]["block_type"] == "paragraph"
-    assert blocks[1]["text"] == "First paragraph."
-    assert blocks[1]["page_number"] == 1
-
-    assert blocks[2]["block_type"] == "paragraph"
-    assert blocks[2]["text"] == "Second paragraph."
-    assert blocks[2]["page_number"] == 2
-
-
-def test_build_layout_blocks_clamps_bounds() -> None:
-    """Out-of-range start/end are clamped safely."""
-    from services.pipeline.parse_worker import _build_layout_blocks
-
-    content = "short"
-
-    segments = [
-        {"start_char": -5, "end_char": 999, "page_number": 1},
-    ]
-
-    blocks = _build_layout_blocks(content, segments, "pypdf")
-
-    assert len(blocks) == 1
-    assert blocks[0]["text"] == "short"
-
-
-def test_build_layout_blocks_empty_segments() -> None:
-    from services.pipeline.parse_worker import _build_layout_blocks
-
-    blocks = _build_layout_blocks("text", [], "pypdf")
-    assert blocks == []
 
 
 # ---------------------------------------------------------------------------

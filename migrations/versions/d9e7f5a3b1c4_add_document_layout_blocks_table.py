@@ -56,9 +56,15 @@ def upgrade() -> None:
         "document_layout_blocks",
         ["block_type"],
     )
+    op.create_index(
+        "ix_document_layout_blocks_doc_page",
+        "document_layout_blocks",
+        ["document_id", "page_number"],
+    )
 
 
 def downgrade() -> None:
+    op.drop_index("ix_document_layout_blocks_doc_page", table_name="document_layout_blocks")
     op.drop_index("ix_document_layout_blocks_block_type", table_name="document_layout_blocks")
     op.drop_index("ix_document_layout_blocks_document_id", table_name="document_layout_blocks")
     op.drop_table("document_layout_blocks")

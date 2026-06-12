@@ -137,9 +137,9 @@ def preview(
         layout_blocks_summary: list[LayoutBlockSummary] | None = None
         try:
             layout_repo = LayoutBlockRepository(connection)
-            if layout_repo.has_blocks(document_id):
-                layout_blocks_available = True
-                page_summary = layout_repo.page_summary(document_id)
+            page_summary = layout_repo.page_summary(document_id)
+            layout_blocks_available = bool(page_summary)
+            if page_summary:
                 layout_blocks_summary = [
                     LayoutBlockSummary(
                         page_number=p["page_number"],
@@ -149,7 +149,11 @@ def preview(
                     for p in page_summary
                 ]
         except Exception:
-            pass  # best-effort; preview must not fail when layout blocks are absent
+            logger.warning(
+                "Layout blocks unavailable for document_id=%s",
+                document_id,
+                exc_info=True,
+            )
 
         return PreviewResponse(
             document_id=result["document_id"],
