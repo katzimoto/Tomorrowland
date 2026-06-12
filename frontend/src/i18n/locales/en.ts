@@ -9,6 +9,7 @@ export interface Translations {
     expertise: string;
     admin: string;
     settings: string;
+    sourceHealth: string;
     collapse: string;
     expand: string;
     primary: string;
@@ -382,6 +383,71 @@ export interface Translations {
     createError: string;
     saveBtn: string;
     cancelBtn: string;
+    // Parser strategy (#670)
+    parserStrategy: string;
+    parserName: string;
+    fallbackChain: string;
+    extractionStatus: string;
+    charCount: string;
+    chunkCount: string;
+    chunkCountEst: string;
+    ocrNeeded: string;
+    ocrPerformed: string;
+    translationQuality: string;
+    layoutBlocks: string;
+    tableBlocks: string;
+    figureBlocks: string;
+    lastError: string;
+    unknown: string;
+    yes: string;
+    no: string;
+    parserSummary: string;
+    documentsByParser: string;
+    extractedCount: string;
+    ocrCount: string;
+    ocrDone: string;
+    failedCount: string;
+    avgCharCount: string;
+    noParserData: string;
+    parserDocuments: string;
+    // Source Health Dashboard (#674)
+    sourceHealth: {
+      title: string;
+      noSources: string;
+      noSourcesBody: string;
+      summaryTotal: string;
+      summaryIndexed: string;
+      summaryPending: string;
+      summaryFailed: string;
+      healthy: string;
+      degraded: string;
+      failed: string;
+      noCheck: string;
+      lastCheck: string;
+      docCounts: string;
+      issues: string;
+      emptyChunks: string;
+      missingContent: string;
+      missingMetadata: string;
+      missingTitle: string;
+      ocrEligible: string;
+      ocrMaybeNeeded: string;
+      indexLag: string;
+      error: string;
+      noQaData: string;
+      sourceName: string;
+      healthStatus: string;
+      runQa: string;
+      viewDocuments: string;
+      emptyState: string;
+      emptyStateBody: string;
+      actionReextract: string;
+      actionContent: string;
+      actionMetadata: string;
+      actionTitle: string;
+      actionOcr: string;
+      actionLag: string;
+    };
   };
   cmd: {
     ariaLabel: string;
@@ -436,6 +502,7 @@ export const en: Translations = {
     expertise: "Expertise",
     admin: "Admin",
     settings: "Settings",
+    sourceHealth: "Source Health",
     collapse: "Collapse navigation",
     expand: "Expand navigation",
     primary: "Primary navigation",
@@ -820,6 +887,79 @@ export const en: Translations = {
     createError: "Failed to create source.",
     saveBtn: "Save Source",
     cancelBtn: "Cancel",
+    // Parser strategy (#670)
+    parserStrategy: "Parser Strategy",
+    parserName: "Parser",
+    fallbackChain: "Fallback chain",
+    extractionStatus: "Extraction",
+    charCount: "Chars",
+    chunkCount: "Chunks",
+    chunkCountEst: "Chunks (est.)",
+    ocrNeeded: "OCR needed",
+    ocrPerformed: "OCR done",
+    translationQuality: "Translation",
+    layoutBlocks: "Layout blocks",
+    tableBlocks: "Tables",
+    figureBlocks: "Figures",
+    lastError: "Last error",
+    unknown: "Unknown",
+    yes: "Yes",
+    no: "No",
+    parserSummary: "Summary",
+    documentsByParser: "Documents by parser",
+    extractedCount: "Extracted",
+    ocrCount: "OCR needed",
+    ocrDone: "OCR done",
+    failedCount: "Failed",
+    avgCharCount: "Avg chars",
+    noParserData: "No parser data available yet.",
+    parserDocuments: "Documents",
+    // Source Health Dashboard (#674)
+    sourceHealth: {
+      title: "Source Health",
+      noSources: "No sources configured",
+      noSourcesBody:
+        "Add a source from the Sources page to start monitoring health.",
+      summaryTotal: "Total",
+      summaryIndexed: "Indexed",
+      summaryPending: "Pending",
+      summaryFailed: "Failed",
+      healthy: "Healthy",
+      degraded: "Degraded",
+      failed: "Failed",
+      noCheck: "No checks run",
+      lastCheck: "Last check",
+      docCounts: "Indexed / Pending / Failed",
+      issues: "Issues",
+      emptyChunks: "Empty chunks",
+      missingContent: "Missing content",
+      missingMetadata: "Missing metadata",
+      missingTitle: "Missing title",
+      ocrEligible: "OCR-eligible",
+      ocrMaybeNeeded: "May need OCR",
+      indexLag: "Index lag",
+      error: "Failed to load source health data.",
+      noQaData: "No QA data available yet.",
+      sourceName: "Source",
+      healthStatus: "Health",
+      runQa: "Run QA check",
+      viewDocuments: "View documents",
+      emptyState: "No QA checks have been run yet.",
+      emptyStateBody:
+        "Click a source\u2019s \u201cRun QA check\u201d button to run diagnostics.",
+      actionReextract:
+        "Re-run extraction on affected documents.",
+      actionContent:
+        "Check document payloads or re-run extraction.",
+      actionMetadata:
+        "Re-run enrichment on affected documents.",
+      actionTitle:
+        "Edit document title or re-run extraction.",
+      actionOcr:
+        "Enable OCR processing or re-process affected documents.",
+      actionLag:
+        "Check pipeline worker status and retry configuration.",
+    },
   },
   cmd: {
     ariaLabel: "Command menu",

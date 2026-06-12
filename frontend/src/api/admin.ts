@@ -105,11 +105,36 @@ export interface SourceDocument {
   pending_jobs: number;
   failed_jobs: number;
   jobs: PipelineJob[];
+  // Parser strategy metadata (#670)
+  parser_name: string | null;
+  fallback_chain: string[] | null;
+  extraction_status: string | null;
+  extraction_confidence: number | null;
+  extraction_duration_ms: number | null;
+  char_count: number | null;
+  chunk_count: number | null;
+  ocr_needed: boolean;
+  ocr_performed: boolean | null;
+  translation_status: string | null;
+  layout_blocks_available: boolean;
+  table_block_count: number;
+  figure_block_count: number;
+  last_error: string | null;
 }
 
 export interface SourceDocumentsResponse {
   documents: SourceDocument[];
   total: number;
+  parser_summary?: ParserSummary;
+}
+
+export interface ParserSummary {
+  documents_by_parser: Record<string, number>;
+  total_extracted: number;
+  total_ocr_done: number;
+  total_failed: number;
+  total_documents: number;
+  avg_char_count: number;
 }
 
 export interface SourceDetail extends Source {
@@ -291,6 +316,10 @@ export const adminApi = {
   deleteTaskDefault: (taskType: string) =>
     api.delete(`/admin/model-task-defaults/${taskType}`),
 
+  // --- Source Health (#674) ---
+  getSourceHealth: (sourceId: string) =>
+    api.get<SourceHealthResponse>(`/admin/sources/${sourceId}/qa`),
+
   // --- LDAP Group Search & Mappings ---
   searchLdapGroups: (query: string, limit?: number) => {
     const qs = new URLSearchParams({ q: query });
@@ -346,6 +375,23 @@ export interface DocumentTraceResponse {
   document_title: string | null;
   source_name: string | null;
   jobs: DocumentTraceJob[];
+}
+
+export interface SourceHealthResponse {
+  source_id: string;
+  checked_at: string | null;
+  total_documents: number;
+  indexed_documents: number;
+  pending_documents: number;
+  failed_documents: number;
+  empty_chunks: number;
+  missing_content: number;
+  missing_metadata: number;
+  missing_title: number;
+  ocr_eligible: number;
+  ocr_maybe_needed: number;
+  index_lag_count: number;
+  issues: string[];
 }
 
 export interface UserDetail {

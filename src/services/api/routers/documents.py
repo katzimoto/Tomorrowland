@@ -19,9 +19,14 @@ from services.api._helpers import (
     require_related_docs_enabled,
 )
 from services.api.main import current_user
-from services.api.schemas import DocumentRelationshipInfo, PreviewResponse
+from services.api.schemas import (
+    DocumentRelationshipInfo,
+    LayoutBlockSummary,
+    PreviewResponse,
+)
 from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
+from services.documents.layout_block_repository import LayoutBlockRepository
 from services.documents.models import UserDocumentTagCreate
 from services.documents.repository import (
     DocumentRelationshipRepository,
@@ -127,6 +132,29 @@ def preview(
             else None
         )
 
+        # Layout blocks (best-effort — missing for documents ingested before #669).
+        layout_blocks_available = False
+        layout_blocks_summary: list[LayoutBlockSummary] | None = None
+        try:
+            layout_repo = LayoutBlockRepository(connection)
+            page_summary = layout_repo.page_summary(document_id)
+            layout_blocks_available = bool(page_summary)
+            if page_summary:
+                layout_blocks_summary = [
+                    LayoutBlockSummary(
+                        page_number=p["page_number"],
+                        block_type=p["block_type"],
+                        count=p["count"],
+                    )
+                    for p in page_summary
+                ]
+        except Exception:
+            logger.warning(
+                "Layout blocks unavailable for document_id=%s",
+                document_id,
+                exc_info=True,
+            )
+
         return PreviewResponse(
             document_id=result["document_id"],
             title=result["title"],
@@ -151,6 +179,8 @@ def preview(
             entities_summary=entities_summary,
             relationships=relationships,
             has_file=doc_row.path is not None if doc_row else False,
+            layout_blocks_available=layout_blocks_available,
+            layout_blocks_summary=layout_blocks_summary,
         )
 
 

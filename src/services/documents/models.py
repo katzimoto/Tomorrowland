@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field, field_validator
 
 DocumentStatus = Literal["pending", "indexed", "deleted", "failed"]
 DocumentSource = Literal["folder", "nifi", "confluence", "jira", "smb"]
+LayoutBlockType = Literal["paragraph", "heading", "table", "figure", "caption", "footer", "header"]
+LayoutBlockBbox = tuple[float, float, float, float]
 
 
 class DocumentVersionFamily(BaseModel):
@@ -109,3 +111,18 @@ class UserDocumentTagCreate(BaseModel):
         if len(v) > 100:
             raise ValueError("tag must be 100 characters or fewer")
         return v
+
+
+class LayoutBlockRow(BaseModel):
+    """Row model for the document_layout_blocks table."""
+
+    id: UUID
+    document_id: UUID
+    page_number: int | None = None
+    block_type: LayoutBlockType
+    text: str | None = None
+    bbox: LayoutBlockBbox | None = None
+    parser: str
+    confidence: float | None = None
+    reading_order: int | None = None
+    created_at: datetime

@@ -62,7 +62,8 @@ Python 3.13; local dev is supported on Python >=3.11.
   downgrade paths. Integration tests migrate a temporary SQLite DB via the
   `migrated_engine` fixture (`tests/conftest.py`) so `pytest` normally does not
   require Docker services.
-- Coverage: no enforced floor (coverage is reported but not gated).
+- Coverage: no enforced floor and not collected by default; opt in with
+  `uv run pytest --cov=src --cov-branch` when you need a coverage report.
 - Docker Compose: standard services include api, frontend, postgres, meilisearch,
   qdrant, kafka (Redpanda), rabbitmq, libretranslate, ollama, and the pipeline
   workers. Optional `monitoring` profile adds Prometheus/Grafana on loopback.
