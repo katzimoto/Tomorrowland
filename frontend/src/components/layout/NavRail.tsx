@@ -7,6 +7,7 @@ import {
   Bell,
   History,
   Bookmark,
+  Activity,
   Shield,
   Network,
   ChevronRight,
@@ -19,7 +20,7 @@ import { TomorrowlandLogo } from "@/components/brand/TomorrowlandLogo";
 import { logout } from "@/api/auth";
 import styles from "./NavRail.module.css";
 
-type NavKey = "search" | "chat" | "subscriptions" | "notifications" | "history" | "expertise" | "admin";
+type NavKey = "search" | "chat" | "subscriptions" | "notifications" | "history" | "expertise" | "sourceHealth" | "admin";
 
 interface NavItem {
   to: string;
@@ -35,6 +36,12 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/history", key: "history", icon: <History size={20} /> },
   { to: "/expertise", key: "expertise", icon: <Network size={20} /> },
 ];
+
+const SOURCE_HEALTH_ITEM: NavItem = {
+  to: "/admin/source-health",
+  key: "sourceHealth",
+  icon: <Activity size={20} />,
+};
 
 const ADMIN_ITEM: NavItem = {
   to: "/admin",
@@ -84,7 +91,7 @@ export function NavRail({ isAdmin, unreadCount = 0, userDisplayName = null, user
     router.navigate({ to: "/login" });
   }, [signingOut, queryClient, router]);
 
-  const items = isAdmin ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS;
+  const items = isAdmin ? [...NAV_ITEMS, SOURCE_HEALTH_ITEM, ADMIN_ITEM] : NAV_ITEMS;
 
   return (
     <nav
