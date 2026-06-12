@@ -13,6 +13,12 @@ All notable changes to this project will be documented in this file.
   `TranslateConsumer`.
 
 ### Fixed
+- **Chat streaming error — inline error state (#702)**: when a streaming send
+  fails, `ChatWindow` now renders an inline `EmptyState` with a Retry button
+  (in addition to the existing toast). The user's unsent message is preserved in
+  the input so they can retry or edit before resending. The error state clears
+  automatically when the user sends a new message.
+
 - **Double enrichment per document (#694)**: intelligence and alert stages
   fired twice for every document with content, because both the translate
   worker's early index publish and the embed worker's post-embed index publish

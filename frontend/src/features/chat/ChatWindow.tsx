@@ -41,6 +41,7 @@ export function ChatWindow({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streamPhase, setStreamPhase] = useState<ChatStreamPhase | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [sendFailed, setSendFailed] = useState(false);
   const seededForSession = useRef<string | null>(null);
 
   const qc = useQueryClient();
@@ -95,6 +96,7 @@ export function ChatWindow({
     const trimmed = text.trim();
     if (!trimmed || sendingRef.current) return;
 
+    setSendFailed(false);
     sendingRef.current = true;
     setIsSending(true);
     const optimisticId = `optimistic-${Date.now()}`;
@@ -169,6 +171,7 @@ export function ChatWindow({
           ),
       );
       setInput(trimmed);
+      setSendFailed(true);
       showToast("error", t.chat.sendError);
     } finally {
       if (streamFlushTimer.current) {
@@ -242,6 +245,16 @@ export function ChatWindow({
         />
       ) : (
         <MessageList messages={messages} busy={!!streamPhase} onOpenCitation={onOpenCitation} />
+      )}
+      {sendFailed && (
+        <EmptyState
+          title={t.chat.sendError}
+          action={
+            <Button variant="secondary" onClick={() => void handleSubmit()}>
+              {t.chat.retry}
+            </Button>
+          }
+        />
       )}
       <ChatInput
         value={input}

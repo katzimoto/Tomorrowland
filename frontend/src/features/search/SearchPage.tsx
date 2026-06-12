@@ -1,5 +1,7 @@
 import {
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -67,11 +69,14 @@ export function SearchPage() {
   const { show: showToast } = useToast();
   const queryClient = useQueryClient();
 
-  const MODES: { value: SearchMode; label: string }[] = [
-    { value: "hybrid", label: t.search.modeHybrid },
-    { value: "keyword", label: t.search.modeKeyword },
-    { value: "semantic", label: t.search.modeSemantic },
-  ];
+  const MODES = useMemo(
+    () => [
+      { value: "hybrid" as SearchMode, label: t.search.modeHybrid },
+      { value: "keyword" as SearchMode, label: t.search.modeKeyword },
+      { value: "semantic" as SearchMode, label: t.search.modeSemantic },
+    ],
+    [t],
+  );
 
   // Seed state from the URL once on mount. The debounced search and explicit
   // submit keep the URL in sync afterward (see buildSearchParams), so a refresh
@@ -292,33 +297,44 @@ export function SearchPage() {
     }
   }
 
-  const activeChips: Array<{ label: string; remove: () => void }> = [];
-  (filters.file_type ?? []).forEach((ft) => {
-    const label = ft.split("/").pop() ?? ft;
-    activeChips.push({
-      label,
-      remove: () => {
-        resetSearchWorkflow();
-        setFilters((f) => ({
-          ...f,
-          file_type: f.file_type?.filter((v) => v !== ft) || undefined,
-        }));
-      },
+  const activeChips = useMemo(() => {
+    const chips: Array<{ label: string; remove: () => void }> = [];
+    (filters.file_type ?? []).forEach((ft) => {
+      const label = ft.split("/").pop() ?? ft;
+      chips.push({
+        label,
+        remove: () => {
+          resetSearchWorkflow();
+          setFilters((f) => ({
+            ...f,
+            file_type: f.file_type?.filter((v) => v !== ft) || undefined,
+          }));
+        },
+      });
     });
-  });
-  (filters.translation_quality ?? []).forEach((tq) => {
-    activeChips.push({
-      label: tq === "fast" ? t.filters.transFast : t.filters.transHigh,
-      remove: () => {
-        resetSearchWorkflow();
-        setFilters((f) => ({
-          ...f,
-          translation_quality:
-            f.translation_quality?.filter((v) => v !== tq) || undefined,
-        }));
-      },
+    (filters.translation_quality ?? []).forEach((tq) => {
+      chips.push({
+        label: tq === "fast" ? t.filters.transFast : t.filters.transHigh,
+        remove: () => {
+          resetSearchWorkflow();
+          setFilters((f) => ({
+            ...f,
+            translation_quality:
+              f.translation_quality?.filter((v) => v !== tq) || undefined,
+          }));
+        },
+      });
     });
-  });
+    return chips;
+  }, [filters.file_type, filters.translation_quality, t]);
+
+  const handleFilterChange = useCallback(
+    (nextFilters: SearchFilters) => {
+      resetSearchWorkflow();
+      setFilters(nextFilters);
+    },
+    [],
+  );
   const showResults = submittedQuery.trim().length > 0;
 
   return (
@@ -403,10 +419,7 @@ export function SearchPage() {
         <FilterPanel
           filters={filters}
           facets={facets}
-          onChange={(nextFilters) => {
-            resetSearchWorkflow();
-            setFilters(nextFilters);
-          }}
+          onChange={handleFilterChange}
         />
 
         <div className={styles.results}>
