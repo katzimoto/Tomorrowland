@@ -87,7 +87,7 @@ Source: PR #625 (6b1719c), Claude Code session
 
 **Broadened Watch:** the *stale-base → force-push → re-do-already-merged-work* pattern (with PR descriptions that undercount files) now spans **both** of this author's branches — `fix/bug-bounty-rounds-1-3` (#622, #623; airgap revert) and `fix/pipeline-bugs-15` (#624 → #625). For any PR from **katzimoto**: diff against current `main` (not the description), confirm it isn't based on a pre-merge commit, and check it doesn't revert prior merged fixes. Airgap specifics in the #622–#624 entry below.
 
-Still open (unverified): the `translate*`/`embed` double-index question — untouched by #625.
+Still open (unverified): ~~the `translate*`/`embed` double-index question — untouched by #625~~ — **resolved 2026-06-12**: confirmed real and unintentional (see Watch resolution in the #622–#624 entry below); fix tracked in #693/#694.
 
 ---
 
@@ -103,6 +103,6 @@ Three review-and-fix passes merged the same day:
 
 **Watch:**
 - **Recurring airgap revert (branch `fix/bug-bounty-rounds-1-3`, author katzimoto):** re-introduced the Ollama removal in `docker-compose.airgap.yml` (reverting #621) in BOTH #622 and #623 — never in the PR description. Both PRs also omitted their largest changes (#623 silently deleted the QA UI). On any PR from this branch, reset `docker-compose.airgap.yml` + `scripts/{build-release,validate}-airgap*.sh` to main and don't trust its "validation passed" claims against the diff.
-- **Double-index (unverified):** `translate_worker` + `translation_worker` both `publish_index`, and `embed_worker` also `publish_index`, so index → intelligence/alert may double-fire per translated doc. Pre-existing; left in #624. Needs a holistic DAG fix or confirmation it's intentional index-resilience for the embed-skipped path.
+- **Double-index — RESOLVED 2026-06-12 (was: unverified):** confirmed real and unintentional. `translation_worker` is dead code (no entrypoint/callers — deletion tracked in #695). The live duplication is `translate_worker.py:102` (early index) + `embed_worker.py:137` (post-embed index), and since `index_worker.py:76,86` publishes intelligence + alert on every index message, enrichment fires **twice** per document with content. Owner decision: enrichment fires once, on the **final** index pass (post-translation), via an `enrich: bool` message flag — translate publishes `enrich=False` (early BM25 availability preserved), embed publishes `enrich=True`. Tracked in #693 (tracker) / #694 (fix), branch `feature/pipeline-correctness`. Plan: `docs/planning/project-review-remediation-2026-06.md`.
 
 ---

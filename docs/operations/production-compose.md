@@ -784,10 +784,16 @@ the no-mock smoke test.
 
 Issue #65 adds a minimal event-driven NiFi path for deployments that already run
 Redpanda/Kafka. CI and deterministic tests use fake consumer/message objects; no
-live NiFi or Kafka service is required by the test suite. The Compose runtime
-still has no dedicated long-running worker container for this path, so operators
-should invoke the bounded drain from an approved operational entrypoint until a
-future worker phase adds supervised runtime wiring.
+live NiFi or Kafka service is required by the test suite.
+
+**Status (2026-06-12): the drain is not yet runnable in any deployment.**
+`NiFiKafkaDrain` is implemented and tested, but it is not instantiated by any
+process (no worker `command:`, no API background task), no Kafka client
+dependency is declared in `pyproject.toml`, and `settings.kafka_broker` is never
+read. A configured `nifi` source therefore lands events on the Kafka bus that
+nothing consumes. Runtime wiring (runner process, Kafka client dependency,
+Compose service, healthcheck) is tracked in issue #705. The field reference
+below documents the event contract the drain enforces once wired.
 
 Create an enabled `nifi` ingestion source before sending events. The source must
 be granted to Tomorrowland groups in the normal admin UI/API; NiFi-ingested
@@ -955,9 +961,12 @@ to avoid stale search results.
   `pids_limit`. These are container-level limits; they do not replace cgroup
   configuration, kernel tuning, or swap accounting at the host level. Hosts with
   less than 8 GB RAM are not supported.
-- NiFi event ingestion is release-usable through the bounded Kafka drain in
-  `services.pipeline.kafka_consumer`. The drain runs in the API container;
-  operators should monitor it through the admin API and RabbitMQ dashboard.
+- NiFi event ingestion is **not yet operational**. The bounded Kafka drain in
+  `services.pipeline.kafka_consumer` is implemented and tested, but it is not
+  wired into any running process and no Kafka client library ships with the
+  backend image, so events published by NiFi are not consumed. Runtime wiring
+  is tracked in issue #705. Do not configure `nifi` sources expecting
+  ingestion until that lands.
 - Confluence and Jira Server/Data Center connectors are implemented, but
   Atlassian page/project permission synchronization is not present; access is
   governed by Tomorrowland source grants.
