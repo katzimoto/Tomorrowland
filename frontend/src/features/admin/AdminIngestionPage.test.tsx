@@ -8,8 +8,12 @@ import * as adminApi from "@/api/admin";
 vi.mock("@/api/admin", () => ({
   adminApi: {
     getIngestionStatus: vi.fn(),
-    getDocumentTrace: vi.fn(),
-    requeueDocument: vi.fn(),
+    getDocumentTimeline: vi.fn(),
+    retryDocument: vi.fn(),
+    reprocessDocument: vi.fn(),
+    reocrDocument: vi.fn(),
+    retranslateDocument: vi.fn(),
+    reembedDocument: vi.fn(),
   },
 }));
 
@@ -53,21 +57,24 @@ const mockPopulatedResponse = {
   summary: { pending: 0, running: 0, completed: 1, failed: 1 },
 };
 
-const mockTraceResponse = {
+const mockTimelineResponse = {
   document_id: "doc-1",
   document_title: "Test Document",
   source_name: "Test Source",
-  jobs: [
+  stages: [
     {
-      id: "trace-job-1",
-      job_type: "parse",
-      status: "completed",
-      stage: "extract",
-      attempts: 1,
-      max_attempts: 5,
-      last_error: null,
-      created_at: "2026-01-15T10:00:00Z",
-      updated_at: "2026-01-15T10:05:00Z",
+      stage: "parsed",
+      status: "completed" as const,
+      at: "2026-01-15T10:05:00Z",
+      duration_ms: 30000,
+      error: null,
+    },
+    {
+      stage: "embedded",
+      status: "failed" as const,
+      at: "2026-01-15T10:10:00Z",
+      duration_ms: null,
+      error: "UnexpectedResponse:process",
     },
   ],
 };
@@ -75,8 +82,12 @@ const mockTraceResponse = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(adminApi.adminApi.getIngestionStatus).mockResolvedValue(mockPopulatedResponse);
-  vi.mocked(adminApi.adminApi.getDocumentTrace).mockResolvedValue(mockTraceResponse);
-  vi.mocked(adminApi.adminApi.requeueDocument).mockResolvedValue({ requeued: 1 });
+  vi.mocked(adminApi.adminApi.getDocumentTimeline).mockResolvedValue(mockTimelineResponse);
+  vi.mocked(adminApi.adminApi.retryDocument).mockResolvedValue({ requeued: 1, action: "retry" });
+  vi.mocked(adminApi.adminApi.reprocessDocument).mockResolvedValue({ requeued: 1, action: "reprocess" });
+  vi.mocked(adminApi.adminApi.reocrDocument).mockResolvedValue({ requeued: 0, action: "reocr" });
+  vi.mocked(adminApi.adminApi.retranslateDocument).mockResolvedValue({ requeued: 0, action: "retranslate" });
+  vi.mocked(adminApi.adminApi.reembedDocument).mockResolvedValue({ requeued: 1, action: "reembed" });
 });
 
 describe("AdminIngestionPage", () => {
@@ -112,7 +123,7 @@ describe("AdminIngestionPage", () => {
     });
     render(<AdminIngestionPage />);
     await screen.findByText("Failed Doc");
-    const truncated = "a".repeat(80) + "…";
+    const truncated = "a".repeat(80) + "\u2026";
     expect(screen.getByText(truncated)).toBeInTheDocument();
   });
 
@@ -202,7 +213,7 @@ describe("AdminIngestionPage", () => {
     expect(input).toHaveValue("");
   });
 
-  it("expands row and loads document trace", async () => {
+  it("expands row and loads document timeline", async () => {
     const user = userEvent.setup();
     render(<AdminIngestionPage />);
     await screen.findByText("Test Document");
@@ -211,16 +222,16 @@ describe("AdminIngestionPage", () => {
     await user.click(expandBtn);
 
     expect(
-      await screen.findByText("Pipeline trace — Test Document")
+      await screen.findByText("Processing timeline — Test Document")
     ).toBeInTheDocument();
     expect(
-      await screen.findByText(/Jobs: 1/)
+      await screen.findByText("Source: Test Source")
     ).toBeInTheDocument();
   });
 
-  it("shows 404 message when document trace returns 404", async () => {
+  it("shows 404 message when document timeline returns 404", async () => {
     const user = userEvent.setup();
-    vi.mocked(adminApi.adminApi.getDocumentTrace).mockRejectedValue(
+    vi.mocked(adminApi.adminApi.getDocumentTimeline).mockRejectedValue(
       new Error("404: Not found")
     );
     render(<AdminIngestionPage />);
@@ -230,7 +241,7 @@ describe("AdminIngestionPage", () => {
     await user.click(expandBtn);
 
     expect(
-      await screen.findByText("No pipeline trace found for this document.")
+      await screen.findByText("No pipeline timeline found for this document.")
     ).toBeInTheDocument();
   });
 
@@ -274,51 +285,58 @@ describe("AdminIngestionPage", () => {
     expect(screen.getAllByText("0").length).toBe(4);
   });
 
-  it("requeue button calls requeueDocument and shows success toast when jobs requeued", async () => {
+  it("shows retry actions when timeline has failed stages", async () => {
     const user = userEvent.setup();
     render(<AdminIngestionPage />);
     await screen.findByText("Test Document");
 
     const expandBtn = screen.getAllByRole("button", { name: "Expand trace" })[0];
     await user.click(expandBtn);
-    await screen.findByText("Pipeline trace — Test Document");
+    await screen.findByText("Processing timeline — Test Document");
 
-    const requeueBtn = screen.getByRole("button", { name: /requeue document/i });
-    await user.click(requeueBtn);
-
-    expect(vi.mocked(adminApi.adminApi.requeueDocument)).toHaveBeenCalledWith("doc-1");
-    expect(await screen.findByText(/Requeued 1 job/i)).toBeInTheDocument();
+    // Retry actions section should appear because there's a failed stage
+    expect(await screen.findByText("Retry actions")).toBeInTheDocument();
+    expect(screen.getByText("Retry failed stage")).toBeInTheDocument();
   });
 
-  it("requeue button shows warning toast when no dead-letter jobs exist", async () => {
-    vi.mocked(adminApi.adminApi.requeueDocument).mockResolvedValue({ requeued: 0 });
+  it("retry button calls retryDocument and shows success toast", async () => {
     const user = userEvent.setup();
     render(<AdminIngestionPage />);
     await screen.findByText("Test Document");
 
     const expandBtn = screen.getAllByRole("button", { name: "Expand trace" })[0];
     await user.click(expandBtn);
-    await screen.findByText("Pipeline trace — Test Document");
+    await screen.findByText("Processing timeline — Test Document");
 
-    await user.click(screen.getByRole("button", { name: /requeue document/i }));
+    // Click "Retry failed stage" button
+    const retryBtn = screen.getByRole("button", { name: /Retry failed stage/i });
+    await user.click(retryBtn);
 
-    expect(await screen.findByText(/No dead-letter jobs found/i)).toBeInTheDocument();
+    // Confirmation dialog appears
+    expect(await screen.findByText(/Retry failed stage for this document\?/i)).toBeInTheDocument();
+
+    // Click Confirm
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(vi.mocked(adminApi.adminApi.retryDocument)).toHaveBeenCalledWith("doc-1");
+    expect(await screen.findByText(/retry: requeued 1 job/i)).toBeInTheDocument();
   });
 
-  it("requeue button shows error toast when request fails", async () => {
-    vi.mocked(adminApi.adminApi.requeueDocument).mockRejectedValue(
-      new Error("Internal server error")
-    );
+  it("cancel button dismisses confirmation dialog", async () => {
     const user = userEvent.setup();
     render(<AdminIngestionPage />);
     await screen.findByText("Test Document");
 
     const expandBtn = screen.getAllByRole("button", { name: "Expand trace" })[0];
     await user.click(expandBtn);
-    await screen.findByText("Pipeline trace — Test Document");
+    await screen.findByText("Processing timeline — Test Document");
 
-    await user.click(screen.getByRole("button", { name: /requeue document/i }));
+    const retryBtn = screen.getByRole("button", { name: /Retry failed stage/i });
+    await user.click(retryBtn);
 
-    expect(await screen.findByText("Internal server error")).toBeInTheDocument();
+    expect(await screen.findByText(/Retry failed stage for this document\?/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText(/Retry failed stage for this document\?/i)).not.toBeInTheDocument();
   });
 });
