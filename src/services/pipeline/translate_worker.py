@@ -99,6 +99,10 @@ class TranslateConsumer(BaseConsumer):
         # after Meilisearch indexing has actually succeeded.
         if self._doc_repo and translated and quality is not None:
             self._doc_repo.update_translation_quality(document_id, quality)
+        # Early index pass (enrich=False): makes the document keyword-
+        # searchable immediately and keeps search working if the embed stage
+        # is degraded. Intelligence/alert fire on the embed worker's final
+        # index pass (enrich=True) so enrichment runs exactly once (#694).
         self._publisher.publish_index(
             job_id=job_id,
             document_id=document_id,
@@ -106,6 +110,7 @@ class TranslateConsumer(BaseConsumer):
             attempt=attempt,
             content_text=content_text,
             translated_text=translated,
+            enrich=False,
         )
         self._publisher.publish_embed(
             job_id=job_id,

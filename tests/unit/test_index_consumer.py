@@ -308,3 +308,66 @@ def test_no_elasticsearch_imports_in_module() -> None:
     with open(iw.__file__) as f:
         source = f.read()
     assert "elastic" not in source.lower(), "index_worker should not reference Elasticsearch"
+
+
+# ---------------------------------------------------------------------------
+# enrich flag — enrichment fires once, on the final index pass (#694)
+# ---------------------------------------------------------------------------
+
+
+def test_handle_message_enrich_false_skips_intelligence_and_alert(
+    consumer: IndexConsumer,
+    mock_meili: MagicMock,
+    mock_job_repo: MagicMock,
+    mock_doc_repo: MagicMock,
+    mock_publisher: MagicMock,
+) -> None:
+    """The early (pre-embed) index pass must index and complete the job but
+    defer intelligence/alert to the final pass."""
+    consumer.handle_message(
+        job_id=uuid4(),
+        document_id=uuid4(),
+        source_id=uuid4(),
+        attempt=1,
+        correlation_id="corr-early",
+        content_text="Some document content that will be chunked.",
+        translated_text="",
+        enrich=False,
+    )
+
+    assert mock_meili.index_batch.called
+    mock_job_repo.mark_running_stage.assert_called_once()
+    mock_job_repo.mark_succeeded.assert_called_once()
+    mock_doc_repo.update_indexed.assert_called_once()
+    mock_publisher.publish_intelligence.assert_not_called()
+    mock_publisher.publish_alert.assert_not_called()
+
+
+def test_handle_message_enrich_true_publishes_intelligence_and_alert(
+    consumer: IndexConsumer,
+    mock_publisher: MagicMock,
+) -> None:
+    """The final (post-embed) index pass fires enrichment exactly once."""
+    consumer.handle_message(
+        job_id=uuid4(),
+        document_id=uuid4(),
+        source_id=uuid4(),
+        attempt=1,
+        correlation_id="corr-final",
+        content_text="Some document content.",
+        translated_text="",
+        enrich=True,
+    )
+
+    mock_publisher.publish_intelligence.assert_called_once()
+    mock_publisher.publish_alert.assert_called_once()
+
+
+def test_extra_message_kwargs_defaults_enrich_true_for_legacy_messages(
+    consumer: IndexConsumer,
+) -> None:
+    """In-flight messages published before the flag existed must behave as
+    enrich=True."""
+    assert consumer._extra_message_kwargs({}) == {"enrich": True}
+    assert consumer._extra_message_kwargs({"enrich": True}) == {"enrich": True}
+    assert consumer._extra_message_kwargs({"enrich": False}) == {"enrich": False}

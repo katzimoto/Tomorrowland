@@ -42,3 +42,26 @@ def test_publish_parse_skips_rabbit_when_disabled():
     rabbit.publish.return_value = ""
     pub.publish_parse(job_id=uuid4(), document_id=uuid4(), source_id=uuid4())
     job_repo.set_rabbit_message_id.assert_not_called()
+
+
+def test_publish_index_defaults_to_enrich_true():
+    pub, _job_repo, rabbit = _make_publisher()
+    pub.publish_index(job_id=uuid4(), document_id=uuid4(), source_id=uuid4())
+
+    body = rabbit.publish.call_args[0][1]
+    assert body["enrich"] is True
+
+
+def test_publish_index_carries_enrich_false_for_early_pass():
+    pub, _job_repo, rabbit = _make_publisher()
+    pub.publish_index(
+        job_id=uuid4(),
+        document_id=uuid4(),
+        source_id=uuid4(),
+        content_text="text",
+        enrich=False,
+    )
+
+    body = rabbit.publish.call_args[0][1]
+    assert body["enrich"] is False
+    assert body["content_text"] == "text"

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Double enrichment per document (#694)**: intelligence and alert stages
+  fired twice for every document with content, because both the translate
+  worker's early index publish and the embed worker's post-embed index publish
+  triggered downstream enrichment. Index messages now carry an `enrich` flag:
+  the translate stage publishes the early pass with `enrich=false` (the
+  document stays immediately keyword-searchable, including when the embed
+  stage is degraded) and the embed stage publishes the final pass with
+  `enrich=true`, so intelligence/alert run exactly once — on the updated,
+  post-translation content. Messages without the flag (in-flight during
+  deploy) keep the old behavior, and the flag survives retry republishes.
+
 ### Added (v0.3 — Trust and Retrieval Quality)
 - **BGE Reranker (#650)**: `SearchResponse` now includes `reranker_applied: bool`
   so callers can tell whether cross-encoder reranking was performed. The BGE
