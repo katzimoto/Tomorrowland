@@ -1,4 +1,4 @@
-FROM ollama/ollama:latest
+FROM ollama/ollama:0.5.13
 
 ARG OLLAMA_MODEL=qwen3:4b
 ARG OLLAMA_UTILITY_MODEL=qwen3:1.7b

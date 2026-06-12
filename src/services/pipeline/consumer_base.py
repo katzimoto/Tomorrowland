@@ -284,6 +284,6 @@ class BaseConsumer(ABC):
             def log_message(self, fmt: str, *args: Any) -> None:
                 pass
 
-        server = HTTPServer(("", self._health_port), Handler)
+        server = HTTPServer(("127.0.0.1", self._health_port), Handler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()

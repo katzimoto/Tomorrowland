@@ -145,6 +145,7 @@ case "$cmd" in
     [[ -f docker-compose.yml ]] || fail "docker-compose.yml not found.  Run from the extracted release directory."
     [[ -f docker-compose.airgap.yml ]] || fail "docker-compose.airgap.yml not found.  Run from the extracted release directory."
     command -v docker >/dev/null 2>&1 || fail "docker is required"
+    bash "$script_dir/check-prod-env.sh" .env
     profile_args=()
     if [[ -n "$(local_llm_profile)" ]]; then
       profile_args=(--profile local-llm)
