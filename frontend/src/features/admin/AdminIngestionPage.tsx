@@ -127,39 +127,51 @@ function TimelinePanel({
     retry: false,
   });
 
-  const buildRetryMutation = (action: string) => {
-    const actionFns: Record<string, (id: string) => Promise<{ requeued: number; action: string }>> = {
-      retry: adminApi.retryDocument,
-      reprocess: adminApi.reprocessDocument,
-      reocr: adminApi.reocrDocument,
-      retranslate: adminApi.retranslateDocument,
-      reembed: adminApi.reembedDocument,
-    };
-    return useMutation({
-      mutationFn: () => actionFns[action](documentId),
-      onSuccess: (result) => {
-        setConfirmAction(null);
-        if (result.requeued === 0) {
-          showToast("info", "No jobs needed requeueing — the document may already be processed.");
-        } else {
-          showToast("success", `${action}: requeued ${result.requeued} job(s).`);
-        }
-        qc.invalidateQueries({ queryKey: ["document-timeline", documentId] });
-        qc.invalidateQueries({ queryKey: ["ingestion-status"] });
-      },
-      onError: (err: Error) => {
-        setConfirmAction(null);
-        showToast("error", err.message);
-      },
-    });
+  const makeOnSuccess = (action: string) => (result: { requeued: number }) => {
+    setConfirmAction(null);
+    if (result.requeued === 0) {
+      showToast("info", "No jobs needed requeueing — the document may already be processed.");
+    } else {
+      showToast("success", `${action}: requeued ${result.requeued} job(s).`);
+    }
+    qc.invalidateQueries({ queryKey: ["document-timeline", documentId] });
+    qc.invalidateQueries({ queryKey: ["ingestion-status"] });
   };
 
-  // We need the full set of mutations — use individual ones for loading states
-  const retryMutation = buildRetryMutation("retry");
-  const reprocessMutation = buildRetryMutation("reprocess");
-  const reocrMutation = buildRetryMutation("reocr");
-  const retranslateMutation = buildRetryMutation("retranslate");
-  const reembedMutation = buildRetryMutation("reembed");
+  const makeOnError = () => (err: Error) => {
+    setConfirmAction(null);
+    showToast("error", err.message);
+  };
+
+  const retryMutation = useMutation({
+    mutationFn: () => adminApi.retryDocument(documentId),
+    onSuccess: makeOnSuccess("retry"),
+    onError: makeOnError(),
+  });
+
+  const reprocessMutation = useMutation({
+    mutationFn: () => adminApi.reprocessDocument(documentId),
+    onSuccess: makeOnSuccess("reprocess"),
+    onError: makeOnError(),
+  });
+
+  const reocrMutation = useMutation({
+    mutationFn: () => adminApi.reocrDocument(documentId),
+    onSuccess: makeOnSuccess("reocr"),
+    onError: makeOnError(),
+  });
+
+  const retranslateMutation = useMutation({
+    mutationFn: () => adminApi.retranslateDocument(documentId),
+    onSuccess: makeOnSuccess("retranslate"),
+    onError: makeOnError(),
+  });
+
+  const reembedMutation = useMutation({
+    mutationFn: () => adminApi.reembedDocument(documentId),
+    onSuccess: makeOnSuccess("reembed"),
+    onError: makeOnError(),
+  });
 
   const mutationMap: Record<string, typeof retryMutation> = {
     retry: retryMutation,
