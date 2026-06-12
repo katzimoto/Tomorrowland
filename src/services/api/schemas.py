@@ -46,6 +46,12 @@ class SearchResponse(BaseModel):
     reranker_applied: bool = False
 
 
+class LayoutBlockSummary(BaseModel):
+    page_number: int | None = None
+    block_type: str
+    count: int
+
+
 class PreviewResponse(BaseModel):
     document_id: str
     title: str | None = None
@@ -70,6 +76,8 @@ class PreviewResponse(BaseModel):
     entities_summary: list[dict[str, Any]] | None = None
     relationships: list[DocumentRelationshipInfo] | None = None
     has_file: bool = False
+    layout_blocks_available: bool = False
+    layout_blocks_summary: list[LayoutBlockSummary] | None = None
 
 
 class DocumentRelationshipInfo(BaseModel):

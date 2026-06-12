@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from services.documents.layout_block_repository import LayoutBlockRepository
 from services.documents.repository import DocumentRelationshipRepository, DocumentRepository
 from services.extraction.extraction_repository import DocumentExtractionRepository
 from services.extraction.registry import ExtractorRegistry
@@ -45,6 +46,45 @@ def _maybe_delete_connector_temp(path: str) -> None:
 _MAX_ATTACHMENT_NESTING = 10
 
 
+def _build_layout_blocks(
+    content_text: str,
+    location_segments: list[dict[str, Any]],
+    parser_name: str,
+) -> list[dict[str, Any]]:
+    """Derive layout blocks from location_segments and content_text.
+
+    Each location_segment becomes one layout block.  block_type is
+    derived heuristically: a segment with ``section_heading`` set is
+    classified as ``heading``; otherwise ``paragraph``.
+
+    Returns a list of dicts suitable for LayoutBlockRepository.bulk_upsert.
+    """
+    blocks: list[dict[str, Any]] = []
+    for idx, seg in enumerate(location_segments):
+        start = seg.get("start_char", 0)
+        end = seg.get("end_char", len(content_text))
+        # Clamp to valid range.
+        if start < 0:
+            start = 0
+        if end > len(content_text):
+            end = len(content_text)
+        block_text: str | None = None
+        if start < end:
+            block_text = content_text[start:end]
+        block_type = "heading" if seg.get("section_heading") else "paragraph"
+        blocks.append(
+            {
+                "page_number": seg.get("page_number"),
+                "block_type": block_type,
+                "text": block_text,
+                "parser": parser_name,
+                "confidence": None,
+                "reading_order": idx,
+            }
+        )
+    return blocks
+
+
 def _attachment_cycle_or_depth_skip(parent_external_id: str, sha256_hex: str) -> bool:
     """Return True when processing this attachment would loop or nest too deep.
 
@@ -74,6 +114,7 @@ class ParseConsumer(BaseConsumer):
         extractor: ExtractorRegistry | None = None,
         router: ParserRouter | None = None,
         extraction_repo: DocumentExtractionRepository | None = None,
+        layout_repo: LayoutBlockRepository | None = None,
         health_port: int = 8081,
     ) -> None:
         super().__init__(rabbit, job_repo, health_port)
@@ -82,6 +123,7 @@ class ParseConsumer(BaseConsumer):
         self._extractor = extractor or ExtractorRegistry()
         self._router = router
         self._extraction_repo = extraction_repo
+        self._layout_repo = layout_repo
 
     def handle_message(
         self,
@@ -100,12 +142,14 @@ class ParseConsumer(BaseConsumer):
         payload = self._job_repo.get_payload(document_id)
         content_text = (payload.get("content_text", "") if payload else None) or ""
         location_segments: list[dict[str, Any]] = []
+        extraction_parser_name = "generic"
         _extraction_attachments: list[Any] = []
         if not content_text and doc.path:
             if self._router is not None:
                 routed = self._router.route(Path(doc.path), doc.mime_type, source_id)
                 content_text = routed.result.text
                 location_segments = [seg.to_dict() for seg in routed.result.location_segments]
+                extraction_parser_name = routed.parser_name
                 _extraction_attachments = routed.result.attachments
                 if self._extraction_repo is not None:
                     self._extraction_repo.record(
@@ -124,6 +168,19 @@ class ParseConsumer(BaseConsumer):
                 _extraction_attachments = result.attachments
             if location_segments:
                 self._job_repo.update_extraction_metadata(document_id, location_segments)
+            # Record layout blocks when we have location segments + a repo.
+            if location_segments and self._layout_repo is not None:
+                try:
+                    blocks = _build_layout_blocks(
+                        content_text, location_segments, extraction_parser_name
+                    )
+                    if blocks:
+                        self._layout_repo.bulk_upsert(document_id, blocks)
+                except Exception:
+                    logger.exception(
+                        "layout block recording failed document_id=%s",
+                        document_id,
+                    )
             # Release connector-owned temp files after extraction
             _maybe_delete_connector_temp(doc.path)
 
