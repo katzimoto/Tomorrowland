@@ -50,7 +50,7 @@ function makeDoc(overrides: Partial<adminApi.SourceDocument> = {}): adminApi.Sou
     char_count: 5000,
     chunk_count: 3,
     ocr_needed: false,
-    ocr_performed: false,
+    ocr_performed: null,
     translation_status: "fast",
     layout_blocks_available: true,
     table_block_count: 2,

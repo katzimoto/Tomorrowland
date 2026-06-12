@@ -114,7 +114,7 @@ export interface SourceDocument {
   char_count: number | null;
   chunk_count: number | null;
   ocr_needed: boolean;
-  ocr_performed: boolean;
+  ocr_performed: boolean | null;
   translation_status: string | null;
   layout_blocks_available: boolean;
   table_block_count: number;

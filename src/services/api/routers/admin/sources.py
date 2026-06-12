@@ -28,6 +28,10 @@ from services.connectors.factory import build_connector, connector_types
 from services.permissions.enforcer import require_admin
 from shared.db import db_resolve_json, to_uuid
 
+# Recognised OCR-capable parser names.  These perform explicit OCR (vs
+# non-OCR parsers that extract text natively from the file format).
+_OCR_PARSERS: frozenset[str] = frozenset({"OcrExtractor"})
+
 router = APIRouter(tags=["admin"])
 
 
@@ -452,6 +456,83 @@ def admin_get_source_documents(
         ).scalar()
         total = int(count_row or 0)
 
+        # ── parser_summary computed from ALL documents (not paginated) ──
+        parser_summary: dict[str, Any] = {
+            "documents_by_parser": {},
+            "total_extracted": 0,
+            "total_ocr_needed": 0,
+            "total_failed": 0,
+            "total_documents": total,
+            "avg_char_count": 0,
+        }
+        if total > 0:
+            summary_rows = connection.execute(
+                sa.text("""
+                    SELECT
+                        e_sum.parser_name,
+                        COUNT(*) AS doc_count,
+                        d.mime_type,
+                        e_sum.warnings AS extraction_warnings,
+                        p_sum.char_count,
+                        pj.status AS parse_status
+                    FROM documents d
+                    LEFT JOIN LATERAL (
+                        SELECT parser_name, warnings
+                        FROM document_extractions
+                        WHERE document_id = d.id
+                        ORDER BY created_at DESC LIMIT 1
+                    ) e_sum ON true
+                    LEFT JOIN (
+                        SELECT document_id,
+                               LENGTH(content_text) AS char_count
+                        FROM document_payloads
+                    ) p_sum ON p_sum.document_id = d.id
+                    LEFT JOIN LATERAL (
+                        SELECT status
+                        FROM pipeline_jobs
+                        WHERE document_id = d.id AND job_type = 'process_document'
+                        ORDER BY created_at DESC LIMIT 1
+                    ) pj ON true
+                    WHERE d.source_id = :source_id
+                    """),
+                {"source_id": source_id.hex},
+            ).mappings()
+
+            parser_counts: dict[str, int] = {}
+            total_extracted = 0
+            total_ocr_needed = 0
+            total_failed = 0
+            total_char_count = 0
+            for srow in summary_rows:
+                pname = srow.get("parser_name")
+                if pname:
+                    parser_counts[pname] = parser_counts.get(pname, 0) + 1
+                    total_extracted += 1
+                else:
+                    # Dead-letter parse job → failed
+                    if srow.get("parse_status") == "dead_letter":
+                        total_failed += 1
+
+                # OCR-needed inference
+                mime = srow.get("mime_type") or ""
+                if mime.startswith("image/"):
+                    if pname:
+                        total_ocr_needed += 1
+                elif mime == "application/pdf":
+                    warnings = _parse_json_list(srow.get("extraction_warnings"))
+                    if any("ocr" in w.lower() for w in warnings) and pname:
+                        total_ocr_needed += 1
+
+                cc = srow.get("char_count") or 0
+                total_char_count += cc
+
+            parser_summary["documents_by_parser"] = parser_counts
+            parser_summary["total_extracted"] = total_extracted
+            parser_summary["total_ocr_needed"] = total_ocr_needed
+            parser_summary["total_failed"] = total_failed
+            parser_summary["avg_char_count"] = round(total_char_count / total) if total > 0 else 0
+
+        # ── Paginated document rows ──
         rows = connection.execute(
             sa.text("""
                 SELECT d.id, d.title, d.external_id, d.status, d.mime_type,
@@ -542,13 +623,7 @@ def admin_get_source_documents(
                     }
                 )
 
-        # Build source-level parser summary
-        parser_counts: dict[str, int] = {}
-        total_extracted = 0
-        total_ocr_needed = 0
-        total_failed = 0
-        total_char_count = 0
-
+        # Build per-document metadata from the paginated rows
         documents = []
         for row in doc_rows:
             did = str(to_uuid(row["id"]))
@@ -558,30 +633,33 @@ def admin_get_source_documents(
                 None,
             )
 
-            extraction_status = "extracted" if row.get("parser_name") else "pending"
-            if extraction_status == "extracted":
-                total_extracted += 1
-            elif parse_job and parse_job["status"] == "dead_letter":
-                total_failed += 1
-
             parser_name = row.get("parser_name")
+            # extraction_status: "extracted" if parser ran, "failed" if parse
+            # job dead-lettered, "pending" otherwise.
             if parser_name:
-                parser_counts[parser_name] = parser_counts.get(parser_name, 0) + 1
+                extraction_status = "extracted"
+            elif parse_job and parse_job["status"] == "dead_letter":
+                extraction_status = "failed"
+            else:
+                extraction_status = "pending"
 
             char_count = row.get("char_count") or 0
-            total_char_count += char_count
             chunk_count = _approximate_chunk_count(char_count)
 
-            # Infer OCR needed from mime type and extraction warnings
-            ocr_needed = False
-            if row.get("mime_type") and row["mime_type"].startswith("image/"):
-                ocr_needed = True
-            elif row.get("mime_type") == "application/pdf":
-                warnings = _parse_json_list(row.get("extraction_warnings"))
-                ocr_needed = any("ocr" in w.lower() for w in warnings)
-            # Only count extracted OCR-needing docs in summary (not pending ones)
-            if ocr_needed and extraction_status == "extracted":
-                total_ocr_needed += 1
+            # OCR-needed: image/* always needs OCR; PDF needs OCR when
+            # extraction warnings mention it.
+            mime = row.get("mime_type") or ""
+            ocr_needed = mime.startswith("image/") or (
+                mime == "application/pdf"
+                and any(
+                    "ocr" in w.lower() for w in _parse_json_list(row.get("extraction_warnings"))
+                )
+            )
+            # ocr_performed: true only when a recognised OCR-capable parser
+            # produced the extraction, not as a general heuristic.
+            ocr_performed: bool | None = None
+            if parser_name and parser_name in _OCR_PARSERS:
+                ocr_performed = True
 
             fallback_chain_raw = row.get("fallback_chain")
             fallback_chain: list[str] | None = None
@@ -617,7 +695,7 @@ def admin_get_source_documents(
                 "char_count": char_count,
                 "chunk_count": chunk_count,
                 "ocr_needed": ocr_needed,
-                "ocr_performed": ocr_needed and extraction_status == "extracted",
+                "ocr_performed": ocr_performed,
                 "translation_status": row.get("translation_quality"),
                 "layout_blocks_available": bool(row.get("layout_blocks_available")),
                 "table_block_count": row.get("table_block_count") or 0,
@@ -626,17 +704,7 @@ def admin_get_source_documents(
             }
             documents.append(docs)
 
-        avg_char_count = total_char_count / len(documents) if documents else 0
-        source_summary = {
-            "documents_by_parser": parser_counts,
-            "total_extracted": total_extracted,
-            "total_ocr_needed": total_ocr_needed,
-            "total_failed": total_failed,
-            "total_documents": total,
-            "avg_char_count": round(avg_char_count),
-        }
-
-        return {"documents": documents, "total": total, "parser_summary": source_summary}
+        return {"documents": documents, "total": total, "parser_summary": parser_summary}
 
 
 @router.delete("/admin/sources/{source_id}", status_code=204)

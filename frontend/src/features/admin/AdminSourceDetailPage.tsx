@@ -445,10 +445,12 @@ function DocumentRow({
 function ParserStrategySection({ sourceId }: { sourceId: string }) {
   const t = useT();
 
+  // Reuse the same query key as SourceDocumentsSection so TanStack Query
+  // deduplicates the request — no duplicate GET on page load.
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["source-parser-strategy", sourceId],
-    queryFn: () => adminApi.getSourceDocuments(sourceId, 200, 0),
-    refetchInterval: 30_000,
+    queryKey: ["source-documents", sourceId],
+    queryFn: () => adminApi.getSourceDocuments(sourceId),
+    refetchInterval: 10_000,
   });
 
   if (isLoading) {
@@ -564,9 +566,13 @@ function ParserStrategySection({ sourceId }: { sourceId: string }) {
                 <td>{doc.chunk_count != null ? doc.chunk_count.toLocaleString() : "—"}</td>
                 <td>
                   {doc.ocr_needed ? (
-                    <Badge variant={doc.ocr_performed ? "success" : "warning"}>
-                      {doc.ocr_performed ? t.admin.ocrPerformed : t.admin.ocrNeeded}
-                    </Badge>
+                    doc.ocr_performed === true ? (
+                      <Badge variant="success">{t.admin.ocrPerformed}</Badge>
+                    ) : doc.ocr_performed === false ? (
+                      <Badge variant="warning">{t.admin.ocrNeeded}</Badge>
+                    ) : (
+                      <Badge variant="neutral">{t.admin.ocrNeeded}</Badge>
+                    )
                   ) : (
                     t.admin.no
                   )}
