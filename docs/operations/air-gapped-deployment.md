@@ -718,6 +718,19 @@ After the stack is healthy:
 
 ## Upgrade existing deployments
 
+### Non-root container image (added in v0.3)
+
+The backend image now runs as `appuser` (uid 1000) instead of root. The
+entrypoint automatically re-chowns the `/data` volume on startup, so no manual
+intervention is required for most deployments. If the stack fails to start with
+a permission error on `/data`, run the following once before restarting:
+
+```bash
+docker compose run --rm --entrypoint "" api chown -R 1000:1000 /data
+```
+
+### General upgrade procedure
+
 For an existing air-gapped deployment, do not reinstall from scratch and do not
 recreate volumes. Follow `docs/operations/air-gapped-upgrade.md` in the repository, or
 `docs/air-gapped-upgrade.md` inside an extracted release artifact. The upgrade
