@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+- **Dead legacy translation worker (#695)**: deleted
+  `src/services/pipeline/translation_worker.py` (290 lines). It had no
+  console entrypoint, no Compose `command`, and zero callers — the live
+  translation path is `translate_worker.py` (`tomorrowland-translate-worker`).
+  Its only test coverage (empty-content graceful skip) was ported to the live
+  `TranslateConsumer`.
+
 ### Fixed
 - **Double enrichment per document (#694)**: intelligence and alert stages
   fired twice for every document with content, because both the translate
