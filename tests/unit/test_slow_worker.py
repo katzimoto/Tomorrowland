@@ -250,27 +250,24 @@ class TestEnrichmentSubtaskErrors:
         doc_id = uuid4()
         worker._doc_repo.get_by_id.return_value = _make_mock_doc(doc_id)
 
-        with pytest.raises(EnrichmentSubtaskError):
-            with patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])):
-                worker.process_document(doc_id)
+        with pytest.raises(EnrichmentSubtaskError), patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])):
+            worker.process_document(doc_id)
 
     def test_intelligence_failure_raises_enrichment_subtask_error(self) -> None:
         worker = self._make_worker(intelligence_raises=RuntimeError("llm down"))
         doc_id = uuid4()
         worker._doc_repo.get_by_id.return_value = _make_mock_doc(doc_id)
 
-        with pytest.raises(EnrichmentSubtaskError):
-            with patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])):
-                worker.process_document(doc_id)
+        with pytest.raises(EnrichmentSubtaskError), patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])):
+            worker.process_document(doc_id)
 
     def test_alert_failure_does_not_mark_document_status_failed(self) -> None:
         worker = self._make_worker(alert_raises=RuntimeError("alert boom"))
         doc_id = uuid4()
         worker._doc_repo.get_by_id.return_value = _make_mock_doc(doc_id)
 
-        with pytest.raises(EnrichmentSubtaskError):
-            with patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])):
-                worker.process_document(doc_id)
+        with pytest.raises(EnrichmentSubtaskError), patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])):
+            worker.process_document(doc_id)
 
         worker._doc_repo.update_status.assert_not_called()
 
@@ -316,9 +313,8 @@ class TestEnrichmentSubtaskErrors:
         doc_id = uuid4()
         worker._doc_repo.get_by_id.return_value = _make_mock_doc(doc_id)
 
-        with pytest.raises(EnrichmentSubtaskError):
-            with patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])):
-                worker.process_document(doc_id)
+        with pytest.raises(EnrichmentSubtaskError), patch("services.pipeline.slow_worker.chunk_text", return_value=iter([])):
+            worker.process_document(doc_id)
 
         worker._alert_matcher.match_document.assert_called_once()
         worker._intelligence.process_document.assert_called_once()
