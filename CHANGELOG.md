@@ -12,6 +12,23 @@ All notable changes to this project will be documented in this file.
   Its only test coverage (empty-content graceful skip) was ported to the live
   `TranslateConsumer`.
 
+### Added (CI / quality)
+- **Nightly integration & eval workflow (#703)**: `.github/workflows/nightly-integration.yml`
+  runs every night at 02:00 UTC (and on `workflow_dispatch`). Two jobs: (1) full
+  `tests/integration/` suite against PostgreSQL, plus migration downgrade smoke for
+  the 5 most recent revisions (both SQLite and Postgres); (2) retrieval eval
+  (`tests/eval --eval`) with Qdrant service, result JSON uploaded as artifact for
+  trending (`continue-on-error: true` — no hard gate on eval metrics).
+- **Migration downgrade smoke test (#703)**: `tests/test_migration_downgrade.py`
+  parametrises the 5 most recent Alembic revisions and for each runs
+  `upgrade → downgrade -1 → upgrade head`. SQLite variant runs in the regular
+  per-PR unit suite; Postgres variant is guarded by `PGTEST=1`.
+- **Coverage floors (#703)**: backend unit tests now enforce `--cov-fail-under=60`
+  (branch + statement, baseline 62%). Frontend vitest thresholds raised from
+  30/20/25/30 to 50/33/42/50 (statements/branches/functions/lines) after the
+  WS4 test-gap issues (#701, #702) landed. Both floors documented in
+  `docs/agents/ci-hardening.md`.
+
 ### Fixed
 - **Chat streaming error — inline error state (#702)**: when a streaming send
   fails, `ChatWindow` now renders an inline `EmptyState` with a Retry button

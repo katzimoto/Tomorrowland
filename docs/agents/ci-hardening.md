@@ -79,6 +79,45 @@ Do NOT:
 - Delete a failing test instead of fixing it
 - Disable CI checks
 
+## Coverage Floors (active, #703)
+
+These floors are enforced in CI. Do not lower them without a matching issue.
+
+### Backend (`backend.yml` — `quality` job)
+
+```
+--cov=src --cov-branch --cov-fail-under=60
+```
+
+Measured baseline: 62% branch+statement coverage from the unit test suite
+(`tests/` excluding `tests/integration/`). Floor set at baseline − 2.
+To raise: run `uv run pytest tests/ -q --ignore=tests/integration --cov=src
+--cov-branch --cov-report=term` locally, confirm the new floor, update
+`--cov-fail-under` in `backend.yml`.
+
+### Frontend (`frontend/vitest.config.ts`)
+
+```ts
+thresholds: { statements: 50, branches: 33, functions: 42, lines: 50 }
+```
+
+Raised from 30/20/25/30 after WS4 backend and frontend test-gap issues (#701,
+#702) landed. To raise further: run `npm run test:coverage` (requires
+`@vitest/coverage-v8`), confirm the new numbers, update `vitest.config.ts`.
+
+## Nightly CI (`nightly-integration.yml`, #703)
+
+A scheduled workflow at `02:00 UTC` catches regressions per-PR CI cannot:
+
+| Check | Detail |
+|---|---|
+| Integration suite | Full `tests/integration/` against PostgreSQL |
+| Migration downgrade smoke | Last 5 revisions: upgrade → downgrade -1 → upgrade head (SQLite + Postgres) |
+| Retrieval eval | `tests/eval --eval`; result JSON uploaded as artifact for trending |
+
+The eval job is `continue-on-error: true` (trending only, no hard gate on
+eval metrics). Trigger manually via `workflow_dispatch` to validate.
+
 ## Emergency Bypass
 
 If you absolutely must commit broken code (e.g., WIP for handoff):
