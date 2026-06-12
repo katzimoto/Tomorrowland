@@ -8,6 +8,31 @@ document, its intelligence projection, or aggregated document evidence.
 Out of scope: pure infrastructure endpoints (`/healthz`, `/readyz`,
 auth/login, generic metrics), and frontend.
 
+## Status update — 2026-06-12 (read before acting on this audit)
+
+The matrix, checklist, and risk ranking below describe the codebase **as
+audited**, before the D2 fixes landed. A code re-verification on 2026-06-12
+(issue #699) found most HIGH/MEDIUM items already fixed. Per-fix commit refs
+are not recoverable — the repository history was squashed at `8dded03`
+(2026-06-02), which predates none of the fixes — so each entry cites the
+verified code location instead.
+
+| Item | Risk | Status | Verified evidence (2026-06-12) |
+|---|---|---|---|
+| 1. `/search` admin bypass | H1 | **Fixed** | `routers/search.py:42-58` computes `is_admin` (with membership re-verification); `:138` passes `allow_all=is_admin`. Admin-path flags exercised in `tests/integration/test_search_api.py`, `tests/unit/test_search_qdrant.py` |
+| 2. `/expertise` admin bypass | H2 | **Fixed** | `routers/documents.py:629` passes `allow_all=user.is_admin`; `related/service.py:66,126` threads it to Qdrant |
+| 3. `/search` orphaned-vector stub | H3 | **Fixed** | `routers/search.py:264` drops results whose DB row is missing ("Drop silently to avoid leaking chunk_text after deletion") |
+| 4. `/related` transitive groups | H5/M4 | **Fixed** | `routers/documents.py:564` expands via `get_effective_group_ids` |
+| 5. `/expertise` subscription leak | H4 | **Fixed** | `related/service.py:174-183` — subscription arm requires `user_shares_group` co-membership and is skipped entirely under admin bypass |
+| 6. `/me/activity` revoked access | M1 | **Fixed** | `routers/documents.py:243-249` filters by effective groups + `allow_all=user.is_admin` at read time |
+| 7. `/notifications` revoked access | M1 | **Fixed** | `routers/alerts.py:112-124` filters by effective groups for non-admin callers |
+| 8. Per-version ACL on `/versions` | M3 | **Open** | Parent-only check; matters once cross-source version reassignment is allowed |
+| 9. `/admin/config` masking | M2 | **Fixed** | `routers/admin/config.py:19-39` applies `_SENSITIVE_CONFIG_KEYS` masking |
+| 10. Consistent admin policy + per-surface test fixtures | M4 | **Partially addressed** | Conventions unified by items 1/2/4 (all surfaces thread `allow_all`); dedicated per-surface admin/multi-group/no-group integration fixtures not verified |
+| 11-12. Planned B2/E1 contracts | L4 | **Open (planned)** | Apply at implementation time |
+| 13. Admin trigger `assert_doc_access` | L1 | **Open (accepted)** | Acceptable until multi-tenant scoping lands |
+| 14. Fail-closed regression test | L— | **Not verified** | Check for an explicit `search(group_ids=[], allow_all=False) == []` test before relying on it |
+
 Auth primitives (`src/services/permissions/enforcer.py`):
 
 - `current_user` — bearer-token dep; raises 401 on missing/invalid token.
