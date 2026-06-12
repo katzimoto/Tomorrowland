@@ -1,6 +1,9 @@
 # Mail + Office First Preview Architecture Review
 
-Status: Proposed (supersedes the PDF-first plan posted on #539, 2026-05-29)
+Status: Approved 2026-06-12 (owner resolved the three open decisions: nh3
+adopted; separate preview-worker image; all artifact-writing renders go
+through the preview worker). Supersedes the PDF-first plan posted on #539,
+2026-05-29.
 Issue: #539 — high-fidelity document preview rendering pipeline
 Author: Claude (architecture review pass, 2026-06-12)
 Priority correction: Mail (EML/MSG) and Office (DOCX/PPTX/XLSX) are P0.
@@ -15,14 +18,15 @@ that reuses what already exists instead of inventing parallel infrastructure:
    `document_id + content_sha256`) holding render status and a server-side
    manifest. Artifacts live on disk under `files_root/previews/`. No paths ever
    leave the backend; artifacts are addressed by opaque artifact IDs.
-2. **Email first, rendered synchronously.** EML/MSG preview is a cheap,
-   deterministic transform (stdlib `email` / already-present `extract-msg`
-   parse → sanitized HTML + metadata + inline-image artifacts). It runs inline
-   in the API process at first manifest request and is cached. No new worker
-   is needed to ship the mail wedge.
-3. **Office second, rendered asynchronously** through the existing
-   `pipeline_jobs` + RabbitMQ machinery (new `preview_render` job type +
-   `preview-worker` service). DOCX/PPTX convert via LibreOffice headless →
+2. **Email first.** EML/MSG preview is a cheap, deterministic transform
+   (stdlib `email` / already-present `extract-msg` parse → sanitized HTML +
+   metadata + inline-image artifacts), rendered by the preview worker at
+   first manifest request and cached. All artifact-writing renders go through
+   the worker (owner decision): the API never writes to `files_data`, which
+   stays mounted read-only.
+3. **Office second**, same worker, heavier path: the existing
+   `pipeline_jobs` + RabbitMQ machinery carries a new `preview_render` job
+   type consumed by the `preview-worker` service. DOCX/PPTX convert via LibreOffice headless →
    `converted.pdf`, displayed by the **existing, already air-gapped pdf.js
    viewer**. XLSX does **not** go through PDF: it gets structured per-sheet
    grid artifacts with real sheet navigation.
@@ -159,18 +163,19 @@ dependency decision).
                     └────────────┬─────────────┘
               row missing        │        row present
         ┌──────────┴───────────┐ │ ┌────────────────────┐
-        │ cheap renderer?      │ │ │ return manifest    │
-        │ (email/text/pdf/img) │ │ │ (ready/partial/    │
-        │  → render inline,    │ │ │  failed/pending)   │
-        │    persist, return   │ │ └────────────────────┘
-        │ heavy renderer?      │
-        │ (office)             │
+        │ no-artifact kind?    │ │ │ return manifest    │
+        │ (pdf/image/text)     │ │ │ (ready/partial/    │
+        │  → persist ready     │ │ │  failed/pending)   │
+        │    manifest inline   │ │ └────────────────────┘
+        │ artifact kind?       │
+        │ (email/office)       │
         │  → enqueue           │
         │    preview_render    │
         │    job, return       │
         │    status=pending    │
         └──────────────────────┘
                                   preview-worker (BaseConsumer)
+                                  email parse → body/cid artifacts
                                   soffice --headless → converted.pdf
                                   openpyxl → sheet grids
                                   writes files_root/previews/{doc}/{sha}/
@@ -208,7 +213,7 @@ Direct answers to the design questions:
 | 13 | Office path | Both: LibreOffice headless → PDF (DOCX/PPTX visual) AND structured extraction (XLSX grids); extracted-text fallback always present |
 | 14 | EML path | stdlib `email` parse → sanitize → artifacts; never render raw HTML; never fetch remote resources |
 | 15 | MSG now? | Yes, at reduced fidelity (htmlBody or text). RTF-body conversion staged behind a follow-up dependency decision |
-| 16 | HTML sanitization | Allowlist sanitizer (recommend `nh3`; see Security) + sandboxed iframe + CSP; remote img/css/forms/scripts stripped; `cid:` rewritten to artifact URLs |
+| 16 | HTML sanitization | `nh3` allowlist sanitizer (approved 2026-06-12; see Security) + sandboxed iframe + CSP; remote img/css/forms/scripts stripped; `cid:` rewritten to artifact URLs |
 | 17 | Highlight mapping | Now: `page_number`→nav unit + text search. Reserved: `extraction_metadata` char offsets → body regions; `document_layout_blocks.bbox` → visual overlays (Docling supplies bbox later) |
 
 ## Preview manifest schema
@@ -330,9 +335,13 @@ Renderer: `src/services/preview/renderers/email_renderer.py`.
    duplicate-filename caveat). Entries without a child doc (skipped by
    extractor guards) render as metadata-only rows.
 7. **Caching**: email rendering is cheap and bounded
-   (`PREVIEW_MAX_FILE_BYTES` gate), so it runs **inline in the API process**
-   on first manifest request and persists artifacts + `status: ready` in one
-   pass. ETag = `content_sha256` on artifact responses.
+   (`PREVIEW_MAX_FILE_BYTES` gate) but still runs **in the preview worker**
+   (owner decision — the API keeps its read-only `files_data` mount). First
+   view enqueues the job and shows the pending state briefly; the render
+   itself is sub-second, so the polling hook resolves on its first or second
+   tick. ETag = `content_sha256` on artifact responses. If first-view latency
+   ever matters, eager mail rendering at ingest (parse_worker publishes the
+   preview job) is the lever — noted as a follow-up, not built in v1.
 
 ## Office preview model
 
@@ -389,19 +398,24 @@ src/services/preview/
   renderers/
     base.py                   NEW — PreviewRenderer protocol + registry
                                     (mirrors ExtractorRegistry quality-tier pattern)
-    email_renderer.py         NEW — EML/MSG (slice 1–2)
-    office_pdf.py             NEW — LibreOffice→PDF (slice 3)
-    sheet_grid.py             NEW — XLSX grids (slice 4)
+    email_renderer.py         NEW — EML/MSG (slices 1–3)
+    office_pdf.py             NEW — LibreOffice→PDF (slice 4)
+    sheet_grid.py             NEW — XLSX grids (slice 5)
 src/services/pipeline/
   preview_worker.py           NEW — BaseConsumer, queue document.preview.requested
+                                    (ships in S1: email renders here too)
   publisher.py                +routing key "preview": "document.preview.requested"
 src/services/api/routers/
   preview_manifest.py         NEW router (manifest/artifact/thumbnail/rerender)
 src/shared/config.py          +settings (below)
 migrations/versions/…         +document_preview_artifacts (upgrade+downgrade)
-docker/backend.Dockerfile     +LibreOffice packages (decision #2 in Risks)
-docker-compose*.yml           +preview-worker service (parse-worker template)
-pyproject.toml                +console script tomorrowland-preview-worker; +nh3 (pending decision #1)
+docker/preview-worker.Dockerfile  NEW — FROM the backend image, adds LibreOffice
+                                  + fonts (approved: separate image target so only
+                                  the preview worker carries soffice; release
+                                  tooling adds it to the airgap split-parts bundle)
+docker-compose*.yml           +preview-worker service (parse-worker template;
+                              backend image in S1, soffice image from S4)
+pyproject.toml                +console script tomorrowland-preview-worker; +nh3 (approved)
 ```
 
 New settings (env, `Settings`):
@@ -430,7 +444,8 @@ the existing admin guard. No internal paths in any response.
 ```text
 GET  /preview/{document_id}/manifest
      → PreviewManifestResponse (200 always; status in body)
-     → side effect: inline render (cheap kinds) or job enqueue (office)
+     → side effect: ready-immediate manifest (pdf/image/text) or
+       preview_render job enqueue (email + office)
 
 GET  /preview/{document_id}/artifact/{artifact_id}
      → FileResponse; artifact_id resolved via the DB `files` map only
@@ -493,12 +508,14 @@ banner. `EmailPreview` stays as the fallback for manifest-less email docs.
 
 ## Queue/cache/invalidation model
 
-- **Dispatch**: manifest request finds no row → insert
-  `status=pending` → cheap kinds render inline and flip to `ready` in the
-  same request; office kinds `enqueue_document(job_type="preview_render")` +
-  publish `document.preview.requested`. The existing unique active-job index
-  on `(document_id, job_type)` prevents duplicate renders under concurrent
-  first views.
+- **Dispatch**: manifest request finds no row → insert `status=pending`.
+  No-artifact kinds (pdf/image/text) flip to `ready` in the same request
+  (manifest only, no disk writes). Artifact kinds (email and office) always
+  `enqueue_document(job_type="preview_render")` + publish
+  `document.preview.requested` — the API process never writes artifacts
+  (owner decision; `files_data` stays read-only in the API container). The
+  existing unique active-job index on `(document_id, job_type)` prevents
+  duplicate renders under concurrent first views.
 - **Worker**: `preview_worker.py` (BaseConsumer) claims the job, runs the
   renderer with subprocess timeout, writes artifacts, marks the artifact row
   `ready|partial|failed` and the job `succeeded` (a *render* failure is a
@@ -521,18 +538,17 @@ banner. `EmailPreview` stays as the fallback for manifest-less email docs.
 Checklist (all enforced by code in the slices, all testable):
 
 1. **HTML sanitization — the load-bearing control.** Email HTML is the most
-   adversarial input in the product. Recommendation: adopt **`nh3`**
+   adversarial input in the product. **Approved 2026-06-12: adopt `nh3`**
    (Rust/ammonia, single offline wheel, no network, actively maintained)
    with an explicit allowlist: structural/text tags + `table` family +
    `img[src]`/`a[href]` with URL-scheme filtering; `style` attributes stripped
    in v1. Rationale: the in-house HTMLParser sanitizer already had one
    attribute-breakout/entity-smuggle XSS (#623), and email HTML is
-   exactly where hand-rolled sanitizers fail. This **revisits decision
-   2026-06-01/#623 ("dependency-free for air-gap")** — nh3 is air-gap
-   compatible (wheel in the lockfile, baked into the image), but it is a
-   policy change and needs owner sign-off (Risks #1). Fallback if declined:
-   factor `_sanitize_html` into `preview/sanitizer.py`, extend the allowlist,
-   and add an XSS regression corpus.
+   exactly where hand-rolled sanitizers fail. This consciously updates
+   decision 2026-06-01/#623 ("dependency-free for air-gap") **for preview
+   sanitization only** — nh3 is air-gap compatible (wheel in the lockfile,
+   baked into the image). The existing snippet sanitizer in
+   `preview/service.py` is untouched by this plan.
 2. **Defense in depth regardless of sanitizer**: HTML artifacts are served
    with a deny-all CSP and rendered inside `<iframe sandbox>` (no scripts, no
    forms, no top-navigation), so a sanitizer miss is contained twice.
@@ -610,8 +626,8 @@ registry dispatch.
 
 Backend integration (`tests/integration/test_preview_manifest_api.py`,
 via `migrated_engine`, no Docker):
-manifest lifecycle (pending → ready) for email (inline) and office (job row
-asserted, worker invoked directly); artifact serving + unknown
+manifest lifecycle (pending → ready) for email and office alike (job row
+asserted, worker invoked directly — no RabbitMQ needed); artifact serving + unknown
 `artifact_id` → 404; ACL → 403/404 for non-granted user; admin rerender resets
 failed; non-admin rerender rejected; two versions (different sha) → distinct
 manifests; corrupt file → terminal failed; `ENABLE_PREVIEW_RENDER=false` →
@@ -637,18 +653,19 @@ sub-issue per slice; merge order matches the shared-file policy
 (schema → backend → frontend → docs/changelog).
 
 1. **S1 — Manifest foundation + EML preview (backend)**: migration,
-   artifact repository/store, sanitizer (+ nh3 decision resolved),
-   email renderer, manifest + artifact + rerender endpoints, mail fixture
-   corpus, unit + integration tests. Email renders inline; office kinds
-   report `renderer: text, status: ready` (honest fallback).
+   artifact repository/store, nh3 sanitizer, email renderer, **preview-worker
+   service + `preview_render` job type** (runs on the plain backend image —
+   no soffice yet), manifest + artifact + rerender endpoints, mail fixture
+   corpus, unit + integration tests. Office kinds report
+   `renderer: text, status: ready` (honest fallback) until S4.
 2. **S2 — EML preview (frontend)**: `usePreviewManifest`, PreviewPane
    manifest dispatch, EmailViewer, ParentContextBanner, i18n, vitest.
    *Mail wedge demoable end-to-end after S2.*
 3. **S3 — MSG**: htmlBody → same path; text fallback; fixtures; staged
    RTF-body follow-up issue created.
-4. **S4 — Office DOCX/PPTX**: LibreOffice in image + preview-worker service +
-   `preview_render` job type + office_pdf renderer + PdfViewer `src` prop +
-   compose/airgap wiring.
+4. **S4 — Office DOCX/PPTX**: `docker/preview-worker.Dockerfile` (LibreOffice
+   + fonts) + compose/airgap split-parts wiring + office_pdf renderer +
+   PdfViewer `src` prop.
 5. **S5 — XLSX sheet grids**: sheet_grid renderer + SheetViewer + per-sheet
    location segments (small extraction addition).
 6. **S6 — PDF/image/text manifest integration + admin diagnostics**:
@@ -663,24 +680,20 @@ mail capability.
 
 ## Risks / decisions needed
 
-1. **nh3 dependency vs in-house sanitizer** (owner decision; revisits #623).
-   Recommended: nh3. The in-house sanitizer already shipped one XSS, and email
-   HTML is the worst-case input. If declined, S1 grows a hardened in-house
-   sanitizer + larger regression corpus, and the iframe/CSP layers become the
-   primary control.
-2. **LibreOffice in the shared backend image** (~+400 MB across airgap image
-   parts, affects every service using the image) **vs a separate
-   preview-worker image** (smaller blast radius, second build target +
-   packaging change). Recommended: separate Dockerfile target
-   (`docker/preview-worker.Dockerfile` FROM the backend image) so only the
-   preview worker carries soffice; release tooling must add the image to the
-   split-parts bundle — needs release-owner confirmation.
-3. **API write access to `files_data`**: compose mounts the volume read-only
-   into the API today; inline email rendering writes artifacts from the API
-   process. Either grant the API write access to `files_root/previews/`
-   (volume mount change) or route email rendering through the preview worker
-   too (simpler ops, slower first view). Decide in S1; the manifest contract
-   is identical either way.
+1. ~~nh3 dependency vs in-house sanitizer~~ — **RESOLVED 2026-06-12: nh3
+   adopted** for preview sanitization (scoped update to #623's
+   dependency-free decision; the existing snippet sanitizer is untouched).
+2. ~~LibreOffice image placement~~ — **RESOLVED 2026-06-12: separate
+   Dockerfile target** (`docker/preview-worker.Dockerfile` FROM the backend
+   image); only the preview worker carries soffice. Residual task: release
+   tooling must add the image to the airgap split-parts bundle (S4,
+   coordinate with release owner).
+3. ~~API write access to `files_data`~~ — **RESOLVED 2026-06-12: all
+   artifact-writing renders (email included) go through the preview
+   worker.** The API keeps its read-only mount. Residual consequence: email
+   first view shows a brief pending state (job round-trip, sub-second
+   render); eager mail rendering at ingest remains the latency lever if
+   needed later.
 4. **DOCX page anchoring is approximate**: extraction has no page concept for
    DOCX, and LibreOffice pagination ≠ Word pagination. Citations into DOCX
    visual previews therefore anchor by text search, not page number. Honest

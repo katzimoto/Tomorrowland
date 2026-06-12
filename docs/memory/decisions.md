@@ -2,6 +2,28 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-06-12 — Preview rendering (#539): nh3 sanitizer, separate preview-worker image, worker-only artifact writes
+
+Status: Active
+Source: owner decisions on the mail+Office-first preview plan (`docs/planning/preview-mail-office-first-2026-06.md`)
+
+Decision:
+- **`nh3` is the HTML sanitizer for preview rendering** (email/Office HTML artifacts). This is a scoped update to the 2026-06-01/#623 "dependency-free sanitizer" decision: nh3 applies to the new preview artifact pipeline only; the existing snippet sanitizer in `preview/service.py` stays as-is. Defense-in-depth (deny-all CSP on HTML artifacts + sandboxed iframe) is mandatory regardless of sanitizer.
+- **LibreOffice ships in a separate image** (`docker/preview-worker.Dockerfile` FROM the backend image), not in the shared backend image. Only the preview worker carries soffice; release tooling must add the image to the airgap split-parts bundle.
+- **All artifact-writing preview renders go through the preview worker** — email included. The API process never writes to `files_data` (its mount stays read-only). Manifest requests for artifact kinds enqueue a `preview_render` pipeline job; pdf/image/text kinds get ready-immediate manifests with no disk writes.
+
+Impact:
+- The preview-worker service + `preview_render` job type land in slice 1 (with the email renderer), on the plain backend image; the soffice image variant lands in slice 4.
+- Email first view shows a brief pending state (job round-trip); eager render-at-ingest is the future latency lever.
+- Reviewers: reject preview PRs that write artifacts from the API process or render email HTML without nh3 + CSP + sandboxed iframe.
+
+## 2026-05-29 — (superseded) PDF-first preview plan on #539
+
+Status: Superseded by `docs/planning/preview-mail-office-first-2026-06.md` (2026-06-12)
+Source: issue #539 comment, 2026-05-29
+
+The original #539 architecture comment (PDF-first, FastAPI BackgroundTasks rendering, email in slice 4) is superseded. Mail and Office are P0; rendering uses pipeline jobs; do not implement from the old comment.
+
 ## 2026-06-12 — Project-review remediation: enrichment on final index pass; NiFi deferred; graphify rules removed
 
 Status: Active
