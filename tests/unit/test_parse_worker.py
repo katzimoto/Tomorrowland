@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from services.pipeline.parse_worker import (
-    ParseConsumer,
     _MAX_ATTACHMENT_NESTING,
+    ParseConsumer,
     _attachment_cycle_or_depth_skip,
 )
 
