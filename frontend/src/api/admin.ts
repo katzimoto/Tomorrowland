@@ -105,11 +105,36 @@ export interface SourceDocument {
   pending_jobs: number;
   failed_jobs: number;
   jobs: PipelineJob[];
+  // Parser strategy metadata (#670)
+  parser_name: string | null;
+  fallback_chain: string[] | null;
+  extraction_status: string | null;
+  extraction_confidence: number | null;
+  extraction_duration_ms: number | null;
+  char_count: number | null;
+  chunk_count: number | null;
+  ocr_needed: boolean;
+  ocr_performed: boolean;
+  translation_status: string | null;
+  layout_blocks_available: boolean;
+  table_block_count: number;
+  figure_block_count: number;
+  last_error: string | null;
 }
 
 export interface SourceDocumentsResponse {
   documents: SourceDocument[];
   total: number;
+  parser_summary?: ParserSummary;
+}
+
+export interface ParserSummary {
+  documents_by_parser: Record<string, number>;
+  total_extracted: number;
+  total_ocr_needed: number;
+  total_failed: number;
+  total_documents: number;
+  avg_char_count: number;
 }
 
 export interface SourceDetail extends Source {

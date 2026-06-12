@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Plus, X, Pencil, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { adminApi } from "@/api/admin";
+import type { SourceDocument, ParserSummary } from "@/api/admin";
 import { Button } from "@/components/primitives/Button";
 import { Badge } from "@/components/primitives/Badge";
 import { ConfirmDialog } from "@/components/primitives/ConfirmDialog";
@@ -10,7 +11,7 @@ import { Dialog } from "@/components/primitives/Dialog";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { useToast } from "@/components/primitives/ToastContext";
-import type { SourceDocument } from "@/api/admin";
+import { useT } from "@/i18n";
 import styles from "./AdminSourcesPage.module.css";
 
 function formatDateTime(value: string) {
@@ -441,6 +442,169 @@ function DocumentRow({
   );
 }
 
+function ParserStrategySection({ sourceId }: { sourceId: string }) {
+  const t = useT();
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["source-parser-strategy", sourceId],
+    queryFn: () => adminApi.getSourceDocuments(sourceId, 200, 0),
+    refetchInterval: 30_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className={styles.section}>
+        <h2>{t.admin.parserStrategy}</h2>
+        <SkeletonRow count={3} />
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className={styles.section}>
+        <h2>{t.admin.parserStrategy}</h2>
+        <p className={styles.mutedMeta}>{t.admin.noParserData}</p>
+      </div>
+    );
+  }
+
+  const summary: ParserSummary | undefined = data.parser_summary;
+  const docs = data.documents ?? [];
+
+  if (!summary || docs.length === 0) {
+    return (
+      <div className={styles.section}>
+        <h2>{t.admin.parserStrategy}</h2>
+        <p className={styles.mutedMeta}>{t.admin.noParserData}</p>
+      </div>
+    );
+  }
+
+  const parserEntries = Object.entries(summary.documents_by_parser)
+    .sort(([, a], [, b]) => b - a);
+
+  return (
+    <div className={styles.section}>
+      <h2>{t.admin.parserStrategy}</h2>
+
+      {/* Source-level summary */}
+      <h3>{t.admin.parserSummary}</h3>
+      <dl className={styles.dl}>
+        <dt>{t.admin.extractedCount}</dt>
+        <dd>
+          {summary.total_extracted} / {summary.total_documents}
+        </dd>
+        <dt>{t.admin.ocrCount}</dt>
+        <dd>{summary.total_ocr_needed}</dd>
+        <dt>{t.admin.failedCount}</dt>
+        <dd>{summary.total_failed}</dd>
+        <dt>{t.admin.avgCharCount}</dt>
+        <dd>{summary.avg_char_count.toLocaleString()}</dd>
+      </dl>
+
+      {parserEntries.length > 0 && (
+        <>
+          <h3>{t.admin.documentsByParser}</h3>
+          <dl className={styles.dl}>
+            {parserEntries.map(([parser, count]) => (
+              <div key={parser}>
+                <dt>{parser}</dt>
+                <dd>{count}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
+
+      {/* Per-document parser metadata table */}
+      <h3>{t.admin.colName}</h3>
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>{t.admin.colName}</th>
+              <th>{t.admin.parserName}</th>
+              <th>{t.admin.fallbackChain}</th>
+              <th>{t.admin.extractionStatus}</th>
+              <th>{t.admin.charCount}</th>
+              <th>{t.admin.chunkCount}</th>
+              <th>{t.admin.ocrNeeded}</th>
+              <th>{t.admin.translationQuality}</th>
+              <th>{t.admin.layoutBlocks}</th>
+              <th>{t.admin.lastError}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {docs.map((doc) => (
+              <tr key={doc.id}>
+                <td className={styles.nameCell}>
+                  {doc.title || doc.external_id || doc.id.slice(0, 8)}
+                </td>
+                <td>{doc.parser_name || t.admin.unknown}</td>
+                <td>
+                  {doc.fallback_chain && doc.fallback_chain.length > 0
+                    ? doc.fallback_chain.join(" → ")
+                    : "—"}
+                </td>
+                <td>
+                  <Badge
+                    variant={
+                      doc.extraction_status === "extracted"
+                        ? "success"
+                        : doc.last_error
+                          ? "danger"
+                          : "neutral"
+                    }
+                  >
+                    {doc.extraction_status || t.admin.unknown}
+                  </Badge>
+                </td>
+                <td>{doc.char_count != null ? doc.char_count.toLocaleString() : "—"}</td>
+                <td>{doc.chunk_count != null ? doc.chunk_count.toLocaleString() : "—"}</td>
+                <td>
+                  {doc.ocr_needed ? (
+                    <Badge variant={doc.ocr_performed ? "success" : "warning"}>
+                      {doc.ocr_performed ? t.admin.ocrPerformed : t.admin.ocrNeeded}
+                    </Badge>
+                  ) : (
+                    t.admin.no
+                  )}
+                </td>
+                <td>
+                  {doc.translation_status ? (
+                    <Badge variant="success">{doc.translation_status}</Badge>
+                  ) : (
+                    t.admin.no
+                  )}
+                </td>
+                <td>
+                  {doc.layout_blocks_available ? (
+                    <span>
+                      {t.admin.yes}
+                      {(doc.table_block_count > 0 || doc.figure_block_count > 0) && (
+                        <span className={styles.mutedMeta}>
+                          {" "}({doc.table_block_count} {t.admin.tableBlocks}
+                          {doc.figure_block_count > 0 ? `, ${doc.figure_block_count} ${t.admin.figureBlocks}` : ""})
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    t.admin.no
+                  )}
+                </td>
+                <td className={styles.error} style={{ fontSize: 12, maxWidth: 240 }}>
+                  {doc.last_error || "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function AdminSourceDetailPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -707,6 +871,8 @@ export function AdminSourceDetailPage() {
       </div>
 
       <SourceDocumentsSection sourceId={sourceId!} />
+
+      <ParserStrategySection sourceId={sourceId!} />
 
       <Dialog
         open={isEditing}

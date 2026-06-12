@@ -382,6 +382,30 @@ export interface Translations {
     createError: string;
     saveBtn: string;
     cancelBtn: string;
+    // Parser strategy (#670)
+    parserStrategy: string;
+    parserName: string;
+    fallbackChain: string;
+    extractionStatus: string;
+    charCount: string;
+    chunkCount: string;
+    ocrNeeded: string;
+    ocrPerformed: string;
+    translationQuality: string;
+    layoutBlocks: string;
+    tableBlocks: string;
+    figureBlocks: string;
+    lastError: string;
+    unknown: string;
+    yes: string;
+    no: string;
+    parserSummary: string;
+    documentsByParser: string;
+    extractedCount: string;
+    ocrCount: string;
+    failedCount: string;
+    avgCharCount: string;
+    noParserData: string;
   };
   cmd: {
     ariaLabel: string;
@@ -820,6 +844,30 @@ export const en: Translations = {
     createError: "Failed to create source.",
     saveBtn: "Save Source",
     cancelBtn: "Cancel",
+    // Parser strategy (#670)
+    parserStrategy: "Parser Strategy",
+    parserName: "Parser",
+    fallbackChain: "Fallback chain",
+    extractionStatus: "Extraction",
+    charCount: "Chars",
+    chunkCount: "Chunks",
+    ocrNeeded: "OCR needed",
+    ocrPerformed: "OCR done",
+    translationQuality: "Translation",
+    layoutBlocks: "Layout blocks",
+    tableBlocks: "Tables",
+    figureBlocks: "Figures",
+    lastError: "Last error",
+    unknown: "Unknown",
+    yes: "Yes",
+    no: "No",
+    parserSummary: "Summary",
+    documentsByParser: "Documents by parser",
+    extractedCount: "Extracted",
+    ocrCount: "OCR needed",
+    failedCount: "Failed",
+    avgCharCount: "Avg chars",
+    noParserData: "No parser data available yet.",
   },
   cmd: {
     ariaLabel: "Command menu",

@@ -26,9 +26,31 @@ from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
 from services.connectors.factory import build_connector, connector_types
 from services.permissions.enforcer import require_admin
-from shared.db import to_uuid
+from shared.db import db_resolve_json, to_uuid
 
 router = APIRouter(tags=["admin"])
+
+
+def _parse_json_list(raw: object) -> list[str]:
+    """Safely parse a JSON list from either a native Python list or a JSON string."""
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [str(w) for w in raw]
+    try:
+        parsed = db_resolve_json(raw)
+        if isinstance(parsed, list):
+            return [str(w) for w in parsed]
+    except Exception:
+        pass
+    return [str(raw)]
+
+
+def _approximate_chunk_count(char_count: int) -> int:
+    """Approximate chunk count from character count (~2000 chars per chunk)."""
+    if char_count <= 0:
+        return 0
+    return max(1, (char_count + 1000) // 2000)
 
 
 @router.get("/admin/connector-types")
@@ -437,7 +459,16 @@ def admin_get_source_documents(
                        COALESCE(j.total_jobs, 0) AS total_jobs,
                        COALESCE(j.succeeded_jobs, 0) AS succeeded_jobs,
                        COALESCE(j.pending_jobs, 0) AS pending_jobs,
-                       COALESCE(j.failed_jobs, 0) AS failed_jobs
+                       COALESCE(j.failed_jobs, 0) AS failed_jobs,
+                       e.parser_name,
+                       e.attempts AS fallback_chain,
+                       e.confidence AS extraction_confidence,
+                       e.warnings AS extraction_warnings,
+                       e.duration_ms AS extraction_duration_ms,
+                       p.char_count,
+                       lb.layout_blocks_available,
+                       lb.table_block_count,
+                       lb.figure_block_count
                 FROM documents d
                 LEFT JOIN (
                     SELECT document_id,
@@ -449,6 +480,26 @@ def admin_get_source_documents(
                     FROM pipeline_jobs
                     GROUP BY document_id
                 ) j ON j.document_id = d.id
+                LEFT JOIN LATERAL (
+                    SELECT parser_name, attempts, confidence, warnings, duration_ms
+                    FROM document_extractions
+                    WHERE document_id = d.id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) e ON true
+                LEFT JOIN (
+                    SELECT document_id,
+                           LENGTH(content_text) AS char_count
+                    FROM document_payloads
+                ) p ON p.document_id = d.id
+                LEFT JOIN (
+                    SELECT document_id,
+                           COUNT(*) AS layout_blocks_available,
+                           COUNT(*) FILTER (WHERE block_type = 'table') AS table_block_count,
+                           COUNT(*) FILTER (WHERE block_type = 'figure') AS figure_block_count
+                    FROM document_layout_blocks
+                    GROUP BY document_id
+                ) lb ON lb.document_id = d.id
                 WHERE d.source_id = :source_id
                 ORDER BY d.created_at DESC
                 LIMIT :limit OFFSET :offset
@@ -491,9 +542,58 @@ def admin_get_source_documents(
                     }
                 )
 
+        # Build source-level parser summary
+        parser_counts: dict[str, int] = {}
+        total_extracted = 0
+        total_ocr_needed = 0
+        total_failed = 0
+        total_char_count = 0
+
         documents = []
         for row in doc_rows:
             did = str(to_uuid(row["id"]))
+            # Compute parse_job once per document
+            parse_job = next(
+                (j for j in jobs_by_doc.get(did, []) if j["job_type"] == "process_document"),
+                None,
+            )
+
+            extraction_status = "extracted" if row.get("parser_name") else "pending"
+            if extraction_status == "extracted":
+                total_extracted += 1
+            elif parse_job and parse_job["status"] == "dead_letter":
+                total_failed += 1
+
+            parser_name = row.get("parser_name")
+            if parser_name:
+                parser_counts[parser_name] = parser_counts.get(parser_name, 0) + 1
+
+            char_count = row.get("char_count") or 0
+            total_char_count += char_count
+            chunk_count = _approximate_chunk_count(char_count)
+
+            # Infer OCR needed from mime type and extraction warnings
+            ocr_needed = False
+            if row.get("mime_type") and row["mime_type"].startswith("image/"):
+                ocr_needed = True
+            elif row.get("mime_type") == "application/pdf":
+                warnings = _parse_json_list(row.get("extraction_warnings"))
+                ocr_needed = any("ocr" in w.lower() for w in warnings)
+            # Only count extracted OCR-needing docs in summary (not pending ones)
+            if ocr_needed and extraction_status == "extracted":
+                total_ocr_needed += 1
+
+            fallback_chain_raw = row.get("fallback_chain")
+            fallback_chain: list[str] | None = None
+            if fallback_chain_raw is not None:
+                fallback_chain = _parse_json_list(fallback_chain_raw) or None
+                if not fallback_chain:
+                    fallback_chain = None
+
+            last_error: str | None = None
+            if parse_job and parse_job.get("last_error"):
+                last_error = parse_job["last_error"]
+
             docs = {
                 "id": did,
                 "title": row["title"],
@@ -508,10 +608,35 @@ def admin_get_source_documents(
                 "pending_jobs": row["pending_jobs"],
                 "failed_jobs": row["failed_jobs"],
                 "jobs": jobs_by_doc.get(did, []),
+                # Parser metadata (new)
+                "parser_name": parser_name,
+                "fallback_chain": fallback_chain,
+                "extraction_status": extraction_status,
+                "extraction_confidence": row.get("extraction_confidence"),
+                "extraction_duration_ms": row.get("extraction_duration_ms"),
+                "char_count": char_count,
+                "chunk_count": chunk_count,
+                "ocr_needed": ocr_needed,
+                "ocr_performed": ocr_needed and extraction_status == "extracted",
+                "translation_status": row.get("translation_quality"),
+                "layout_blocks_available": bool(row.get("layout_blocks_available")),
+                "table_block_count": row.get("table_block_count") or 0,
+                "figure_block_count": row.get("figure_block_count") or 0,
+                "last_error": last_error,
             }
             documents.append(docs)
 
-        return {"documents": documents, "total": total}
+        avg_char_count = total_char_count / len(documents) if documents else 0
+        source_summary = {
+            "documents_by_parser": parser_counts,
+            "total_extracted": total_extracted,
+            "total_ocr_needed": total_ocr_needed,
+            "total_failed": total_failed,
+            "total_documents": total,
+            "avg_char_count": round(avg_char_count),
+        }
+
+        return {"documents": documents, "total": total, "parser_summary": source_summary}
 
 
 @router.delete("/admin/sources/{source_id}", status_code=204)
