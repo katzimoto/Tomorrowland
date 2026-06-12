@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   RefreshCw,
   Activity,
 } from "lucide-react";
@@ -179,6 +180,7 @@ export function AdminIngestionPage() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["ingestion-status", filterParams],
     queryFn: () => adminApi.getIngestionStatus(filterParams),
+    refetchInterval: 10_000,
   });
 
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
@@ -364,7 +366,20 @@ export function AdminIngestionPage() {
                         </button>
                       </td>
                       <td className={styles.nameCell}>
-                        {job.document_title ?? job.document_id.slice(0, 8) + "…"}
+                        <a
+                          className={styles.docLink}
+                          href={`/doc/${job.document_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={
+                            job.document_title
+                              ? `Open ${job.document_title}`
+                              : "Open document"
+                          }
+                        >
+                          {job.document_title ?? job.document_id.slice(0, 8) + "…"}
+                          <ExternalLink size={11} />
+                        </a>
                       </td>
                       <td>{job.source_name ?? job.source_id.slice(0, 8) + "…"}</td>
                       <td>{job.job_type}</td>
