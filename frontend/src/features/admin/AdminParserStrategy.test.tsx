@@ -64,7 +64,7 @@ function makeSummary(overrides: Partial<adminApi.ParserSummary> = {}): adminApi.
   return {
     documents_by_parser: { PdfExtractor: 3, PlainExtractor: 1 },
     total_extracted: 4,
-    total_ocr_needed: 0,
+    total_ocr_done: 0,
     total_failed: 0,
     total_documents: 4,
     avg_char_count: 5000,
@@ -232,7 +232,7 @@ describe("AdminParserStrategy", () => {
         }),
       ],
       total: 1,
-      parser_summary: makeSummary({ total_documents: 1, total_ocr_needed: 1 }),
+      parser_summary: makeSummary({ total_documents: 1, total_ocr_done: 1 }),
     });
     render(<AdminSourceDetailPage />);
     await screen.findByText("Parser Strategy");
@@ -259,7 +259,9 @@ describe("AdminParserStrategy", () => {
     render(<AdminSourceDetailPage />);
     await screen.findByText("Parser Strategy");
     await waitFor(() => {
-      expect(screen.getByText("OCR done")).toBeInTheDocument();
+      // "OCR done" appears in both summary and badge
+      const ocrDoneElements = screen.getAllByText("OCR done");
+      expect(ocrDoneElements.length).toBeGreaterThanOrEqual(2);
     });
   });
 

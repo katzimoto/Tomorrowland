@@ -131,7 +131,7 @@ export interface SourceDocumentsResponse {
 export interface ParserSummary {
   documents_by_parser: Record<string, number>;
   total_extracted: number;
-  total_ocr_needed: number;
+  total_ocr_done: number;
   total_failed: number;
   total_documents: number;
   avg_char_count: number;

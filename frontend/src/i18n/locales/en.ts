@@ -389,6 +389,7 @@ export interface Translations {
     extractionStatus: string;
     charCount: string;
     chunkCount: string;
+    chunkCountEst: string;
     ocrNeeded: string;
     ocrPerformed: string;
     translationQuality: string;
@@ -403,9 +404,11 @@ export interface Translations {
     documentsByParser: string;
     extractedCount: string;
     ocrCount: string;
+    ocrDone: string;
     failedCount: string;
     avgCharCount: string;
     noParserData: string;
+    parserDocuments: string;
   };
   cmd: {
     ariaLabel: string;
@@ -851,6 +854,7 @@ export const en: Translations = {
     extractionStatus: "Extraction",
     charCount: "Chars",
     chunkCount: "Chunks",
+    chunkCountEst: "Chunks (est.)",
     ocrNeeded: "OCR needed",
     ocrPerformed: "OCR done",
     translationQuality: "Translation",
@@ -865,9 +869,11 @@ export const en: Translations = {
     documentsByParser: "Documents by parser",
     extractedCount: "Extracted",
     ocrCount: "OCR needed",
+    ocrDone: "OCR done",
     failedCount: "Failed",
     avgCharCount: "Avg chars",
     noParserData: "No parser data available yet.",
+    parserDocuments: "Documents",
   },
   cmd: {
     ariaLabel: "Command menu",

@@ -497,12 +497,12 @@ function ParserStrategySection({ sourceId }: { sourceId: string }) {
         <dd>
           {summary.total_extracted} / {summary.total_documents}
         </dd>
-        <dt>{t.admin.ocrCount}</dt>
-        <dd>{summary.total_ocr_needed}</dd>
+        <dt>{t.admin.ocrDone}</dt>
+        <dd>{summary.total_ocr_done}</dd>
         <dt>{t.admin.failedCount}</dt>
         <dd>{summary.total_failed}</dd>
         <dt>{t.admin.avgCharCount}</dt>
-        <dd>{summary.avg_char_count.toLocaleString()}</dd>
+        <dd>{(summary.avg_char_count ?? 0).toLocaleString()}</dd>
       </dl>
 
       {parserEntries.length > 0 && (
@@ -520,7 +520,7 @@ function ParserStrategySection({ sourceId }: { sourceId: string }) {
       )}
 
       {/* Per-document parser metadata table */}
-      <h3>{t.admin.colName}</h3>
+      <h3>{t.admin.parserDocuments}</h3>
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
@@ -530,7 +530,7 @@ function ParserStrategySection({ sourceId }: { sourceId: string }) {
               <th>{t.admin.fallbackChain}</th>
               <th>{t.admin.extractionStatus}</th>
               <th>{t.admin.charCount}</th>
-              <th>{t.admin.chunkCount}</th>
+              <th>{t.admin.chunkCountEst}</th>
               <th>{t.admin.ocrNeeded}</th>
               <th>{t.admin.translationQuality}</th>
               <th>{t.admin.layoutBlocks}</th>
@@ -599,9 +599,7 @@ function ParserStrategySection({ sourceId }: { sourceId: string }) {
                     t.admin.no
                   )}
                 </td>
-                <td className={styles.error} style={{ fontSize: 12, maxWidth: 240 }}>
-                  {doc.last_error || "—"}
-                </td>
+                <td className={styles.error}>{doc.last_error || "—"}</td>
               </tr>
             ))}
           </tbody>

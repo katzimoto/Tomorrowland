@@ -460,7 +460,7 @@ def admin_get_source_documents(
         parser_summary: dict[str, Any] = {
             "documents_by_parser": {},
             "total_extracted": 0,
-            "total_ocr_needed": 0,
+            "total_ocr_done": 0,
             "total_failed": 0,
             "total_documents": total,
             "avg_char_count": 0,
@@ -482,11 +482,12 @@ def admin_get_source_documents(
                         WHERE document_id = d.id
                         ORDER BY created_at DESC LIMIT 1
                     ) e_sum ON true
-                    LEFT JOIN (
-                        SELECT document_id,
-                               LENGTH(content_text) AS char_count
+                    LEFT JOIN LATERAL (
+                        SELECT LENGTH(content_text) AS char_count
                         FROM document_payloads
-                    ) p_sum ON p_sum.document_id = d.id
+                        WHERE document_id = d.id
+                        LIMIT 1
+                    ) p_sum ON true
                     LEFT JOIN LATERAL (
                         SELECT status
                         FROM pipeline_jobs
@@ -500,7 +501,7 @@ def admin_get_source_documents(
 
             parser_counts: dict[str, int] = {}
             total_extracted = 0
-            total_ocr_needed = 0
+            total_ocr_done = 0
             total_failed = 0
             total_char_count = 0
             for srow in summary_rows:
@@ -513,22 +514,26 @@ def admin_get_source_documents(
                     if srow.get("parse_status") == "dead_letter":
                         total_failed += 1
 
-                # OCR-needed inference
+                # OCR-done inference: count extracted docs likely OCR-processed
                 mime = srow.get("mime_type") or ""
-                if mime.startswith("image/"):
-                    if pname:
-                        total_ocr_needed += 1
-                elif mime == "application/pdf":
-                    warnings = _parse_json_list(srow.get("extraction_warnings"))
-                    if any("ocr" in w.lower() for w in warnings) and pname:
-                        total_ocr_needed += 1
+                if pname and (
+                    mime.startswith("image/")
+                    or (
+                        mime == "application/pdf"
+                        and any(
+                            "ocr" in w.lower()
+                            for w in _parse_json_list(srow.get("extraction_warnings"))
+                        )
+                    )
+                ):
+                    total_ocr_done += 1
 
                 cc = srow.get("char_count") or 0
                 total_char_count += cc
 
             parser_summary["documents_by_parser"] = parser_counts
             parser_summary["total_extracted"] = total_extracted
-            parser_summary["total_ocr_needed"] = total_ocr_needed
+            parser_summary["total_ocr_done"] = total_ocr_done
             parser_summary["total_failed"] = total_failed
             parser_summary["avg_char_count"] = round(total_char_count / total) if total > 0 else 0
 
@@ -568,11 +573,12 @@ def admin_get_source_documents(
                     ORDER BY created_at DESC
                     LIMIT 1
                 ) e ON true
-                LEFT JOIN (
-                    SELECT document_id,
-                           LENGTH(content_text) AS char_count
+                LEFT JOIN LATERAL (
+                    SELECT LENGTH(content_text) AS char_count
                     FROM document_payloads
-                ) p ON p.document_id = d.id
+                    WHERE document_id = d.id
+                    LIMIT 1
+                ) p ON true
                 LEFT JOIN (
                     SELECT document_id,
                            COUNT(*) AS layout_blocks_available,
