@@ -63,6 +63,7 @@ export interface Translations {
     failedToast: string;
     keyboardHelp: string;
     updating: string;
+    retrievalDegraded: string;
     quickPreviewTitle: string;
     openSelected: string;
     closePreview: string;
@@ -235,6 +236,7 @@ export interface Translations {
     evidenceRetrievalCandidates: string;
     evidenceRetrievalNoTrace: string;
     evidenceRetrievalReranked: string;
+    evidenceRetrievalDegraded: string;
     evidenceCopyCitation: string;
     evidenceCopied: string;
     evidenceReportBadCitation: string;
@@ -560,6 +562,7 @@ export const en: Translations = {
     keyboardHelp:
       "Use ↑/↓ or j/k to choose a result, Enter to open, Space to preview, and Esc to close preview.",
     updating: "Updating…",
+    retrievalDegraded: "Search degraded — partial results",
     quickPreviewTitle: "Quick preview",
     openSelected: "Open document",
     closePreview: "Close preview",
@@ -737,6 +740,7 @@ export const en: Translations = {
     evidenceRetrievalCandidates: "Candidates",
     evidenceRetrievalNoTrace: "No retrieval trace available for this message.",
     evidenceRetrievalReranked: "Reranked",
+    evidenceRetrievalDegraded: "Retrieval degraded",
     evidenceCopyCitation: "Copy citation",
     evidenceCopied: "Copied!",
     evidenceReportBadCitation: "Report problem",

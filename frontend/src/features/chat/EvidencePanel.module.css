@@ -228,6 +228,14 @@
   padding: 1px 6px;
 }
 
+.traceDegraded {
+  font-size: 0.75rem;
+  background: var(--color-warning, #f59e0b);
+  color: #fff;
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
 .traceHeading {
   margin: 0;
   padding: var(--space-2) var(--space-4) var(--space-1);

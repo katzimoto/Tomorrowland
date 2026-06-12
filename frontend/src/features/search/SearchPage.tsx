@@ -193,6 +193,7 @@ export function SearchPage() {
   const results = infiniteData?.pages.flatMap((p) => p.results) ?? [];
   const facets = infiniteData?.pages[0]?.facets ?? {};
   const totalCount = infiniteData?.pages[0]?.total ?? 0;
+  const retrievalDegraded = infiniteData?.pages[0]?.retrieval_degraded ?? false;
 
   useEffect(() => {
     if (isError) {
@@ -370,6 +371,11 @@ export function SearchPage() {
               {t.search.resultCount(totalCount)}
             </span>
           )
+        )}
+        {retrievalDegraded && (
+          <span className={styles.degradedChip} role="status">
+            {t.search.retrievalDegraded}
+          </span>
         )}
       </div>
 

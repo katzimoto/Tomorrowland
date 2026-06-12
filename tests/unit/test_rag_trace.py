@@ -439,3 +439,55 @@ def test_rag_retrieval_uses_thread_pool_executor() -> None:
     assert any("search" in c and c != submit_calls[0] for c in submit_calls[1:]), (
         f"Expected second search submission, got: {submit_calls}"
     )
+
+
+# ---------------------------------------------------------------------------
+# retrieval_degraded flag (#698)
+# ---------------------------------------------------------------------------
+
+
+def test_retrieval_degraded_false_when_all_backends_healthy() -> None:
+    chunks = [_make_chunk()]
+    srv = _make_service(chunks=chunks, meili_chunks=chunks)
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    assert result.retrieval_trace.retrieval_degraded is False
+
+
+def test_retrieval_degraded_true_when_qdrant_fails() -> None:
+    srv = _make_service(chunks=None, meili_chunks=[])
+    srv._qdrant.search.side_effect = RuntimeError("Qdrant down")
+    srv._qdrant.search_filtered.side_effect = RuntimeError("Qdrant down")
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    assert result.retrieval_trace.retrieval_degraded is True
+
+
+def test_retrieval_degraded_true_when_bm25_fails() -> None:
+    chunks = [_make_chunk()]
+    srv = _make_service(chunks=chunks, meili_chunks=None)
+    srv._meili.search_rag.side_effect = RuntimeError("Meili down")
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    assert result.retrieval_trace.retrieval_degraded is True
+
+
+def test_retrieval_degraded_in_stream_when_qdrant_fails() -> None:
+    srv = _make_service(chunks=None, meili_chunks=[])
+    srv._qdrant.search.side_effect = RuntimeError("Qdrant down")
+    srv._qdrant.search_filtered.side_effect = RuntimeError("Qdrant down")
+    events = list(srv.answer_stream("test question", group_ids=["group-1"]))
+    done_events = [e for e in events if e[0] == "done"]
+    assert len(done_events) == 1
+    trace = done_events[0][1]["retrieval_trace"]
+    assert trace["retrieval_degraded"] is True
+
+
+def test_retrieval_degraded_field_in_trace_model() -> None:
+    from services.rag.trace_models import RetrievalTrace
+
+    t = RetrievalTrace()
+    assert t.retrieval_degraded is False
+
+    t_degraded = RetrievalTrace(retrieval_degraded=True)
+    assert t_degraded.model_dump()["retrieval_degraded"] is True

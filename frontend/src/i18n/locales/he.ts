@@ -67,6 +67,7 @@ export const he: Translations = {
     keyboardHelp:
       "השתמש/י ב-↑/↓ או j/k לבחירת תוצאה, Enter לפתיחה, Space לתצוגה מקדימה ו-Esc לסגירה.",
     updating: "מעדכן…",
+    retrievalDegraded: "חיפוש מוגבל — תוצאות חלקיות",
     quickPreviewTitle: "תצוגה מקדימה מהירה",
     openSelected: "פתח מסמך",
     closePreview: "סגור תצוגה מקדימה",
@@ -240,6 +241,7 @@ export const he: Translations = {
     evidenceRetrievalCandidates: "מועמדים",
     evidenceRetrievalNoTrace: "אין עקבות אחזור זמינות להודעה זו.",
     evidenceRetrievalReranked: "דורג מחדש",
+    evidenceRetrievalDegraded: "אחזור פגום",
     evidenceCopyCitation: "העתק ציטוט",
     evidenceCopied: "הועתק!",
     evidenceReportBadCitation: "דיווח על בעיה",

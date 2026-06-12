@@ -279,6 +279,9 @@ export function EvidencePanel({
                 {retrievalTrace.reranker_enabled && (
                   <span className={styles.traceReranked}>{t.chat.evidenceRetrievalReranked}</span>
                 )}
+                {retrievalTrace.retrieval_degraded && (
+                  <span className={styles.traceDegraded}>{t.chat.evidenceRetrievalDegraded}</span>
+                )}
               </div>
               <h4 className={styles.traceHeading}>{t.chat.evidenceRetrievalStages}</h4>
               <table className={styles.traceTable}>
