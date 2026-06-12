@@ -238,6 +238,22 @@ export const adminApi = {
   getDocumentTrace: (documentId: string) =>
     api.get<DocumentTraceResponse>(`/admin/ingestion/status/${documentId}`),
 
+  // --- Timeline & Retry (#673) ---
+  getDocumentTimeline: (documentId: string) =>
+    api.get<DocumentTimelineResponse>(
+      `/admin/documents/${documentId}/timeline`,
+    ),
+  retryDocument: (documentId: string) =>
+    api.post<RetryResponse>(`/admin/documents/${documentId}/retry`, {}),
+  reprocessDocument: (documentId: string) =>
+    api.post<RetryResponse>(`/admin/documents/${documentId}/reprocess`, {}),
+  reocrDocument: (documentId: string) =>
+    api.post<RetryResponse>(`/admin/documents/${documentId}/reocr`, {}),
+  retranslateDocument: (documentId: string) =>
+    api.post<RetryResponse>(`/admin/documents/${documentId}/retranslate`, {}),
+  reembedDocument: (documentId: string) =>
+    api.post<RetryResponse>(`/admin/documents/${documentId}/reembed`, {}),
+
   // --- Model Providers ---
   listModelProviders: () => api.get<ModelProvider[]>("/admin/model-providers"),
   createModelProvider: (payload: ModelProviderCreatePayload) =>
@@ -471,6 +487,28 @@ export interface ProviderTestResult {
 export interface ProviderDiscoverResult {
   model_name: string;
   display_name?: string | null;
+}
+
+// --- Timeline & Retry (#673) ---
+
+export interface TimelineStage {
+  stage: string;
+  status: "completed" | "failed" | "skipped" | "pending" | "running";
+  at: string | null;
+  duration_ms: number | null;
+  error: string | null;
+}
+
+export interface DocumentTimelineResponse {
+  document_id: string;
+  document_title: string | null;
+  source_name: string | null;
+  stages: TimelineStage[];
+}
+
+export interface RetryResponse {
+  requeued: number;
+  action: string;
 }
 
 // --- LDAP Group Search & Mappings ---

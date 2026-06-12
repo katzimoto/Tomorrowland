@@ -3,15 +3,23 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  CheckCircle,
   ChevronDown,
   ChevronRight,
   ExternalLink,
   RefreshCw,
+  RotateCw,
+  SkipForward,
   Activity,
+  AlertTriangle,
+  XCircle,
+  Clock,
+  Minus,
 } from "lucide-react";
 import {
   adminApi,
   type IngestionStatusJob,
+  type TimelineStage,
 } from "@/api/admin";
 import { Button } from "@/components/primitives/Button";
 import { Badge } from "@/components/primitives/Badge";
@@ -50,42 +58,137 @@ function truncateError(msg: string | null, max = 80) {
   return msg.length > max ? msg.slice(0, max) + "…" : msg;
 }
 
-function TracePanel({
+function getStageIcon(status: TimelineStage["status"]) {
+  switch (status) {
+    case "completed":
+      return <CheckCircle size={16} className={styles.stageIconCompleted} />;
+    case "failed":
+      return <XCircle size={16} className={styles.stageIconFailed} />;
+    case "running":
+      return <RefreshCw size={16} className={styles.stageIconRunning} />;
+    case "pending":
+      return <Clock size={16} className={styles.stageIconPending} />;
+    case "skipped":
+      return <Minus size={16} className={styles.stageIconSkipped} />;
+  }
+}
+
+function formatDuration(ms: number | null) {
+  if (ms == null) return null;
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const mins = Math.floor(ms / 60_000);
+  const secs = Math.round((ms % 60_000) / 1000);
+  return `${mins}m ${secs}s`;
+}
+
+const RETRY_ACTIONS: Array<{
+  label: string;
+  action: "retry" | "reprocess" | "reocr" | "retranslate" | "reembed";
+  relevantStages: string[];
+}> = [
+  { label: "Retry failed stage", action: "retry", relevantStages: [] },
+  { label: "Reprocess", action: "reprocess", relevantStages: ["parsed", "extract", "ocr", "chunk"] },
+  { label: "Re-OCR", action: "reocr", relevantStages: ["ocr"] },
+  { label: "Retranslate", action: "retranslate", relevantStages: ["translate", "translated"] },
+  { label: "Re-embed", action: "reembed", relevantStages: ["embedded", "indexed"] },
+];
+
+function getFailedStages(stages: TimelineStage[]): string[] {
+  return stages.filter((s) => s.status === "failed").map((s) => s.stage);
+}
+
+function isRetryActionRelevant(
+  action: typeof RETRY_ACTIONS[number],
+  failedStages: string[],
+): boolean {
+  // "Retry failed stage" is always relevant if there are failures
+  if (action.action === "retry") return true;
+  // Other actions are relevant if any failed stage matches
+  return action.relevantStages.some((s) => failedStages.includes(s));
+}
+
+function TimelinePanel({
   documentId,
 }: {
   documentId: string;
 }) {
   const qc = useQueryClient();
   const { show: showToast } = useToast();
+  const [confirmAction, setConfirmAction] = useState<string | null>(null);
 
   const {
-    data: trace,
+    data: timeline,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["document-trace", documentId],
-    queryFn: () => adminApi.getDocumentTrace(documentId),
+    queryKey: ["document-timeline", documentId],
+    queryFn: () => adminApi.getDocumentTimeline(documentId),
     retry: false,
   });
 
-  const requeueMutation = useMutation({
-    mutationFn: () => adminApi.requeueDocument(documentId),
-    onSuccess: (result) => {
+  const onRetrySuccess = useCallback(
+    (action: string) => (result: { requeued: number }) => {
+      setConfirmAction(null);
       if (result.requeued === 0) {
-        showToast("warning", "No dead-letter jobs found for this document.");
+        showToast("info", "No jobs needed requeueing — the document may already be processed.");
       } else {
-        showToast("success", `Requeued ${result.requeued} job(s) for processing.`);
+        showToast("success", `${action}: requeued ${result.requeued} job(s).`);
       }
-      qc.invalidateQueries({ queryKey: ["document-trace", documentId] });
+      qc.invalidateQueries({ queryKey: ["document-timeline", documentId] });
       qc.invalidateQueries({ queryKey: ["ingestion-status"] });
     },
-    onError: (err: Error) => {
+    [documentId, qc, showToast],
+  );
+
+  const onRetryError = useCallback(
+    (err: Error) => {
+      setConfirmAction(null);
       showToast("error", err.message);
     },
+    [showToast],
+  );
+
+  const retryMutation = useMutation({
+    mutationFn: () => adminApi.retryDocument(documentId),
+    onSuccess: onRetrySuccess("retry"),
+    onError: onRetryError,
   });
 
+  const reprocessMutation = useMutation({
+    mutationFn: () => adminApi.reprocessDocument(documentId),
+    onSuccess: onRetrySuccess("reprocess"),
+    onError: onRetryError,
+  });
+
+  const reocrMutation = useMutation({
+    mutationFn: () => adminApi.reocrDocument(documentId),
+    onSuccess: onRetrySuccess("reocr"),
+    onError: onRetryError,
+  });
+
+  const retranslateMutation = useMutation({
+    mutationFn: () => adminApi.retranslateDocument(documentId),
+    onSuccess: onRetrySuccess("retranslate"),
+    onError: onRetryError,
+  });
+
+  const reembedMutation = useMutation({
+    mutationFn: () => adminApi.reembedDocument(documentId),
+    onSuccess: onRetrySuccess("reembed"),
+    onError: onRetryError,
+  });
+
+  const mutationMap: Record<string, typeof retryMutation> = {
+    retry: retryMutation,
+    reprocess: reprocessMutation,
+    reocr: reocrMutation,
+    retranslate: retranslateMutation,
+    reembed: reembedMutation,
+  };
+
   if (isLoading) {
-    return <div className={styles.detailLoading}>Loading trace…</div>;
+    return <div className={styles.detailLoading}>Loading timeline…</div>;
   }
 
   if (error) {
@@ -94,69 +197,145 @@ function TracePanel({
     return (
       <div className={styles.detailError}>
         {is404
-          ? "No pipeline trace found for this document."
+          ? "No pipeline timeline found for this document."
           : error instanceof Error
             ? error.message
-            : "Failed to load document trace."}
+            : "Failed to load document timeline."}
       </div>
     );
   }
 
-  if (!trace || trace.jobs.length === 0) {
+  if (!timeline || timeline.stages.length === 0) {
     return (
-      <div className={styles.detailEmpty}>No pipeline jobs recorded for this document.</div>
+      <div className={styles.detailEmpty}>No pipeline stages recorded for this document.</div>
     );
   }
+
+  const hasFailures = timeline.stages.some((s) => s.status === "failed");
 
   return (
     <div>
-      <h4 className={styles.detailHeader}>
-        Pipeline trace — {trace.document_title ?? documentId}
-      </h4>
-      <div className={styles.detailMeta}>
-        {trace.source_name && <span>Source: {trace.source_name}</span>}
-        <span>Jobs: {trace.jobs.length}</span>
+      <div className={styles.timelineHeader}>
+        <h4 className={styles.detailHeader}>
+          Processing timeline — {timeline.document_title ?? documentId}
+        </h4>
+        {timeline.source_name && (
+          <span className={styles.timelineSource}>
+            Source: {timeline.source_name}
+          </span>
+        )}
       </div>
 
-      <div className={styles.detailJobs}>
-        {trace.jobs.map((job) => (
-          <div key={job.id} className={styles.traceRow}>
-            <div className={styles.traceRowMeta}>
-              <span className={styles.traceRowTitle}>
-                {job.job_type}
-              </span>
-              <span className={styles.traceRowSub}>
-                Status: {job.status}
-                {job.stage ? ` | Stage: ${job.stage}` : ""}
-                {` | Attempts: ${job.attempts}/${job.max_attempts}`}
-                {` | ${formatDateTime(job.created_at)}`}
-              </span>
-              {job.last_error && (
-                <span className={styles.traceError}>
-                  Error: {job.last_error}
-                </span>
+      {/* Stage timeline */}
+      <div className={styles.timelineTrack}>
+        {timeline.stages.map((stage, idx) => (
+          <div key={`${stage.stage}-${idx}`} className={styles.timelineNode}>
+            <div className={styles.timelineConnector}>
+              <div className={styles.timelineDot}>
+                {getStageIcon(stage.status)}
+              </div>
+              {idx < timeline.stages.length - 1 && (
+                <div
+                  className={`${styles.timelineLine} ${
+                    stage.status === "completed"
+                      ? styles.timelineLineFilled
+                      : styles.timelineLineEmpty
+                  }`}
+                />
               )}
             </div>
-            <div className={styles.traceActions}>
-              <Badge variant={statusBadgeVariant(job.status)}>
-                {job.status}
-              </Badge>
+            <div className={styles.timelineStage}>
+              <div className={styles.timelineStageHeader}>
+                <span className={styles.timelineStageName}>
+                  {stage.stage.charAt(0).toUpperCase() + stage.stage.slice(1)}
+                </span>
+                <Badge
+                  variant={
+                    stage.status === "completed"
+                      ? "success"
+                      : stage.status === "failed"
+                        ? "danger"
+                        : stage.status === "running"
+                          ? "warning"
+                          : "neutral"
+                  }
+                >
+                  {stage.status}
+                </Badge>
+              </div>
+              <div className={styles.timelineStageMeta}>
+                {stage.at && (
+                  <span>{formatDateTime(stage.at)}</span>
+                )}
+                {stage.duration_ms != null && (
+                  <span className={styles.timelineDuration}>
+                    {formatDuration(stage.duration_ms)}
+                  </span>
+                )}
+              </div>
+              {stage.error && (
+                <div className={styles.timelineError}>
+                  <AlertTriangle size={13} />
+                  {stage.error}
+                </div>
+              )}
             </div>
           </div>
         ))}
       </div>
 
-      <div style={{ marginTop: "var(--space-3)" }}>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => requeueMutation.mutate()}
-          loading={requeueMutation.isPending}
-        >
-          <RefreshCw size={13} />
-          Requeue document
-        </Button>
-      </div>
+      {/* Retry actions — context-sensitive based on failed stages */}
+      {hasFailures && (
+        <div className={styles.retrySection}>
+          <div className={styles.retryLabel}>Retry actions</div>
+          <div className={styles.retryActions}>
+            {RETRY_ACTIONS.filter((ra) =>
+              isRetryActionRelevant(ra, getFailedStages(timeline.stages)),
+            ).map(({ label, action }) => {
+              const mutation = mutationMap[action];
+              return (
+                <div key={action}>
+                  {confirmAction === action ? (
+                    <div className={styles.confirmRow}>
+                      <span className={styles.confirmText}>
+                        {label} for this document?
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => mutation.mutate()}
+                        loading={mutation.isPending}
+                      >
+                        Confirm
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setConfirmAction(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setConfirmAction(action)}
+                    >
+                      {action === "retry" && <RefreshCw size={13} />}
+                      {action === "reprocess" && <RotateCw size={13} />}
+                      {action === "reocr" && <SkipForward size={13} />}
+                      {action === "retranslate" && <SkipForward size={13} />}
+                      {action === "reembed" && <RotateCw size={13} />}
+                      {label}
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -399,10 +578,10 @@ export function AdminIngestionPage() {
                       </td>
                     </tr>
                     {expandedDocId === job.document_id && (
-                      <tr key={`${job.id}-trace`} className={styles.detailRow}>
+                      <tr key={`${job.id}-timeline`} className={styles.detailRow}>
                         <td colSpan={8}>
                           <div className={styles.detailPanel}>
-                            <TracePanel
+                            <TimelinePanel
                               documentId={job.document_id}
                             />
                           </div>
