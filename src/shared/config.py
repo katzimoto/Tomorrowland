@@ -107,6 +107,9 @@ class Settings(BaseSettings):
     enable_legacy_office: bool = False
     # Use native Markdown converters for DOCX/PPTX/XLSX → structured extraction.
     enable_markitdown: bool = True
+    # Use Docling for layout-aware PDF extraction (tables, multi-column, headings).
+    # Requires ``pip install docling`` (or the [docling] optional extra).
+    enable_docling: bool = False
     # Auto-detect source_language when not provided by the connector.
     enable_language_detection: bool = True
 

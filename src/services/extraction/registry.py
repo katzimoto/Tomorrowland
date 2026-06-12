@@ -129,6 +129,7 @@ class ExtractorRegistry:
         enable_ocr: bool = False,
         enable_legacy_office: bool = False,
         enable_markitdown: bool = False,
+        enable_docling: bool = False,
     ) -> None:
         pdf_extractor = PdfExtractor(ocr_fallback=enable_ocr)
 
@@ -166,9 +167,12 @@ class ExtractorRegistry:
         if enable_ocr:
             self._register_ocr()
 
-        # MarkItDown registered last so it wraps the already-resolved extractors.
+        # MarkItDown registered before Docling so Docling (HIGH tier) sorts first.
         if enable_markitdown:
             self._register_markitdown()
+
+        if enable_docling:
+            self._register_docling()
 
         # Fallback used when no specific extractor is registered.
         self._fallback = GenericExtractor()
@@ -189,6 +193,12 @@ class ExtractorRegistry:
         extractor = OcrExtractor()
         for mime in ("image/png", "image/jpeg", "image/tiff", "image/bmp", "image/webp"):
             self._register(mime, extractor)
+
+    def _register_docling(self) -> None:
+        """Register the Docling PDF extractor for layout-aware PDF processing."""
+        from services.extraction.docling_extractor import DoclingPdfExtractor
+
+        self._register("application/pdf", DoclingPdfExtractor())
 
     def _register_markitdown(self) -> None:
         """Wrap OOXML extractors with Markdown converters for structured output."""

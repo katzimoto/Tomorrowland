@@ -308,6 +308,7 @@ def main() -> None:
         enable_ocr=settings.enable_ocr,
         enable_legacy_office=settings.enable_legacy_office,
         enable_markitdown=settings.enable_markitdown,
+        enable_docling=settings.enable_docling,
     )
     policy_repo = ParserPolicyRepository(connection)
     resolver = ParserPolicyResolver(policy_repo, extractor_registry)

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Docling PDF extractor (#649)**: `DoclingPdfExtractor` registered as a
+  `QualityTier.HIGH` backend for `application/pdf` when `ENABLE_DOCLING=true`.
+  Produces layout-aware Markdown (tables, multi-column, headings) for richer RAG
+  chunking.  Docling is an optional dependency (`pip install tomorrowland[docling]`);
+  when absent the parser router falls through to the existing pypdf extractor.
+  New config setting: `ENABLE_DOCLING` (default `false`).
+
 ### Removed
 - **Dead legacy translation worker (#695)**: deleted
   `src/services/pipeline/translation_worker.py` (290 lines). It had no
