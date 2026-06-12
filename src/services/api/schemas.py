@@ -234,3 +234,26 @@ class LdapGroupMappingResponse(BaseModel):
     created_by: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+
+
+# --- Timeline & Retry (#673) ---
+
+
+class TimelineStage(BaseModel):
+    stage: str
+    status: Literal["completed", "failed", "skipped", "pending", "running"]
+    at: str | None = None
+    duration_ms: int | None = None
+    error: str | None = None
+
+
+class DocumentTimelineResponse(BaseModel):
+    document_id: str
+    document_title: str | None = None
+    source_name: str | None = None
+    stages: list[TimelineStage]
+
+
+class RetryResponse(BaseModel):
+    requeued: int
+    action: str
