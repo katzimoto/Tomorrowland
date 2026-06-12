@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import os
+import shutil
+import uuid
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
@@ -49,35 +52,72 @@ def _writable_files_root(tmp_path, monkeypatch) -> None:  # type: ignore[no-unty
     monkeypatch.setenv("FILES_ROOT", str(tmp_path))
 
 
-@pytest.fixture()
-def migrated_engine(tmp_path) -> Iterator[Engine]:  # type: ignore[no-untyped-def]
-    if _USE_POSTGRES:
-        url = os.environ.get(
-            "POSTGRES_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/app"
-        )
-        # This fixture is function-scoped but the same Postgres database is
-        # reused across tests, so rows from a prior test persist. Reset the
-        # schema before migrating so each test starts clean — otherwise setup
-        # helpers that insert fixed-email users collide on uq_users_email.
-        # (SQLite gets this isolation for free via a fresh tmp_path file.)
-        reset_engine = sa.create_engine(url)
-        with reset_engine.begin() as conn:
-            conn.execute(sa.text("DROP SCHEMA public CASCADE"))
-            conn.execute(sa.text("CREATE SCHEMA public"))
-        reset_engine.dispose()
-    else:
-        db_path = tmp_path / "tomorrowland.db"
-        url = f"sqlite:///{db_path}"
+def _postgres_url(database: str | None = None) -> str:
+    url = os.environ.get(
+        "POSTGRES_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/app"
+    )
+    if database is None:
+        return url
+    return sa.engine.make_url(url).set(database=database).render_as_string(hide_password=False)
+
+
+def _migrate(url: str) -> None:
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", url)
-
     command.upgrade(cfg, "head")
 
-    engine = sa.create_engine(url)
-    try:
-        yield engine
-    finally:
-        engine.dispose()
+
+@pytest.fixture(scope="session")
+def _db_template(tmp_path_factory: pytest.TempPathFactory, worker_id: str) -> str | Path:
+    """Run the full Alembic chain once per session and return a clonable template.
+
+    Re-running ~46 migrations inside every test made the migration chain, not
+    the test bodies, the dominant CI cost. Instead each session (per xdist
+    worker) migrates one template — a Postgres template database or a SQLite
+    file — and ``migrated_engine`` hands every test a cheap copy of it.
+    """
+    if _USE_POSTGRES:
+        # Per-worker template name so xdist workers never share or lock the
+        # same template database.
+        template = f"tomorrowland_test_template_{worker_id}"
+        admin = sa.create_engine(_postgres_url(), isolation_level="AUTOCOMMIT")
+        with admin.connect() as conn:
+            conn.execute(sa.text(f'DROP DATABASE IF EXISTS "{template}" WITH (FORCE)'))
+            conn.execute(sa.text(f'CREATE DATABASE "{template}"'))
+        admin.dispose()
+        _migrate(_postgres_url(template))
+        return template
+    path = tmp_path_factory.mktemp("db-template") / "template.db"
+    _migrate(f"sqlite:///{path}")
+    return path
+
+
+@pytest.fixture()
+def migrated_engine(tmp_path: Path, _db_template: str | Path) -> Iterator[Engine]:
+    if _USE_POSTGRES:
+        # CREATE DATABASE ... TEMPLATE requires zero connections to the
+        # template, which holds because _db_template disposed its engine and
+        # each xdist worker owns a distinct template.
+        database = f"tomorrowland_test_{uuid.uuid4().hex}"
+        admin = sa.create_engine(_postgres_url(), isolation_level="AUTOCOMMIT")
+        with admin.connect() as conn:
+            conn.execute(sa.text(f'CREATE DATABASE "{database}" TEMPLATE "{_db_template}"'))
+        engine = sa.create_engine(_postgres_url(database))
+        try:
+            yield engine
+        finally:
+            engine.dispose()
+            with admin.connect() as conn:
+                conn.execute(sa.text(f'DROP DATABASE "{database}" WITH (FORCE)'))
+            admin.dispose()
+    else:
+        db_path = tmp_path / "tomorrowland.db"
+        shutil.copy(_db_template, db_path)
+        engine = sa.create_engine(f"sqlite:///{db_path}")
+        try:
+            yield engine
+        finally:
+            engine.dispose()
 
 
 @pytest.fixture(scope="module")

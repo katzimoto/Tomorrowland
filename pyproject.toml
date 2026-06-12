@@ -75,7 +75,10 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.pytest.ini_options]
-addopts = "-m 'not e2e' --strict-markers --cov=src --cov-branch --cov-report="
+# Coverage is not gated (no enforced floor) and nothing consumed the default
+# report, so instrumentation is opt-in: pass --cov=src --cov-branch explicitly
+# when you want a coverage run.
+addopts = "-m 'not e2e' --strict-markers"
 testpaths = ["tests"]
 pythonpath = ["src", "."]
 markers = [

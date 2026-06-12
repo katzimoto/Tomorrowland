@@ -47,6 +47,14 @@ All notable changes to this project will be documented in this file.
   unreachable in Compose deployments.
 
 ### Changed
+- **CI performance**: the `migrated_engine` test fixture now runs the Alembic
+  chain once per session into a template (Postgres template database / SQLite
+  template file) and clones it per test, instead of re-running all migrations
+  inside every test; integration tests run with `pytest -n auto`; coverage
+  instrumentation is opt-in (`--cov=src`) instead of always-on; the PR Quality
+  Gate workflow keeps only the cleanliness check and defers lint/type/test and
+  docs builds to Backend CI and Docs CI. Backend PR feedback drops from
+  ~15 minutes to a few minutes with no loss of checks.
 - Simplified air-gapped release to not require local AI for startup. `ollama/ollama`
   image pinned to `0.5.13`; Ollama removed from `api` depends_on health check in
   `docker-compose.airgap.yml`. Docs, env template, and READMEs updated to clearly

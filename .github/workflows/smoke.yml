@@ -98,12 +98,8 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: buildx-${{ runner.os }}-${{ hashFiles('docker/**', 'docker-compose.yml') }}
-          restore-keys: buildx-${{ runner.os }}-
+      # No layer-cache step here: `docker compose build` never read or wrote
+      # the previously configured /tmp/.buildx-cache path, so it was dead config.
 
       - name: Build and start Compose services
         env:
