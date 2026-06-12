@@ -53,7 +53,11 @@ def _postgres_base_url() -> str:
 
 
 def _postgres_db_url(database: str) -> str:
-    return str(sa.engine.make_url(_postgres_base_url()).set(database=database))
+    return (
+        sa.engine.make_url(_postgres_base_url())
+        .set(database=database)
+        .render_as_string(hide_password=False)
+    )
 
 
 # Collected at module import time so parametrize IDs are stable across workers.
