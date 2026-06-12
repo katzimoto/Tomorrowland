@@ -91,6 +91,7 @@ def create_app(
         enable_ocr=app.state.settings.enable_ocr,
         enable_legacy_office=app.state.settings.enable_legacy_office,
         enable_markitdown=app.state.settings.enable_markitdown,
+        enable_docling=app.state.settings.enable_docling,
     )
 
     # Provider registry — holds runtime adapter instances keyed by provider name.
