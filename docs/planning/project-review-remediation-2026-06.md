@@ -176,6 +176,19 @@ worker service vs API background task), add a Kafka client dependency, read
 commit, compose service + healthcheck, integration test against Redpanda.
 Blocked on: owner promotion (wanted, not urgent — decision 2026-06-12).
 
+## Filed issues (2026-06-12)
+
+- WS1 tracker: #693 (`feature/pipeline-correctness`) — children #694 (enrich
+  flag), #695 (delete translation_worker), #696 (enrichment failure
+  visibility), #697 (post-commit publish retry), #698 (retrieval_degraded).
+- WS2 docs truth reconciliation: #699.
+- WS3 deployment hardening: #700.
+- WS4 tests: #701 (backend documents/vault/ops), #702 (frontend
+  auth/search/chat), #703 (nightly CI + downgrade smoke + coverage ratchet).
+- WS5 structural-debt tracker: #704 (`status:deferred`).
+- NiFi drain wiring: #705 (`status:deferred`, owner decision: wanted, not
+  urgent).
+
 ## Sequence
 
 - Week 1: WS2 (docs truth) + WS1a/1b on `feature/pipeline-correctness`.
