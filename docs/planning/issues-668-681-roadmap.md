@@ -2,23 +2,23 @@
 
 **Branch:** `feature/planning-668-681`
 **Author:** researcher
-**Date:** 2026-06-12
+**Date:** 2026-06-11
 
 ## Already Complete
 
 | Issue | Title | Status | Merge Commit |
 |-------|-------|--------|-------------|
 | #668 | Parser router | Merged to main | `ed18a3b` |
-| #671 | Fixture corpus | Done | — |
+| #671 | Fixture corpus | Open | — |
 
 ## Remaining Issues: Dependency Graph
 
 ```
 #669 (layout blocks) ──→ #670 (parser strategy UI)
-     │                          │
-     │ (parallel track)         │
-     ▼                          ▼
-#672 (ingestion status page) ←──┘ depends on #670 data
+     │                          
+     │ (parallel track)         
+     ▼                          
+#672 (ingestion status page)     #670 data available for #672
      │
      ▼
 #673 (timeline + safe retry) ←── needs #672 page
@@ -29,7 +29,7 @@
      │    #675 (surface health in search)
      │
      ▼
-#676 (evidence pack schema + API) ◄── FOUNDATION for Phase 4–6
+#676 (evidence pack schema + API) ◄── FOUNDATION for Wave 4–6
      │
      ├──→ #677 (save citations into packs from UI)
      │         │
@@ -49,8 +49,8 @@
 | Issue | Depends On | Blocks | Unblocked? |
 |-------|-----------|--------|------------|
 | #669 | — (independent) | #670 | ✅ Yes |
-| #670 | #669 (for layout_blocks_available flag) | #672 (data source) | ✅ Yes |
-| #672 | #661 #529 (backend exists), #670 (related) | #673 | ✅ Yes |
+| #670 | #669 (for `layout_blocks_available` flag introduced by #669) | #672 (soft — data source) | ✅ Yes |
+| #672 | #529 (backend exists), #661 (parent release issue, open), #670 (soft — related parallel track) | #673 | ✅ Yes |
 | #673 | #672 (page to extend) | — | ✅ Yes |
 | #674 | #608 #611 #663 (QA checks), #672 (related) | #675 | ✅ Yes |
 | #675 | #674 (health data) | — | ✅ Yes |
@@ -70,7 +70,7 @@ Issues are grouped into **feature branches** that can be developed and merged in
 1. #669 — Persist layout blocks and page-region metadata
 2. #670 — Show parser strategy in source/document UI
 
-**Rationale:** #669 is pure backend (new `document_layout_blocks` table, schema, API). #670 is full-stack but depends on #669's `layout_blocks_available` flag. These can run in parallel with Phase 2.
+**Rationale:** #669 is pure backend (new `document_layout_blocks` table, schema, API). Note: the `document_blocks_available` table name only exists in `docs/design/parser-router.md` — it is design-only and has no migration or model yet. #670 is full-stack but depends on #669's `layout_blocks_available` flag (a new boolean field #669 introduces on the source/document response). These can run in parallel with Wave 2.
 
 ### Wave 2 — Ingestion Admin & Source Health
 **Branch:** `feature/ingestion-admin`
@@ -125,18 +125,18 @@ Each feature branch targets `main`. PRs are opened per feature branch. #681 stay
 
 | # | Issue | Assignee | Complexity | Est. Effort | Notes |
 |---|-------|----------|------------|-------------|-------|
-| 669 | Persist layout blocks | **backend-coder** | **L** | 3–5 days | New table `document_layout_blocks`, schema, API, tests. No existing layout block model. |
-| 670 | Parser strategy UI | **frontend-coder** | **M** | 2–3 days | Extends `AdminSourceDetailPage.tsx` + `AdminIngestionPage.tsx`. Backend needs new fields on document/source responses. |
-| 672 | Ingestion status page | **frontend-coder** | **S** | 1–2 days | Backend already exists (`ingestion_status.py`). Page already exists (`AdminIngestionPage.tsx`) — this completes/enhances it. |
-| 673 | Timeline + safe retry | **backend-coder** | **L** | 3–4 days | New retry/reprocess endpoints, audit logging, duplicate prevention. Frontend timeline component. |
-| 674 | Source health dashboard | **frontend-coder** | **M** | 2–3 days | Uses existing `GET /admin/sources/{id}/qa` API. New dashboard page + summary cards. |
-| 675 | Health in search/evidence | **frontend-coder** | **M** | 2–3 days | Extends `EvidencePanel.tsx` and search results. Depends on #674 health data. |
-| 676 | Evidence pack schema + API | **backend-coder** | **XL** | 5–7 days | Greenfield: new tables, CRUD API, permission checks, audit. Foundation for #677–#681. |
-| 677 | Save citations to packs | **frontend-coder** | **M** | 2–3 days | UI actions on citation cards + Evidence Inspector. Uses #676 API. |
-| 678 | Pack detail UI + export | **frontend-coder** | **M** | 2–3 days | New detail page, Markdown/JSON export endpoints on backend. |
-| 679 | Audit + permission tests | **backend-coder** | **M** | 2–3 days | Security test suite. Cross-user, revocation, export safety. |
-| 680 | Cited findings UI | **frontend-coder** | **L** | 3–4 days | New review UI for advisory runs. Depends on #676 API. |
-| 681 | Hermes creates packs | **backend-coder** | **L** | 3–4 days | **BLOCKED by #612.** Agent write tools, approval flow integration. |
+| #669 | Persist layout blocks | **backend-coder** | **L** | 3–5 days | New table `document_layout_blocks`, schema, API, tests. No existing layout block model. |
+| #670 | Parser strategy UI | **frontend-coder** | **M** | 2–3 days | Extends `AdminSourceDetailPage.tsx` + `AdminIngestionPage.tsx`. Backend needs new fields on document/source responses. |
+| #672 | Ingestion status page | **frontend-coder** | **S** | 1–2 days | Backend already exists (`ingestion_status.py`). Page already exists (`AdminIngestionPage.tsx`) — this completes/enhances it. |
+| #673 | Timeline + safe retry | **backend-coder** | **L** | 3–4 days | New retry/reprocess endpoints, audit logging, duplicate prevention. Frontend timeline component. |
+| #674 | Source health dashboard | **frontend-coder** | **M** | 2–3 days | Uses existing `GET /admin/sources/{id}/qa` API. New dashboard page + summary cards. |
+| #675 | Health in search/evidence | **frontend-coder** | **M** | 2–3 days | Extends `EvidencePanel.tsx` and search results. Depends on #674 health data. |
+| #676 | Evidence pack schema + API | **backend-coder** | **XL** | 5–7 days | Greenfield: new tables, CRUD API, permission checks, audit. Foundation for #677–#681. |
+| #677 | Save citations to packs | **frontend-coder** | **M** | 2–3 days | UI actions on citation cards + Evidence Inspector. Uses #676 API. |
+| #678 | Pack detail UI + export | **frontend-coder** | **M** | 2–3 days | New detail page, Markdown/JSON export endpoints on backend. |
+| #679 | Audit + permission tests | **backend-coder** | **M** | 2–3 days | Security test suite. Cross-user, revocation, export safety. |
+| #680 | Cited findings UI | **frontend-coder** | **L** | 3–4 days | New review UI for advisory runs. Depends on #676 API. |
+| #681 | Hermes creates packs | **backend-coder** | **L** | 3–4 days | **BLOCKED by #612.** Agent write tools, approval flow integration. |
 
 ### Complexity Key
 - **S** (Small): < 2 days, single component, existing patterns
@@ -195,4 +195,10 @@ Each feature branch targets `main`. PRs are opened per feature branch. #681 stay
 1. **Start Wave 1 + Wave 2 in parallel** — #669 (backend) and #672 (frontend) can begin immediately since they're independent
 2. **Prioritize #676** — Once Wave 2 starts, begin #676 immediately since 5 issues depend on it
 3. **Monitor #612** — Track approval gates progress to unblock #681
-4. **Schema review for #676** — Schedule a design review before implementing evidence pack tables
+4. **Schema review for #676** — Schedule a design review before implementing evidence pack tables. Owner: **backend-coder** (to present schema draft; reviewer: researcher + frontend-coder)
+5. **Track #612 to unblock #681** — #612 (approval gates) is `status:deferred` and still open. Until it lands, #681 cannot be assigned. Add a recurring check on #612 status to the weekly planning cadence.
+
+## Related Documents
+
+- **Shared memory:** `docs/memory/current-state.md` — canonical active project state; update this file as waves complete.
+- **Release queue:** `AGENTS.md` (root) — references this roadmap for crew assignment and PR ordering. Keep in sync when waves are added or reprioritized.
