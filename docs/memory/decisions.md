@@ -2,6 +2,38 @@
 
 Shared record for durable architecture, product, and agent workflow decisions.
 
+## 2026-06-12 — Project-review remediation: enrichment on final index pass; NiFi deferred; graphify rules removed
+
+Status: Active
+Source: owner decisions, project review session (plan: `docs/planning/project-review-remediation-2026-06.md`)
+
+Decision:
+- **Pipeline enrichment (intelligence + alert) fires once, on the final index pass.**
+  The double-index question (memory 2026-06-01) is answered: unintentional.
+  Fix: `enrich: bool` flag on the index message — `translate_worker` publishes
+  the early index with `enrich=False` (keyword search available immediately;
+  embed-degraded resilience preserved), `embed_worker` publishes the final index
+  with `enrich=True`; `index_worker` gates `publish_intelligence`/`publish_alert`
+  on the flag. Intelligence therefore always reads the updated (translated)
+  document.
+- **NiFi ingestion is wanted but deferred.** Keep `kafka_consumer.py` and the
+  `kafka` compose service. Wiring `NiFiKafkaDrain` is a `status:deferred`
+  feature issue, not a quick fix. Correct `production-compose.md` (it currently
+  claims NiFi ingestion is release-usable) without waiting for the wiring.
+- **Graphify rules removed from `CLAUDE.md`/`AGENTS.md`** — they mandated a
+  `graphify-out/` graph that does not exist in the repo (instruction drift).
+- `src/services/pipeline/translation_worker.py` is confirmed dead code (no
+  entrypoint, no compose command, no callers) — scheduled for deletion in WS1b.
+- Most `docs/context/acl-audit.md` HIGH/MEDIUM items (H1, H3, H4, H5, M1, M2)
+  are already fixed in code; the audit doc is stale and gets a Status column
+  (WS2) so future reviews don't re-report fixed findings.
+
+Impact:
+- Implementors follow `docs/planning/project-review-remediation-2026-06.md`
+  (5 workstreams; WS1 on `feature/pipeline-correctness`).
+- Reviewers: a second index message for an already-indexed document must NOT
+  re-fire enrichment unless `enrich=True`.
+
 ## 2026-06-08 — Documentation framework: MkDocs Material with CI enforcement
 
 Status: Active
