@@ -300,6 +300,10 @@ export const adminApi = {
   deleteTaskDefault: (taskType: string) =>
     api.delete(`/admin/model-task-defaults/${taskType}`),
 
+  // --- Source Health (#674) ---
+  getSourceHealth: (sourceId: string) =>
+    api.get<SourceHealthResponse>(`/admin/sources/${sourceId}/qa`),
+
   // --- LDAP Group Search & Mappings ---
   searchLdapGroups: (query: string, limit?: number) => {
     const qs = new URLSearchParams({ q: query });
@@ -355,6 +359,23 @@ export interface DocumentTraceResponse {
   document_title: string | null;
   source_name: string | null;
   jobs: DocumentTraceJob[];
+}
+
+export interface SourceHealthResponse {
+  source_id: string;
+  checked_at: string | null;
+  total_documents: number;
+  indexed_documents: number;
+  pending_documents: number;
+  failed_documents: number;
+  empty_chunks: number;
+  missing_content: number;
+  missing_metadata: number;
+  missing_title: number;
+  ocr_eligible: number;
+  ocr_maybe_needed: number;
+  index_lag_count: number;
+  issues: string[];
 }
 
 export interface UserDetail {

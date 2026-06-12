@@ -36,6 +36,7 @@ const AdminHubPage = lazyRoute(() => import("@/features/admin/AdminHubPage"), "A
 const AdminIngestionPage = lazyRoute(() => import("@/features/admin/AdminIngestionPage"), "AdminIngestionPage");
 const AdminSourcesPage = lazyRoute(() => import("@/features/admin/AdminSourcesPage"), "AdminSourcesPage");
 const AdminSourceDetailPage = lazyRoute(() => import("@/features/admin/AdminSourceDetailPage"), "AdminSourceDetailPage");
+const AdminSourceHealthPage = lazyRoute(() => import("@/features/admin/AdminSourceHealthPage"), "AdminSourceHealthPage");
 const AdminAddSourceWizard = lazyRoute(() => import("@/features/admin/AdminAddSourceWizard"), "AdminAddSourceWizard");
 const AdminEditSourcePage = lazyRoute(() => import("@/features/admin/AdminEditSourcePage"), "AdminEditSourcePage");
 const AdminGroupsPage = lazyRoute(() => import("@/features/admin/AdminGroupsPage"), "AdminGroupsPage");
@@ -185,6 +186,12 @@ const adminSourcesRoute = createRoute({
   component: AdminSourcesPage,
 });
 
+const adminSourceHealthRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/source-health",
+  component: AdminSourceHealthPage,
+});
+
 const adminAddSourceRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/admin/sources/new",
@@ -254,6 +261,7 @@ const routeTree = rootRoute.addChildren([
     adminRoute,
     adminIngestionRoute,
     adminSourcesRoute,
+    adminSourceHealthRoute,
     adminAddSourceRoute,
     adminSourceDetailRoute,
     adminEditSourceRoute,
