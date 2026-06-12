@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { render } from "@/test/render";
 import { AdminSourceDetailPage } from "./AdminSourceDetailPage";
 import * as adminApi from "@/api/admin";
