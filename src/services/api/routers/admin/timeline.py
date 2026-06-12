@@ -23,6 +23,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["admin"])
 
 
+def _coerce_dt(val: Any) -> datetime:
+    """Coerce a datetime or ISO string to a timezone-aware datetime.
+
+    SQLite raw text queries return DateTime columns as strings; this
+    handles both formats so duration and sorting work in all environments.
+    """
+    if isinstance(val, datetime):
+        return val if val.tzinfo else val.replace(tzinfo=UTC)
+    if isinstance(val, str):
+        try:
+            dt = datetime.fromisoformat(val)
+            return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+        except ValueError:
+            pass
+    return datetime.min.replace(tzinfo=UTC)
+
+
 def _build_timeline_stages(
     jobs: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -32,10 +49,7 @@ def _build_timeline_stages(
     the job ``created_at`` timestamp.  Duration is computed from the
     ``created_at`` → ``updated_at`` delta when the job is completed.
     """
-    # Sort all jobs by created_at (ascending)
-    sorted_jobs = sorted(
-        jobs, key=lambda j: j.get("created_at") or datetime.min.replace(tzinfo=UTC)
-    )
+    sorted_jobs = sorted(jobs, key=lambda j: _coerce_dt(j.get("created_at")))
 
     stages: list[dict[str, Any]] = []
 
@@ -57,23 +71,21 @@ def _build_timeline_stages(
 
         # Compute duration for completed stages
         duration_ms: int | None = None
-        created = job.get("created_at")
-        updated = job.get("updated_at")
-        if (
-            stage_status == "completed"
-            and created
-            and updated
-            and isinstance(created, datetime)
-            and isinstance(updated, datetime)
-        ):
-            delta = updated - created
-            duration_ms = int(delta.total_seconds() * 1000)
+        if stage_status == "completed":
+            created = job.get("created_at")
+            updated = job.get("updated_at")
+            if created and updated:
+                try:
+                    delta = _coerce_dt(updated) - _coerce_dt(created)
+                    duration_ms = int(delta.total_seconds() * 1000)
+                except (TypeError, OverflowError):
+                    pass
 
         stages.append(
             {
                 "stage": stage_name,
                 "status": stage_status,
-                "at": _fmt_dt(updated or created),
+                "at": _fmt_dt(job.get("updated_at") or job.get("created_at")),
                 "duration_ms": duration_ms,
                 "error": job.get("last_error"),
             }
@@ -343,8 +355,6 @@ def admin_reocr_document(
         if title is None or source_id is None:
             raise HTTPException(status_code=404, detail="Document not found or missing source")
 
-        # Reset any dead-letter jobs at the OCR-related stage, then re-enqueue
-        _requeue_jobs(conn, document_id, user.sub, "reocr", stage="ocr")
         count = _re_enqueue_job(
             conn,
             document_id,
@@ -374,9 +384,6 @@ def admin_retranslate_document(
         if title is None or source_id is None:
             raise HTTPException(status_code=404, detail="Document not found or missing source")
 
-        # Reset any dead-letter translation jobs
-        _requeue_jobs(conn, document_id, user.sub, "retranslate", stage="translate")
-        _requeue_jobs(conn, document_id, user.sub, "retranslate", stage="translated")
         count = _re_enqueue_job(
             conn,
             document_id,
@@ -406,9 +413,6 @@ def admin_reembed_document(
         if title is None or source_id is None:
             raise HTTPException(status_code=404, detail="Document not found or missing source")
 
-        # Reset any dead-letter index/embed jobs
-        _requeue_jobs(conn, document_id, user.sub, "reembed", stage="embedded")
-        _requeue_jobs(conn, document_id, user.sub, "reembed", stage="indexed")
         count = _re_enqueue_job(
             conn,
             document_id,
