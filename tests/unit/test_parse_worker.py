@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from services.pipeline.parse_worker import (
@@ -113,7 +113,6 @@ class TestAttachmentPublishFailure:
         )
 
         # Route attachments through the extractor MagicMock
-        from unittest.mock import patch
         att = _make_attachment()
         fake_result = SimpleNamespace(
             text="",
@@ -146,7 +145,6 @@ class TestAttachmentPublishFailure:
 
         att = _make_attachment()
         fake_result = SimpleNamespace(text="some text", location_segments=[], attachments=[att])
-        from unittest.mock import patch
         with patch.object(consumer._extractor, "extract", return_value=fake_result):
             doc = doc_repo.get_by_id.return_value
             doc.path = "/tmp/parent.txt"
