@@ -279,61 +279,56 @@ def test_registry_x_zip_compressed_resolves_via_alias() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Bug 11: translation_worker empty content_text → graceful skip, not dead-letter
+# Bug 11: empty content_text → graceful skip, not dead-letter
+# (originally tested via the removed legacy translation module's
+#  run_translation_once; now covers the live TranslateConsumer path)
 # ---------------------------------------------------------------------------
 
 
-def test_translation_worker_empty_content_text_skips_gracefully() -> None:
+def test_translate_consumer_empty_content_text_skips_gracefully() -> None:
     """A document with no extractable text must not be dead-lettered.
 
-    The durable-queue translation_worker previously raised ValueError when
-    content_text was empty, causing up to max_attempts retries and eventual
-    dead-lettering for documents that genuinely have no text (scanned PDFs
-    without OCR, empty files).  After the fix it returns True (job consumed)
-    and enqueues the next stage.
+    Empty content_text (scanned PDFs without OCR, empty files) must skip
+    translation without raising, mark the stage, and hand off to embed —
+    not retry/dead-letter.
     """
     from uuid import uuid4
 
-    from services.pipeline.translation_worker import run_translation_once
+    from services.pipeline.translate_worker import TranslateConsumer
 
-    doc_id = uuid4()
+    document_id = uuid4()
     source_id = uuid4()
     job_id = uuid4()
 
-    fake_job = {
-        "id": job_id,
-        "document_id": doc_id,
-        "job_type": "translate_document",
-        "attempts": 1,
-        "max_attempts": 3,
-        "source_id": source_id,
-    }
+    mock_translator = MagicMock()
+    mock_job_repo = MagicMock()
+    mock_publisher = MagicMock()
 
-    fake_doc = MagicMock()
-    fake_doc.source_language = "en"
+    consumer = TranslateConsumer(
+        rabbit=MagicMock(),
+        job_repo=mock_job_repo,
+        publisher=mock_publisher,
+        translator=mock_translator,
+        version_repo=MagicMock(),
+        doc_repo=None,
+    )
 
-    job_repo = MagicMock()
-    job_repo.claim_next.return_value = fake_job
-    job_repo.get_payload.return_value = {"content_text": ""}  # empty!
+    consumer.handle_message(
+        job_id=job_id,
+        document_id=document_id,
+        source_id=source_id,
+        attempt=1,
+        correlation_id="test-corr",
+        content_text="",
+    )
 
-    doc_repo = MagicMock()
-    doc_repo.get_by_id.return_value = fake_doc
-
-    translator = MagicMock()
-
-    result = run_translation_once(job_repo, doc_repo, translator)
-
-    assert result is True
     # Must NOT have called translate() on empty text
-    translator.translate.assert_not_called()
-    # Must have stored empty translated text
-    job_repo.update_translated_text.assert_called_once_with(doc_id, "")
-    # Must have succeeded (not retried / dead-lettered)
-    job_repo.mark_succeeded.assert_called_once()
-    job_repo.mark_retry.assert_not_called()
-    job_repo.mark_dead_letter.assert_not_called()
-    # Must NOT enqueue an orphaned index job (no v1 index worker exists)
-    job_repo.enqueue_document.assert_not_called()
+    mock_translator.translate.assert_not_called()
+    # Must mark the stage and hand off to embed (no raise → no retry path)
+    mock_job_repo.mark_running_stage.assert_called_once_with(job_id, "translated")
+    mock_publisher.publish_embed.assert_called_once()
+    # The early index publish is skipped on the empty path
+    mock_publisher.publish_index.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

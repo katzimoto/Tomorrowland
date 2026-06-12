@@ -143,3 +143,54 @@ def test_retry_message_omits_content_text_when_payload_empty():
     published_body = json.loads(consumer._channel.basic_publish.call_args.kwargs["body"])
     assert "content_text" not in published_body
     assert "translated_text" not in published_body
+
+
+def _make_delivery_with_enrich(attempt=1, enrich=False):
+    body = json.dumps(
+        {
+            "job_id": str(uuid4()),
+            "document_id": str(uuid4()),
+            "source_id": str(uuid4()),
+            "attempt": attempt,
+            "pipeline_version": "v1",
+            "enrich": enrich,
+        }
+    ).encode()
+    method = MagicMock()
+    method.delivery_tag = 42
+    return MagicMock(), method, MagicMock(), body
+
+
+def test_retry_message_preserves_enrich_flag():
+    """A retried early-index message must stay enrich=False, or the retry
+    would double-fire intelligence/alert."""
+    consumer = FailingConsumer.__new__(FailingConsumer)
+    consumer._channel = MagicMock()
+    consumer._job_repo = MagicMock()
+    consumer._job_repo.get_max_attempts.return_value = 5
+    consumer._job_repo.get_payload.return_value = None
+    consumer._jobs_processed = 0
+
+    ch, method, props, body = _make_delivery_with_enrich(attempt=1, enrich=False)
+    consumer._on_message(ch, method, props, body)
+
+    consumer._channel.basic_publish.assert_called_once()
+    published_body = json.loads(consumer._channel.basic_publish.call_args.kwargs["body"])
+    assert published_body["enrich"] is False
+
+
+def test_retry_message_omits_enrich_when_absent():
+    """Messages without the flag (pre-flag in-flight) retry without it, so the
+    consumer default (enrich=True) keeps applying."""
+    consumer = FailingConsumer.__new__(FailingConsumer)
+    consumer._channel = MagicMock()
+    consumer._job_repo = MagicMock()
+    consumer._job_repo.get_max_attempts.return_value = 5
+    consumer._job_repo.get_payload.return_value = None
+    consumer._jobs_processed = 0
+
+    ch, method, props, body = _make_delivery(attempt=1)
+    consumer._on_message(ch, method, props, body)
+
+    published_body = json.loads(consumer._channel.basic_publish.call_args.kwargs["body"])
+    assert "enrich" not in published_body

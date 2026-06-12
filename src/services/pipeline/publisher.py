@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from uuid import UUID
 
 from services.pipeline.jobs import PipelineJobRepository
@@ -109,8 +110,13 @@ class DocumentPublisher:
         attempt: int = 1,
         content_text: str | None = None,
         translated_text: str | None = None,
+        enrich: bool = True,
     ) -> None:
-        extra: dict[str, str] = {}
+        # enrich=False marks the early (pre-embed) index pass: the document
+        # becomes keyword-searchable immediately, but intelligence/alert are
+        # deferred to the final post-embed pass so enrichment runs exactly
+        # once, on the updated (translated) content.
+        extra: dict[str, str | bool] = {"enrich": enrich}
         if content_text:
             extra["content_text"] = content_text
         if translated_text:
@@ -121,7 +127,7 @@ class DocumentPublisher:
             document_id=document_id,
             source_id=source_id,
             attempt=attempt,
-            extra=extra or None,
+            extra=extra,
         )
 
     def publish_intelligence(
@@ -180,11 +186,11 @@ class DocumentPublisher:
         document_id: UUID,
         source_id: UUID,
         attempt: int,
-        extra: dict[str, str] | None = None,
+        extra: Mapping[str, str | bool] | None = None,
         message_id: str | None = None,
     ) -> None:
         routing_key = _ROUTING_KEYS[stage]
-        body: dict[str, str | int] = {
+        body: dict[str, str | int | bool] = {
             "job_id": str(job_id),
             "document_id": str(document_id),
             "source_id": str(source_id),

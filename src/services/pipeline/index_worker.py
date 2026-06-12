@@ -37,6 +37,11 @@ class IndexConsumer(BaseConsumer):
         self._meili = meili
         self._embedding_max_tokens = embedding_max_tokens
 
+    def _extra_message_kwargs(self, payload: dict[str, Any]) -> dict[str, Any]:
+        # Default True keeps backward compatibility with in-flight messages
+        # published before the enrich flag existed.
+        return {"enrich": payload.get("enrich", True) is not False}
+
     def handle_message(
         self,
         job_id: UUID,
@@ -46,6 +51,7 @@ class IndexConsumer(BaseConsumer):
         correlation_id: str,
         content_text: str = "",
         translated_text: str = "",
+        enrich: bool = True,
     ) -> None:
         doc = self._doc_repo.get_by_id(document_id)
         if doc is None:
@@ -67,6 +73,13 @@ class IndexConsumer(BaseConsumer):
         self._job_repo.mark_running_stage(job_id, "indexed")
         self._job_repo.mark_succeeded(job_id)
         self._doc_repo.update_indexed(document_id, "indexed", doc.translation_quality)
+
+        if not enrich:
+            # Early (pre-embed) index pass: the document is searchable, but
+            # intelligence/alert wait for the final post-embed pass so they
+            # run exactly once, on the updated content (#694).
+            logger.debug("enrichment deferred: early index pass for document_id=%s", document_id)
+            return
 
         # Best-effort downstream publishes — these fire after the job is
         # marked succeeded (committed by consumer_base after we return).

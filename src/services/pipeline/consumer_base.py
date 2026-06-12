@@ -62,6 +62,14 @@ class BaseConsumer(ABC):
     ) -> None:
         """Process one message. Raise on failure."""
 
+    def _extra_message_kwargs(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Extra payload fields to forward to ``handle_message`` as kwargs.
+
+        Consumers whose ``handle_message`` accepts fields beyond the shared
+        contract (e.g. the index stage's ``enrich`` flag) override this.
+        """
+        return {}
+
     # Backoff delays (seconds) for successive reconnect attempts: 2, 5, 10, 30, 60, 60, …
     _RECONNECT_DELAYS: tuple[int, ...] = (2, 5, 10, 30, 60)
 
@@ -154,6 +162,7 @@ class BaseConsumer(ABC):
                 correlation_id,
                 content_text=content_text,
                 translated_text=translated_text,
+                **self._extra_message_kwargs(payload),
             )
             self._job_repo.commit()
             self._channel.basic_ack(delivery_tag=delivery_tag)  # type: ignore[union-attr]
@@ -199,6 +208,12 @@ class BaseConsumer(ABC):
                     _retry_extra["content_text"] = _stored_text
                 if _stored_translated:
                     _retry_extra["translated_text"] = _stored_translated
+                # Preserve the enrich flag across retries — dropping it would
+                # default a retried early-index message back to enrich=True
+                # and double-fire intelligence/alert.
+                _retry_flags: dict[str, bool] = (
+                    {"enrich": payload["enrich"] is not False} if "enrich" in payload else {}
+                )
                 retry_body = json.dumps(
                     {
                         "job_id": str(job_id),
@@ -207,6 +222,7 @@ class BaseConsumer(ABC):
                         "attempt": attempt + 1,
                         "pipeline_version": "v1",
                         **_retry_extra,
+                        **_retry_flags,
                     }
                 ).encode()
                 self._channel.basic_publish(  # type: ignore[union-attr]

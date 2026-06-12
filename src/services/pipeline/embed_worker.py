@@ -134,6 +134,9 @@ class EmbedConsumer(BaseConsumer):
             self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
 
         self._job_repo.mark_running_stage(job_id, "embedded")
+        # Final index pass (enrich=True): refreshes Meilisearch and fires
+        # intelligence/alert exactly once, on the post-translation content
+        # (#694). The translate stage's earlier pass used enrich=False.
         self._publisher.publish_index(
             job_id=job_id,
             document_id=document_id,
@@ -141,6 +144,7 @@ class EmbedConsumer(BaseConsumer):
             attempt=attempt,
             content_text=content_text,
             translated_text=translated_text,
+            enrich=True,
         )
 
 
