@@ -43,6 +43,7 @@ def test_no_skip_for_root_document() -> None:
 # Attachment publish-failure surfacing (#697)
 # ---------------------------------------------------------------------------
 
+
 def _make_attachment(filename: str = "child.pdf", mime_type: str = "application/pdf") -> MagicMock:
     att = MagicMock()
     att.filename = filename
