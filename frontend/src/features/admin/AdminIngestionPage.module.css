@@ -145,6 +145,21 @@
   font-weight: 500;
 }
 
+.docLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s, text-decoration 0.15s;
+}
+
+.docLink:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+}
+
 .expandCell {
   width: 40px;
   text-align: center;
