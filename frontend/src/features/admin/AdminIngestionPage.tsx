@@ -127,50 +127,56 @@ function TimelinePanel({
     retry: false,
   });
 
-  const makeOnSuccess = (action: string) => (result: { requeued: number }) => {
-    setConfirmAction(null);
-    if (result.requeued === 0) {
-      showToast("info", "No jobs needed requeueing — the document may already be processed.");
-    } else {
-      showToast("success", `${action}: requeued ${result.requeued} job(s).`);
-    }
-    qc.invalidateQueries({ queryKey: ["document-timeline", documentId] });
-    qc.invalidateQueries({ queryKey: ["ingestion-status"] });
-  };
+  const onRetrySuccess = useCallback(
+    (action: string) => (result: { requeued: number }) => {
+      setConfirmAction(null);
+      if (result.requeued === 0) {
+        showToast("info", "No jobs needed requeueing — the document may already be processed.");
+      } else {
+        showToast("success", `${action}: requeued ${result.requeued} job(s).`);
+      }
+      qc.invalidateQueries({ queryKey: ["document-timeline", documentId] });
+      qc.invalidateQueries({ queryKey: ["ingestion-status"] });
+    },
+    [documentId, qc, showToast],
+  );
 
-  const makeOnError = () => (err: Error) => {
-    setConfirmAction(null);
-    showToast("error", err.message);
-  };
+  const onRetryError = useCallback(
+    (err: Error) => {
+      setConfirmAction(null);
+      showToast("error", err.message);
+    },
+    [showToast],
+  );
 
   const retryMutation = useMutation({
     mutationFn: () => adminApi.retryDocument(documentId),
-    onSuccess: makeOnSuccess("retry"),
-    onError: makeOnError(),
+    onSuccess: onRetrySuccess("retry"),
+    onError: onRetryError,
   });
 
   const reprocessMutation = useMutation({
     mutationFn: () => adminApi.reprocessDocument(documentId),
-    onSuccess: makeOnSuccess("reprocess"),
-    onError: makeOnError(),
+    onSuccess: onRetrySuccess("reprocess"),
+    onError: onRetryError,
   });
 
   const reocrMutation = useMutation({
     mutationFn: () => adminApi.reocrDocument(documentId),
-    onSuccess: makeOnSuccess("reocr"),
-    onError: makeOnError(),
+    onSuccess: onRetrySuccess("reocr"),
+    onError: onRetryError,
   });
 
   const retranslateMutation = useMutation({
     mutationFn: () => adminApi.retranslateDocument(documentId),
-    onSuccess: makeOnSuccess("retranslate"),
-    onError: makeOnError(),
+    onSuccess: onRetrySuccess("retranslate"),
+    onError: onRetryError,
   });
 
   const reembedMutation = useMutation({
     mutationFn: () => adminApi.reembedDocument(documentId),
-    onSuccess: makeOnSuccess("reembed"),
-    onError: makeOnError(),
+    onSuccess: onRetrySuccess("reembed"),
+    onError: onRetryError,
   });
 
   const mutationMap: Record<string, typeof retryMutation> = {
