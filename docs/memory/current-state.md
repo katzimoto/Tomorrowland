@@ -3,6 +3,17 @@
 Canonical shared memory for active project state. Keep this file compact and factual.
 <!-- Compaction cutoff: 2026-06-01. Older Done entries archived to docs/memory/archive/current-state.md. -->
 
+## 2026-06-12 — #539 preview architecture re-planned mail+Office-first (plan ready for implementation)
+
+Status: Active
+Source: Claude planning session; `docs/planning/preview-mail-office-first-2026-06.md` (also posted to #539)
+
+New architecture plan for #539 **supersedes the 2026-05-29 PDF-first plan comment** on the issue. Priority correction from owner: Mail (EML/MSG) and Office (DOCX/PPTX/XLSX) are P0; PDF is shared infrastructure delivered last. Key shape: `document_preview_artifacts` table keyed `(document_id, content_sha256)`; manifest API (`GET /preview/{id}/manifest`, opaque-ID artifact endpoint, admin rerender); email rendered synchronously (stdlib parse → sanitized HTML + cid artifacts), Office async via new `preview_render` pipeline job + `preview-worker` (LibreOffice→PDF for DOCX/PPTX into existing pdf.js viewer; XLSX gets per-sheet grid artifacts + SheetViewer, NOT PDF). Attachments reuse existing `document_relationships` child-doc model. Feature branch: `feature/preview-rendering`, 7 slices, S1–S2 = demoable mail wedge.
+
+**Decisions needed from owner before S1** (full list in plan §Risks): (1) adopt `nh3` for email HTML sanitization (revisits #623 dependency-free decision — recommended yes); (2) LibreOffice in shared backend image vs separate preview-worker image (recommended separate); (3) API write access to `files_data` volume (mounted read-only today) vs routing email renders through the worker.
+
+Gap noted for implementers: tests/fixtures has **zero** mail fixtures (#671 corpus is Office/PDF only) — S1 adds `tests/fixtures/mail/`.
+
 ## 2026-06-08 — docs: documentation overhaul — MkDocs wiki, archives, documentation policy
 
 Status: Active
