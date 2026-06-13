@@ -66,6 +66,39 @@ class PreviewArtifactStore:
         if target.is_dir():
             shutil.rmtree(target, ignore_errors=True)
 
+    def scan_orphans(self, valid_keys: set[tuple[str, str]]) -> dict[str, int]:
+        """Walk the preview artifact root and report orphaned directories.
+
+        Returns a dict with keys ``scanned``, ``valid``, ``orphaned``,
+        ``bytes_orphaned``.  Nothing is deleted.  Traversal-style directory
+        names that are not alphanumeric (including ``..``) are counted as
+        scanned but skipped from the orphan set so they are never deleted.
+        """
+        if not self._base.is_dir():
+            return {"scanned": 0, "valid": 0, "orphaned": 0, "bytes_orphaned": 0}
+        scanned = valid = orphaned = bytes_orphaned = 0
+        for doc_dir in self._base.iterdir():
+            if not doc_dir.is_dir():
+                continue
+            for sha_dir in doc_dir.iterdir():
+                if not sha_dir.is_dir():
+                    continue
+                scanned += 1
+                key = (doc_dir.name, sha_dir.name)
+                if key in valid_keys:
+                    valid += 1
+                else:
+                    orphaned += 1
+                    bytes_orphaned += sum(
+                        f.stat().st_size for f in sha_dir.rglob("*") if f.is_file()
+                    )
+        return {
+            "scanned": scanned,
+            "valid": valid,
+            "orphaned": orphaned,
+            "bytes_orphaned": bytes_orphaned,
+        }
+
     def sweep_orphans(self, valid_keys: set[tuple[str, str]]) -> int:
         """Delete preview dirs whose ``(document_id, content_sha256)`` has no
         live artifact row. Returns the number of directories removed.

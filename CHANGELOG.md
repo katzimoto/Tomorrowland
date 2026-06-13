@@ -13,6 +13,17 @@ All notable changes to this project will be documented in this file.
   OpenAI-compatible, local).
 
 ### Added
+- **Preview artifact orphan cleanup (#749)**: adds two admin API endpoints for
+  safe, operator-invokable preview artifact maintenance.
+  `GET /admin/preview/artifacts/orphans` performs a dry-run scan and reports
+  stale artifact directories with estimated bytes reclaimable; nothing is
+  deleted.  `POST /admin/preview/artifacts/sweep` executes the cleanup,
+  removing only orphaned `files_root/previews/<document-id>/<sha256>/`
+  directories whose `(document_id, content_sha256)` pair has no live row in
+  `document_preview_artifacts`.  Both endpoints require admin privileges, log
+  aggregate counts (not paths), and never touch original uploaded files or
+  extracted document payloads.  Adds `PreviewArtifactStore.scan_orphans` and
+  an operations runbook at `docs/operations/preview-artifacts.md`.
 - **Eval suite v2 — layout-aware and preview-anchor regression cases (#754)**:
   expands the offline eval suite from 8 to 21 fixture cases across 12 categories.
   New categories cover: `layout_aware` (parent/child heading context, multi-column
