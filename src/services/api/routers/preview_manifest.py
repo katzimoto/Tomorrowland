@@ -76,6 +76,8 @@ def _kind_for_renderer(renderer: str) -> str:
         return "email"
     if renderer == "libreoffice_pdf":
         return "office_doc"
+    if renderer == "sheet_grid":
+        return "office_sheets"
     if renderer in ("pdfjs", "image"):
         return renderer if renderer == "image" else "pdf"
     return "text"

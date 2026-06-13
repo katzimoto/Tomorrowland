@@ -56,6 +56,16 @@ All notable changes to this project will be documented in this file.
   into the air-gapped split-parts bundle. New settings:
   `PREVIEW_RENDER_TIMEOUT_SECONDS`, `PREVIEW_MAX_PAGES`. New env var:
   `TOMORROWLAND_PREVIEW_WORKER_IMAGE`.
+- **XLSX sheet-grid preview — slice 5 (#539)**: `.xlsx` spreadsheets render as
+  structured per-sheet grids with real sheet tabs (a new `SheetViewer`) instead
+  of flattened text. The preview worker emits one JSON grid artifact per sheet
+  (`openpyxl`, `data_only`), capped to the first rows/columns
+  (`PREVIEW_MAX_SHEET_ROWS`/`PREVIEW_MAX_SHEET_COLS`); over the cap the preview
+  is marked `partial` and a banner points to the download for the full sheet.
+  In-document search highlights and counts cell matches in the active sheet. The
+  frontend `SheetManifestPreview` falls back to the extracted-text table preview
+  while pending, disabled, or failed. Legacy `.xls` and `.ods` keep the table
+  preview (openpyxl reads only `.xlsx`).
 - **Docling PDF extractor (#649)**: `DoclingPdfExtractor` registered as a
   `QualityTier.HIGH` backend for `application/pdf` when `ENABLE_DOCLING=true`.
   Produces layout-aware Markdown (tables, multi-column, headings) for richer RAG

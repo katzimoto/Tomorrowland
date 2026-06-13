@@ -553,12 +553,12 @@ def test_office_render_fails_when_soffice_unavailable(
     assert body["error"]["category"] == "renderer_unavailable"
 
 
-def test_office_sheet_still_text_fallback_in_s4(migrated_engine: Engine, tmp_path: Path) -> None:
+def test_xlsx_enqueues_sheet_grid_render(migrated_engine: Engine, tmp_path: Path) -> None:
     _setup_users(migrated_engine)
     files_root = tmp_path / "files"
     files_root.mkdir()
     xlsx = files_root / "data.xlsx"
-    xlsx.write_bytes(b"fake-xlsx")
+    _write_xlsx(xlsx, [["a", "b"]])
     _source_id, doc_id = _create_doc(
         migrated_engine,
         mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -568,7 +568,75 @@ def test_office_sheet_still_text_fallback_in_s4(migrated_engine: Engine, tmp_pat
     client = _client(migrated_engine, files_root)
     auth = {"Authorization": f"Bearer {_token(client, 'user@example.com')}"}
     body = client.get(f"/preview/{doc_id}/manifest", headers=auth).json()
-    # Spreadsheets are not rendered via the worker yet (sheet grids come later).
-    assert body["status"] == "ready"
+    # XLSX now renders structured sheet grids via the worker.
+    assert body["status"] == "pending"
     assert body["kind"] == "office_sheets"
+    assert body["renderer"] == "sheet_grid"
+
+
+def _write_xlsx(path: Path, rows: list[list[object]], sheet_name: str = "Sheet1") -> None:
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet_name
+    for row in rows:
+        ws.append(row)
+    wb.save(str(path))
+
+
+def test_xlsx_manifest_renders_sheet_grids(migrated_engine: Engine, tmp_path: Path) -> None:
+    _setup_users(migrated_engine)
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    xlsx = files_root / "budget.xlsx"
+    _write_xlsx(xlsx, [["Item", "Cost"], ["Rent", 1000]], sheet_name="Budget")
+    _source_id, doc_id = _create_doc(
+        migrated_engine,
+        mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        path=str(xlsx),
+        external_id="file:budget",
+    )
+    client = _client(migrated_engine, files_root)
+    auth = {"Authorization": f"Bearer {_token(client, 'user@example.com')}"}
+
+    first = client.get(f"/preview/{doc_id}/manifest", headers=auth).json()
+    assert first["status"] == "pending"
+    assert first["renderer"] == "sheet_grid"
+    assert first["kind"] == "office_sheets"
+
+    with migrated_engine.begin() as connection:
+        status = render_document_preview(connection, _settings(files_root), UUID(doc_id))
+    assert status == "ready"
+
+    body = client.get(f"/preview/{doc_id}/manifest", headers=auth).json()
+    assert body["status"] == "ready"
+    assert body["navigation"]["unit"] == "sheet"
+    assert body["navigation"]["count"] == 1
+    assert body["navigation"]["items"][0]["label"] == "Budget"
+
+    sheet_artifact = body["navigation"]["items"][0]["artifact_id"]
+    artifact = client.get(f"/preview/{doc_id}/artifact/{sheet_artifact}", headers=auth)
+    assert artifact.status_code == 200
+    grid = artifact.json()
+    assert grid["name"] == "Budget"
+    assert grid["rows"][0] == ["Item", "Cost"]
+
+
+def test_legacy_xls_still_text_fallback(migrated_engine: Engine, tmp_path: Path) -> None:
+    _setup_users(migrated_engine)
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    xls = files_root / "old.xls"
+    xls.write_bytes(b"fake-xls")
+    _source_id, doc_id = _create_doc(
+        migrated_engine,
+        mime_type="application/vnd.ms-excel",
+        path=str(xls),
+        external_id="file:old",
+    )
+    client = _client(migrated_engine, files_root)
+    auth = {"Authorization": f"Bearer {_token(client, 'user@example.com')}"}
+    body = client.get(f"/preview/{doc_id}/manifest", headers=auth).json()
+    assert body["status"] == "ready"
     assert body["renderer"] == "text"

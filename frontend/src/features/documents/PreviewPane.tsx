@@ -6,6 +6,7 @@ import { TablePreview } from "./renderers/TablePreview";
 import { ArchivePreview } from "./renderers/ArchivePreview";
 import { EmailManifestPreview } from "./renderers/EmailManifestPreview";
 import { OfficeManifestPreview } from "./renderers/OfficeManifestPreview";
+import { SheetManifestPreview } from "./renderers/SheetManifestPreview";
 import { SlidesPreview } from "./renderers/SlidesPreview";
 import { ImageViewer } from "./renderers/ImageViewer";
 import { PdfViewer } from "./renderers/PdfViewer";
@@ -213,17 +214,32 @@ export function PreviewPane({
     mime === "application/vnd.ms-excel" ||
     mime === "text/tab-separated-values"
   ) {
-    return (
-      <div className={styles.pane}>
-        <TablePreview
-          docId={preview.document_id}
-          delimiter="\t"
-          searchQuery={searchQuery}
-          activeSearchIndex={activeSearchIndex}
-          onMatchCountChange={onMatchCountChange}
-        />
-      </div>
+    const tableFallback = (
+      <TablePreview
+        docId={preview.document_id}
+        delimiter="\t"
+        searchQuery={searchQuery}
+        activeSearchIndex={activeSearchIndex}
+        onMatchCountChange={onMatchCountChange}
+      />
     );
+    // Only OOXML .xlsx renders as structured sheet grids (openpyxl is
+    // XLSX-only); legacy .xls and TSV keep the extracted-text table preview.
+    if (
+      mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ) {
+      return (
+        <div className={styles.pane}>
+          <SheetManifestPreview
+            docId={preview.document_id}
+            fallback={tableFallback}
+            searchQuery={searchQuery}
+            onMatchCountChange={onMatchCountChange}
+          />
+        </div>
+      );
+    }
+    return <div className={styles.pane}>{tableFallback}</div>;
   }
 
   if (

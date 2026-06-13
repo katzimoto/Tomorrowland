@@ -129,6 +129,9 @@ export interface Translations {
     blockedImages: (n: number) => string;
     attachments: (n: number) => string;
     attachmentOf: string;
+    sheetRegion: string;
+    sheetTabs: string;
+    sheetTruncated: string;
   };
   insight: {
     tabSummary: string;
@@ -651,6 +654,9 @@ export const en: Translations = {
         : `${n} remote images were blocked to protect your privacy.`,
     attachments: (n) => (n === 1 ? "1 attachment" : `${n} attachments`),
     attachmentOf: "Attachment of:",
+    sheetRegion: "Spreadsheet preview",
+    sheetTabs: "Sheets",
+    sheetTruncated: "Preview shows the first rows and columns. Download the file for the full sheet.",
   },
   insight: {
     tabSummary: "Summary",

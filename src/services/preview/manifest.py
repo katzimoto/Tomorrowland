@@ -45,12 +45,17 @@ _OFFICE_SHEETS_MIMES = {
 }
 
 # DOCX/PPTX (and the legacy/ODF equivalents) convert to PDF via the preview
-# worker's LibreOffice. Spreadsheets are excluded — they render as sheet grids
-# (a later slice), not PDF.
+# worker's LibreOffice. Spreadsheets render as sheet grids (below), not PDF.
 RENDERED_OFFICE_PDF_MIMES = _OFFICE_DOC_MIMES | _OFFICE_SLIDES_MIMES
 
+# Only XLSX renders as sheet grids (openpyxl is XLSX-only). Legacy XLS and ODS
+# keep the extracted-text fallback.
+RENDERED_SHEET_MIMES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
 # Renderer labels produced by the preview worker (vs. ready-immediate kinds).
-WORKER_RENDERERS = {"email", "libreoffice_pdf"}
+WORKER_RENDERERS = {"email", "libreoffice_pdf", "sheet_grid"}
 
 # Default polling hint returned while a render job is in flight.
 PENDING_RETRY_AFTER_MS = 1500
@@ -81,6 +86,8 @@ def worker_renderer(mime_type: str) -> str | None:
         return "email"
     if mime in RENDERED_OFFICE_PDF_MIMES:
         return "libreoffice_pdf"
+    if mime in RENDERED_SHEET_MIMES:
+        return "sheet_grid"
     return None
 
 

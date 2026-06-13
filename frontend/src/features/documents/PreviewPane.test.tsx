@@ -53,6 +53,12 @@ vi.mock("./renderers/OfficeManifestPreview", () => ({
   ),
 }));
 
+vi.mock("./renderers/SheetManifestPreview", () => ({
+  SheetManifestPreview: ({ searchQuery }: { searchQuery?: string }) => (
+    <div data-testid="sheet-manifest-preview" data-search-query={searchQuery} />
+  ),
+}));
+
 vi.mock("./renderers/SlidesPreview", () => ({
   SlidesPreview: ({ searchQuery }: { searchQuery?: string }) => (
     <div data-testid="slides-preview" data-search-query={searchQuery} />
@@ -403,10 +409,23 @@ describe("PreviewPane dispatch", () => {
       expect(pv).toHaveAttribute("data-search-query", "pdfterm");
     });
 
-    it("passes searchQuery to table preview for spreadsheet MIME", () => {
+    it("routes XLSX to the sheet manifest viewer in default mode", () => {
       render(
         <PreviewPane
           preview={makePreview({ mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })}
+          searchQuery="cellval"
+        />
+      );
+      expect(screen.getByTestId("sheet-manifest-preview")).toHaveAttribute(
+        "data-search-query",
+        "cellval",
+      );
+    });
+
+    it("keeps legacy XLS on the extracted-text table preview", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "application/vnd.ms-excel" })}
           searchQuery="cellval"
         />
       );

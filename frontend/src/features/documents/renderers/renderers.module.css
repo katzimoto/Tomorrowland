@@ -180,6 +180,75 @@
   color: var(--color-text-muted);
 }
 
+.sheetWrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.sheetTabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3) 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sheetTab {
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.sheetTab[aria-selected="true"] {
+  color: var(--color-text-primary);
+  border-bottom-color: var(--color-accent, var(--color-text-primary));
+}
+
+.sheetGridScroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-3);
+}
+
+.sheetTable {
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.sheetCell {
+  border: 1px solid var(--color-border);
+  padding: 2px 6px;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheetRowHeader {
+  border: 1px solid var(--color-border);
+  padding: 2px 6px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-align: right;
+  position: sticky;
+  left: 0;
+}
+
+.sheetTruncatedNote {
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
 .slidesWrapper {
   display: flex;
   flex-direction: column;
