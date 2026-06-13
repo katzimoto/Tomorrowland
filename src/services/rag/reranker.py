@@ -116,7 +116,11 @@ class CrossEncoderEndpointReranker:
 
         scored: list[tuple[float, dict[str, Any]]] = list(zip(scores, chunks, strict=True))
         scored.sort(key=lambda pair: (-pair[0], pair[1].get("document_id", "")))
-        return [chunk for score, chunk in scored[: self._top_n] if score >= self._min_score]
+        return [
+            {**chunk, "_reranker_score": score}
+            for score, chunk in scored[: self._top_n]
+            if score >= self._min_score
+        ]
 
 
 class CrossEncoderReranker:
@@ -174,4 +178,8 @@ class CrossEncoderReranker:
             scored.append((score, chunk))
 
         scored.sort(key=lambda pair: (-pair[0], pair[1].get("document_id", "")))
-        return [chunk for score, chunk in scored[: self._top_n] if score >= self._min_score]
+        return [
+            {**chunk, "_reranker_score": score}
+            for score, chunk in scored[: self._top_n]
+            if score >= self._min_score
+        ]

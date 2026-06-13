@@ -102,6 +102,56 @@ rg "is_latest\|include_older_versions\|version_family" src/services/search src/s
 pytest tests/unit/test_*search*.py tests/integration/test_*search*.py -q -k version
 ```
 
+## Retrieval trace v2 — backend attribution and rerank deltas (#751)
+
+Added 2026-06-13. Extends the RAG retrieval trace with decision-level diagnostic fields.
+
+### New models in `src/services/rag/trace_models.py`
+
+| Model | Fields | Purpose |
+|---|---|---|
+| `BackendAttributionTrace` | `backend`, `score`, `rank` | Per-backend score/rank before fusion |
+| `RerankerDeltaTrace` | `input_rank`, `input_score`, `reranker_score`, `output_rank`, `dropped` | Cross-encoder rerank movement |
+| `DegradedBackendInfo` | `backend`, `error_category` | Safe failure info — category string only |
+
+### New fields on `RetrievalCandidateTrace`
+
+- `backends: list[BackendAttributionTrace]` — which backends (`vector`/`bm25`/`metadata`/`translated`) contributed, with per-backend score and 1-based rank
+- `fused_rank: int | None` — rank in the merged list after reciprocal-rank fusion
+- `fused_score: float | None` — combined score after fusion
+- `reranker_delta: RerankerDeltaTrace | None` — rerank movement; `None` when reranking was not applied
+- `final_context_rank: int | None` — 1-based position in the LLM prompt context
+
+### New fields on `RetrievalTrace`
+
+- `trace_version: int = 2` — consumers can use this to detect v2 fields
+- `degraded_backends: list[DegradedBackendInfo]` — one entry per failed backend
+- `scope_filtered_count: int` — candidates removed by BM25 post-scope filtering
+- `dedup_count: int` — candidates removed as cross-backend duplicates
+- `score_threshold_filtered_count: int` — candidates removed below the score threshold
+- `reranker_dropped_count: int` — candidates dropped by reranker min-score or top-n cutoff
+
+### Backward compatibility
+
+All new fields are optional with defaults. Existing v1 consumers of `stages`, `candidates`, `reranker_enabled`, `retrieval_degraded`, `total_latency_ms` are unaffected.
+
+### Reranker score embedding
+
+`CrossEncoderEndpointReranker` and `CrossEncoderReranker` in `src/services/rag/reranker.py` now embed `_reranker_score` (the raw cross-encoder or LLM score) into each returned chunk dict so `reranker_delta.reranker_score` can be populated.
+
+### Return type change in `_retrieve_chunks`
+
+Returns a 4-tuple: `(chunks, stages, retrieval_degraded, extras: _RetrievalExtras)`. The `extras` TypedDict carries `degraded_backends`, `scope_filtered_count`, `dedup_count`.
+
+### Tests
+
+```bash
+pytest tests/unit/test_rag_trace.py -q
+pytest tests/unit/test_rag_reranker.py -q
+```
+
+---
+
 ## `retrieval_degraded` flag (#698)
 
 Added 2026-06-12. Surfaces when either Qdrant or Meilisearch is unavailable during a search request.

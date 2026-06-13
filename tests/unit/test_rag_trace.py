@@ -7,6 +7,7 @@ These tests verify that:
 - BM25 stage count is recorded when Meilisearch is enabled
 - Reranker enabled/disabled is captured
 - Trace candidates exclude raw text (no chunk_text)
+- v2: backend attribution, reranker deltas, degraded backend info, filtering counts
 """
 
 from __future__ import annotations
@@ -491,3 +492,366 @@ def test_retrieval_degraded_field_in_trace_model() -> None:
 
     t_degraded = RetrievalTrace(retrieval_degraded=True)
     assert t_degraded.model_dump()["retrieval_degraded"] is True
+
+
+# ---------------------------------------------------------------------------
+# v2: trace_version default
+# ---------------------------------------------------------------------------
+
+
+def test_trace_version_is_2() -> None:
+    """RetrievalTrace must report trace_version=2 by default."""
+    t = RetrievalTrace()
+    assert t.trace_version == 2
+    assert t.model_dump()["trace_version"] == 2
+
+
+def test_trace_version_in_rag_answer() -> None:
+    """trace_version must be 2 on traces produced by answer()."""
+    srv = _make_service(chunks=[_make_chunk()])
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    assert result.retrieval_trace.trace_version == 2
+
+
+# ---------------------------------------------------------------------------
+# v2: backend attribution
+# ---------------------------------------------------------------------------
+
+
+def test_candidate_has_vector_backend_attribution() -> None:
+    """When only vector search is active, each candidate must list 'vector' backend."""
+    # Disable meili by setting meili_chunks=None while keeping the qdrant result.
+    # _make_service always attaches a meili mock; we need it to return [].
+    chunks = [_make_chunk()]
+    srv = _make_service(chunks=chunks, meili_chunks=[])
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    assert len(result.retrieval_trace.candidates) >= 1
+    cand = result.retrieval_trace.candidates[0]
+    backend_names = [b.backend for b in cand.backends]
+    assert "vector" in backend_names
+
+
+def test_candidate_has_bm25_and_vector_attribution_when_both_active() -> None:
+    """When a chunk appears in both vector and BM25 results, it must list both backends."""
+    chunk = _make_chunk()
+    srv = _make_service(chunks=[chunk], meili_chunks=[chunk])
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    assert len(result.retrieval_trace.candidates) >= 1
+    cand = result.retrieval_trace.candidates[0]
+    backend_names = [b.backend for b in cand.backends]
+    assert "vector" in backend_names
+    assert "bm25" in backend_names
+
+
+def test_candidate_backend_attribution_includes_score_and_rank() -> None:
+    """Each BackendAttributionTrace must carry a score and 1-based rank."""
+    from services.rag.trace_models import BackendAttributionTrace
+
+    chunk = _make_chunk()
+    srv = _make_service(chunks=[chunk], meili_chunks=[chunk])
+    result = srv.answer("test question", group_ids=["group-1"])
+    cand = result.retrieval_trace.candidates[0]  # type: ignore[index]
+    for b in cand.backends:
+        assert isinstance(b, BackendAttributionTrace)
+        assert b.score >= 0.0
+        assert b.rank is not None
+        assert b.rank >= 1
+
+
+def test_metadata_branch_attribution_when_enabled() -> None:
+    """When metadata search is enabled and returns results, candidates list 'metadata' backend."""
+    chunk = _make_chunk()
+    srv = _make_service(chunks=[chunk], meili_chunks=[chunk], enable_metadata_search=True)
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    cand = result.retrieval_trace.candidates[0]
+    backend_names = [b.backend for b in cand.backends]
+    assert "metadata" in backend_names
+
+
+def test_translated_branch_attribution_when_enabled() -> None:
+    """When translated text search is enabled and returns results, candidates list 'translated'."""
+    chunk = _make_chunk()
+    srv = _make_service(chunks=[chunk], meili_chunks=[chunk], enable_translated_text=True)
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    cand = result.retrieval_trace.candidates[0]
+    backend_names = [b.backend for b in cand.backends]
+    assert "translated" in backend_names
+
+
+# ---------------------------------------------------------------------------
+# v2: fused rank and score
+# ---------------------------------------------------------------------------
+
+
+def test_candidate_has_fused_rank() -> None:
+    """Candidates must carry a non-None fused_rank when Meilisearch is active."""
+    chunk = _make_chunk()
+    srv = _make_service(chunks=[chunk], meili_chunks=[chunk])
+    result = srv.answer("test question", group_ids=["group-1"])
+    cand = result.retrieval_trace.candidates[0]  # type: ignore[index]
+    assert cand.fused_rank is not None
+    assert cand.fused_rank >= 1
+
+
+def test_candidate_has_fused_score() -> None:
+    """Candidates must carry a non-None fused_score when Meilisearch is active."""
+    chunk = _make_chunk()
+    srv = _make_service(chunks=[chunk], meili_chunks=[chunk])
+    result = srv.answer("test question", group_ids=["group-1"])
+    cand = result.retrieval_trace.candidates[0]  # type: ignore[index]
+    assert cand.fused_score is not None
+    assert cand.fused_score >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# v2: final_context_rank
+# ---------------------------------------------------------------------------
+
+
+def test_candidates_have_sequential_final_context_rank() -> None:
+    """Each candidate's final_context_rank must be its 1-based position in the final list."""
+    chunks = [
+        _make_chunk(
+            doc_id=f"00000000-0000-0000-0000-00000000000{i}",
+            chunk_id=f"00000000-0000-0000-0000-00000000000{i}-0",
+            chunk_index=0,
+            score=0.9 - i * 0.1,
+        )
+        for i in range(3)
+    ]
+    srv = _make_service(chunks=chunks, meili_chunks=[])
+    result = srv.answer("test question", group_ids=["group-1"])
+    candidates = result.retrieval_trace.candidates  # type: ignore[union-attr]
+    for expected_rank, cand in enumerate(candidates, 1):
+        assert cand.final_context_rank == expected_rank
+
+
+# ---------------------------------------------------------------------------
+# v2: reranker delta
+# ---------------------------------------------------------------------------
+
+
+def test_reranker_delta_present_when_reranker_configured() -> None:
+    """When a reranker is configured, surviving candidates must have a reranker_delta."""
+    reranker = MagicMock()
+    reranker.rerank.return_value = [
+        {
+            "document_id": _VALID_DOC_UUID,
+            "chunk_id": f"{_VALID_DOC_UUID}-0",
+            "chunk_index": 0,
+            "chunk_text": "reranked passage",
+            "score": 0.95,
+            "doc_title": "Test Document",
+            "source_id": "src-1",
+            "source_language": "en",
+        }
+    ]
+    srv = _make_service(chunks=[_make_chunk()], reranker=reranker)
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    cand = result.retrieval_trace.candidates[0]
+    assert cand.reranker_delta is not None
+    assert cand.reranker_delta.input_rank >= 1
+    assert cand.reranker_delta.output_rank == 1
+    assert cand.reranker_delta.dropped is False
+
+
+def test_reranker_delta_none_when_no_reranker() -> None:
+    """When no reranker is configured, reranker_delta must be None on all candidates."""
+    srv = _make_service(chunks=[_make_chunk()])
+    result = srv.answer("test question", group_ids=["group-1"])
+    for cand in result.retrieval_trace.candidates:  # type: ignore[union-attr]
+        assert cand.reranker_delta is None
+
+
+def test_reranker_delta_in_stream_event() -> None:
+    """answer_stream done event must carry reranker_delta on candidates when reranker active."""
+    reranker = MagicMock()
+    reranker.rerank.return_value = [
+        {
+            "document_id": _VALID_DOC_UUID,
+            "chunk_id": f"{_VALID_DOC_UUID}-0",
+            "chunk_index": 0,
+            "chunk_text": "reranked passage",
+            "score": 0.95,
+            "doc_title": "Test Document",
+            "source_id": "src-1",
+            "source_language": "en",
+        }
+    ]
+    srv = _make_service(chunks=[_make_chunk()], reranker=reranker)
+    events = list(srv.answer_stream("test question", group_ids=["group-1"]))
+    done_payload = next(e[1] for e in events if e[0] == "done")
+    candidates = done_payload["retrieval_trace"]["candidates"]
+    assert len(candidates) == 1
+    delta = candidates[0]["reranker_delta"]
+    assert delta is not None
+    assert delta["input_rank"] >= 1
+    assert delta["output_rank"] == 1
+    assert delta["dropped"] is False
+
+
+def test_reranker_dropped_count_recorded() -> None:
+    """reranker_dropped_count must equal the number of candidates dropped by the reranker."""
+    chunk_a = _make_chunk(doc_id=_VALID_DOC_UUID, chunk_id=f"{_VALID_DOC_UUID}-0", score=0.9)
+    chunk_b = _make_chunk(
+        doc_id="00000000-0000-0000-0000-000000000002",
+        chunk_id="00000000-0000-0000-0000-000000000002-0",
+        score=0.8,
+    )
+    reranker = MagicMock()
+    # Reranker drops chunk_b — only returns chunk_a
+    reranker.rerank.return_value = [
+        {
+            "document_id": _VALID_DOC_UUID,
+            "chunk_id": f"{_VALID_DOC_UUID}-0",
+            "chunk_index": 0,
+            "chunk_text": "kept passage",
+            "score": 0.9,
+            "doc_title": "Test Document",
+            "source_id": "src-1",
+            "source_language": "en",
+        }
+    ]
+    srv = _make_service(chunks=[chunk_a, chunk_b], reranker=reranker)
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    assert result.retrieval_trace.reranker_dropped_count == 1
+
+
+# ---------------------------------------------------------------------------
+# v2: score threshold filtering count
+# ---------------------------------------------------------------------------
+
+
+def test_score_threshold_filtered_count() -> None:
+    """score_threshold_filtered_count must reflect candidates dropped below threshold."""
+    chunk_a = _make_chunk(doc_id=_VALID_DOC_UUID, chunk_id=f"{_VALID_DOC_UUID}-0", score=0.9)
+    chunk_b = _make_chunk(
+        doc_id="00000000-0000-0000-0000-000000000002",
+        chunk_id="00000000-0000-0000-0000-000000000002-0",
+        score=0.05,
+    )
+    # No meili so scores are scaled by 0.5x from vector weight
+    srv = _make_service(chunks=[chunk_a, chunk_b], meili_chunks=[])
+    # Set threshold high enough to drop chunk_b (its merged score = 0.5*0.05 = 0.025)
+    srv._score_threshold = 0.2
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    assert result.retrieval_trace.score_threshold_filtered_count >= 1
+
+
+# ---------------------------------------------------------------------------
+# v2: dedup_count
+# ---------------------------------------------------------------------------
+
+
+def test_dedup_count_is_zero_for_unique_chunks() -> None:
+    """When all chunks are unique, dedup_count must be 0."""
+    chunks = [
+        _make_chunk(
+            doc_id=f"00000000-0000-0000-0000-00000000000{i}",
+            chunk_id=f"00000000-0000-0000-0000-00000000000{i}-0",
+            chunk_index=0,
+            score=0.9 - i * 0.1,
+        )
+        for i in range(3)
+    ]
+    srv = _make_service(chunks=chunks, meili_chunks=[])
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    assert result.retrieval_trace.dedup_count == 0
+
+
+# ---------------------------------------------------------------------------
+# v2: degraded backend info
+# ---------------------------------------------------------------------------
+
+
+def test_degraded_backends_empty_when_all_healthy() -> None:
+    """When all backends succeed, degraded_backends must be an empty list."""
+    chunks = [_make_chunk()]
+    srv = _make_service(chunks=chunks, meili_chunks=chunks)
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    assert result.retrieval_trace.degraded_backends == []
+
+
+def test_degraded_backends_records_vector_failure() -> None:
+    """When Qdrant fails, degraded_backends must contain a 'vector' entry."""
+    srv = _make_service(chunks=None, meili_chunks=[])
+    srv._qdrant.search.side_effect = RuntimeError("Qdrant down")
+    srv._qdrant.search_filtered.side_effect = RuntimeError("Qdrant down")
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    backends = [d.backend for d in result.retrieval_trace.degraded_backends]
+    assert "vector" in backends
+
+
+def test_degraded_backends_records_bm25_failure() -> None:
+    """When Meilisearch BM25 fails, degraded_backends must contain a 'bm25' entry."""
+    chunks = [_make_chunk()]
+    srv = _make_service(chunks=chunks, meili_chunks=None)
+    srv._meili.search_rag.side_effect = RuntimeError("Meili down")
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    backends = [d.backend for d in result.retrieval_trace.degraded_backends]
+    assert "bm25" in backends
+
+
+def test_degraded_backend_has_error_category_not_raw_message() -> None:
+    """DegradedBackendInfo must use a safe category string, not the raw exception message."""
+    srv = _make_service(chunks=None, meili_chunks=[])
+    srv._qdrant.search.side_effect = RuntimeError("contains sensitive path /internal/db")
+    srv._qdrant.search_filtered.side_effect = RuntimeError("contains sensitive path /internal/db")
+    result = srv.answer("test question", group_ids=["group-1"])
+    assert result.retrieval_trace is not None
+    for d in result.retrieval_trace.degraded_backends:
+        # category must be a controlled string, not the raw exception message
+        assert d.error_category in ("timeout", "connection_error", "unexpected_error")
+        assert "sensitive" not in d.error_category
+        assert "/internal" not in d.error_category
+
+
+def test_degraded_backends_in_stream_event() -> None:
+    """answer_stream done event must carry degraded_backends when a backend fails."""
+    srv = _make_service(chunks=None, meili_chunks=[])
+    srv._qdrant.search.side_effect = RuntimeError("Qdrant down")
+    srv._qdrant.search_filtered.side_effect = RuntimeError("Qdrant down")
+    events = list(srv.answer_stream("test question", group_ids=["group-1"]))
+    done_events = [e for e in events if e[0] == "done"]
+    assert len(done_events) == 1
+    trace = done_events[0][1]["retrieval_trace"]
+    backends = [d["backend"] for d in trace["degraded_backends"]]
+    assert "vector" in backends
+
+
+# ---------------------------------------------------------------------------
+# v2: v2 fields in serialised trace
+# ---------------------------------------------------------------------------
+
+
+def test_v2_fields_present_in_model_dump() -> None:
+    """All v2 fields must appear in model_dump output for downstream consumers."""
+    srv = _make_service(chunks=[_make_chunk()], meili_chunks=[_make_chunk()])
+    result = srv.answer("test question", group_ids=["group-1"])
+    d = result.model_dump()
+    trace_dict = d["retrieval_trace"]
+    assert "trace_version" in trace_dict
+    assert "degraded_backends" in trace_dict
+    assert "scope_filtered_count" in trace_dict
+    assert "dedup_count" in trace_dict
+    assert "score_threshold_filtered_count" in trace_dict
+    assert "reranker_dropped_count" in trace_dict
+    # Check candidate v2 fields
+    candidate = trace_dict["candidates"][0]
+    assert "backends" in candidate
+    assert "fused_rank" in candidate
+    assert "fused_score" in candidate
+    assert "reranker_delta" in candidate
+    assert "final_context_rank" in candidate

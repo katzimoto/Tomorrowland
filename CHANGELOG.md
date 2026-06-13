@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Retrieval trace v2 — backend attribution and rerank deltas (#751)**:
+  extends `RetrievalTrace` and `RetrievalCandidateTrace` with decision-level
+  diagnostic fields. Each final candidate now carries `backends` (which of
+  `vector`/`bm25`/`metadata`/`translated` contributed, with per-backend score
+  and rank), `fused_rank`/`fused_score` (post-merge position and combined
+  score), `reranker_delta` (input rank/score, cross-encoder score, output rank),
+  and `final_context_rank` (1-based position in the prompt context).
+  `RetrievalTrace` gains `trace_version=2`, `degraded_backends` (safe
+  category-only error info per failed backend), `scope_filtered_count`,
+  `dedup_count`, `score_threshold_filtered_count`, and `reranker_dropped_count`.
+  All new fields are optional — existing v1 consumers are unaffected. The RAG
+  reranker implementations now embed `_reranker_score` into returned chunk dicts
+  so the cross-encoder score surfaces in the trace.  26 new unit tests cover
+  hybrid, reranked, translated, metadata, degraded, and ACL-filtered paths.
 - **Mail preview rendering pipeline — slice 1 (#539)**: high-fidelity EML
   preview behind a new manifest API. `GET /preview/{id}/manifest` reports
   render status (`pending`/`running`/`ready`/`partial`/`failed`); mail bodies

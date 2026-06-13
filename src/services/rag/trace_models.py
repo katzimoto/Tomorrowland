@@ -9,12 +9,56 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class RetrievalCandidateTrace(BaseModel):
-    """Minimal metadata about a retrieved chunk — no raw document text.
+class BackendAttributionTrace(BaseModel):
+    """Score and rank of a candidate as returned by one retrieval backend."""
 
-    Fields are limited to identifiers, scores, and allowed metadata so the
-    trace can be safely persisted, inspected, or exposed without leaking
-    document contents or internal paths.
+    model_config = ConfigDict(frozen=True)
+
+    backend: str
+    """One of: ``vector``, ``bm25``, ``metadata``, ``translated``."""
+    score: float
+    rank: int | None = None
+    """1-based position in the backend's own result list (before fusion)."""
+
+
+class RerankerDeltaTrace(BaseModel):
+    """How a candidate moved through the cross-encoder reranker."""
+
+    model_config = ConfigDict(frozen=True)
+
+    input_rank: int
+    """1-based rank in the fused list before reranking."""
+    input_score: float
+    """Fused score before reranking."""
+    reranker_score: float | None = None
+    """Raw cross-encoder score; None when the reranker did not expose it."""
+    output_rank: int | None = None
+    """1-based rank in the reranked list; None when the candidate was dropped."""
+    dropped: bool = False
+    """True when the candidate was removed by min-score or top-n cutoff."""
+
+
+class DegradedBackendInfo(BaseModel):
+    """Safe degraded-backend record — category only, no raw exception text."""
+
+    model_config = ConfigDict(frozen=True)
+
+    backend: str
+    """The backend that failed: ``vector``, ``bm25``, ``metadata``, ``translated``."""
+    error_category: str
+    """Broad error category: ``timeout``, ``connection_error``, ``unexpected_error``."""
+
+
+class RetrievalCandidateTrace(BaseModel):
+    """Metadata about a retrieved chunk — no raw document text.
+
+    Fields are limited to identifiers, scores, ranks, and safe metadata so
+    the trace can be persisted, inspected, or exposed without leaking document
+    contents or internal paths.
+
+    v2 fields (``backends``, ``fused_rank``, ``fused_score``, ``reranker_delta``,
+    ``final_context_rank``) are optional and populated only when the pipeline
+    has enough information to emit them.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -28,6 +72,18 @@ class RetrievalCandidateTrace(BaseModel):
     page_number: int | None = None
     section_heading: str | None = None
     language: str | None = None
+
+    # v2 attribution fields
+    backends: list[BackendAttributionTrace] = Field(default_factory=list)
+    """Which backends contributed to this candidate and at what score/rank."""
+    fused_rank: int | None = None
+    """1-based rank in the fused (merged) result list before filtering."""
+    fused_score: float | None = None
+    """Combined score after reciprocal-rank fusion."""
+    reranker_delta: RerankerDeltaTrace | None = None
+    """Reranker input/output ranks and score; None when reranking was not applied."""
+    final_context_rank: int | None = None
+    """1-based position in the final context passed to the LLM."""
 
 
 class RetrievalStageTrace(BaseModel):
@@ -45,10 +101,28 @@ class RetrievalTrace(BaseModel):
     Captures per-stage counts, timing, whether reranking was applied, and
     the final candidate set — without storing raw text, full prompts, or
     any secret/credential material.
+
+    ``trace_version`` is 2 for traces that include backend attribution and
+    reranker deltas.  Consumers that only read v1 fields (``stages``,
+    ``candidates``, ``reranker_enabled``, ``retrieval_degraded``,
+    ``total_latency_ms``) remain unaffected.
     """
 
+    trace_version: int = 2
     stages: list[RetrievalStageTrace] = Field(default_factory=list)
     candidates: list[RetrievalCandidateTrace] = Field(default_factory=list)
     reranker_enabled: bool = False
     retrieval_degraded: bool = False
     total_latency_ms: float = 0.0
+
+    # v2 fields
+    degraded_backends: list[DegradedBackendInfo] = Field(default_factory=list)
+    """One entry per backend that failed; safe category string, no raw exception."""
+    scope_filtered_count: int = 0
+    """Candidates removed by document-scope / ACL post-filtering on BM25 branches."""
+    dedup_count: int = 0
+    """Candidates removed as cross-backend duplicates."""
+    score_threshold_filtered_count: int = 0
+    """Candidates removed for falling below the configured score threshold."""
+    reranker_dropped_count: int = 0
+    """Candidates dropped by the reranker (min-score or top-n cutoff)."""
