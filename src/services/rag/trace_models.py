@@ -73,6 +73,7 @@ class RetrievalCandidateTrace(BaseModel):
     page_number: int | None = None
     section_heading: str | None = None
     language: str | None = None
+    text_lane: str | None = None
 
     # v2 attribution fields
     backends: list[BackendAttributionTrace] = Field(default_factory=list)

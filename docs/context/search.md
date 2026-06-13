@@ -239,6 +239,55 @@ pytest tests/unit/test_rag_reranker.py -q
 
 ---
 
+## Citation deduplication by chunk identity and text lane (#764)
+
+Added 2026-06-13. Fixes citation dedup so original and translated chunks from the same document/index produce distinct citations.
+
+### Problem
+
+The previous dedup key was `(document_id, chunk_index)`.  Because both original
+and translated chunks share the same `chunk_index=0..N`, retrieval of both lanes
+for the same document collapsed them into one citation — hiding translated
+evidence from Evidence Inspector and weakening translation-aware citations.
+
+### New dedup key
+
+The citation dedup function `_citation_key(c)` in `service.py` now uses:
+
+1. `chunk_id` — the stable, lane-discriminating identifier embedded at index time
+   (format `{document_id}-orig-{idx}` vs `{document_id}-tr-{idx}`).  When
+   present, this is the sole dedup key.
+2. Fallback `(document_id, str(chunk_index), text_lane or "original")` — for
+   legacy payloads that carry no `chunk_id`, `text_lane` extends the key so that
+   original and translated chunks are still kept separate.
+
+The same function is used in both `answer()` and `answer_stream()`.
+
+### Model changes
+
+| Model | New field | Purpose |
+|---|---|---|
+| `Citation` | `chunk_id: str | None` | Stable chunk identity for Evidence Inspector |
+| `Citation` | `text_lane: str | None` | `"original"` / `"translated"` / `None` |
+| `RetrievalCandidateTrace` | `text_lane: str | None` | Lane info in trace-v2 diagnostics |
+
+### Backward compatibility
+
+- Legacy results without `chunk_id` or `text_lane` fall back to
+  `(document_id, chunk_index, "original")` — no crash, no behavioural change
+  for original-only deployments.
+- Existing citations without these fields remain unaffected.
+
+### Tests
+
+```bash
+pytest tests/unit/test_rag_citation_dedup.py -q
+pytest tests/unit/test_rag_citation_location.py -q
+pytest tests/unit/test_rag_trace.py -q
+```
+
+---
+
 ## `retrieval_degraded` flag (#698)
 
 Added 2026-06-12. Surfaces when either Qdrant or Meilisearch is unavailable during a search request.

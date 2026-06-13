@@ -18,6 +18,8 @@ class Citation(BaseModel):
     chunk_text: str
     score: float
     chunk_index: int | None = None
+    chunk_id: str | None = None
+    text_lane: str | None = None
     source_id: str | None = None
     page_number: int | None = None
     section_heading: str | None = None

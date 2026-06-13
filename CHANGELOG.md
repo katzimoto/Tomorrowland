@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **Citation deduplication respects text lane and chunk identity (#764)**:
+  RAG citations are now deduplicated by `chunk_id` (which embeds a lane suffix,
+  e.g. `-orig-0` vs `-tr-0`) rather than the legacy `(document_id, chunk_index)`
+  pair.  This prevents original and translated chunks that share the same
+  document/index from being collapsed into one citation.  When `chunk_id` is
+  absent (legacy payloads), the fallback key is
+  `(document_id, chunk_index, text_lane or "original")`, keeping lane separation
+  intact without breaking existing citations.  The `Citation` model now exposes
+  `chunk_id` and `text_lane` so Evidence Inspector can display which evidence
+  lane each citation came from.  `RetrievalCandidateTrace` also gains
+  `text_lane` for trace-v2 diagnostics.  Applies to both streaming and
+  non-streaming answer paths.
 - **Qdrant language and text-lane metadata preserved in vector payloads (#763)**:
   `QdrantSearchClient.upsert_chunks` now copies `language`, `text_lane`, and
   `translated_from` fields from the embed pipeline into Qdrant payloads.

@@ -3,6 +3,17 @@
 Canonical shared memory for active project state. Keep this file compact and factual.
 <!-- Compaction cutoff: 2026-06-01. Older Done entries archived to docs/memory/archive/current-state.md. -->
 
+## 2026-06-13 — #764 Citation dedup by chunk identity and text lane (done)
+
+Status: Done
+Source: Claude Code session, branch `claude/citation-dedup-text-lane-3ylg4d`
+
+Citation dedup in `RagService.answer()` and `answer_stream()` previously keyed on `(document_id, chunk_index)`, collapsing original and translated chunks to one citation. Fixed: `_citation_key()` now prefers `chunk_id` (already lane-discriminating via `-orig-/-tr-` suffix); fallback uses `(document_id, chunk_index, text_lane or "original")`. `Citation` gains `chunk_id` and `text_lane` fields; `RetrievalCandidateTrace` gains `text_lane`. 18 new tests in `test_rag_citation_dedup.py`; 1949 total pass. `docs/context/search.md` + `CHANGELOG.md` updated.
+
+**Canonical dedup hierarchy:** `chunk_id` → `(document_id, chunk_index, text_lane or "original")`.
+
+---
+
 ## 2026-06-13 — #763 Qdrant language/text-lane metadata preservation (done)
 
 Status: Done
