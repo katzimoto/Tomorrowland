@@ -97,6 +97,89 @@
   margin: 0;
 }
 
+.emailToolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.emailViewToggle {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+
+.emailViewToggleBtn {
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.8125rem;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border: none;
+  cursor: pointer;
+}
+
+.emailViewToggleBtn[aria-pressed="true"] {
+  background: var(--color-accent, var(--color-text-primary));
+  color: var(--color-bg, #fff);
+}
+
+.emailNotice {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius-panel);
+  margin-bottom: var(--space-3);
+}
+
+.emailIframe {
+  width: 100%;
+  min-height: 480px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: #fff;
+}
+
+.emailQuoted {
+  margin-top: var(--space-2);
+}
+
+.emailQuotedSummary {
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  padding: var(--space-1) 0;
+}
+
+.emailAttachments {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.emailAttachmentsHeading {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-2);
+}
+
+.emailAttachment {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 0.875rem;
+  padding: var(--space-1) 0;
+}
+
+.emailAttachmentSize {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
 .slidesWrapper {
   display: flex;
   flex-direction: column;

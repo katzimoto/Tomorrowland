@@ -11,6 +11,7 @@ import { DocumentToolbar } from "./DocumentToolbar";
 import { DocumentSearchBar } from "./DocumentSearchBar";
 import { FidelityStatusBar } from "./FidelityStatusBar";
 import { PreviewPane } from "./PreviewPane";
+import { ParentContextBanner } from "./ParentContextBanner";
 import { InsightPane } from "./InsightPane";
 import { VersionBanner } from "./VersionBanner";
 import type { ViewMode } from "./ViewModeSwitcher";
@@ -239,6 +240,7 @@ export function DocumentPage() {
       )}
       <div className={styles.body} ref={viewerRef} tabIndex={-1}>
         <div className={styles.previewCol}>
+          <ParentContextBanner relationships={preview.relationships} />
           <PreviewPane
             preview={preview}
             activeMode={activeMode}

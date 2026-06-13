@@ -24,6 +24,16 @@ All notable changes to this project will be documented in this file.
   `ENABLE_PREVIEW_RENDER` (default `true`), `PREVIEW_MAX_FILE_BYTES`,
   `PREVIEW_MAX_INLINE_IMAGES`, `PREVIEW_MAX_INLINE_IMAGE_BYTES`. New dependency:
   `nh3`. See `docs/planning/preview-mail-office-first-2026-06.md`.
+- **Mail preview UI — slice 2 (#539)**: the document preview pane renders mail
+  through a new manifest-driven `EmailViewer` — a metadata header card, the
+  sanitized HTML body in a `sandbox=""` iframe with a Formatted/Text toggle,
+  collapsible quoted reply history, a blocked-remote-images notice, and an
+  attachment list that links to each attachment's child document. A
+  `ParentContextBanner` on attachment documents links back to the parent email.
+  In-document search and citation highlighting operate on the text body. The
+  pane falls back to the existing extracted-text email renderer whenever the
+  manifest is pending, disabled, or failed (zero regression). Extracted and
+  translation view modes keep the plain-text renderer.
 - **Docling PDF extractor (#649)**: `DoclingPdfExtractor` registered as a
   `QualityTier.HIGH` backend for `application/pdf` when `ENABLE_DOCLING=true`.
   Produces layout-aware Markdown (tables, multi-column, headings) for richer RAG
