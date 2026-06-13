@@ -105,6 +105,7 @@ def test_retrieval_case(
     _no_answer_phrases = [
         "don't have",
         "cannot find",
+        "could not find",
         "no relevant",
         "not enough information",
         "i couldn't find",
