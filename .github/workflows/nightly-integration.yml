@@ -80,6 +80,19 @@ jobs:
     timeout-minutes: 20
     continue-on-error: true   # eval is trending-only; failures don't block the nightly
     services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: app
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d app"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
       qdrant:
         image: qdrant/qdrant:v1.10.1
         ports:
@@ -87,6 +100,8 @@ jobs:
         # No Docker health check: qdrant/qdrant:v1.10.1 (debian-slim) ships
         # without wget/curl so any --health-cmd fails inside the container.
         # The "Wait for Qdrant" step below polls from the Ubuntu runner instead.
+    env:
+      POSTGRES_URL: postgresql+psycopg://postgres:postgres@localhost:5432/app
     steps:
       - uses: actions/checkout@v4
 
@@ -101,6 +116,9 @@ jobs:
 
       - name: Install dev dependencies
         run: uv pip install --system -e ".[dev]"
+
+      - name: Run migrations against PostgreSQL
+        run: alembic upgrade head
 
       - name: Wait for Qdrant
         run: timeout 60 bash -c 'until curl -sf http://localhost:6333/; do sleep 2; done'
