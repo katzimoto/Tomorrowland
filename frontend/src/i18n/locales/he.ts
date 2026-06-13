@@ -136,6 +136,9 @@ export const he: Translations = {
         : `${n} תמונות מרוחקות נחסמו כדי להגן על פרטיותך.`,
     attachments: (n) => (n === 1 ? "צירוף אחד" : `${n} צירופים`),
     attachmentOf: "צירוף של:",
+    sheetRegion: "תצוגה מקדימה של גיליון",
+    sheetTabs: "גיליונות",
+    sheetTruncated: "התצוגה המקדימה מציגה את השורות והעמודות הראשונות. הורד את הקובץ לגיליון המלא.",
   },
   insight: {
     tabSummary: "סיכום",

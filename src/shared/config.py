@@ -123,6 +123,10 @@ class Settings(BaseSettings):
     # LibreOffice Office→PDF conversion (preview worker only).
     preview_render_timeout_seconds: float = Field(default=120.0, gt=0)
     preview_max_pages: int = Field(default=500, ge=1)
+    # Spreadsheet preview grid caps (per sheet). A preview shows the first
+    # rows/cols; the full sheet remains available via download.
+    preview_max_sheet_rows: int = Field(default=200, ge=1)
+    preview_max_sheet_cols: int = Field(default=50, ge=1)
 
     feature_rag_qa: bool = True
     rag_max_chunks: int = Field(default=5, ge=1, le=50)

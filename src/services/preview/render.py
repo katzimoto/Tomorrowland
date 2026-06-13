@@ -35,6 +35,7 @@ from services.preview.office_pdf import (
     build_office_manifest_section,
     render_office_pdf,
 )
+from services.preview.sheet_grid import render_sheets
 from shared.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,8 @@ def render_document_preview(
 
     if renderer == "libreoffice_pdf":
         return _render_office(repo, settings, document_id, sha, source_path, kind, manifest)
+    if renderer == "sheet_grid":
+        return _render_sheets(repo, settings, document_id, sha, source_path, manifest)
     return _render_email(repo, connection, settings, doc, document_id, sha, source_path, manifest)
 
 
@@ -206,6 +209,46 @@ def _render_office(
         "items": [],
     }
     # Page count over the cap renders the available pages but flags partial.
+    status = "partial" if rendered.truncated else "ready"
+    manifest["status"] = status
+    repo.mark_rendered(document_id, sha, status=status, manifest=manifest, files=files)
+    return status
+
+
+def _render_sheets(
+    repo: PreviewArtifactRepository,
+    settings: Settings,
+    document_id: UUID,
+    sha: str,
+    source_path: Path,
+    manifest: dict[str, Any],
+) -> str:
+    try:
+        rendered = render_sheets(
+            source_path,
+            max_rows=settings.preview_max_sheet_rows,
+            max_cols=settings.preview_max_sheet_cols,
+        )
+        store = PreviewArtifactStore(settings.files_root)
+        files = store.write_artifacts(document_id, sha, rendered.artifacts)
+    except Exception as exc:
+        _persist_render_failure(repo, document_id, sha, "render", exc, manifest)
+        return "failed"
+
+    manifest["artifacts"] = [
+        {
+            "id": artifact_id,
+            "role": "sheet_grid",
+            "content_type": "application/json",
+            "size_bytes": len(data),
+        }
+        for artifact_id, (_filename, _ctype, data) in rendered.artifacts.items()
+    ]
+    manifest["navigation"] = {
+        "unit": "sheet",
+        "count": len(rendered.sheets),
+        "items": rendered.sheets,
+    }
     status = "partial" if rendered.truncated else "ready"
     manifest["status"] = status
     repo.mark_rendered(document_id, sha, status=status, manifest=manifest, files=files)
