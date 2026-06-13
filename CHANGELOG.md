@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Citation anchors for rendered artifacts (#752)**:
+  defines the `CitationPreviewAnchor` interface that connects a RAG citation to
+  an exact, format-aware preview target.  `buildCitationAnchor()` converts a
+  `DocumentChatCitation` + optional `PreviewManifest` into an anchor:
+  PDF/Office documents navigate to `page_number`; spreadsheets resolve the
+  target sheet from `section_heading` (sheet name), then `page_number` (sheet
+  index), then fall back to the first sheet; email and text targets use the
+  citation excerpt for body-text search and highlight.  `PreviewWithHighlight`
+  now fetches the manifest and builds the anchor automatically; `PreviewPane`
+  accepts a `citationAnchor` prop that routes page/sheet navigation to the
+  correct renderer.  `SheetViewer` opens on the cited sheet at mount.  Pending,
+  partial, and failed manifest states already handled by existing dispatchers;
+  access revocation enforced by the backend API (403).  16 unit tests cover
+  PDF/Office page anchor, email/text excerpt anchor, XLSX sheet-by-name and
+  sheet-by-index resolution, first-sheet fallback, and missing-metadata
+  graceful degradation.
 - **Evidence Inspector v2 — backend attribution and rerank diagnostics (#750)**:
   the Evidence panel now surfaces retrieval trace v2 data for each citation.
   The Evidence tab shows backend attribution chips (`vector`, `bm25`, `metadata`,

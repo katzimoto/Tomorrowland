@@ -14,6 +14,10 @@ interface SheetViewerProps {
   docId: string;
   searchQuery?: string;
   onMatchCountChange?: (count: number) => void;
+  /** Navigate to this sheet (by index) when the viewer first mounts. */
+  initialSheetIndex?: number | null;
+  /** Navigate to this sheet (by name) when index is absent. */
+  initialSheetName?: string | null;
 }
 
 interface SheetGrid {
@@ -27,10 +31,22 @@ export function SheetViewer({
   docId,
   searchQuery = "",
   onMatchCountChange,
+  initialSheetIndex = null,
+  initialSheetName = null,
 }: SheetViewerProps) {
   const t = useT();
   const sheets = manifest.navigation.items as { index: number; label: string; artifact_id: string }[];
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(() => {
+    if (initialSheetIndex != null) {
+      const idx = sheets.findIndex((s) => s.index === initialSheetIndex);
+      if (idx >= 0) return idx;
+    }
+    if (initialSheetName != null) {
+      const idx = sheets.findIndex((s) => s.label === initialSheetName);
+      if (idx >= 0) return idx;
+    }
+    return 0;
+  });
   const active = sheets[activeIndex];
 
   const { data: grid, isLoading } = useQuery({

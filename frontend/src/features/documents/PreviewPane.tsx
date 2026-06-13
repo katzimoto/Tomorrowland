@@ -1,4 +1,5 @@
 import type { DocumentPreview } from "@/api/documents";
+import type { CitationPreviewAnchor } from "@/api/preview";
 import { TextPreview } from "./renderers/TextPreview";
 import { MarkdownPreview } from "./renderers/MarkdownPreview";
 import { HtmlPreview } from "./renderers/HtmlPreview";
@@ -73,7 +74,11 @@ interface PreviewPaneProps {
   searchQuery?: string;
   activeSearchIndex?: number;
   onMatchCountChange?: (count: number) => void;
+  /** Legacy page-number navigation for non-citation callers (e.g. direct links). */
   initialPage?: number;
+  /** Format-aware citation anchor built by `buildCitationAnchor`. Takes
+   *  precedence over `initialPage` when both are provided. */
+  citationAnchor?: CitationPreviewAnchor;
 }
 
 function downloadUrl(docId: string) {
@@ -90,7 +95,11 @@ export function PreviewPane({
   activeSearchIndex = 0,
   onMatchCountChange,
   initialPage,
+  citationAnchor,
 }: PreviewPaneProps) {
+  const resolvedPage = citationAnchor?.pageNumber ?? initialPage;
+  const resolvedSheetIndex = citationAnchor?.sheetIndex ?? null;
+  const resolvedSheetName = citationAnchor?.sheetName ?? null;
   const mime = preview.mime_type;
   const text = preview.snippet;
   const dl = downloadUrl(preview.document_id);
@@ -235,6 +244,8 @@ export function PreviewPane({
             fallback={tableFallback}
             searchQuery={searchQuery}
             onMatchCountChange={onMatchCountChange}
+            initialSheetIndex={resolvedSheetIndex}
+            initialSheetName={resolvedSheetName}
           />
         </div>
       );
@@ -300,7 +311,7 @@ export function PreviewPane({
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
-          initialPage={initialPage}
+          initialPage={resolvedPage}
         />
       </div>
     );
@@ -341,7 +352,7 @@ export function PreviewPane({
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
-          initialPage={initialPage}
+          initialPage={resolvedPage}
         />
       </div>
     );
@@ -370,7 +381,7 @@ export function PreviewPane({
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
-          initialPage={initialPage}
+          initialPage={resolvedPage}
         />
       </div>
     );

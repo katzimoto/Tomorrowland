@@ -1,6 +1,9 @@
+import { useMemo } from "react";
 import type { DocumentPreview } from "@/api/documents";
 import type { DocumentChatCitation } from "@/api/chat";
+import { usePreviewManifest } from "@/api/preview";
 import { PreviewPane } from "@/features/documents/PreviewPane";
+import { buildCitationAnchor } from "./citationAnchor";
 
 interface PreviewWithHighlightProps {
   preview: DocumentPreview;
@@ -8,15 +11,18 @@ interface PreviewWithHighlightProps {
 }
 
 export function PreviewWithHighlight({ preview, citation }: PreviewWithHighlightProps) {
-  const searchQuery = citation.text_excerpt ?? citation.chunk_text ?? "";
-  const initialPage = citation.page_number ?? undefined;
+  const { data: manifest } = usePreviewManifest(preview.document_id);
+  const anchor = useMemo(
+    () => buildCitationAnchor(citation, manifest),
+    [citation, manifest],
+  );
 
   return (
     <PreviewPane
       preview={preview}
-      searchQuery={searchQuery}
+      searchQuery={anchor.textExcerpt ?? ""}
       activeSearchIndex={0}
-      initialPage={initialPage}
+      citationAnchor={anchor}
     />
   );
 }

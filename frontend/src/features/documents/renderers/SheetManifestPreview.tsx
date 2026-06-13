@@ -11,6 +11,10 @@ interface SheetManifestPreviewProps {
   fallback: ReactNode;
   searchQuery?: string;
   onMatchCountChange?: (count: number) => void;
+  /** 0-based sheet index from the citation anchor; navigates to the target sheet. */
+  initialSheetIndex?: number | null;
+  /** Sheet name from the citation anchor; used as a fallback when index is absent. */
+  initialSheetName?: string | null;
 }
 
 /**
@@ -24,6 +28,8 @@ export function SheetManifestPreview({
   fallback,
   searchQuery = "",
   onMatchCountChange,
+  initialSheetIndex = null,
+  initialSheetName = null,
 }: SheetManifestPreviewProps) {
   const t = useT();
   const { data: manifest, isLoading, isError } = usePreviewManifest(docId);
@@ -54,6 +60,8 @@ export function SheetManifestPreview({
         docId={docId}
         searchQuery={searchQuery}
         onMatchCountChange={onMatchCountChange}
+        initialSheetIndex={initialSheetIndex}
+        initialSheetName={initialSheetName}
       />
     );
   }
