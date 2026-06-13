@@ -41,6 +41,21 @@ All notable changes to this project will be documented in this file.
   images embedded; RTF-only Outlook bodies degrade to the plain-text body
   (RTF→HTML conversion is a tracked follow-up). The EML and MSG renderers now
   share a common manifest/inline-image assembler. No new dependency.
+- **Office DOCX/PPTX visual preview — slice 4 (#539)**: Word and PowerPoint
+  documents (and the legacy/ODF equivalents) now render a high-fidelity visual
+  preview. A new `preview-worker` image (`docker/preview-worker.Dockerfile` =
+  the backend image plus LibreOffice headless + fonts) converts the document to
+  a cached `converted.pdf` artifact, which the existing pdf.js viewer renders
+  with page/slide navigation, zoom, and in-document search. The frontend
+  `OfficeManifestPreview` dispatches to the PDF viewer when the render is ready
+  and falls back to the extracted-text/slides renderer while pending, disabled,
+  or failed. Conversion runs only in the preview worker (no macros, isolated
+  per-job LibreOffice profile, subprocess timeout, page-count cap → `partial`).
+  Spreadsheets are intentionally excluded (sheet-grid rendering is a later
+  slice) and keep their table preview. The release build packages the new image
+  into the air-gapped split-parts bundle. New settings:
+  `PREVIEW_RENDER_TIMEOUT_SECONDS`, `PREVIEW_MAX_PAGES`. New env var:
+  `TOMORROWLAND_PREVIEW_WORKER_IMAGE`.
 - **Docling PDF extractor (#649)**: `DoclingPdfExtractor` registered as a
   `QualityTier.HIGH` backend for `application/pdf` when `ENABLE_DOCLING=true`.
   Produces layout-aware Markdown (tables, multi-column, headings) for richer RAG

@@ -37,7 +37,17 @@ Gap noted for implementers: tests/fixtures has **zero** mail fixtures (#671 corp
 - `preview/msg_renderer.py` NEW: `render_msg(path)` via `extract_msg` (core dep). Partitions attachments into cid inline-images (embedded as data URIs) vs regular; htmlBody→nh3 sanitize; RTF-only→plain-text fallback. `render.py` dispatches MSG vs EML by mime; `manifest.RENDERED_EMAIL_MIMES` now includes `application/vnd.ms-outlook`.
 - **No frontend change**: MSG manifests are `kind:"email"`; PreviewPane already routes `application/vnd.ms-outlook` to EmailManifestPreview/EmailViewer.
 - **No `.msg` binary fixture** (can't generate offline) — MSG tested by mocking `extract_msg.Message`, the repo's established pattern (see `test_extraction_msg.py`). 5 unit + 1 integration test.
-- RTF-only-body → HTML conversion is a tracked follow-up (new dependency decision needed). Verified: ruff, mypy --strict (196 files), preview suite (48 tests) + EML tests survive the refactor. **Next: S4 — Office DOCX/PPTX via separate soffice preview-worker image (needs release-owner sign-off on the airgap split-parts bundle — PAUSE POINT).**
+- RTF-only-body → HTML conversion is tracked in **#740**. Verified: ruff, mypy --strict (196 files), preview suite (48 tests) + EML tests survive the refactor.
+- **S3 merged to `feature/preview-rendering`** (PR #741, squash `3e0c483`).
+
+**S4 IMPLEMENTED (2026-06-13, branch `feat/539-s4-office-pdf`). Owner approved the airgap image packaging.** Office DOCX/PPTX visual preview:
+- `preview/office_pdf.py` NEW: `render_office_pdf(path)` → `soffice --headless --norestore --convert-to pdf` (isolated per-job UserInstallation + HOME, subprocess timeout, page-count via pypdf, cap→partial). `OfficeRenderError(category)` maps to manifest error category (renderer_unavailable / render_timeout / render).
+- `manifest.py`: `RENDERED_OFFICE_PDF_MIMES` (= doc+slides mimes, NOT sheets), `worker_renderer(mime)→"email"|"libreoffice_pdf"|None`, `WORKER_RENDERERS`. `render.py` refactored into `_render_email`/`_render_office`/`_persist_render_failure`; dispatches by renderer. Manifest endpoint + `_kind_for_renderer` generalized off hardcoded "email".
+- Config: `preview_render_timeout_seconds`, `preview_max_pages`.
+- **Image/packaging**: `docker/preview-worker.Dockerfile` (FROM backend image + libreoffice-{writer,impress,calc}-nogui + fonts-liberation/dejavu). Compose `preview-worker` now builds from it (`TOMORROWLAND_PREVIEW_WORKER_IMAGE`, 2cpu/1g). `build-release-artifact.sh` builds+bundles the image; `.env.airgap.example` rewrite + validator already assert the service.
+- **Frontend**: `PdfViewer` gains optional `src` prop (defaults to `/api/download/{id}`; office passes `/api/preview/{id}/artifact/converted-pdf` — same auth mechanism as download). `OfficeManifestPreview` NEW dispatch wrapper (ready→PdfViewer, pending→preparing, failed/disabled/non-pdf→fallback). PreviewPane DOCX/PPTX branches (default/original mode) route through it with TextPreview/SlidesPreview as fallback; extracted/translation modes still hit the top text block.
+- XLSX/sheets still report ready-immediate text fallback (renderer "text") — sheet grids are S5.
+- Verified: ruff, mypy --strict (197 files), backend preview suite (unit+integration incl. office success/timeout-missing-binary/partial paths), 316 frontend tests (11 new: OfficeManifestPreview ×6, updated PreviewPane dispatch), typecheck, lint 0 errors, airgap compose renders. **Next: S5 (XLSX sheet grids + SheetViewer) then S6 (admin diagnostics/rerender UI).**
 
 ## 2026-06-08 — docs: documentation overhaul — MkDocs wiki, archives, documentation policy
 

@@ -5,6 +5,7 @@ import { HtmlPreview } from "./renderers/HtmlPreview";
 import { TablePreview } from "./renderers/TablePreview";
 import { ArchivePreview } from "./renderers/ArchivePreview";
 import { EmailManifestPreview } from "./renderers/EmailManifestPreview";
+import { OfficeManifestPreview } from "./renderers/OfficeManifestPreview";
 import { SlidesPreview } from "./renderers/SlidesPreview";
 import { ImageViewer } from "./renderers/ImageViewer";
 import { PdfViewer } from "./renderers/PdfViewer";
@@ -267,13 +268,23 @@ export function PreviewPane({
       "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
     mime === "application/vnd.ms-powerpoint"
   ) {
+    const slidesFallback = (
+      <SlidesPreview
+        text={text}
+        searchQuery={searchQuery}
+        activeSearchIndex={activeSearchIndex}
+        onMatchCountChange={onMatchCountChange}
+      />
+    );
     return (
       <div className={styles.pane}>
-        <SlidesPreview
-          text={text}
+        <OfficeManifestPreview
+          docId={preview.document_id}
+          fallback={slidesFallback}
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
+          initialPage={initialPage}
         />
       </div>
     );
@@ -326,14 +337,24 @@ export function PreviewPane({
     mime === "application/msword" ||
     mime === "application/rtf"
   ) {
+    const wordFallback = (
+      <TextPreview
+        docId={preview.document_id}
+        showOriginal={activeMode !== "translation"}
+        searchQuery={searchQuery}
+        activeSearchIndex={activeSearchIndex}
+        onMatchCountChange={onMatchCountChange}
+      />
+    );
     return (
       <div className={styles.pane}>
-        <TextPreview
+        <OfficeManifestPreview
           docId={preview.document_id}
-          showOriginal={activeMode !== "translation"}
+          fallback={wordFallback}
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
+          initialPage={initialPage}
         />
       </div>
     );

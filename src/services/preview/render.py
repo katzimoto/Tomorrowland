@@ -24,8 +24,17 @@ from services.documents.repository import (
 from services.preview.artifact_repository import PreviewArtifactRepository
 from services.preview.artifact_store import PreviewArtifactStore
 from services.preview.email_renderer import render_email
-from services.preview.manifest import build_base_manifest, renders_via_worker
+from services.preview.manifest import (
+    build_base_manifest,
+    classify_kind,
+    worker_renderer,
+)
 from services.preview.msg_renderer import render_msg
+from services.preview.office_pdf import (
+    OfficeRenderError,
+    build_office_manifest_section,
+    render_office_pdf,
+)
 from shared.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -67,15 +76,18 @@ def render_document_preview(
         return "failed"
 
     sha = doc.content_sha256 or ""
+    kind = classify_kind(doc.mime_type)
+    renderer = worker_renderer(doc.mime_type)
+
     repo = PreviewArtifactRepository(connection)
     row = repo.get(document_id, sha)
     if row is None:
-        row = repo.create_pending(document_id, sha, renderer="email")
+        row = repo.create_pending(document_id, sha, renderer=renderer or "text")
     if row.status in ("ready", "partial", "failed"):
         # Terminal — admin rerender deletes the row first; never re-render here.
         return row.status
 
-    if not renders_via_worker(doc.mime_type):
+    if renderer is None:
         repo.mark_failed(document_id, sha, error_category="unsupported_renderer")
         return "failed"
 
@@ -84,23 +96,35 @@ def render_document_preview(
     manifest = build_base_manifest(
         document_id=str(document_id),
         content_sha256=sha,
-        kind="email",
-        renderer="email",
+        kind=kind,
+        renderer=renderer,
         status="ready",
         generated_at=_utc_now_iso(),
     )
 
-    if doc.path is None:
-        repo.mark_failed(document_id, sha, error_category="not_found", manifest=manifest)
-        return "failed"
-    source_path = Path(doc.path)
-    if not source_path.is_file():
+    # Shared pre-render file checks.
+    if doc.path is None or not (source_path := Path(doc.path)).is_file():
         repo.mark_failed(document_id, sha, error_category="not_found", manifest=manifest)
         return "failed"
     if source_path.stat().st_size > settings.preview_max_file_bytes:
         repo.mark_failed(document_id, sha, error_category="file_too_large", manifest=manifest)
         return "failed"
 
+    if renderer == "libreoffice_pdf":
+        return _render_office(repo, settings, document_id, sha, source_path, kind, manifest)
+    return _render_email(repo, connection, settings, doc, document_id, sha, source_path, manifest)
+
+
+def _render_email(
+    repo: PreviewArtifactRepository,
+    connection: sa.Connection,
+    settings: Settings,
+    doc: Any,
+    document_id: UUID,
+    sha: str,
+    source_path: Path,
+    manifest: dict[str, Any],
+) -> str:
     try:
         if doc.mime_type == "application/vnd.ms-outlook":
             rendered = render_msg(
@@ -122,18 +146,7 @@ def render_document_preview(
     except Exception as exc:
         # Deterministic render failure (malformed file, encoding bombs, …) —
         # terminal by design so the job machinery never loops on it.
-        logger.warning(
-            "preview render failed: document_id=%s error=%s",
-            document_id,
-            str(exc).split("\n")[0],
-        )
-        repo.mark_failed(
-            document_id,
-            sha,
-            error_category="render",
-            error_detail=f"{type(exc).__name__}: {str(exc).split(chr(10))[0]}",
-            manifest=manifest,
-        )
+        _persist_render_failure(repo, document_id, sha, "render", exc, manifest)
         return "failed"
 
     manifest["email"] = rendered.email_manifest
@@ -152,3 +165,71 @@ def render_document_preview(
     manifest["status"] = status
     repo.mark_rendered(document_id, sha, status=status, manifest=manifest, files=files)
     return status
+
+
+def _render_office(
+    repo: PreviewArtifactRepository,
+    settings: Settings,
+    document_id: UUID,
+    sha: str,
+    source_path: Path,
+    kind: str,
+    manifest: dict[str, Any],
+) -> str:
+    try:
+        rendered = render_office_pdf(
+            source_path,
+            timeout=settings.preview_render_timeout_seconds,
+            max_pages=settings.preview_max_pages,
+        )
+        store = PreviewArtifactStore(settings.files_root)
+        files = store.write_artifacts(document_id, sha, rendered.artifacts)
+    except OfficeRenderError as exc:
+        _persist_render_failure(repo, document_id, sha, exc.category, exc, manifest)
+        return "failed"
+    except Exception as exc:
+        _persist_render_failure(repo, document_id, sha, "render", exc, manifest)
+        return "failed"
+
+    manifest["office"] = build_office_manifest_section(rendered)
+    manifest["artifacts"] = [
+        {
+            "id": "converted-pdf",
+            "role": "office_pdf",
+            "content_type": "application/pdf",
+            "size_bytes": len(rendered.artifacts["converted-pdf"][2]),
+        }
+    ]
+    manifest["navigation"] = {
+        "unit": "slide" if kind == "office_slides" else "page",
+        "count": rendered.page_count or 0,
+        "items": [],
+    }
+    # Page count over the cap renders the available pages but flags partial.
+    status = "partial" if rendered.truncated else "ready"
+    manifest["status"] = status
+    repo.mark_rendered(document_id, sha, status=status, manifest=manifest, files=files)
+    return status
+
+
+def _persist_render_failure(
+    repo: PreviewArtifactRepository,
+    document_id: UUID,
+    sha: str,
+    category: str,
+    exc: BaseException,
+    manifest: dict[str, Any],
+) -> None:
+    logger.warning(
+        "preview render failed: document_id=%s category=%s error=%s",
+        document_id,
+        category,
+        str(exc).split("\n")[0],
+    )
+    repo.mark_failed(
+        document_id,
+        sha,
+        error_category=category,
+        error_detail=f"{type(exc).__name__}: {str(exc).split(chr(10))[0]}",
+        manifest=manifest,
+    )

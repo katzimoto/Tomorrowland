@@ -57,6 +57,8 @@ backend_version_image="tomorrowland/backend:${safe_version}"
 frontend_version_image="tomorrowland/frontend:${safe_version}"
 backend_airgap_image="tomorrowland/backend:airgap"
 frontend_airgap_image="tomorrowland/frontend:airgap"
+preview_worker_version_image="tomorrowland/preview-worker:${safe_version}"
+preview_worker_airgap_image="tomorrowland/preview-worker:airgap"
 libretranslate_version_image="tomorrowland/libretranslate:${safe_version}"
 libretranslate_airgap_image="tomorrowland/libretranslate:airgap"
 include_ollama_image="${INCLUDE_OLLAMA_IMAGE:-1}"
@@ -75,9 +77,11 @@ all_images=(
   "$backend_airgap_image"
   "$frontend_airgap_image"
   "$libretranslate_airgap_image"
+  "$preview_worker_airgap_image"
   "$backend_version_image"
   "$frontend_version_image"
   "$libretranslate_version_image"
+  "$preview_worker_version_image"
   "${third_party_images[@]}"
 )
 
@@ -142,6 +146,15 @@ if [[ "${SKIP_DOCKER_BUILD:-0}" != "1" ]]; then
     -t "$libretranslate_airgap_image" \
     .
 
+  # Preview worker = backend image + LibreOffice. Built after the backend image
+  # so the FROM reference resolves locally (offline-safe).
+  log "Building preview-worker image (LibreOffice): $preview_worker_version_image and $preview_worker_airgap_image"
+  docker build -f docker/preview-worker.Dockerfile \
+    --build-arg "TOMORROWLAND_BACKEND_IMAGE=${backend_airgap_image}" \
+    -t "$preview_worker_version_image" \
+    -t "$preview_worker_airgap_image" \
+    .
+
   for image in "${third_party_images[@]}"; do
     log "Pulling third-party runtime image: $image"
     docker pull "$image"
@@ -204,6 +217,7 @@ sed \
   -e "s/^APP_VERSION=.*/APP_VERSION=${safe_version}/" \
   -e "s|^TOMORROWLAND_BACKEND_IMAGE=.*|TOMORROWLAND_BACKEND_IMAGE=${backend_airgap_image}|" \
   -e "s|^TOMORROWLAND_FRONTEND_IMAGE=.*|TOMORROWLAND_FRONTEND_IMAGE=${frontend_airgap_image}|" \
+  -e "s|^TOMORROWLAND_PREVIEW_WORKER_IMAGE=.*|TOMORROWLAND_PREVIEW_WORKER_IMAGE=${preview_worker_airgap_image}|" \
   .env.airgap.example > "$release_dir/.env.airgap.example"
 cp scripts/tomorrowland-airgap.sh "$release_dir/scripts/tomorrowland-airgap.sh"
 cp scripts/load-airgap-images.sh "$release_dir/scripts/load-airgap-images.sh"

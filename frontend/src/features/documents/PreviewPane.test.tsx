@@ -47,6 +47,12 @@ vi.mock("./renderers/EmailManifestPreview", () => ({
   ),
 }));
 
+vi.mock("./renderers/OfficeManifestPreview", () => ({
+  OfficeManifestPreview: ({ searchQuery }: { searchQuery?: string }) => (
+    <div data-testid="office-manifest-preview" data-search-query={searchQuery} />
+  ),
+}));
+
 vi.mock("./renderers/SlidesPreview", () => ({
   SlidesPreview: ({ searchQuery }: { searchQuery?: string }) => (
     <div data-testid="slides-preview" data-search-query={searchQuery} />
@@ -348,7 +354,7 @@ describe("PreviewPane dispatch", () => {
       expect(tp).toHaveAttribute("data-active-index", "2");
     });
 
-    it("passes searchQuery to TextPreview for DOCX/RTF", () => {
+    it("routes DOCX to the office manifest viewer in default mode", () => {
       render(
         <PreviewPane
           preview={makePreview({ mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })}
@@ -356,8 +362,21 @@ describe("PreviewPane dispatch", () => {
           activeSearchIndex={1}
         />
       );
-      const tp = screen.getByTestId("text-preview");
-      expect(tp).toHaveAttribute("data-search-query", "word");
+      expect(screen.getByTestId("office-manifest-preview")).toHaveAttribute(
+        "data-search-query",
+        "word",
+      );
+    });
+
+    it("routes DOCX to extracted text in extracted mode", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })}
+          searchQuery="word"
+          activeMode="extracted"
+        />
+      );
+      expect(screen.getByTestId("text-preview")).toHaveAttribute("data-search-query", "word");
     });
 
     it("passes searchQuery to TextPreview for extracted mode", () => {
@@ -428,14 +447,17 @@ describe("PreviewPane dispatch", () => {
       expect(screen.getByTestId("text-preview")).toHaveAttribute("data-search-query", "email");
     });
 
-    it("passes searchQuery to slides preview for pptx MIME", () => {
+    it("routes PPTX to the office manifest viewer in default mode", () => {
       render(
         <PreviewPane
           preview={makePreview({ mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })}
           searchQuery="slide"
         />
       );
-      expect(screen.getByTestId("slides-preview")).toHaveAttribute("data-search-query", "slide");
+      expect(screen.getByTestId("office-manifest-preview")).toHaveAttribute(
+        "data-search-query",
+        "slide",
+      );
     });
 
     it("passes searchQuery to CodeViewer for application/json", () => {
