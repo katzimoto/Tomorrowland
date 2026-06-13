@@ -60,6 +60,32 @@ export interface PreviewManifest {
   evidence: { supports_text_search: boolean; anchor_unit: string; regions_available: boolean };
 }
 
+/**
+ * Format-aware anchor that connects a RAG citation to an exact preview target.
+ *
+ * Consumers should call `buildCitationAnchor` (see
+ * `src/features/chat/citationAnchor.ts`) to build one from a
+ * `DocumentChatCitation` and, optionally, the document's `PreviewManifest`.
+ * Fields are optional; renderers degrade gracefully when metadata is absent.
+ */
+export interface CitationPreviewAnchor {
+  documentId: string;
+  citationId?: string | null;
+  previewKind?: "pdf" | "office_doc" | "office_slides" | "office_sheets" | "email" | "image" | "text" | null;
+  renderer?: string | null;
+  pageNumber?: number | null;
+  sheetIndex?: number | null;
+  sheetName?: string | null;
+  rowIndex?: number | null;
+  colIndex?: number | null;
+  chunkIndex?: number | null;
+  layoutBlockId?: string | null;
+  bbox?: { x: number; y: number; width: number; height: number } | null;
+  textExcerpt?: string | null;
+  highlightStart?: number | null;
+  highlightEnd?: number | null;
+}
+
 export function getPreviewManifest(docId: string): Promise<PreviewManifest> {
   return api.get<PreviewManifest>(`/preview/${docId}/manifest`);
 }
