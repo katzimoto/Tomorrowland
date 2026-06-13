@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Evidence Inspector v2 — backend attribution and rerank diagnostics (#750)**:
+  the Evidence panel now surfaces retrieval trace v2 data for each citation.
+  The Evidence tab shows backend attribution chips (`vector`, `bm25`, `metadata`,
+  `translated`), fused rank, reranker rank change (input → output), and final
+  context position for the matched candidate. The Retrieval tab (admin) gains a
+  degraded-backends list with safe error categories, a count-summary row for
+  scope-filtered, deduplicated, below-threshold, and reranker-dropped candidates,
+  and a `#ctx` column in the candidates table. All v2 fields degrade gracefully
+  when absent — v1 traces render identically to before.
 - **Retrieval trace v2 — backend attribution and rerank deltas (#751)**:
   extends `RetrievalTrace` and `RetrievalCandidateTrace` with decision-level
   diagnostic fields. Each final candidate now carries `backends` (which of

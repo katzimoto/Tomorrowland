@@ -32,6 +32,28 @@ export interface RetrievalStageTrace {
   description?: string | null;
 }
 
+/** v2: score and rank a candidate received from one retrieval backend. */
+export interface BackendAttributionTrace {
+  backend: string;
+  score: number;
+  rank?: number | null;
+}
+
+/** v2: how a candidate moved through the cross-encoder reranker. */
+export interface RerankerDeltaTrace {
+  input_rank: number;
+  input_score: number;
+  reranker_score?: number | null;
+  output_rank?: number | null;
+  dropped: boolean;
+}
+
+/** v2: safe degraded-backend record — category string only, no raw exception. */
+export interface DegradedBackendInfo {
+  backend: string;
+  error_category: string;
+}
+
 export interface RetrievalCandidateTrace {
   document_id: string;
   chunk_id?: string | null;
@@ -42,6 +64,12 @@ export interface RetrievalCandidateTrace {
   page_number?: number | null;
   section_heading?: string | null;
   language?: string | null;
+  // v2 fields
+  backends?: BackendAttributionTrace[];
+  fused_rank?: number | null;
+  fused_score?: number | null;
+  reranker_delta?: RerankerDeltaTrace | null;
+  final_context_rank?: number | null;
 }
 
 export interface RetrievalTrace {
@@ -50,6 +78,13 @@ export interface RetrievalTrace {
   reranker_enabled: boolean;
   retrieval_degraded?: boolean;
   total_latency_ms: number;
+  // v2 fields
+  trace_version?: number;
+  degraded_backends?: DegradedBackendInfo[];
+  scope_filtered_count?: number;
+  dedup_count?: number;
+  score_threshold_filtered_count?: number;
+  reranker_dropped_count?: number;
 }
 
 export interface ChatMessage {

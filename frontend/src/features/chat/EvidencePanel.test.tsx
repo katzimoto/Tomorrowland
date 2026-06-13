@@ -241,6 +241,31 @@ const SAMPLE_TRACE: RetrievalTrace = {
   total_latency_ms: 100.0,
 };
 
+const SAMPLE_TRACE_V2: RetrievalTrace = {
+  ...SAMPLE_TRACE,
+  trace_version: 2,
+  candidates: [
+    {
+      document_id: "doc-1",
+      chunk_index: 0,
+      score: 0.9,
+      backends: [
+        { backend: "vector", score: 0.85, rank: 1 },
+        { backend: "bm25", score: 0.72, rank: 3 },
+      ],
+      fused_rank: 1,
+      fused_score: 0.9,
+      reranker_delta: { input_rank: 1, input_score: 0.9, reranker_score: 0.95, output_rank: 1, dropped: false },
+      final_context_rank: 1,
+    },
+  ],
+  degraded_backends: [{ backend: "metadata", error_category: "timeout" }],
+  scope_filtered_count: 3,
+  dedup_count: 2,
+  score_threshold_filtered_count: 1,
+  reranker_dropped_count: 4,
+};
+
 describe("EvidencePanel retrieval trace tab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -287,6 +312,190 @@ describe("EvidencePanel retrieval trace tab", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Retrieval" }));
 
     expect(screen.getByText("Reranked")).toBeInTheDocument();
+  });
+
+  it("shows degraded backends list in retrieval tab (v2)", () => {
+    render(
+      <EvidencePanel
+        citation={makeCitation()}
+        onClose={vi.fn()}
+        isAdmin={true}
+        retrievalTrace={SAMPLE_TRACE_V2}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Retrieval" }));
+
+    expect(screen.getByText("Degraded backends")).toBeInTheDocument();
+    expect(screen.getByText("metadata")).toBeInTheDocument();
+    expect(screen.getByText("timeout")).toBeInTheDocument();
+  });
+
+  it("shows filtering count summaries in retrieval tab (v2)", () => {
+    render(
+      <EvidencePanel
+        citation={makeCitation()}
+        onClose={vi.fn()}
+        isAdmin={true}
+        retrievalTrace={SAMPLE_TRACE_V2}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Retrieval" }));
+
+    expect(screen.getByText(/Scope filtered: 3/)).toBeInTheDocument();
+    expect(screen.getByText(/Deduplicated: 2/)).toBeInTheDocument();
+    expect(screen.getByText(/Below threshold: 1/)).toBeInTheDocument();
+    expect(screen.getByText(/Reranker dropped: 4/)).toBeInTheDocument();
+  });
+
+  it("shows final_context_rank column in candidates table (v2)", () => {
+    render(
+      <EvidencePanel
+        citation={makeCitation()}
+        onClose={vi.fn()}
+        isAdmin={true}
+        retrievalTrace={SAMPLE_TRACE_V2}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Retrieval" }));
+
+    expect(screen.getByText("#ctx")).toBeInTheDocument();
+    // candidate with final_context_rank: 1
+    const cells = screen.getAllByRole("cell");
+    const rankCells = cells.filter((c) => c.textContent === "1");
+    expect(rankCells.length).toBeGreaterThan(0);
+  });
+
+  it("hides count summaries row when all counts are zero", () => {
+    const traceWithZeroCounts: RetrievalTrace = {
+      ...SAMPLE_TRACE,
+      scope_filtered_count: 0,
+      dedup_count: 0,
+      score_threshold_filtered_count: 0,
+      reranker_dropped_count: 0,
+    };
+
+    render(
+      <EvidencePanel
+        citation={makeCitation()}
+        onClose={vi.fn()}
+        isAdmin={true}
+        retrievalTrace={traceWithZeroCounts}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Retrieval" }));
+
+    expect(screen.queryByText(/Scope filtered/)).not.toBeInTheDocument();
+  });
+});
+
+describe("EvidencePanel v2 attribution in Evidence tab", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(documentsApi.getPreview).mockReturnValue(new Promise(() => {}));
+  });
+
+  it("shows backend chips when tracedCandidate has backends", () => {
+    render(
+      <EvidencePanel
+        citation={makeCitation({ document_id: "doc-1", chunk_index: 0 })}
+        onClose={vi.fn()}
+        retrievalTrace={SAMPLE_TRACE_V2}
+      />,
+    );
+
+    expect(screen.getByText("vector")).toBeInTheDocument();
+    expect(screen.getByText("bm25")).toBeInTheDocument();
+  });
+
+  it("shows fused rank when candidate has fused_rank", () => {
+    render(
+      <EvidencePanel
+        citation={makeCitation({ document_id: "doc-1", chunk_index: 0 })}
+        onClose={vi.fn()}
+        retrievalTrace={SAMPLE_TRACE_V2}
+      />,
+    );
+
+    expect(screen.getByText("Fused rank")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
+  });
+
+  it("shows reranker delta as input→output rank", () => {
+    render(
+      <EvidencePanel
+        citation={makeCitation({ document_id: "doc-1", chunk_index: 0 })}
+        onClose={vi.fn()}
+        retrievalTrace={SAMPLE_TRACE_V2}
+      />,
+    );
+
+    expect(screen.getByText("Reranker rank")).toBeInTheDocument();
+    expect(screen.getByText("1 → 1")).toBeInTheDocument();
+  });
+
+  it("shows final context rank with # prefix", () => {
+    render(
+      <EvidencePanel
+        citation={makeCitation({ document_id: "doc-1", chunk_index: 0 })}
+        onClose={vi.fn()}
+        retrievalTrace={SAMPLE_TRACE_V2}
+      />,
+    );
+
+    expect(screen.getByText("Context position")).toBeInTheDocument();
+    expect(screen.getByText("#1")).toBeInTheDocument();
+  });
+
+  it("shows no v2 attribution when candidate not found in trace", () => {
+    render(
+      <EvidencePanel
+        citation={makeCitation({ document_id: "doc-999", chunk_index: 0 })}
+        onClose={vi.fn()}
+        retrievalTrace={SAMPLE_TRACE_V2}
+      />,
+    );
+
+    expect(screen.queryByText("Backends")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fused rank")).not.toBeInTheDocument();
+  });
+
+  it("shows no v2 attribution when retrievalTrace is absent", () => {
+    render(
+      <EvidencePanel
+        citation={makeCitation({ document_id: "doc-1", chunk_index: 0 })}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Backends")).not.toBeInTheDocument();
+  });
+
+  it("shows — for reranker output_rank when candidate was dropped", () => {
+    const traceWithDropped: RetrievalTrace = {
+      ...SAMPLE_TRACE,
+      candidates: [
+        {
+          document_id: "doc-1",
+          chunk_index: 0,
+          score: 0.5,
+          reranker_delta: { input_rank: 2, input_score: 0.5, reranker_score: 0.1, output_rank: null, dropped: true },
+        },
+      ],
+    };
+
+    render(
+      <EvidencePanel
+        citation={makeCitation({ document_id: "doc-1", chunk_index: 0 })}
+        onClose={vi.fn()}
+        retrievalTrace={traceWithDropped}
+      />,
+    );
+
+    expect(screen.getByText("2 → —")).toBeInTheDocument();
   });
 });
 
