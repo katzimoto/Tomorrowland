@@ -27,6 +27,48 @@ If exact test names are unknown, use `rg --files tests | rg search` before openi
 - Mock or stub external services in unit tests.
 - Use integration fixtures for real persistence/search boundary checks.
 
+## Hybrid fusion — weighted Reciprocal Rank Fusion (#761)
+
+`merge_results()` in `src/services/search/hybrid.py` fuses backend result lists
+by **rank**, not by raw score. Meilisearch (BM25/lexical) and Qdrant
+(vector/cosine) scores live on different, uncalibrated scales, so adding them
+directly let one backend dominate by accident of scale.
+
+Fusion formula (weighted RRF):
+
+```text
+fused(candidate) = Σ_backend  weight_backend / (k + rank_backend)
+```
+
+- `rank_backend` is the candidate's 1-based position in that backend's own
+  ordered result list.
+- `k` is the RRF dampening constant (`RRF_K = 60`, the paper default). A larger
+  `k` flattens the gap between adjacent ranks; ordering is unaffected by `k`.
+- `weight_backend` reuses the existing hybrid weights: `/search` reads
+  `search.vector_weight` (0.7) and `search.bm25_weight` (0.3) from system config;
+  `RagService` uses fixed per-lane weights (BM25+vector 0.5/0.5, metadata and
+  translated lanes folded in at 0.8/0.2).
+
+Properties:
+
+- **Scale-invariant** — a huge raw Qdrant score at a low rank can no longer
+  dominate a better-ranked BM25 candidate.
+- **Cross-backend boost** — a candidate appearing in both backends gets the sum
+  of both contributions and reliably outranks single-backend hits.
+- **Deterministic order** — ties resolve by `(-fused_score, best_individual_rank,
+  document_id, chunk_index, chunk_id)`.
+
+`SearchResult.score` now carries the **fused RRF score** — a small positive
+number (e.g. ~0.008–0.03), not a backend-native relevance score. Consumers
+should treat it as relative ordering signal only. `RagService` records it as
+`_fused_score` / `_fused_rank` on each candidate (see trace v2 below), and the
+reranker (when enabled) re-scores from this fused pre-rerank ordering.
+
+`RagService` fuses lanes by chaining `merge_results()`: the already-fused list
+is passed back in as `vector_results` for the next lane, which re-fuses by its
+position in that list. This keeps the metadata and translated lanes on the same
+rank-based footing as the primary BM25+vector merge.
+
 ## Do not touch unless required
 
 - extraction handlers
@@ -205,7 +247,8 @@ Added 2026-06-13. Extends the RAG retrieval trace with decision-level diagnostic
 
 - `backends: list[BackendAttributionTrace]` — which backends (`vector`/`bm25`/`metadata`/`translated`) contributed, with per-backend score and 1-based rank
 - `fused_rank: int | None` — rank in the merged list after reciprocal-rank fusion
-- `fused_score: float | None` — combined score after fusion
+- `fused_score: float | None` — weighted RRF score after fusion (small positive
+  value, ordering signal only — see "Hybrid fusion" above)
 - `reranker_delta: RerankerDeltaTrace | None` — rerank movement; `None` when reranking was not applied
 - `final_context_rank: int | None` — 1-based position in the LLM prompt context
 
