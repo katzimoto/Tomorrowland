@@ -546,11 +546,21 @@ class RagService:
         """
         stages: list[RetrievalStageTrace] = []
 
-        query_vector = self._encoder.encode(question)
-
         _retrieval_degraded = False
         degraded_backends: list[DegradedBackendInfo] = []
         scope_filtered_count = 0
+
+        _embedding_failed = False
+        query_vector: list[float] = []
+        try:
+            query_vector = self._encoder.encode(question)
+        except Exception as exc:
+            _embedding_failed = True
+            _retrieval_degraded = True
+            degraded_backends.append(
+                DegradedBackendInfo(backend="query_embedding", error_category=_error_category(exc))
+            )
+            logger.warning("RAG query embedding failed — vector retrieval skipped")
 
         if scope is not None:
             if not group_ids and not allow_all:
@@ -599,7 +609,11 @@ class RagService:
 
             # Up to 4 concurrent backend calls: Qdrant + 3 Meilisearch branches.
             with ThreadPoolExecutor(max_workers=4) as pool:
-                qdrant_future = pool.submit(_qdrant_callable, **_qdrant_kwargs)  # type: ignore[arg-type]
+                qdrant_future = (
+                    pool.submit(_qdrant_callable, **_qdrant_kwargs)  # type: ignore[arg-type]
+                    if not _embedding_failed
+                    else None
+                )
                 bm25_future = pool.submit(
                     self._meili.search_rag,
                     text=question,
@@ -633,15 +647,20 @@ class RagService:
                     else None
                 )
 
-                try:
-                    vector_results = qdrant_future.result(timeout=30)
-                except Exception as exc:
+                if qdrant_future is not None:
+                    try:
+                        vector_results = qdrant_future.result(timeout=30)
+                    except Exception as exc:
+                        vector_results = []
+                        _retrieval_degraded = True
+                        degraded_backends.append(
+                            DegradedBackendInfo(
+                                backend="vector", error_category=_error_category(exc)
+                            )
+                        )
+                        logger.warning("RAG vector retrieval degraded — Qdrant future failed")
+                else:
                     vector_results = []
-                    _retrieval_degraded = True
-                    degraded_backends.append(
-                        DegradedBackendInfo(backend="vector", error_category=_error_category(exc))
-                    )
-                    logger.warning("RAG vector retrieval degraded — Qdrant future failed")
                 try:
                     raw_bm25 = bm25_future.result(timeout=30)
                 except Exception as exc:
@@ -689,7 +708,9 @@ class RagService:
             trans_results = self._apply_scope_to_bm25(raw_trans, scope)
             scope_filtered_count += raw_trans_len - len(trans_results)
         else:
-            if qdrant_filter is not None:
+            if _embedding_failed:
+                vector_results = []
+            elif qdrant_filter is not None:
                 try:
                     vector_results = self._qdrant.search_filtered(
                         vector=query_vector,

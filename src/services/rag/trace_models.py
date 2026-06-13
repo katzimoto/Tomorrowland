@@ -44,7 +44,8 @@ class DegradedBackendInfo(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     backend: str
-    """The backend that failed: ``vector``, ``bm25``, ``metadata``, ``translated``."""
+    """The backend that failed: ``vector``, ``bm25``, ``metadata``, ``translated``,
+    ``query_embedding``."""
     error_category: str
     """Broad error category: ``timeout``, ``connection_error``, ``unexpected_error``."""
 
