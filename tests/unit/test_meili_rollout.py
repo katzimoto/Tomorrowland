@@ -229,22 +229,38 @@ def test_record_index_metrics_noop_when_metrics_none() -> None:
 class TestAppInitialization:
     """Tests that Meilisearch provider is initialized in create_app."""
 
+    @patch("services.search.meili_provider.apply_index_settings", return_value=["101", "202"])
     @patch("meilisearch.Client")
-    def test_meili_provider_initialized_when_flag_enabled(self, mock_meili: MagicMock) -> None:
+    def test_meili_provider_initialized_when_flag_enabled(
+        self, mock_meili: MagicMock, _mock_apply: MagicMock
+    ) -> None:
         import sqlalchemy as sa
 
         from services.api.main import create_app
         from shared.config import Settings
 
-        mock_meili.return_value = MagicMock()
-        engine = sa.create_engine("sqlite:///:memory:")
-        settings = Settings(app_env="test", auth_provider="local", jwt_secret="x" * 32)
-        settings.feature_meilisearch_search = True
-        settings.meilisearch_url = "http://meilisearch:7700"
-        settings.meilisearch_master_key = "test-key"
+        # Patch wait_for_task so the readiness gate returns immediately
+        # without trying to poll a mocked Meilisearch client.
+        with patch(
+            "services.search.meili_provider.MeilisearchSearchProvider.wait_for_task"
+        ) as mock_wait:
+            mock_meili.return_value = MagicMock()
+            engine = sa.create_engine("sqlite:///:memory:")
+            settings = Settings(app_env="test", auth_provider="local", jwt_secret="x" * 32)
+            settings.feature_meilisearch_search = True
+            settings.meilisearch_url = "http://meilisearch:7700"
+            settings.meilisearch_master_key = "test-key"
 
-        app = create_app(engine, settings=settings)
+            app = create_app(engine, settings=settings)
+
         assert app.state.meili_provider is not None
+        # The readiness gate must have been invoked for every captured task
+        # UID. wait_for_task is called with (task_uid, timeout_seconds=,
+        # poll_interval_seconds=), so use call_args_list to verify both UIDs
+        # were waited on without coupling to the exact kwargs.
+        called_uids = [c.args[0] for c in mock_wait.call_args_list]
+        assert "101" in called_uids
+        assert "202" in called_uids
 
     def test_meili_provider_none_when_flag_disabled(self) -> None:
         import sqlalchemy as sa

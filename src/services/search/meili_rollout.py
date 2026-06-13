@@ -34,17 +34,25 @@ def is_shadow_enabled(settings: Settings) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def initialize_meilisearch(client: object, settings: Settings) -> None:
+def initialize_meilisearch(client: object, settings: Settings) -> list[str]:
     """Apply index settings to live (and optionally shadow) index at startup.
 
     Idempotent — safe to call on every application restart.
+
+    Returns:
+        The list of Meilisearch task UIDs created (one for the live index,
+        plus one for the shadow index when :attr:`Settings.feature_meilisearch_shadow_index`
+        is enabled). The caller is responsible for waiting on these tasks
+        before serving search traffic.
     """
     log.info("meilisearch.init: applying settings to live index")
-    apply_index_settings(client, shadow=False)
+    task_uids: list[str] = list(apply_index_settings(client, shadow=False))
 
     if is_shadow_enabled(settings):
         log.info("meilisearch.init: applying settings to shadow index")
-        apply_index_settings(client, shadow=True)
+        task_uids.extend(apply_index_settings(client, shadow=True))
+
+    return task_uids
 
 
 # ---------------------------------------------------------------------------

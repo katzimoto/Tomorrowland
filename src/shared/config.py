@@ -194,6 +194,12 @@ class Settings(BaseSettings):
     meilisearch_search_key: str = ""
     feature_meilisearch_search: bool = True
     feature_meilisearch_shadow_index: bool = False
+    # Maximum time create_app will block waiting for Meilisearch to apply
+    # initial index settings (filterableAttributes, searchableAttributes,
+    # etc.) before serving search traffic. The server-side apply is async,
+    # so without this wait a cold-start request can fail with errors like
+    # ``attribute is not filterable``.
+    meili_settings_readiness_timeout_s: float = 30.0
 
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
     rabbitmq_user: str = "tomorrowland"

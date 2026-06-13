@@ -268,18 +268,37 @@ INDEX_SETTINGS: dict[str, Any] = {
 }
 
 
-def apply_index_settings(client: Any, *, shadow: bool = False) -> None:
+def apply_index_settings(client: Any, *, shadow: bool = False) -> list[str]:
     """Apply INDEX_SETTINGS to the live index (or shadow index if shadow=True).
 
     Creates the index if it does not exist. Safe to call on every startup —
     Meilisearch applies settings as a task and does not drop existing documents.
 
+    The Meilisearch SDK returns a task object for ``create_index`` and
+    ``update_settings``; the server-side application of those tasks is
+    asynchronous. This function returns the list of task UIDs in submission
+    order so callers (notably the API startup path) can wait for the index
+    to be fully configured before accepting search traffic. Without that
+    wait, queries that arrive on a cold start can fail with errors like
+    ``attribute is not filterable`` because the new settings have not landed
+    yet.
+
     Args:
-        client: A meilisearch.Client instance.
-        shadow: When True, targets SHADOW_INDEX_NAME instead of INDEX_NAME.
+        client: A ``meilisearch.Client`` instance.
+        shadow: When True, targets ``SHADOW_INDEX_NAME`` instead of
+            ``INDEX_NAME``.
+
+    Returns:
+        The list of Meilisearch task UIDs created (zero, one, or two
+        depending on whether the index needed to be created and whether
+        settings were updated).
     """
     name = SHADOW_INDEX_NAME if shadow else INDEX_NAME
+    task_uids: list[str] = []
     existing = [idx.uid for idx in client.get_indexes()["results"]]
     if name not in existing:
-        client.create_index(name, {"primaryKey": "id"})
-    client.index(name).update_settings(INDEX_SETTINGS)
+        create_task = client.create_index(name, {"primaryKey": "id"})
+        task_uids.append(str(create_task.task_uid))
+    settings_task = client.index(name).update_settings(INDEX_SETTINGS)
+    task_uids.append(str(settings_task.task_uid))
+    return task_uids

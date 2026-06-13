@@ -165,6 +165,16 @@ def test_remove_by_document_id_uses_filter_delete() -> None:
     assert "document_id" in filter_arg
 
 
+def test_remove_by_document_id_escapes_value() -> None:
+    """A document_id containing a quote/backslash must be backslash-escaped
+    in the filter expression.
+    """
+    client, provider = _provider()
+    provider.remove_by_document_id('doc-"weird"')
+    filter_arg = client.index().delete_documents_by_filter.call_args[0][0]
+    assert filter_arg == 'document_id = "doc-\\"weird\\""'
+
+
 # ---------------------------------------------------------------------------
 # search — ACL short-circuit
 # ---------------------------------------------------------------------------
@@ -428,6 +438,24 @@ def test_search_rag_translated_passes_source_ids_filter() -> None:
     )
     call_args = client.index().search.call_args
     assert 'metadata.source_id IN ["src-a"]' in call_args[0][1]["filter"]
+
+
+def test_search_rag_source_ids_escapes_value() -> None:
+    """A source_id containing a quote/backslash must be backslash-escaped."""
+    client, provider = _provider()
+    client.index.return_value.search.return_value = {
+        "hits": [],
+        "nbHits": 0,
+        "estimatedTotalHits": 0,
+        "processingTimeMs": 1,
+    }
+    provider.search_rag(
+        text="hello",
+        group_ids=["g1"],
+        source_ids=['src-"x"'],
+    )
+    params = client.index().search.call_args[0][1]
+    assert 'metadata.source_id IN ["src-\\"x\\""]' in params["filter"]
 
 
 # ---------------------------------------------------------------------------
