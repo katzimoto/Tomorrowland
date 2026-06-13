@@ -41,14 +41,16 @@ def _setup_admin(app):
 class TestRollbackBehavior:
     """Tests proving Meilisearch flag rollback works correctly."""
 
+    @patch("services.search.meili_provider.apply_index_settings", return_value=["101", "202"])
     @patch("meilisearch.Client")
-    def test_meili_provider_present_when_flag_on(self, mock_meili, engine):
-        mock_meili.return_value = MagicMock()
-        settings = Settings(app_env="test", auth_provider="local", jwt_secret=TEST_JWT_SECRET)
-        settings.feature_meilisearch_search = True
-        settings.meilisearch_url = "http://meilisearch:7700"
-        settings.meilisearch_master_key = "test-key"
-        app = create_app(engine, settings=settings)
+    def test_meili_provider_present_when_flag_on(self, mock_meili, _mock_apply, engine):
+        with patch("services.search.meili_provider.MeilisearchSearchProvider.wait_for_task"):
+            mock_meili.return_value = MagicMock()
+            settings = Settings(app_env="test", auth_provider="local", jwt_secret=TEST_JWT_SECRET)
+            settings.feature_meilisearch_search = True
+            settings.meilisearch_url = "http://meilisearch:7700"
+            settings.meilisearch_master_key = "test-key"
+            app = create_app(engine, settings=settings)
         assert app.state.meili_provider is not None
 
     def test_meili_provider_none_when_flag_off(self, engine):
@@ -57,14 +59,16 @@ class TestRollbackBehavior:
         app = create_app(engine, settings=settings)
         assert app.state.meili_provider is None
 
+    @patch("services.search.meili_provider.apply_index_settings", return_value=["101", "202"])
     @patch("meilisearch.Client")
-    def test_flag_on_creates_provider(self, mock_meili, engine):
-        mock_meili.return_value = MagicMock()
-        settings = Settings(app_env="test", auth_provider="local", jwt_secret=TEST_JWT_SECRET)
-        settings.feature_meilisearch_search = True
-        settings.meilisearch_url = "http://meilisearch:7700"
-        settings.meilisearch_master_key = "test-key"
-        app = create_app(engine, settings=settings)
+    def test_flag_on_creates_provider(self, mock_meili, _mock_apply, engine):
+        with patch("services.search.meili_provider.MeilisearchSearchProvider.wait_for_task"):
+            mock_meili.return_value = MagicMock()
+            settings = Settings(app_env="test", auth_provider="local", jwt_secret=TEST_JWT_SECRET)
+            settings.feature_meilisearch_search = True
+            settings.meilisearch_url = "http://meilisearch:7700"
+            settings.meilisearch_master_key = "test-key"
+            app = create_app(engine, settings=settings)
         assert app.state.meili_provider is not None
         from services.search.meili_provider import MeilisearchSearchProvider
 
