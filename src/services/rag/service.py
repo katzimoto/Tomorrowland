@@ -7,7 +7,7 @@ import time
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
-from typing import Any
+from typing import Any, TypedDict
 from uuid import UUID, uuid4
 
 from qdrant_client.models import Condition, FieldCondition, Filter, MatchAny, MatchValue
@@ -22,11 +22,46 @@ from services.search.qdrant import QdrantSearchClient
 from shared.metrics import current_metrics
 
 from .models import AnswerResponse, Citation
-from .trace_models import RetrievalCandidateTrace, RetrievalStageTrace, RetrievalTrace
+from .trace_models import (
+    BackendAttributionTrace,
+    DegradedBackendInfo,
+    RerankerDeltaTrace,
+    RetrievalCandidateTrace,
+    RetrievalStageTrace,
+    RetrievalTrace,
+)
 
 logger = logging.getLogger(__name__)
 
 CANDIDATE_LIMIT = 40
+
+
+class _RetrievalExtras(TypedDict):
+    degraded_backends: list[DegradedBackendInfo]
+    scope_filtered_count: int
+    dedup_count: int
+
+
+def _error_category(exc: Exception) -> str:
+    """Map an exception to a safe error category string (no raw message)."""
+    cls = type(exc).__name__.lower()
+    if "timeout" in cls:
+        return "timeout"
+    if "connect" in cls or "connection" in cls:
+        return "connection_error"
+    return "unexpected_error"
+
+
+def _chunk_key(result: SearchResult) -> str:
+    """Stable deduplication key for a SearchResult (mirrors merge_results logic)."""
+    chunk_id = (result.metadata or {}).get("chunk_id")
+    return str(chunk_id) if chunk_id else result.document_id
+
+
+def _chunk_dict_key(chunk: dict[str, Any]) -> str:
+    """Stable key for a chunk dict after it has been built from SearchResult."""
+    cid = chunk.get("chunk_id")
+    return str(cid) if cid else chunk["document_id"]
 
 
 def build_qdrant_filter(
@@ -137,7 +172,7 @@ class RagService:
         request_start = time.perf_counter()
         # 1. Retrieve relevant chunks
         phase_start = time.perf_counter()
-        chunks, stages, retrieval_degraded = self._retrieve_chunks(
+        chunks, stages, retrieval_degraded, retrieval_extras = self._retrieve_chunks(
             question,
             group_ids,
             effective_top_k,
@@ -157,6 +192,9 @@ class RagService:
                 reranker_enabled=self._reranker is not None,
                 retrieval_degraded=retrieval_degraded,
                 total_latency_ms=(time.perf_counter() - request_start) * 1000,
+                degraded_backends=retrieval_extras["degraded_backends"],
+                scope_filtered_count=retrieval_extras["scope_filtered_count"],
+                dedup_count=retrieval_extras["dedup_count"],
             )
             if metrics is not None:
                 metrics.rag_requests_total.labels("success").inc()
@@ -176,7 +214,12 @@ class RagService:
 
         # 2. Rerank (when a reranker is configured)
         reranker_enabled = self._reranker is not None
+        reranker_dropped_count = 0
         if self._reranker is not None:
+            # Record pre-reranker ranks/scores for delta tracking
+            pre_rerank_info: dict[str, tuple[int, float]] = {
+                _chunk_dict_key(c): (i + 1, c["score"]) for i, c in enumerate(chunks)
+            }
             phase_start = time.perf_counter()
             chunks = self._reranker.rerank(chunks, question)
             if metrics is not None:
@@ -184,11 +227,22 @@ class RagService:
                     time.perf_counter() - phase_start
                 )
             stages.append(self._build_stage_trace("rerank", len(chunks), phase_start))
+            reranker_dropped_count = len(pre_rerank_info) - len(chunks)
+            # Embed reranker delta into surviving chunk dicts
+            for i, c in enumerate(chunks):
+                key = _chunk_dict_key(c)
+                if key in pre_rerank_info:
+                    input_rank, input_score = pre_rerank_info[key]
+                    c["_pre_rerank_rank"] = input_rank
+                    c["_pre_rerank_score"] = input_score
+                    c["_post_rerank_rank"] = i + 1
 
         # 3. Filter by score threshold (after reranker has re-scored), then truncate to top_k
         t_final = time.perf_counter()
+        before_threshold = len(chunks)
         if self._score_threshold > 0.0:
             chunks = [c for c in chunks if c["score"] >= self._score_threshold]
+        score_threshold_filtered_count = before_threshold - len(chunks)
         chunks = chunks[:effective_top_k]
         stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
 
@@ -220,10 +274,10 @@ class RagService:
         seen_citations: set[tuple[str, int | None]] = set()
         citations = []
         for c in chunks:
-            key = (c["document_id"], c.get("chunk_index"))
-            if key in seen_citations:
+            citation_key = (c["document_id"], c.get("chunk_index"))
+            if citation_key in seen_citations:
                 continue
-            seen_citations.add(key)
+            seen_citations.add(citation_key)
             citations.append(
                 Citation(
                     document_id=c["document_id"],
@@ -252,12 +306,32 @@ class RagService:
                     page_number=c.get("page_number"),
                     section_heading=c.get("section_heading"),
                     language=c.get("source_language"),
+                    backends=[BackendAttributionTrace(**b) for b in c.get("_backends", [])],
+                    fused_rank=c.get("_fused_rank"),
+                    fused_score=c.get("_fused_score"),
+                    reranker_delta=(
+                        RerankerDeltaTrace(
+                            input_rank=c["_pre_rerank_rank"],
+                            input_score=c["_pre_rerank_score"],
+                            reranker_score=c.get("_reranker_score"),
+                            output_rank=c.get("_post_rerank_rank"),
+                            dropped=False,
+                        )
+                        if "_pre_rerank_rank" in c
+                        else None
+                    ),
+                    final_context_rank=i + 1,
                 )
-                for c in chunks
+                for i, c in enumerate(chunks)
             ],
             reranker_enabled=reranker_enabled,
             retrieval_degraded=retrieval_degraded,
             total_latency_ms=(time.perf_counter() - request_start) * 1000,
+            degraded_backends=retrieval_extras["degraded_backends"],
+            scope_filtered_count=retrieval_extras["scope_filtered_count"],
+            dedup_count=retrieval_extras["dedup_count"],
+            score_threshold_filtered_count=score_threshold_filtered_count,
+            reranker_dropped_count=reranker_dropped_count,
         )
 
         if metrics is not None:
@@ -294,7 +368,7 @@ class RagService:
         effective_top_k = top_k if top_k is not None else self._max_chunks
         request_start = time.perf_counter()
 
-        chunks, stages, retrieval_degraded = self._retrieve_chunks(
+        chunks, stages, retrieval_degraded, retrieval_extras = self._retrieve_chunks(
             question,
             group_ids,
             effective_top_k,
@@ -304,13 +378,28 @@ class RagService:
         )
 
         reranker_enabled = self._reranker is not None
+        reranker_dropped_count = 0
         if self._reranker is not None:
+            pre_rerank_info = {
+                _chunk_dict_key(c): (i + 1, c["score"]) for i, c in enumerate(chunks)
+            }
             phase_start = time.perf_counter()
             chunks = self._reranker.rerank(chunks, question)
             stages.append(self._build_stage_trace("rerank", len(chunks), phase_start))
+            reranker_dropped_count = len(pre_rerank_info) - len(chunks)
+            for i, c in enumerate(chunks):
+                key = _chunk_dict_key(c)
+                if key in pre_rerank_info:
+                    input_rank, input_score = pre_rerank_info[key]
+                    c["_pre_rerank_rank"] = input_rank
+                    c["_pre_rerank_score"] = input_score
+                    c["_post_rerank_rank"] = i + 1
+
         t_final = time.perf_counter()
+        before_threshold = len(chunks)
         if self._score_threshold > 0.0:
             chunks = [c for c in chunks if c["score"] >= self._score_threshold]
+        score_threshold_filtered_count = before_threshold - len(chunks)
         chunks = chunks[:effective_top_k]
         stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
 
@@ -321,6 +410,11 @@ class RagService:
                 reranker_enabled=reranker_enabled,
                 retrieval_degraded=retrieval_degraded,
                 total_latency_ms=(time.perf_counter() - request_start) * 1000,
+                degraded_backends=retrieval_extras["degraded_backends"],
+                scope_filtered_count=retrieval_extras["scope_filtered_count"],
+                dedup_count=retrieval_extras["dedup_count"],
+                score_threshold_filtered_count=score_threshold_filtered_count,
+                reranker_dropped_count=reranker_dropped_count,
             )
             yield (
                 "done",
@@ -355,10 +449,10 @@ class RagService:
         seen_citations: set[tuple[str, int | None]] = set()
         citations = []
         for c in chunks:
-            key = (c["document_id"], c.get("chunk_index"))
-            if key in seen_citations:
+            citation_key = (c["document_id"], c.get("chunk_index"))
+            if citation_key in seen_citations:
                 continue
-            seen_citations.add(key)
+            seen_citations.add(citation_key)
             citations.append(
                 {
                     "citation_id": str(uuid4()),
@@ -388,12 +482,32 @@ class RagService:
                     page_number=c.get("page_number"),
                     section_heading=c.get("section_heading"),
                     language=c.get("source_language"),
+                    backends=[BackendAttributionTrace(**b) for b in c.get("_backends", [])],
+                    fused_rank=c.get("_fused_rank"),
+                    fused_score=c.get("_fused_score"),
+                    reranker_delta=(
+                        RerankerDeltaTrace(
+                            input_rank=c["_pre_rerank_rank"],
+                            input_score=c["_pre_rerank_score"],
+                            reranker_score=c.get("_reranker_score"),
+                            output_rank=c.get("_post_rerank_rank"),
+                            dropped=False,
+                        )
+                        if "_pre_rerank_rank" in c
+                        else None
+                    ),
+                    final_context_rank=i + 1,
                 )
-                for c in chunks
+                for i, c in enumerate(chunks)
             ],
             reranker_enabled=reranker_enabled,
             retrieval_degraded=retrieval_degraded,
             total_latency_ms=(time.perf_counter() - request_start) * 1000,
+            degraded_backends=retrieval_extras["degraded_backends"],
+            scope_filtered_count=retrieval_extras["scope_filtered_count"],
+            dedup_count=retrieval_extras["dedup_count"],
+            score_threshold_filtered_count=score_threshold_filtered_count,
+            reranker_dropped_count=reranker_dropped_count,
         )
 
         yield (
@@ -416,22 +530,40 @@ class RagService:
         document_id: str | None = None,
         allow_all: bool = False,
         scope: ChatScope | None = None,
-    ) -> tuple[list[dict[str, Any]], list[RetrievalStageTrace], bool]:
+    ) -> tuple[list[dict[str, Any]], list[RetrievalStageTrace], bool, _RetrievalExtras]:
         """Retrieve chunks from Qdrant (+ Meilisearch when available).
 
         All backend queries (Qdrant + up to 3 Meilisearch branches) are fired
         concurrently via ThreadPoolExecutor. Results are then merged sequentially
         in order: BM25 → metadata → translated.
+
+        Returns a 4-tuple of:
+        - chunks: list of chunk dicts with ``_backends``, ``_fused_rank``,
+          ``_fused_score`` v2 fields embedded
+        - stages: list of stage traces
+        - retrieval_degraded: True when any backend raised
+        - extras: v2 supplementary counts and degraded-backend info
         """
         stages: list[RetrievalStageTrace] = []
 
         query_vector = self._encoder.encode(question)
 
         _retrieval_degraded = False
+        degraded_backends: list[DegradedBackendInfo] = []
+        scope_filtered_count = 0
 
         if scope is not None:
             if not group_ids and not allow_all:
-                return [], stages, _retrieval_degraded
+                return (
+                    [],
+                    stages,
+                    _retrieval_degraded,
+                    {
+                        "degraded_backends": [],
+                        "scope_filtered_count": 0,
+                        "dedup_count": 0,
+                    },
+                )
             qdrant_filter = build_qdrant_filter(scope, group_ids, allow_all)
         else:
             qdrant_filter = None
@@ -503,51 +635,116 @@ class RagService:
 
                 try:
                     vector_results = qdrant_future.result(timeout=30)
-                except Exception:
+                except Exception as exc:
                     vector_results = []
                     _retrieval_degraded = True
+                    degraded_backends.append(
+                        DegradedBackendInfo(backend="vector", error_category=_error_category(exc))
+                    )
                     logger.warning("RAG vector retrieval degraded — Qdrant future failed")
                 try:
                     raw_bm25 = bm25_future.result(timeout=30)
-                except Exception:
+                except Exception as exc:
                     raw_bm25 = []
                     _retrieval_degraded = True
+                    degraded_backends.append(
+                        DegradedBackendInfo(backend="bm25", error_category=_error_category(exc))
+                    )
                     logger.warning("RAG BM25 retrieval degraded — Meilisearch future failed")
                 if meta_future is not None:
                     try:
                         raw_meta = meta_future.result(timeout=30)
-                    except Exception:
+                    except Exception as exc:
                         raw_meta = []
+                        degraded_backends.append(
+                            DegradedBackendInfo(
+                                backend="metadata", error_category=_error_category(exc)
+                            )
+                        )
                 else:
                     raw_meta = []
                 if trans_future is not None:
                     try:
                         raw_trans = trans_future.result(timeout=30)
-                    except Exception:
+                    except Exception as exc:
                         raw_trans = []
+                        degraded_backends.append(
+                            DegradedBackendInfo(
+                                backend="translated", error_category=_error_category(exc)
+                            )
+                        )
                 else:
                     raw_trans = []
 
+            # Scope filtering: count drops from BM25 branches before merging
+            raw_bm25_len = len(raw_bm25)
             bm25_results = self._apply_scope_to_bm25(raw_bm25, scope)
+            scope_filtered_count += raw_bm25_len - len(bm25_results)
+
+            raw_meta_len = len(raw_meta)
             meta_results = self._apply_scope_to_bm25(raw_meta, scope)
+            scope_filtered_count += raw_meta_len - len(meta_results)
+
+            raw_trans_len = len(raw_trans)
             trans_results = self._apply_scope_to_bm25(raw_trans, scope)
+            scope_filtered_count += raw_trans_len - len(trans_results)
         else:
             if qdrant_filter is not None:
-                vector_results = self._qdrant.search_filtered(
-                    vector=query_vector,
-                    query_filter=qdrant_filter,
-                    limit=CANDIDATE_LIMIT,
-                )
+                try:
+                    vector_results = self._qdrant.search_filtered(
+                        vector=query_vector,
+                        query_filter=qdrant_filter,
+                        limit=CANDIDATE_LIMIT,
+                    )
+                except Exception as exc:
+                    vector_results = []
+                    _retrieval_degraded = True
+                    degraded_backends.append(
+                        DegradedBackendInfo(backend="vector", error_category=_error_category(exc))
+                    )
             else:
-                vector_results = self._qdrant.search(
-                    vector=query_vector,
-                    group_ids=group_ids,
-                    limit=CANDIDATE_LIMIT,
-                    document_id=document_id,
-                    allow_all=allow_all,
-                )
+                try:
+                    vector_results = self._qdrant.search(
+                        vector=query_vector,
+                        group_ids=group_ids,
+                        limit=CANDIDATE_LIMIT,
+                        document_id=document_id,
+                        allow_all=allow_all,
+                    )
+                except Exception as exc:
+                    vector_results = []
+                    _retrieval_degraded = True
+                    degraded_backends.append(
+                        DegradedBackendInfo(backend="vector", error_category=_error_category(exc))
+                    )
 
         stages.append(self._build_stage_trace("vector", len(vector_results), t0))
+
+        # ── Build per-backend attribution map before merging ────────
+        backend_attrs: dict[str, list[dict[str, Any]]] = {}
+        for rank, r in enumerate(vector_results, 1):
+            key = _chunk_key(r)
+            backend_attrs.setdefault(key, []).append(
+                {"backend": "vector", "score": r.score, "rank": rank}
+            )
+        if self._meili is not None:
+            for rank, r in enumerate(bm25_results, 1):
+                key = _chunk_key(r)
+                backend_attrs.setdefault(key, []).append(
+                    {"backend": "bm25", "score": r.score, "rank": rank}
+                )
+            if self._enable_metadata_search:
+                for rank, r in enumerate(meta_results, 1):
+                    key = _chunk_key(r)
+                    backend_attrs.setdefault(key, []).append(
+                        {"backend": "metadata", "score": r.score, "rank": rank}
+                    )
+            if self._enable_translated_text:
+                for rank, r in enumerate(trans_results, 1):
+                    key = _chunk_key(r)
+                    backend_attrs.setdefault(key, []).append(
+                        {"backend": "translated", "score": r.score, "rank": rank}
+                    )
 
         # ── Sequential merge: BM25 + vector → metadata → translated ──
         if self._meili is not None:
@@ -589,15 +786,25 @@ class RagService:
         else:
             results = vector_results
 
+        # ── Record fused rank/score per key before dedup ────────────
+        fused_info: dict[str, tuple[int, float]] = {}
+        for fused_rank, r in enumerate(results, 1):
+            key = _chunk_key(r)
+            if key not in fused_info:
+                fused_info[key] = (fused_rank, r.score)
+
         # ── Deduplicate + look up doc titles ────────────────────────
         t7 = time.perf_counter()
         seen_chunk_ids: set[str] = set()
         unique_results = []
+        dedup_count = 0
         for r in results:
             chunk_id = (r.metadata or {}).get("chunk_id") or f"{r.document_id}-unknown"
             if chunk_id not in seen_chunk_ids:
                 seen_chunk_ids.add(chunk_id)
                 unique_results.append(r)
+            else:
+                dedup_count += 1
         stages.append(self._build_stage_trace("dedup_filter", len(unique_results), t7))
 
         # Look up doc titles in one batch query — avoids N+1 per-document get_by_id calls.
@@ -612,23 +819,37 @@ class RagService:
             for doc in doc_repo.list_by_ids(list(set(doc_ids))):
                 title_cache[str(doc.id)] = doc.title
 
-        chunks = [
-            {
-                "document_id": r.document_id,
-                "chunk_id": (r.metadata or {}).get("chunk_id"),
-                "chunk_index": (r.metadata or {}).get("chunk_index"),
-                "chunk_text": r.chunk_text or "",
-                "score": r.score,
-                "doc_title": title_cache.get(r.document_id),
-                "source_id": (r.metadata or {}).get("source_id"),
-                "source_language": (r.metadata or {}).get("source_language"),
-                "page_number": (r.metadata or {}).get("page_number"),
-                "section_heading": (r.metadata or {}).get("section_heading"),
-            }
-            for r in unique_results
-        ]
+        chunks = []
+        for r in unique_results:
+            key = _chunk_key(r)
+            fused_entry = fused_info.get(key)
+            fused_rank_val: int | None = fused_entry[0] if fused_entry is not None else None
+            fused_score_val: float | None = fused_entry[1] if fused_entry is not None else None
+            chunks.append(
+                {
+                    "document_id": r.document_id,
+                    "chunk_id": (r.metadata or {}).get("chunk_id"),
+                    "chunk_index": (r.metadata or {}).get("chunk_index"),
+                    "chunk_text": r.chunk_text or "",
+                    "score": r.score,
+                    "doc_title": title_cache.get(r.document_id),
+                    "source_id": (r.metadata or {}).get("source_id"),
+                    "source_language": (r.metadata or {}).get("source_language"),
+                    "page_number": (r.metadata or {}).get("page_number"),
+                    "section_heading": (r.metadata or {}).get("section_heading"),
+                    # v2 attribution
+                    "_backends": backend_attrs.get(key, []),
+                    "_fused_rank": fused_rank_val,
+                    "_fused_score": fused_score_val,
+                }
+            )
 
-        return chunks, stages, _retrieval_degraded
+        retrieval_extras: _RetrievalExtras = {
+            "degraded_backends": degraded_backends,
+            "scope_filtered_count": scope_filtered_count,
+            "dedup_count": dedup_count,
+        }
+        return chunks, stages, _retrieval_degraded, retrieval_extras
 
     @staticmethod
     def _build_stage_trace(
