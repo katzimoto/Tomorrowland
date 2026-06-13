@@ -42,6 +42,54 @@ rg "<query-or-symbol>" src/services/search src/services/api tests
 rg --files src/services/search tests | rg search
 ```
 
+## Uniform filter enforcement (#759)
+
+Added 2026-06-13. All `/search` filters apply equally to both Meilisearch
+(BM25) and Qdrant (vector) results.
+
+### How it works
+
+1. **`_map_filters(raw)`** in `search.py` converts the frontend `filters` dict
+   into `DocumentSearchFilters`.  It now also maps `date_to` → `created_before`
+   (previously left client-side).
+
+2. **Meilisearch**: `_build_user_filter` in `meili_provider.py` translates
+   every `DocumentSearchFilters` field into a Meilisearch filter expression,
+   including the new `created_before` → `metadata.created_at <= "..."`.
+
+3. **Qdrant payload push**: `_qdrant_extra_conditions(filters)` returns a list
+   of `FieldCondition` objects for payload fields stored at index time.
+   Currently only `language` → `source_language` is pushed.  These are passed
+   to `QdrantSearchClient.search(extra_conditions=...)` so Qdrant can pre-filter
+   vector candidates before returning them.
+
+4. **Post-retrieval predicate**: `_matches_filters(doc, filters)` is applied to
+   every entry in the merged result list after `DocumentRow` enrichment and
+   before pagination.  It checks all supported filters against the authoritative
+   `DocumentRow` fields (`source`, `mime_type`, `source_language`,
+   `metadata["tags"]`, `metadata["file_extension"]`, `created_at`).  This is
+   the definitive enforcement point — no out-of-filter Qdrant candidate can
+   survive to the response.
+
+### Adding a new filter
+
+1. Add the field to `DocumentSearchFilters` in `meili_types.py`.
+2. Map it in `_map_filters` (search router).
+3. Add the Meilisearch expression to `_build_user_filter` (meili_provider).
+4. If the field exists in the Qdrant payload, add a `FieldCondition` in
+   `_qdrant_extra_conditions`.
+5. Add the check to `_matches_filters`.
+6. Add tests to `tests/unit/test_search_filter_predicate.py`.
+
+### Tests
+
+```bash
+pytest tests/unit/test_search_filter_predicate.py -q
+pytest tests/unit/test_search_qdrant.py -q -k extra_conditions
+```
+
+---
+
 ## Document versioning
 
 Added in `feature/document-versioning` (#201 / #203 / #205).

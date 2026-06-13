@@ -53,6 +53,10 @@ def _build_user_filter(filters: DocumentSearchFilters) -> str:
         if value:
             parts.append(f'{field} >= "{value}"')
 
+    def _lte(field: str, value: str | None) -> None:
+        if value:
+            parts.append(f'{field} <= "{value}"')
+
     _in("metadata.source", filters.source)
     _in("metadata.document_type", filters.document_type)
     _in("metadata.mime_type", filters.mime_type)
@@ -67,6 +71,7 @@ def _build_user_filter(filters: DocumentSearchFilters) -> str:
     _in("metadata.workspace", filters.workspace)
     _in("metadata.collection", filters.collection)
     _gte("metadata.created_at", filters.created_after)
+    _lte("metadata.created_at", filters.created_before)
     _gte("metadata.updated_at", filters.updated_after)
     _gte("metadata.imported_at", filters.imported_after)
 

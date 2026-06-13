@@ -581,3 +581,76 @@ def test_search_metadata_includes_page_number_section_heading() -> None:
     assert results[0].metadata is not None
     assert results[0].metadata["page_number"] == 5
     assert results[0].metadata["section_heading"] == "Results"
+
+
+def test_search_extra_conditions_appended_to_filter() -> None:
+    """extra_conditions are merged into the must-filter alongside the group condition."""
+    from qdrant_client.models import FieldCondition, MatchAny
+
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.query_points.return_value.points = []
+    client._client = mock_qdrant
+
+    lang_cond = FieldCondition(key="source_language", match=MatchAny(any=["he"]))
+    client.search(vector=[0.1] * 384, group_ids=["g1"], extra_conditions=[lang_cond])
+
+    query_filter = mock_qdrant.query_points.call_args.kwargs["query_filter"]
+    assert query_filter is not None
+    condition_keys = [c.key for c in query_filter.must]
+    assert "group_id" in condition_keys
+    assert "source_language" in condition_keys
+
+
+def test_search_extra_conditions_admin_bypass() -> None:
+    """extra_conditions still apply even in admin (allow_all) mode."""
+    from qdrant_client.models import FieldCondition, MatchAny
+
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.query_points.return_value.points = []
+    client._client = mock_qdrant
+
+    lang_cond = FieldCondition(key="source_language", match=MatchAny(any=["en"]))
+    client.search(
+        vector=[0.1] * 384,
+        group_ids=[],
+        allow_all=True,
+        extra_conditions=[lang_cond],
+    )
+
+    query_filter = mock_qdrant.query_points.call_args.kwargs["query_filter"]
+    assert query_filter is not None
+    condition_keys = [c.key for c in query_filter.must]
+    assert "group_id" not in condition_keys
+    assert "source_language" in condition_keys
+
+
+def test_search_no_extra_conditions_no_change_to_existing_behavior() -> None:
+    """Omitting extra_conditions leaves behavior unchanged."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.query_points.return_value.points = []
+    client._client = mock_qdrant
+
+    client.search(vector=[0.1] * 384, group_ids=["g1"])
+
+    query_filter = mock_qdrant.query_points.call_args.kwargs["query_filter"]
+    assert query_filter is not None
+    condition_keys = [c.key for c in query_filter.must]
+    assert condition_keys == ["group_id"]
+
+
+def test_search_empty_extra_conditions_list_no_change() -> None:
+    """Passing an empty extra_conditions list is identical to omitting it."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.query_points.return_value.points = []
+    client._client = mock_qdrant
+
+    client.search(vector=[0.1] * 384, group_ids=["g1"], extra_conditions=[])
+
+    query_filter = mock_qdrant.query_points.call_args.kwargs["query_filter"]
+    assert query_filter is not None
+    condition_keys = [c.key for c in query_filter.must]
+    assert condition_keys == ["group_id"]

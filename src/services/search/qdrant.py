@@ -133,6 +133,7 @@ class QdrantSearchClient:
         limit: int = 10,
         document_id: str | None = None,
         allow_all: bool = False,
+        extra_conditions: list[FieldCondition] | None = None,
     ) -> list[SearchResult]:
         """Vector search restricted to *group_ids*.
 
@@ -143,6 +144,10 @@ class QdrantSearchClient:
         When *document_id* is provided, results are further restricted to
         chunks belonging to that specific document.
 
+        *extra_conditions* allows callers to push additional payload filters
+        (e.g. source_language) into the Qdrant query to reduce wasted
+        vector candidates before the post-retrieval filter runs.
+
         Returned ``SearchResult.metadata`` contains ``chunk_id``,
         ``source_id``, ``title``, and ``source_language`` when present in
         the Qdrant payload.
@@ -151,7 +156,7 @@ class QdrantSearchClient:
 
         self.create_collection_if_not_exists()
 
-        must_conditions = []
+        must_conditions: list[FieldCondition] = []
         if group_ids:
             must_conditions.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
         elif not allow_all:
@@ -161,6 +166,8 @@ class QdrantSearchClient:
             must_conditions.append(
                 FieldCondition(key="document_id", match=MatchValue(value=document_id))
             )
+        if extra_conditions:
+            must_conditions.extend(extra_conditions)
         query_filter = Filter(must=list(must_conditions)) if must_conditions else None
 
         response = self._client.query_points(
