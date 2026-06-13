@@ -61,3 +61,23 @@ def test_empty_sha_uses_nosha_segment(tmp_path: Path) -> None:
     doc_id = uuid4()
     store.write_artifacts(doc_id, "", {"a": ("body.txt", "text/plain", b"x")})
     assert store.resolve(doc_id, "", "body.txt") is not None
+
+
+def test_sweep_orphans_removes_stale_dirs(tmp_path: Path) -> None:
+    store = PreviewArtifactStore(tmp_path)
+    keep_doc = uuid4()
+    drop_doc = uuid4()
+    store.write_artifacts(keep_doc, "shaA", {"a": ("b.txt", "text/plain", b"x")})
+    store.write_artifacts(keep_doc, "shaOLD", {"a": ("b.txt", "text/plain", b"x")})
+    store.write_artifacts(drop_doc, "shaZ", {"a": ("b.txt", "text/plain", b"x")})
+
+    removed = store.sweep_orphans({(str(keep_doc), "shaA")})
+    assert removed == 2
+    assert store.resolve(keep_doc, "shaA", "b.txt") is not None
+    assert store.resolve(keep_doc, "shaOLD", "b.txt") is None
+    assert store.resolve(drop_doc, "shaZ", "b.txt") is None
+
+
+def test_sweep_orphans_empty_base_is_noop(tmp_path: Path) -> None:
+    store = PreviewArtifactStore(tmp_path)
+    assert store.sweep_orphans(set()) == 0

@@ -65,3 +65,29 @@ class PreviewArtifactStore:
         target = self._artifact_dir(document_id, content_sha256)
         if target.is_dir():
             shutil.rmtree(target, ignore_errors=True)
+
+    def sweep_orphans(self, valid_keys: set[tuple[str, str]]) -> int:
+        """Delete preview dirs whose ``(document_id, content_sha256)`` has no
+        live artifact row. Returns the number of directories removed.
+
+        ``valid_keys`` is the set of live ``(str(document_id), content_sha256)``
+        pairs from ``document_preview_artifacts``; superseded versions and
+        deleted documents leave directories behind that this reclaims.
+        """
+        if not self._base.is_dir():
+            return 0
+        removed = 0
+        for doc_dir in self._base.iterdir():
+            if not doc_dir.is_dir():
+                continue
+            for sha_dir in doc_dir.iterdir():
+                if not sha_dir.is_dir():
+                    continue
+                key = (doc_dir.name, sha_dir.name)
+                if key not in valid_keys:
+                    shutil.rmtree(sha_dir, ignore_errors=True)
+                    removed += 1
+            # Remove now-empty document directories.
+            if not any(doc_dir.iterdir()):
+                doc_dir.rmdir()
+        return removed

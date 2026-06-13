@@ -70,6 +70,12 @@ export function previewArtifactUrl(docId: string, artifactId: string): string {
   return `/api/preview/${docId}/artifact/${artifactId}`;
 }
 
+/** Admin-only: discard the cached preview render so the next manifest request
+ *  re-renders the document. */
+export function rerenderPreview(docId: string): Promise<{ status: string }> {
+  return api.post<{ status: string }>(`/admin/preview/${docId}/rerender`, {});
+}
+
 /** Fetch a preview artifact as raw text (HTML/plain body). Auth header is
  *  attached by the API client — an `<iframe src>` cannot, which is why HTML
  *  artifacts are loaded here and rendered via `srcdoc`. */
