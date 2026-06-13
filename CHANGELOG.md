@@ -34,6 +34,13 @@ All notable changes to this project will be documented in this file.
   pane falls back to the existing extracted-text email renderer whenever the
   manifest is pending, disabled, or failed (zero regression). Extracted and
   translation view modes keep the plain-text renderer.
+- **Outlook MSG preview — slice 3 (#539)**: `.msg` documents
+  (`application/vnd.ms-outlook`) now render through the same manifest pipeline
+  and `EmailViewer` as EML, via a new MSG renderer built on the existing
+  `extract-msg` dependency. HTML bodies are nh3-sanitized with `cid:` inline
+  images embedded; RTF-only Outlook bodies degrade to the plain-text body
+  (RTF→HTML conversion is a tracked follow-up). The EML and MSG renderers now
+  share a common manifest/inline-image assembler. No new dependency.
 - **Docling PDF extractor (#649)**: `DoclingPdfExtractor` registered as a
   `QualityTier.HIGH` backend for `application/pdf` when `ENABLE_DOCLING=true`.
   Produces layout-aware Markdown (tables, multi-column, headings) for richer RAG

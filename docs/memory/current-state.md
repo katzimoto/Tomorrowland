@@ -29,7 +29,15 @@ Gap noted for implementers: tests/fixtures has **zero** mail fixtures (#671 corp
 - `renderers/EmailViewer.tsx`: header card, HTML body in `sandbox=""` iframe (srcdoc), Formatted/Text toggle, collapsible quoted ranges, blocked-images notice, attachment links to child docs. Search forces text view + highlights text body (HTML iframe is unreachable). `renderers/EmailManifestPreview.tsx`: dispatch wrapper — ready/partial→EmailViewer, pending/running→"Preparing…", failed/error/disabled→legacy EmailPreview fallback.
 - `ParentContextBanner.tsx` in DocumentPage (above PreviewPane) — links attachment docs back to parent email via existing `preview.relationships`.
 - PreviewPane email branch: default/original mode→EmailManifestPreview; extracted/translation already handled by the top text block (so the email branch is default-mode only). `EmailPreview` now only used as the fallback inside EmailManifestPreview.
-- i18n `preview.*` in en + he. Verified: typecheck, lint (0 errors; 4 pre-existing TextPreview warnings), 310 frontend tests pass (15 new across EmailViewer/EmailManifestPreview/ParentContextBanner). **Next: S3 (MSG) or S4 (Office DOCX/PPTX + soffice preview-worker image).**
+- i18n `preview.*` in en + he. Verified: typecheck, lint (0 errors; 4 pre-existing TextPreview warnings), 310 frontend tests pass (15 new across EmailViewer/EmailManifestPreview/ParentContextBanner).
+- **S2 merged to `feature/preview-rendering`** (PR #739, squash `563113c`).
+
+**S3 IMPLEMENTED (2026-06-13, branch `feat/539-s3-msg`).** Outlook MSG preview, backend-only:
+- `preview/email_common.py` NEW: shared `RenderedEmail`, `detect_quoted_ranges`, `cid_to_data_uri`, `assemble_email_manifest` — factored out of `email_renderer.py` so EML and MSG emit identical manifest shapes. `email_renderer` re-exports `detect_quoted_ranges`/`RenderedEmail` for back-compat (its tests import them).
+- `preview/msg_renderer.py` NEW: `render_msg(path)` via `extract_msg` (core dep). Partitions attachments into cid inline-images (embedded as data URIs) vs regular; htmlBody→nh3 sanitize; RTF-only→plain-text fallback. `render.py` dispatches MSG vs EML by mime; `manifest.RENDERED_EMAIL_MIMES` now includes `application/vnd.ms-outlook`.
+- **No frontend change**: MSG manifests are `kind:"email"`; PreviewPane already routes `application/vnd.ms-outlook` to EmailManifestPreview/EmailViewer.
+- **No `.msg` binary fixture** (can't generate offline) — MSG tested by mocking `extract_msg.Message`, the repo's established pattern (see `test_extraction_msg.py`). 5 unit + 1 integration test.
+- RTF-only-body → HTML conversion is a tracked follow-up (new dependency decision needed). Verified: ruff, mypy --strict (196 files), preview suite (48 tests) + EML tests survive the refactor. **Next: S4 — Office DOCX/PPTX via separate soffice preview-worker image (needs release-owner sign-off on the airgap split-parts bundle — PAUSE POINT).**
 
 ## 2026-06-08 — docs: documentation overhaul — MkDocs wiki, archives, documentation policy
 

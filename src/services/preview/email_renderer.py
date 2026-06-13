@@ -9,9 +9,7 @@ are embedded as ``data:`` URIs (see sanitizer module for why).
 
 from __future__ import annotations
 
-import base64
 import logging
-import re
 from dataclasses import dataclass, field
 from email import policy
 from email.message import EmailMessage
@@ -19,27 +17,18 @@ from email.parser import BytesParser
 from email.utils import parsedate_to_datetime
 from typing import Any
 
+from services.preview.email_common import (
+    RenderedEmail,
+    assemble_email_manifest,
+    cid_to_data_uri,
+    detect_quoted_ranges,
+)
 from services.preview.sanitizer import sanitize_email_html
 
 logger = logging.getLogger(__name__)
 
-# Quoted-reply / thread-history markers (text bodies). Heuristic only: a
-# wrong match degrades to "section shown expanded", never to data loss.
-_QUOTE_MARKERS = (
-    re.compile(r"^On .{4,200} wrote:\s*$"),
-    re.compile(r"^-{2,}\s*Original Message\s*-{2,}$", re.IGNORECASE),
-    re.compile(r"^-{2,}\s*Forwarded message\s*-{2,}$", re.IGNORECASE),
-)
-
-
-@dataclass(frozen=True)
-class RenderedEmail:
-    """Renderer output consumed by the render orchestrator."""
-
-    # artifact_id -> (relative filename, content type, bytes)
-    artifacts: dict[str, tuple[str, str, bytes]]
-    # The manifest "email" section.
-    email_manifest: dict[str, Any]
+# Re-exported for backward compatibility with existing imports/tests.
+__all__ = ["RenderedEmail", "detect_quoted_ranges", "render_email"]
 
 
 @dataclass
@@ -121,39 +110,6 @@ def _body_text(msg: EmailMessage, subtype: str) -> str | None:
     return content if isinstance(content, str) else None
 
 
-def detect_quoted_ranges(text: str) -> list[dict[str, Any]]:
-    """Line ranges of quoted replies / thread history in a text body."""
-    lines = text.splitlines()
-    ranges: list[dict[str, Any]] = []
-    marker_start: int | None = None
-    marker_label = ""
-    for idx, line in enumerate(lines):
-        stripped = line.strip()
-        if marker_start is None:
-            for pattern in _QUOTE_MARKERS:
-                if pattern.match(stripped):
-                    marker_start = idx
-                    marker_label = stripped[:120]
-                    break
-    if marker_start is not None:
-        ranges.append(
-            {"start_line": marker_start, "end_line": len(lines) - 1, "label": marker_label}
-        )
-        return ranges
-
-    # No marker: a trailing run of ">"-prefixed lines is still a quote block.
-    quote_start: int | None = None
-    for idx, line in enumerate(lines):
-        if line.lstrip().startswith(">"):
-            if quote_start is None:
-                quote_start = idx
-        elif line.strip():
-            quote_start = None
-    if quote_start is not None and quote_start < len(lines) - 1:
-        ranges.append({"start_line": quote_start, "end_line": len(lines) - 1, "label": ""})
-    return ranges
-
-
 def _attachment_entries(msg: EmailMessage) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     for part in msg.iter_attachments():
@@ -188,8 +144,7 @@ def render_email(
         msg, max_images=max_inline_images, max_image_bytes=max_inline_image_bytes
     )
     cid_data_uris = {
-        cid: f"data:{img.content_type};base64,{base64.b64encode(img.data).decode('ascii')}"
-        for cid, img in inline_images.items()
+        cid: cid_to_data_uri(img.content_type, img.data) for cid, img in inline_images.items()
     }
 
     artifacts: dict[str, tuple[str, str, bytes]] = {}
@@ -209,19 +164,19 @@ def render_email(
         artifacts["body-text"] = ("body.txt", "text/plain", text_body.encode("utf-8"))
         quoted_ranges = detect_quoted_ranges(text_body)
 
-    email_manifest: dict[str, Any] = {
-        "subject": _decoded_str(msg.get("Subject")) or None,
-        "from": _decoded_str(msg.get("From")) or None,
-        "to": _address_list(msg, "To"),
-        "cc": _address_list(msg, "Cc"),
-        "bcc": _address_list(msg, "Bcc"),
-        "date": _header_date_iso(msg),
-        "message_id": _decoded_str(msg.get("Message-ID")) or None,
-        "in_reply_to": _decoded_str(msg.get("In-Reply-To")) or None,
-        "has_html_body": "body-html" in artifacts,
-        "has_text_body": "body-text" in artifacts,
-        "quoted_ranges": quoted_ranges,
-        "inline_images": [
+    email_manifest = assemble_email_manifest(
+        subject=_decoded_str(msg.get("Subject")),
+        from_=_decoded_str(msg.get("From")),
+        to=_address_list(msg, "To"),
+        cc=_address_list(msg, "Cc"),
+        bcc=_address_list(msg, "Bcc"),
+        date=_header_date_iso(msg),
+        message_id=_decoded_str(msg.get("Message-ID")),
+        in_reply_to=_decoded_str(msg.get("In-Reply-To")),
+        has_html_body="body-html" in artifacts,
+        has_text_body="body-text" in artifacts,
+        quoted_ranges=quoted_ranges,
+        inline_images=[
             {
                 "content_id": img.content_id,
                 "content_type": img.content_type,
@@ -230,9 +185,9 @@ def render_email(
             }
             for img in inline_images.values()
         ],
-        "skipped_inline_images": skipped_images,
-        "blocked_remote_images": blocked_remote_images,
-        "embedded_inline_images": embedded_count,
-        "attachments": _attachment_entries(msg),
-    }
+        skipped_inline_images=skipped_images,
+        blocked_remote_images=blocked_remote_images,
+        embedded_inline_images=embedded_count,
+        attachments=_attachment_entries(msg),
+    )
     return RenderedEmail(artifacts=artifacts, email_manifest=email_manifest)
