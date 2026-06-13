@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertTriangle, CheckCircle, XCircle, HelpCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { useT } from "@/i18n/index";
-import type { EvidenceHealthSummary } from "@/api/admin";
+import type { EvidenceHealthSummary } from "@/api/health";
 import styles from "./HealthIndicator.module.css";
 
 interface HealthIndicatorProps {
