@@ -64,6 +64,20 @@ def _chunk_dict_key(chunk: dict[str, Any]) -> str:
     return str(cid) if cid else chunk["document_id"]
 
 
+def _citation_key(c: dict[str, Any]) -> tuple[str, ...]:
+    """Stable deduplication key for a citation chunk dict.
+
+    Prefers chunk_id (already lane-discriminating via the -orig-/-tr- suffix)
+    over the legacy (document_id, chunk_index) pair.  The fallback extends the
+    legacy key with text_lane so that original and translated chunks sharing the
+    same document_id + chunk_index are kept as distinct citations.
+    """
+    chunk_id = c.get("chunk_id")
+    if chunk_id:
+        return (str(chunk_id),)
+    return (c["document_id"], str(c.get("chunk_index")), c.get("text_lane") or "original")
+
+
 def build_qdrant_filter(
     scope: ChatScope,
     group_ids: list[str],
@@ -270,14 +284,14 @@ class RagService:
                 time.perf_counter() - phase_start
             )
 
-        # 5. Build citations (deduplicated by document_id + chunk_index)
-        seen_citations: set[tuple[str, int | None]] = set()
+        # 5. Build citations (deduplicated by chunk identity and text lane)
+        seen_citation_keys: set[tuple[str, ...]] = set()
         citations = []
         for c in chunks:
-            citation_key = (c["document_id"], c.get("chunk_index"))
-            if citation_key in seen_citations:
+            ck = _citation_key(c)
+            if ck in seen_citation_keys:
                 continue
-            seen_citations.add(citation_key)
+            seen_citation_keys.add(ck)
             citations.append(
                 Citation(
                     document_id=c["document_id"],
@@ -285,6 +299,8 @@ class RagService:
                     chunk_text=c["chunk_text"],
                     score=c["score"],
                     chunk_index=c.get("chunk_index"),
+                    chunk_id=c.get("chunk_id"),
+                    text_lane=c.get("text_lane"),
                     source_id=c.get("source_id"),
                     page_number=c.get("page_number"),
                     section_heading=c.get("section_heading"),
@@ -306,6 +322,7 @@ class RagService:
                     page_number=c.get("page_number"),
                     section_heading=c.get("section_heading"),
                     language=c.get("language") or c.get("source_language"),
+                    text_lane=c.get("text_lane"),
                     backends=[BackendAttributionTrace(**b) for b in c.get("_backends", [])],
                     fused_rank=c.get("_fused_rank"),
                     fused_score=c.get("_fused_score"),
@@ -446,13 +463,13 @@ class RagService:
 
         answer_text = "".join(answer_text_parts)
 
-        seen_citations: set[tuple[str, int | None]] = set()
+        seen_citation_keys_stream: set[tuple[str, ...]] = set()
         citations = []
         for c in chunks:
-            citation_key = (c["document_id"], c.get("chunk_index"))
-            if citation_key in seen_citations:
+            ck = _citation_key(c)
+            if ck in seen_citation_keys_stream:
                 continue
-            seen_citations.add(citation_key)
+            seen_citation_keys_stream.add(ck)
             citations.append(
                 {
                     "citation_id": str(uuid4()),
@@ -461,6 +478,8 @@ class RagService:
                     "chunk_text": c["chunk_text"],
                     "score": c["score"],
                     "chunk_index": c.get("chunk_index"),
+                    "chunk_id": c.get("chunk_id"),
+                    "text_lane": c.get("text_lane"),
                     "source_id": c.get("source_id"),
                     "page_number": c.get("page_number"),
                     "section_heading": c.get("section_heading"),
@@ -482,6 +501,7 @@ class RagService:
                     page_number=c.get("page_number"),
                     section_heading=c.get("section_heading"),
                     language=c.get("language") or c.get("source_language"),
+                    text_lane=c.get("text_lane"),
                     backends=[BackendAttributionTrace(**b) for b in c.get("_backends", [])],
                     fused_rank=c.get("_fused_rank"),
                     fused_score=c.get("_fused_score"),
