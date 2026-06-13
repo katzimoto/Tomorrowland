@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **Qdrant language and text-lane metadata preserved in vector payloads (#763)**:
+  `QdrantSearchClient.upsert_chunks` now copies `language`, `text_lane`, and
+  `translated_from` fields from the embed pipeline into Qdrant payloads.
+  Previously the `language` field emitted by `EmbedConsumer` was silently
+  dropped. All three search methods (`search`, `search_filtered`,
+  `list_chunks_by_document`) now surface these fields in `SearchResult.metadata`.
+  `RagService` propagates them into citation `language`/`translated_from` fields
+  and retrieval trace candidates. Downstream systems (Evidence Inspector v2,
+  RetrievalTrace v2, citation anchors) can now reliably distinguish original
+  from translated vector hits. Legacy payloads without these fields degrade
+  gracefully — no reindex required.
 - **Uniform filter enforcement across BM25 and vector results (#759)**:
   `/search` filters (source, MIME type, language, tags, file extension, date
   range) now apply equally to Meilisearch/BM25 and Qdrant/vector candidates.

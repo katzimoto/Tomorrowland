@@ -150,6 +150,45 @@ rg "is_latest\|include_older_versions\|version_family" src/services/search src/s
 pytest tests/unit/test_*search*.py tests/integration/test_*search*.py -q -k version
 ```
 
+## Qdrant language and text-lane metadata (#763)
+
+Added 2026-06-13.
+
+### Problem
+
+`EmbedConsumer` emitted `language` in each chunk dict but `QdrantSearchClient.upsert_chunks` did not copy it into the Qdrant payload, so the field was silently dropped. There was also no `text_lane` field to distinguish original from translated chunks.
+
+### Canonical payload fields
+
+| Field | Values | Meaning |
+|---|---|---|
+| `language` | BCP-47 string | Language of the chunk text itself |
+| `source_language` | BCP-47 string | Legacy field; still preserved for backward compat |
+| `text_lane` | `"original"` \| `"translated"` | Which lane the chunk came from |
+| `translated_from` | BCP-47 string | Source language for translated chunks |
+
+`language` is the canonical field. `source_language` is a legacy alias; both are preserved in payloads and surfaced in search result metadata.
+
+### Pipeline flow
+
+1. **`EmbedConsumer`** (`src/services/pipeline/embed_worker.py`) — sets `language`, `text_lane="original"` for original chunks; `language`, `text_lane="translated"`, `translated_from=doc.source_language` for translated chunks.
+2. **`QdrantSearchClient.upsert_chunks`** (`src/services/search/qdrant.py`) — copies `language`, `text_lane`, `translated_from` into the Qdrant payload alongside existing fields.
+3. **`search` / `search_filtered` / `list_chunks_by_document`** — surfaces all three new fields in `SearchResult.metadata`.
+4. **`RagService._retrieve_chunks`** (`src/services/rag/service.py`) — copies `language`, `text_lane`, `translated_from` into chunk dicts; `Citation.language` and `Citation.translated_from` are populated from these fields.
+
+### Backward compatibility
+
+- Legacy payloads without `language`/`text_lane`/`translated_from` degrade gracefully — missing keys are simply absent from `SearchResult.metadata`.
+- No reindex is required; old chunks without these fields remain searchable.
+
+### Tests
+
+```bash
+pytest tests/unit/test_search_qdrant.py -q -k "language or text_lane or translated"
+```
+
+---
+
 ## Retrieval trace v2 — backend attribution and rerank deltas (#751)
 
 Added 2026-06-13. Extends the RAG retrieval trace with decision-level diagnostic fields.

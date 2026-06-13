@@ -104,6 +104,12 @@ class QdrantSearchClient:
                 payload["title"] = chunk["title"]
             if "source_language" in chunk:
                 payload["source_language"] = chunk["source_language"]
+            if "language" in chunk:
+                payload["language"] = chunk["language"]
+            if "text_lane" in chunk:
+                payload["text_lane"] = chunk["text_lane"]
+            if "translated_from" in chunk:
+                payload["translated_from"] = chunk["translated_from"]
             if "content_en" in chunk:
                 payload["content_en"] = chunk["content_en"]
             if "content_he" in chunk:
@@ -185,7 +191,10 @@ class QdrantSearchClient:
             for extra_key in (
                 "source_id",
                 "title",
+                "language",
                 "source_language",
+                "text_lane",
+                "translated_from",
                 "chunk_index",
                 "page_number",
                 "section_heading",
@@ -234,7 +243,10 @@ class QdrantSearchClient:
             for extra_key in (
                 "source_id",
                 "title",
+                "language",
                 "source_language",
+                "text_lane",
+                "translated_from",
                 "chunk_index",
                 "page_number",
                 "section_heading",
@@ -310,7 +322,10 @@ class QdrantSearchClient:
             for extra_key in (
                 "source_id",
                 "title",
+                "language",
                 "source_language",
+                "text_lane",
+                "translated_from",
                 "chunk_index",
                 "page_number",
                 "section_heading",

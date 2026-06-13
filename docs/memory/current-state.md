@@ -3,6 +3,19 @@
 Canonical shared memory for active project state. Keep this file compact and factual.
 <!-- Compaction cutoff: 2026-06-01. Older Done entries archived to docs/memory/archive/current-state.md. -->
 
+## 2026-06-13 — #763 Qdrant language/text-lane metadata preservation (done)
+
+Status: Done
+Source: Claude Code session, branch `claude/qdrant-metadata-preservation-0mzzjv`
+
+`EmbedConsumer` was setting `language` on chunk dicts but `QdrantSearchClient.upsert_chunks` wasn't copying it into Qdrant payloads. No `text_lane` field existed to distinguish original vs translated hits.
+
+**Fixed:** `qdrant.py` now passes through `language`, `text_lane`, `translated_from`. `embed_worker.py` now emits `text_lane="original"/"translated"` and `translated_from=doc.source_language` on translated chunks. All three search methods surface these fields in `SearchResult.metadata`. `RagService` populates `Citation.language`, `Citation.translated_from`, and `RetrievalCandidateTrace.language` from the new fields. 9 new unit tests added; 1922 unit tests pass. `docs/context/search.md` + `CHANGELOG.md` updated. Backward compatible — no reindex required.
+
+**Canonical field names:** `language` (language of chunk text), `text_lane` ("original"|"translated"), `translated_from` (source language for translated chunks), `source_language` (legacy alias, preserved).
+
+---
+
 ## 2026-06-12 — #539 preview architecture re-planned mail+Office-first (plan ready for implementation)
 
 Status: Active
