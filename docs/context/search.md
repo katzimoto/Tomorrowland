@@ -229,3 +229,43 @@ Added 2026-06-12. Surfaces when either Qdrant or Meilisearch is unavailable duri
 pytest tests/unit/test_rag_trace.py -q -k degraded
 npx vitest run src/features/search/
 ```
+
+---
+
+## RAG embedding failure degradation (#760)
+
+Added 2026-06-13. `_retrieve_chunks` degrades gracefully when `encoder.encode()` fails.
+
+### Problem
+
+Previously, `_retrieve_chunks` called `encoder.encode(question)` before launching any backend
+futures. An embedding failure (provider down, model missing, timeout) exited the whole retrieval
+path — no BM25 or metadata results were returned.
+
+### New behavior
+
+1. `encoder.encode()` is wrapped in try/except at the top of `_retrieve_chunks`, after
+   `degraded_backends` is initialized.
+2. If encoding fails: `retrieval_degraded = True`, a `DegradedBackendInfo(backend="query_embedding",
+   error_category=<safe category>)` entry is added, and `_embedding_failed = True`.
+3. The Qdrant/vector future is **skipped** when `_embedding_failed` (no submission to the pool).
+4. BM25, metadata, and translated-text futures run normally — they do not need the query vector.
+5. Reranking still runs on surviving lexical candidates if a reranker is configured.
+6. Raw exception text is never stored; only the safe category string (`timeout`,
+   `connection_error`, `unexpected_error`) appears in `DegradedBackendInfo.error_category`.
+
+### DegradedBackendInfo backend values
+
+| Value | Meaning |
+|---|---|
+| `vector` | Qdrant future failed (vector DB unreachable) |
+| `bm25` | Meilisearch BM25 future failed |
+| `metadata` | Meilisearch metadata-search future failed |
+| `translated` | Meilisearch translated-text future failed |
+| `query_embedding` | `encoder.encode()` raised before any backend was called |
+
+### Tests
+
+```bash
+pytest tests/unit/test_rag_trace.py -q -k embedding_failure
+```
