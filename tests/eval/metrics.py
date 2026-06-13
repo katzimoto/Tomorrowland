@@ -7,7 +7,13 @@ from dataclasses import dataclass, field
 
 @dataclass
 class RetrievalMetrics:
-    """Aggregate metrics for a batch of retrieval eval cases."""
+    """Aggregate metrics for a batch of retrieval eval cases.
+
+    ``recall_at_k``, ``mrr``, and ``citation_accuracy`` measure document-level
+    retrieval quality.  ``anchor_accuracy`` measures citation-anchor quality
+    separately — a citation can point to the right document but the wrong
+    page/sheet, so the two metrics may diverge.
+    """
 
     recall_at_k: dict[int, float] = field(default_factory=dict)
     mrr: float = 0.0
@@ -17,6 +23,10 @@ class RetrievalMetrics:
     latency_ms_by_stage: dict[str, list[float]] = field(default_factory=dict)
     total_cases: int = 0
     passed_cases: int = 0
+    # Anchor metrics (v2, #754)
+    anchor_accuracy: float = 1.0
+    anchor_cases_total: int = 0
+    anchor_cases_passed: int = 0
 
     @property
     def pass_rate(self) -> float:
@@ -61,6 +71,25 @@ def citation_accuracy(
     return len(overlap) / len(gold_ids)
 
 
+def citation_anchor_success(
+    cited_page_numbers: list[int],
+    cited_section_headings: list[str],
+    expected_page: int | None,
+    expected_sheet_name: str | None,
+) -> bool | None:
+    """Check whether any citation anchor matches the expected target.
+
+    Returns ``True`` or ``False`` when an expectation is set, or ``None``
+    when neither ``expected_page`` nor ``expected_sheet_name`` is specified
+    (no anchor assertion for this case).
+    """
+    if expected_page is not None:
+        return expected_page in cited_page_numbers
+    if expected_sheet_name is not None:
+        return expected_sheet_name in cited_section_headings
+    return None
+
+
 def aggregate_metrics(case_results: list[dict]) -> RetrievalMetrics:
     """Compute aggregate metrics from a list of per-case result dicts.
 
@@ -73,6 +102,7 @@ def aggregate_metrics(case_results: list[dict]) -> RetrievalMetrics:
         unauthorized_docs_cited: list[str]
         latency_by_stage: dict[str, float]
         passed: bool
+        anchor_matched: bool | None  (optional, v2)
     """
     metrics = RetrievalMetrics(total_cases=len(case_results))
     ks = [1, 3, 5, 10]
@@ -83,6 +113,8 @@ def aggregate_metrics(case_results: list[dict]) -> RetrievalMetrics:
     no_answer_correct = 0
     no_answer_cases = 0
     latency_accumulator: dict[str, list[float]] = {}
+    anchor_total = 0
+    anchor_passed = 0
 
     for case in case_results:
         retrieved = case.get("retrieved_ids", [])
@@ -109,6 +141,12 @@ def aggregate_metrics(case_results: list[dict]) -> RetrievalMetrics:
         if case.get("passed"):
             metrics.passed_cases += 1
 
+        anchor_matched = case.get("anchor_matched")
+        if anchor_matched is not None:
+            anchor_total += 1
+            if anchor_matched:
+                anchor_passed += 1
+
     n = len(case_results) or 1
     c = citation_cases or 1
     na = no_answer_cases or 1
@@ -118,5 +156,8 @@ def aggregate_metrics(case_results: list[dict]) -> RetrievalMetrics:
     metrics.citation_accuracy = citation_acc_sum / c
     metrics.no_answer_accuracy = no_answer_correct / na
     metrics.latency_ms_by_stage = latency_accumulator
+    metrics.anchor_cases_total = anchor_total
+    metrics.anchor_cases_passed = anchor_passed
+    metrics.anchor_accuracy = anchor_passed / anchor_total if anchor_total else 1.0
 
     return metrics

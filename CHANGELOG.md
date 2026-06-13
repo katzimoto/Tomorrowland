@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Eval suite v2 — layout-aware and preview-anchor regression cases (#754)**:
+  expands the offline eval suite from 8 to 21 fixture cases across 12 categories.
+  New categories cover: `layout_aware` (parent/child heading context, multi-column
+  PDF, sibling layout blocks), `preview_anchor` (PDF page anchor, email body
+  anchor, XLSX sheet anchor, missing-metadata fallback), `translation_anchor`
+  (English and Hebrew questions against translated retrieval branches), and
+  `malicious` (prompt-injection and sensitive-content no-answer edge cases).
+  Fixtures gain optional `expected_anchor_kind`, `expected_page`, and
+  `expected_sheet_name` fields; the harness evaluates anchor matching as a
+  hard failure when expected values are set and records observed
+  `cited_page_numbers`, `cited_section_headings`, `cited_languages`,
+  `cited_translated_from`, trace v2 fields (`trace_version`,
+  `retrieval_degraded`, `reranker_dropped_count`, `scope_filtered_count`,
+  `dedup_count`), and `layout_expansion_applied` in every result record.
+  `RetrievalMetrics` gains `anchor_accuracy`, `anchor_cases_total`, and
+  `anchor_cases_passed` to distinguish document-level recall from
+  citation-anchor quality. Nightly artifact JSON is updated to include anchor
+  metrics for the Quality Lab (#714). 28 unit tests cover all metric functions.
 - **Citation anchors for rendered artifacts (#752)**:
   defines the `CitationPreviewAnchor` interface that connects a RAG citation to
   an exact, format-aware preview target.  `buildCitationAnchor()` converts a

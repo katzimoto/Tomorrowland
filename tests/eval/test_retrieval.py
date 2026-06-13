@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 
 from tests.eval.fixtures import EVAL_CASES
-from tests.eval.metrics import aggregate_metrics
+from tests.eval.metrics import aggregate_metrics, citation_anchor_success
 
 
 def _rag_service() -> Any:
@@ -119,10 +119,50 @@ def test_retrieval_case(
         for stage in trace.stages:
             latency_by_stage[stage.stage] = stage.timing_ms
 
+    # ── Trace v2 fields ──────────────────────────────────────────────
+    trace_version = trace.trace_version if trace else None
+    retrieval_degraded = trace.retrieval_degraded if trace else False
+    reranker_enabled = trace.reranker_enabled if trace else False
+    reranker_dropped_count = trace.reranker_dropped_count if trace else 0
+    scope_filtered_count = trace.scope_filtered_count if trace else 0
+    dedup_count = trace.dedup_count if trace else 0
+
+    layout_expansion_applied = any(
+        "layout" in (s.stage or "").lower() or "parent" in (s.description or "").lower()
+        for s in (trace.stages if trace else [])
+    )
+
+    # ── Citation anchor fields ────────────────────────────────────────
+    cited_page_numbers: list[int] = [
+        c.page_number for c in result.citations if c.page_number is not None
+    ]
+    cited_section_headings: list[str] = [
+        c.section_heading for c in result.citations if c.section_heading
+    ]
+    cited_languages: list[str] = [
+        c.language for c in result.citations if c.language
+    ]
+    cited_translated_from: list[str] = [
+        c.translated_from for c in result.citations if c.translated_from
+    ]
+
+    # Anchor matching (hard fail only when expected_page/expected_sheet_name is set).
+    expected_page: int | None = case.get("expected_page")
+    expected_sheet_name: str | None = case.get("expected_sheet_name")
+    anchor_matched = citation_anchor_success(
+        cited_page_numbers,
+        cited_section_headings,
+        expected_page,
+        expected_sheet_name,
+    )
+
+    # ── Pass/fail logic ───────────────────────────────────────────────
     passed = True
     if expected_no_answer and has_answer:
         passed = False
     if gold_ids and not (gold_ids & set(retrieved_ids)):
+        passed = False
+    if anchor_matched is False:
         passed = False
 
     case_result = {
@@ -131,6 +171,7 @@ def test_retrieval_case(
         "eval_config": eval_config,
         "question": case["question"],
         "language": case.get("language", "en"),
+        "tags": case.get("tags", []),
         "gold_ids": list(gold_ids),
         "retrieved_ids": retrieved_ids,
         "cited_ids": cited_ids,
@@ -139,7 +180,23 @@ def test_retrieval_case(
         "unauthorized_docs_cited": [],
         "latency_total_ms": elapsed_ms,
         "latency_by_stage": latency_by_stage,
-        "reranker_enabled": trace.reranker_enabled if trace else False,
+        # v2 trace fields
+        "trace_version": trace_version,
+        "reranker_enabled": reranker_enabled,
+        "retrieval_degraded": retrieval_degraded,
+        "reranker_dropped_count": reranker_dropped_count,
+        "scope_filtered_count": scope_filtered_count,
+        "dedup_count": dedup_count,
+        "layout_expansion_applied": layout_expansion_applied,
+        # citation anchor fields
+        "expected_anchor_kind": case.get("expected_anchor_kind"),
+        "cited_page_numbers": cited_page_numbers,
+        "cited_section_headings": cited_section_headings,
+        "cited_languages": cited_languages,
+        "cited_translated_from": cited_translated_from,
+        "anchor_matched": anchor_matched,
+        "table_context_required": case.get("table_context_required", False),
+        # summary
         "passed": passed,
         "answer_excerpt": result.answer[:200],
     }
@@ -152,7 +209,8 @@ def test_retrieval_case(
             f"expected_no_answer={expected_no_answer}, "
             f"has_answer={has_answer}, "
             f"gold_ids={gold_ids}, "
-            f"retrieved={retrieved_ids[:5]}"
+            f"retrieved={retrieved_ids[:5]}, "
+            f"anchor_matched={anchor_matched}"
         )
 
 
@@ -172,6 +230,10 @@ def test_aggregate_metrics(eval_results_collector: list[dict]) -> None:
         "citation_accuracy": metrics.citation_accuracy,
         "no_answer_accuracy": metrics.no_answer_accuracy,
         "unauthorized_leakage_count": metrics.unauthorized_leakage_count,
+        # v2 anchor metrics
+        "anchor_accuracy": metrics.anchor_accuracy,
+        "anchor_cases_total": metrics.anchor_cases_total,
+        "anchor_cases_passed": metrics.anchor_cases_passed,
     }
     print("\n\n=== Eval Aggregate Metrics ===")
     print(json.dumps(report, indent=2))
