@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Qdrant collection dimension alignment (#758)**: `/search` fallback
+  `QdrantSearchClient` construction now passes `dimension=encoder.dimension`
+  instead of the hard-wired default (384). When `app.state.qdrant_client` is
+  absent, the client now targets the same collection the embed worker writes to,
+  ensuring correct vector retrieval for all embedding providers (Ollama,
+  OpenAI-compatible, local).
+
 ### Added
 - **Eval suite v2 — layout-aware and preview-anchor regression cases (#754)**:
   expands the offline eval suite from 8 to 21 fixture cases across 12 categories.

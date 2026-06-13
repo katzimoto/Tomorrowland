@@ -96,7 +96,8 @@ def search(
         )
         query_vector = None
     qdrant_client = http_request.app.state.qdrant_client or QdrantSearchClient(
-        url=_settings.qdrant_url
+        url=_settings.qdrant_url,
+        dimension=encoder.dimension,
     )
 
     meili_filters = _map_filters(request.filters)
