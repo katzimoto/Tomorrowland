@@ -654,3 +654,203 @@ def test_search_empty_extra_conditions_list_no_change() -> None:
     assert query_filter is not None
     condition_keys = [c.key for c in query_filter.must]
     assert condition_keys == ["group_id"]
+
+
+# ── Language / text-lane metadata preservation (#763) ────────────────────────
+
+
+def test_upsert_preserves_language_field() -> None:
+    """language field passed in a chunk dict must be stored in the Qdrant payload."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    client._client = mock_qdrant
+
+    chunk = {**_MINIMAL_CHUNK, "language": "he"}
+    client.upsert_chunks([chunk])
+
+    payload = mock_qdrant.upsert.call_args.kwargs["points"][0].payload
+    assert payload["language"] == "he"
+
+
+def test_upsert_preserves_text_lane_original() -> None:
+    """text_lane='original' must be stored in the Qdrant payload."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    client._client = mock_qdrant
+
+    chunk = {**_MINIMAL_CHUNK, "text_lane": "original"}
+    client.upsert_chunks([chunk])
+
+    payload = mock_qdrant.upsert.call_args.kwargs["points"][0].payload
+    assert payload["text_lane"] == "original"
+
+
+def test_upsert_preserves_text_lane_translated() -> None:
+    """text_lane='translated' must be stored in the Qdrant payload."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    client._client = mock_qdrant
+
+    chunk = {**_MINIMAL_CHUNK, "text_lane": "translated"}
+    client.upsert_chunks([chunk])
+
+    payload = mock_qdrant.upsert.call_args.kwargs["points"][0].payload
+    assert payload["text_lane"] == "translated"
+
+
+def test_upsert_preserves_translated_from() -> None:
+    """translated_from must be stored when present (source language of a translation)."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    client._client = mock_qdrant
+
+    chunk = {**_MINIMAL_CHUNK, "language": "en", "text_lane": "translated", "translated_from": "he"}
+    client.upsert_chunks([chunk])
+
+    payload = mock_qdrant.upsert.call_args.kwargs["points"][0].payload
+    assert payload["translated_from"] == "he"
+    assert payload["language"] == "en"
+    assert payload["text_lane"] == "translated"
+
+
+def test_upsert_omits_language_text_lane_when_absent() -> None:
+    """Chunks without language/text_lane must not add those keys to the payload."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    client._client = mock_qdrant
+
+    client.upsert_chunks([_MINIMAL_CHUNK])
+
+    payload = mock_qdrant.upsert.call_args.kwargs["points"][0].payload
+    assert "language" not in payload
+    assert "text_lane" not in payload
+    assert "translated_from" not in payload
+
+
+def test_search_result_includes_language_and_text_lane() -> None:
+    """language and text_lane stored in Qdrant payload must appear in SearchResult.metadata."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.query_points.return_value.points = [
+        MagicMock(
+            id="doc-1-0",
+            score=0.9,
+            payload={
+                "document_id": "doc-1",
+                "chunk_id": "doc-1-orig-0",
+                "chunk_index": 0,
+                "text": "original text",
+                "language": "he",
+                "text_lane": "original",
+            },
+        ),
+    ]
+    client._client = mock_qdrant
+
+    results = client.search(vector=[0.1] * 384, group_ids=["g1"])
+
+    assert results[0].metadata is not None
+    assert results[0].metadata["language"] == "he"
+    assert results[0].metadata["text_lane"] == "original"
+
+
+def test_search_result_includes_translated_from() -> None:
+    """translated_from in Qdrant payload must surface in SearchResult.metadata."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.query_points.return_value.points = [
+        MagicMock(
+            id="doc-1-tr-0",
+            score=0.88,
+            payload={
+                "document_id": "doc-1",
+                "chunk_id": "doc-1-tr-0",
+                "chunk_index": 0,
+                "text": "translated text",
+                "language": "en",
+                "text_lane": "translated",
+                "translated_from": "he",
+            },
+        ),
+    ]
+    client._client = mock_qdrant
+
+    results = client.search(vector=[0.1] * 384, group_ids=["g1"])
+
+    assert results[0].metadata is not None
+    assert results[0].metadata["language"] == "en"
+    assert results[0].metadata["text_lane"] == "translated"
+    assert results[0].metadata["translated_from"] == "he"
+
+
+def test_translated_hit_distinguishable_from_original() -> None:
+    """Search must return both original and translated hits with distinct text_lane values."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.query_points.return_value.points = [
+        MagicMock(
+            id="doc-1-orig-0",
+            score=0.95,
+            payload={
+                "document_id": "doc-1",
+                "chunk_id": "doc-1-orig-0",
+                "chunk_index": 0,
+                "text": "original text in Hebrew",
+                "language": "he",
+                "text_lane": "original",
+            },
+        ),
+        MagicMock(
+            id="doc-1-tr-0",
+            score=0.90,
+            payload={
+                "document_id": "doc-1",
+                "chunk_id": "doc-1-tr-0",
+                "chunk_index": 0,
+                "text": "translated text in English",
+                "language": "en",
+                "text_lane": "translated",
+                "translated_from": "he",
+            },
+        ),
+    ]
+    client._client = mock_qdrant
+
+    results = client.search(vector=[0.1] * 384, group_ids=["g1"])
+
+    lanes = {(r.metadata or {}).get("text_lane") for r in results}
+    assert "original" in lanes
+    assert "translated" in lanes
+
+    orig = next(r for r in results if (r.metadata or {}).get("text_lane") == "original")
+    trans = next(r for r in results if (r.metadata or {}).get("text_lane") == "translated")
+    assert orig.metadata["language"] == "he"
+    assert trans.metadata["language"] == "en"
+    assert trans.metadata["translated_from"] == "he"
+
+
+def test_search_missing_language_fields_degrade_gracefully() -> None:
+    """Legacy payloads without language/text_lane must not break search or raise."""
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.query_points.return_value.points = [
+        MagicMock(
+            id="old-doc-0",
+            score=0.80,
+            payload={
+                "document_id": "old-doc",
+                "chunk_id": "old-doc-0",
+                "chunk_index": 0,
+                "text": "legacy chunk with no language metadata",
+            },
+        ),
+    ]
+    client._client = mock_qdrant
+
+    results = client.search(vector=[0.1] * 384, group_ids=["g1"])
+
+    assert len(results) == 1
+    assert results[0].metadata is not None
+    assert "language" not in results[0].metadata
+    assert "text_lane" not in results[0].metadata
+    assert "translated_from" not in results[0].metadata

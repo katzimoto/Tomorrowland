@@ -79,6 +79,7 @@ class EmbedConsumer(BaseConsumer):
                 {
                     "lang": doc.source_language,
                     "suffix": "orig",
+                    "text_lane": "original",
                     "idx": idx,
                     "page_number": loc.get("page_number"),
                     "section_heading": loc.get("section_heading"),
@@ -101,6 +102,8 @@ class EmbedConsumer(BaseConsumer):
                     {
                         "lang": doc.target_language,
                         "suffix": "tr",
+                        "text_lane": "translated",
+                        "source_lang": doc.source_language,
                         "idx": idx,
                         "page_number": None,
                         "section_heading": None,
@@ -124,6 +127,9 @@ class EmbedConsumer(BaseConsumer):
                 entry["title"] = doc.title
             if meta["lang"]:
                 entry["language"] = meta["lang"]
+            entry["text_lane"] = meta["text_lane"]
+            if meta.get("source_lang"):
+                entry["translated_from"] = meta["source_lang"]
             if meta.get("page_number") is not None:
                 entry["page_number"] = meta["page_number"]
             if meta.get("section_heading") is not None:

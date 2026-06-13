@@ -288,8 +288,8 @@ class RagService:
                     source_id=c.get("source_id"),
                     page_number=c.get("page_number"),
                     section_heading=c.get("section_heading"),
-                    language=c.get("source_language"),
-                    translated_from=None,
+                    language=c.get("language") or c.get("source_language"),
+                    translated_from=c.get("translated_from"),
                 )
             )
 
@@ -305,7 +305,7 @@ class RagService:
                     doc_title=c.get("doc_title"),
                     page_number=c.get("page_number"),
                     section_heading=c.get("section_heading"),
-                    language=c.get("source_language"),
+                    language=c.get("language") or c.get("source_language"),
                     backends=[BackendAttributionTrace(**b) for b in c.get("_backends", [])],
                     fused_rank=c.get("_fused_rank"),
                     fused_score=c.get("_fused_score"),
@@ -464,8 +464,8 @@ class RagService:
                     "source_id": c.get("source_id"),
                     "page_number": c.get("page_number"),
                     "section_heading": c.get("section_heading"),
-                    "language": c.get("source_language"),
-                    "translated_from": None,
+                    "language": c.get("language") or c.get("source_language"),
+                    "translated_from": c.get("translated_from"),
                 }
             )
 
@@ -481,7 +481,7 @@ class RagService:
                     doc_title=c.get("doc_title"),
                     page_number=c.get("page_number"),
                     section_heading=c.get("section_heading"),
-                    language=c.get("source_language"),
+                    language=c.get("language") or c.get("source_language"),
                     backends=[BackendAttributionTrace(**b) for b in c.get("_backends", [])],
                     fused_rank=c.get("_fused_rank"),
                     fused_score=c.get("_fused_score"),
@@ -834,7 +834,10 @@ class RagService:
                     "score": r.score,
                     "doc_title": title_cache.get(r.document_id),
                     "source_id": (r.metadata or {}).get("source_id"),
+                    "language": (r.metadata or {}).get("language"),
                     "source_language": (r.metadata or {}).get("source_language"),
+                    "text_lane": (r.metadata or {}).get("text_lane"),
+                    "translated_from": (r.metadata or {}).get("translated_from"),
                     "page_number": (r.metadata or {}).get("page_number"),
                     "section_heading": (r.metadata or {}).get("section_heading"),
                     # v2 attribution
