@@ -43,6 +43,11 @@ class SearchResultItem(BaseModel):
 class SearchResponse(BaseModel):
     results: list[SearchResultItem]
     total: int
+    total_is_approximate: bool = False
+    candidate_count: int = 0
+    returned_count: int = 0
+    offset: int = 0
+    limit: int = 0
     query: str = ""
     facets: dict[str, dict[str, int]] = Field(default_factory=dict)
     reranker_applied: bool = False

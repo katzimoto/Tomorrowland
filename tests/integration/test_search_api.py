@@ -28,8 +28,12 @@ TEST_JWT_SECRET = "x" * 32
 
 
 class _FakeMeiliProvider:
-    def __init__(self, engine: Engine) -> None:
+    def __init__(self, engine: Engine, estimated_total: int | None = None) -> None:
         self._engine = engine
+        # When set, simulate Meilisearch reporting more estimated hits than the
+        # candidate window returned (corpus exceeds top_k).  Otherwise ``total``
+        # mirrors the number of returned rows (window held every match).
+        self._estimated_total = estimated_total
 
     def search(self, query: DocumentSearchQuery, user: object) -> SearchResults:
         # The real Meilisearch provider enforces document ACLs via a permission
@@ -67,11 +71,12 @@ class _FakeMeiliProvider:
         results = [
             SearchResult(document_id=str(to_uuid(row[0])), score=1.0, title=row[1]) for row in rows
         ]
-        return SearchResults(results=results, facets={})
+        total = self._estimated_total if self._estimated_total is not None else len(results)
+        return SearchResults(results=results, facets={}, total=total)
 
 
-def _meili(engine: Engine) -> _FakeMeiliProvider:
-    return _FakeMeiliProvider(engine)
+def _meili(engine: Engine, estimated_total: int | None = None) -> _FakeMeiliProvider:
+    return _FakeMeiliProvider(engine, estimated_total=estimated_total)
 
 
 def _admin_token(client: TestClient) -> str:
@@ -1046,3 +1051,277 @@ def test_search_reranker_applied_false_when_reranker_raises(
     assert data["reranker_applied"] is False
     # Results still returned despite reranker failure
     assert len(data["results"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Pagination semantics (#762)
+# ---------------------------------------------------------------------------
+
+
+def test_search_pagination_bm25_only_total_is_exact(
+    migrated_engine: Engine,
+) -> None:
+    """BM25-only (no vector results) returns total_is_approximate=False."""
+    _setup_users(migrated_engine)
+
+    source_id_1, doc_id_1 = _create_source_with_doc(migrated_engine, "users", "Alpha Doc")
+    source_id_2, doc_id_2 = _create_source_with_doc(migrated_engine, "users", "Beta Doc")
+    source_id_3, doc_id_3 = _create_source_with_doc(migrated_engine, "users", "Gamma Doc")
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = []
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET, app_env="dev"),
+            qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.post(
+        "/search",
+        json={"query": "doc", "page": 1, "page_size": 2},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["results"]) == 2
+    assert data["total"] == 3
+    assert data["total_is_approximate"] is False
+    assert data["candidate_count"] == 3
+    assert data["returned_count"] == 2
+    assert data["offset"] == 0
+    assert data["limit"] == 2
+
+
+def test_search_pagination_bm25_only_approximate_when_window_truncated(
+    migrated_engine: Engine,
+) -> None:
+    """BM25-only is approximate when the corpus has more matches than the window.
+
+    When Meilisearch reports ``estimatedTotalHits`` larger than the candidate
+    window it returned, the merged total is a capped candidate count, not the
+    true corpus total — so ``total_is_approximate`` must be True even with no
+    vector results.
+    """
+    _setup_users(migrated_engine)
+
+    _create_source_with_doc(migrated_engine, "users", "Alpha Doc")
+    _create_source_with_doc(migrated_engine, "users", "Beta Doc")
+    _create_source_with_doc(migrated_engine, "users", "Gamma Doc")
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = []
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET, app_env="dev"),
+            qdrant_client=mock_qdrant,
+            # Corpus reports 99 estimated hits while the window returns only 3.
+            meili_provider=_meili(migrated_engine, estimated_total=99),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.post(
+        "/search",
+        json={"query": "doc", "page": 1, "page_size": 2},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # total is still the paginable (post-filter) count, not the corpus estimate.
+    assert data["total"] == 3
+    # ...but flagged approximate because the window truncated the corpus.
+    assert data["total_is_approximate"] is True
+
+
+def test_search_pagination_hybrid_total_is_approximate(
+    migrated_engine: Engine,
+) -> None:
+    """Hybrid search returns total_is_approximate=True."""
+    _setup_users(migrated_engine)
+
+    _, doc_id_1 = _create_source_with_doc(migrated_engine, "users", "Hybrid One")
+    _, doc_id_2 = _create_source_with_doc(migrated_engine, "users", "Hybrid Two")
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = [
+        SearchResult(document_id=doc_id_1, score=0.9, chunk_text="hybrid chunk"),
+        SearchResult(document_id=doc_id_2, score=0.8, chunk_text="hybrid chunk"),
+    ]
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET, app_env="dev"),
+            qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.post(
+        "/search",
+        json={"query": "hybrid", "page": 1, "page_size": 10},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_is_approximate"] is True
+
+
+def test_search_pagination_page2_works(
+    migrated_engine: Engine,
+) -> None:
+    """Page 2 returns remaining results correctly."""
+    _setup_users(migrated_engine)
+
+    doc_ids: list[str] = []
+    for i in range(5):
+        _, did = _create_source_with_doc(migrated_engine, "users", f"Page Doc {i}")
+        doc_ids.append(did)
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = [
+        SearchResult(document_id=did, score=0.9, chunk_text="page chunk") for did in doc_ids
+    ]
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET, app_env="dev"),
+            qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
+        )
+    )
+    token = _user_token(client)
+
+    # Page 1: page_size=2 → 2 results
+    r1 = client.post(
+        "/search",
+        json={"query": "page", "page": 1, "page_size": 2},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r1.status_code == 200
+    p1 = r1.json()
+    assert len(p1["results"]) == 2
+    assert p1["total"] == 5
+    assert p1["offset"] == 0
+    assert p1["returned_count"] == 2
+
+    # Page 2: page_size=2 → next 2 results
+    r2 = client.post(
+        "/search",
+        json={"query": "page", "page": 2, "page_size": 2},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r2.status_code == 200
+    p2 = r2.json()
+    assert len(p2["results"]) == 2
+    assert p2["total"] == 5
+    assert p2["offset"] == 2
+    assert p2["returned_count"] == 2
+
+    # Page 3: page_size=2 → last result
+    r3 = client.post(
+        "/search",
+        json={"query": "page", "page": 3, "page_size": 2},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r3.status_code == 200
+    p3 = r3.json()
+    assert len(p3["results"]) == 1
+    assert p3["total"] == 5
+    assert p3["offset"] == 4
+    assert p3["returned_count"] == 1
+
+    # Page 4: beyond available → empty
+    r4 = client.post(
+        "/search",
+        json={"query": "page", "page": 4, "page_size": 2},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r4.status_code == 200
+    p4 = r4.json()
+    assert len(p4["results"]) == 0
+    assert p4["total"] == 5
+    assert p4["returned_count"] == 0
+
+
+def test_search_pagination_empty_results(
+    migrated_engine: Engine,
+) -> None:
+    """Empty results return sane pagination metadata."""
+    _setup_users(migrated_engine)
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = []
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET, app_env="dev"),
+            qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.post(
+        "/search",
+        json={"query": "zzzzz_nothing", "page": 1, "page_size": 20},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["results"]) == 0
+    assert data["total"] == 0
+    assert data["total_is_approximate"] is False
+    assert data["candidate_count"] == 0
+    assert data["returned_count"] == 0
+    assert data["offset"] == 0
+    assert data["limit"] == 20
+
+
+def test_search_pagination_degraded_backend_still_returns_metadata(
+    migrated_engine: Engine,
+) -> None:
+    """When the vector backend fails, response still has valid pagination metadata."""
+    _setup_users(migrated_engine)
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.side_effect = RuntimeError("Qdrant unavailable")
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET, app_env="dev"),
+            qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.post(
+        "/search",
+        json={"query": "anything", "page": 1, "page_size": 20},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["retrieval_degraded"] is True
+    assert data["total"] >= 0
+    assert data["candidate_count"] >= 0
+    assert "offset" in data
+    assert "limit" in data
+    assert "returned_count" in data

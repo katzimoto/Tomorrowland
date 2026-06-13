@@ -17,3 +17,8 @@ class SearchResult:
 class SearchResults:
     results: list[SearchResult]
     facets: dict[str, dict[str, int]]
+    # Estimated total hits reported by the backend (e.g. Meilisearch
+    # ``estimatedTotalHits``).  May exceed ``len(results)`` when the corpus has
+    # more matches than the requested candidate window.  ``0`` when the backend
+    # does not report an estimate.
+    total: int = 0

@@ -41,6 +41,11 @@ export interface SearchResult {
 export interface SearchResponse {
   results: SearchResult[];
   total: number;
+  total_is_approximate?: boolean;
+  candidate_count?: number;
+  returned_count?: number;
+  offset?: number;
+  limit?: number;
   query: string;
   facets?: Record<string, Record<string, number>>;
   reranker_applied?: boolean;

@@ -63,7 +63,7 @@ class _FakeMeiliProvider:
         results = [
             SearchResult(document_id=str(to_uuid(r[0])), score=1.0, title=r[1]) for r in rows
         ]
-        return SearchResults(results=results, facets=self._facets)
+        return SearchResults(results=results, facets=self._facets, total=len(results))
 
 
 class _StubLLM(LLMProvider):
@@ -1188,7 +1188,7 @@ def test_source_filter_valid_source_narrows_within_allowed_corpus(
             results = [
                 SearchResult(document_id=str(to_uuid(r[0])), score=1.0, title=r[1]) for r in rows
             ]
-            return SearchResults(results=results, facets={})
+            return SearchResults(results=results, facets={}, total=len(results))
 
     client = _build_app(
         migrated_engine,

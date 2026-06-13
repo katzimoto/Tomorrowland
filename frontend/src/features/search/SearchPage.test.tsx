@@ -75,6 +75,11 @@ beforeEach(() => {
   vi.mocked(searchApi.search).mockResolvedValue({
     results: mockResults,
     total: 2,
+    total_is_approximate: true,
+    candidate_count: 2,
+    returned_count: 2,
+    offset: 0,
+    limit: 20,
     query: "vendor risk",
   });
   vi.mocked(getPreview).mockClear();
@@ -179,14 +184,14 @@ describe("SearchPage", () => {
     });
   });
 
-  it("shows result count", async () => {
+  it("shows approximate result count for hybrid search", async () => {
     render(<SearchPage />);
     fireEvent.change(screen.getByRole("searchbox"), {
       target: { value: "vendor risk" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => {
-      expect(screen.getByText("2 results")).toBeInTheDocument();
+      expect(screen.getByText("~2 results")).toBeInTheDocument();
     });
   });
 
@@ -195,6 +200,11 @@ describe("SearchPage", () => {
       .mockResolvedValueOnce({
         results: mockResults,
         total: 1,
+        total_is_approximate: true,
+        candidate_count: 1,
+        returned_count: 2,
+        offset: 0,
+        limit: 20,
         query: "vendor risk",
       })
       .mockImplementationOnce(() => new Promise(() => undefined));
@@ -347,6 +357,11 @@ describe("SearchPage", () => {
       .mockResolvedValueOnce({
         results: mockResults,
         total: 1,
+        total_is_approximate: true,
+        candidate_count: 1,
+        returned_count: 2,
+        offset: 0,
+        limit: 20,
         query: "vendor risk",
       })
       .mockImplementationOnce(() => new Promise(() => undefined));
@@ -468,6 +483,11 @@ describe("SearchPage", () => {
     vi.mocked(searchApi.search).mockResolvedValueOnce({
       results: [],
       total: 0,
+      total_is_approximate: false,
+      candidate_count: 0,
+      returned_count: 0,
+      offset: 0,
+      limit: 20,
       query: "zzzzzz",
     });
     render(<SearchPage />);

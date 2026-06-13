@@ -197,8 +197,10 @@ export function SearchPage() {
 
   const results = infiniteData?.pages.flatMap((p) => p.results) ?? [];
   const facets = infiniteData?.pages[0]?.facets ?? {};
-  const totalCount = infiniteData?.pages[0]?.total ?? 0;
-  const retrievalDegraded = infiniteData?.pages[0]?.retrieval_degraded ?? false;
+  const firstPage = infiniteData?.pages[0];
+  const totalCount = firstPage?.total ?? 0;
+  const totalIsApproximate = firstPage?.total_is_approximate ?? false;
+  const retrievalDegraded = firstPage?.retrieval_degraded ?? false;
 
   useEffect(() => {
     if (isError) {
@@ -384,7 +386,7 @@ export function SearchPage() {
         ) : (
           totalCount > 0 && (
             <span className={styles.resultCount}>
-              {t.search.resultCount(totalCount)}
+              {totalIsApproximate ? t.search.resultApproximate(totalCount) : t.search.resultCount(totalCount)}
             </span>
           )
         )}
