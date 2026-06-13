@@ -84,11 +84,9 @@ jobs:
         image: qdrant/qdrant:v1.10.1
         ports:
           - 6333:6333
-        options: >-
-          --health-cmd="wget -qO- http://localhost:6333/livez || exit 1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+        # No Docker health check: qdrant/qdrant:v1.10.1 (debian-slim) ships
+        # without wget/curl so any --health-cmd fails inside the container.
+        # The "Wait for Qdrant" step below polls from the Ubuntu runner instead.
     steps:
       - uses: actions/checkout@v4
 
@@ -103,6 +101,9 @@ jobs:
 
       - name: Install dev dependencies
         run: uv pip install --system -e ".[dev]"
+
+      - name: Wait for Qdrant
+        run: timeout 60 bash -c 'until curl -sf http://localhost:6333/; do sleep 2; done'
 
       - name: Run eval suite
         env:
