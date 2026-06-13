@@ -135,6 +135,13 @@ def create_app(
         app.state.meili_provider = MeilisearchSearchProvider(
             meili_client, metrics=app.state.metrics, is_shadow=is_meiliseach_shadow
         )
+        # Block startup until Meilisearch has applied index settings so a
+        # cold-start request never hits an index that is missing
+        # filterableAttributes (notably ``allowed_group_ids`` for ACL).
+        # Failures bubble up and prevent the app from accepting traffic.
+        app.state.meili_provider.wait_for_initial_settings(
+            timeout_seconds=app.state.settings.meili_settings_readiness_timeout_s,
+        )
     else:
         app.state.meili_provider = None
 

@@ -25,6 +25,7 @@ from services.connectors.sync_models import (
     SyncRunUpdate,
     TombstoneCreate,
 )
+from services.search.meili_filter import build_eq
 from shared.db import db_uuid, to_uuid
 
 logger = logging.getLogger(__name__)
@@ -685,7 +686,7 @@ def build_index_cleanup(
                 )
         if meili_provider is not None:
             try:
-                meili_provider.delete_documents_by_filter(f"document_id = {doc_id_str}")
+                meili_provider.delete_documents_by_filter(build_eq("document_id", doc_id_str))
             except Exception:
                 logger.warning(
                     "meili delete failed for %s",

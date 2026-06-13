@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from services.auth.models import TokenPayload, UserIdentity
+from services.search.meili_filter import build_in
 
 
 def build_permission_filter(user: TokenPayload | UserIdentity) -> str:
@@ -10,12 +11,15 @@ def build_permission_filter(user: TokenPayload | UserIdentity) -> str:
 
     Cases:
     - Admin: empty string (no filter — admin sees all documents).
-    - Non-admin with groups: ``allowed_group_ids IN ["id1", ...] AND is_admin_only = false``.
-    - Non-admin with no groups: caller must check ``needs_acl_short_circuit``
-      first and return empty results without querying Meilisearch.
+    - Non-admin with groups: ``allowed_group_ids IN ["id1", ...] AND
+      is_admin_only = false``.
+    - Non-admin with no groups: caller must check
+      :func:`needs_acl_short_circuit` first and return empty results without
+      querying Meilisearch.
 
-    Only UUID values from the signed JWT are interpolated — no user-supplied
-    strings reach the filter expression.
+    Only UUID values from the signed JWT are interpolated — they are routed
+    through :func:`build_in` so a malformed token can never break the filter
+    expression. No user-supplied strings reach this code path.
     """
     if user.is_admin:
         return ""
@@ -23,33 +27,34 @@ def build_permission_filter(user: TokenPayload | UserIdentity) -> str:
     group_ids = [str(g) for g in user.groups]
     if not group_ids:
         # Callers must check needs_acl_short_circuit() before calling this.
-        # Returning a placeholder that matches nothing avoids an empty IN [] syntax error.
+        # Returning a placeholder that matches nothing avoids an empty IN []
+        # syntax error.
         return "is_admin_only = true AND is_admin_only = false"
 
-    quoted = ", ".join(f'"{gid}"' for gid in group_ids)
-    return f"allowed_group_ids IN [{quoted}] AND is_admin_only = false"
+    in_clause = build_in("allowed_group_ids", group_ids)
+    return f"{in_clause} AND is_admin_only = false"
 
 
 def build_permission_filter_for_ids(group_ids: list[str], *, is_admin: bool) -> str:
     """Build a Meilisearch ACL filter from pre-resolved effective group IDs.
 
-    Use this instead of build_permission_filter() when the caller has already
-    expanded transitive group membership (nested-groups support).
+    Use this instead of :func:`build_permission_filter` when the caller has
+    already expanded transitive group membership (nested-groups support).
     """
     if is_admin:
         return ""
     if not group_ids:
         return "is_admin_only = true AND is_admin_only = false"
-    quoted = ", ".join(f'"{gid}"' for gid in group_ids)
-    return f"allowed_group_ids IN [{quoted}] AND is_admin_only = false"
+    in_clause = build_in("allowed_group_ids", group_ids)
+    return f"{in_clause} AND is_admin_only = false"
 
 
 def needs_acl_short_circuit(user: TokenPayload | UserIdentity) -> bool:
     """Return True when the query should be short-circuited to empty results.
 
     A non-admin user with no group memberships can never access any document
-    (all documents require at least one group). Skipping the Meilisearch query
-    is cheaper than sending a filter that matches nothing.
+    (all documents require at least one group). Skipping the Meilisearch
+    query is cheaper than sending a filter that matches nothing.
     """
     return not user.is_admin and not user.groups
 

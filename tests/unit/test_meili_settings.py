@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 from services.search.meili_settings import (
     INDEX_NAME,
     INDEX_SETTINGS,
@@ -37,6 +39,43 @@ def test_settings_version_is_positive_int() -> None:
 
 def test_settings_contains_all_required_keys() -> None:
     assert set(INDEX_SETTINGS.keys()) >= _REQUIRED_TOP_LEVEL_KEYS
+
+
+def test_apply_index_settings_creates_index_then_applies_settings() -> None:
+    """apply_index_settings must call create_index (when missing) AND
+    update_settings, and return both task UIDs.
+    """
+    from services.search.meili_settings import apply_index_settings
+
+    client = MagicMock()
+    client.get_indexes.return_value = {"results": []}  # no pre-existing index
+    create_task = MagicMock(task_uid=11)
+    settings_task = MagicMock(task_uid=22)
+    client.create_index.return_value = create_task
+    client.index.return_value.update_settings.return_value = settings_task
+
+    uids = apply_index_settings(client, shadow=False)
+
+    client.create_index.assert_called_once()
+    client.index.assert_called_with("documents")
+    assert uids == ["11", "22"]
+
+
+def test_apply_index_settings_targets_shadow_index() -> None:
+    from services.search.meili_settings import apply_index_settings
+
+    client = MagicMock()
+    client.get_indexes.return_value = {"results": []}
+    create_task = MagicMock(task_uid=33)
+    settings_task = MagicMock(task_uid=44)
+    client.create_index.return_value = create_task
+    client.index.return_value.update_settings.return_value = settings_task
+
+    apply_index_settings(client, shadow=True)
+
+    client.create_index.assert_called_once()
+    # First positional arg is the shadow index name
+    assert client.index.call_args[0][0] == "documents_shadow"
 
 
 def test_distinct_attribute_is_document_id() -> None:

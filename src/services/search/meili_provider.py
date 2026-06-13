@@ -9,6 +9,12 @@ from services.search.meili_acl import (
     compose_filters,
     needs_acl_short_circuit,
 )
+from services.search.meili_filter import (
+    build_eq,
+    build_gte,
+    build_in,
+    build_lte,
+)
 from services.search.meili_settings import (
     INDEX_NAME,
     SHADOW_INDEX_NAME,
@@ -39,23 +45,33 @@ _SORT_MAP: dict[str, list[str]] = {
 # Maximum chunks fetched when scanning a document's existing index records.
 _MAX_CHUNK_SCAN = 10_000
 
+# Default timeout for waiting on the initial settings task. Settings are
+# usually ready in well under a second; this leaves generous headroom for
+# large filterable-attribute lists on a cold start.
+_DEFAULT_SETTINGS_READINESS_TIMEOUT_S = 30.0
+
 
 def _build_user_filter(filters: DocumentSearchFilters) -> str:
-    """Translate DocumentSearchFilters into a Meilisearch filter expression."""
+    """Translate DocumentSearchFilters into a Meilisearch filter expression.
+
+    All string values are routed through :mod:`services.search.meili_filter`
+    so a value containing a quote, backslash, or control character cannot
+    corrupt the resulting predicate.
+    """
     parts: list[str] = []
 
     def _in(field: str, values: list[str]) -> None:
-        if values:
-            quoted = ", ".join(f'"{v}"' for v in values)
-            parts.append(f"{field} IN [{quoted}]")
+        clause = build_in(field, values)
+        if clause:
+            parts.append(clause)
 
     def _gte(field: str, value: str | None) -> None:
         if value:
-            parts.append(f'{field} >= "{value}"')
+            parts.append(build_gte(field, value))
 
     def _lte(field: str, value: str | None) -> None:
         if value:
-            parts.append(f'{field} <= "{value}"')
+            parts.append(build_lte(field, value))
 
     _in("metadata.source", filters.source)
     _in("metadata.document_type", filters.document_type)
@@ -137,15 +153,52 @@ class MeilisearchSearchProvider:
     ) -> None:
         self._client = client
         self._metrics = metrics
-        self.apply_settings(shadow=is_shadow)
+        # Capture the task UIDs created by apply_index_settings so the caller
+        # can later block on them via :meth:`wait_for_initial_settings`. The
+        # actual apply is fire-and-forget in __init__ to keep construction
+        # cheap and side-effect free for tests that only need a wired-up
+        # provider.
+        self._initial_settings_task_uids: list[str] = list(
+            apply_index_settings(self._client, shadow=is_shadow)
+        )
 
     # ------------------------------------------------------------------
     # Index management
     # ------------------------------------------------------------------
 
     def apply_settings(self, *, shadow: bool = False) -> None:
-        """Apply index settings idempotently. Safe to call on every startup."""
-        apply_index_settings(self._client, shadow=shadow)
+        """Apply index settings idempotently. Safe to call on every startup.
+
+        The created task UIDs are appended to the provider's tracked list so
+        a later call to :meth:`wait_for_initial_settings` waits on them too.
+        """
+        self._initial_settings_task_uids.extend(apply_index_settings(self._client, shadow=shadow))
+
+    def wait_for_initial_settings(
+        self,
+        *,
+        timeout_seconds: float = _DEFAULT_SETTINGS_READINESS_TIMEOUT_S,
+        poll_interval_seconds: float = 0.5,
+    ) -> None:
+        """Block until every tracked initial settings task has finished.
+
+        Synchronous polling — intended to be called once at app startup,
+        right after the provider is constructed, so cold-start search
+        requests never hit an index that is missing the required
+        ``filterableAttributes`` (notably ``allowed_group_ids``).
+
+        Raises ``TimeoutError`` if any task does not complete within
+        ``timeout_seconds`` and ``RuntimeError`` if Meilisearch reports a
+        task failure (e.g. an invalid settings payload).
+        """
+        # Snapshot so concurrent settings calls don't mutate the iteration set.
+        pending = list(self._initial_settings_task_uids)
+        for task_uid in pending:
+            self.wait_for_task(
+                task_uid,
+                timeout_seconds=timeout_seconds,
+                poll_interval_seconds=poll_interval_seconds,
+            )
 
     def swap_indexes(self) -> str:
         """Atomically swap the live and shadow indexes.
@@ -221,7 +274,7 @@ class MeilisearchSearchProvider:
         Mirrors QdrantSearchClient.delete_by_doc_id.
         """
         task = self._client.index(INDEX_NAME).delete_documents_by_filter(
-            f'document_id = "{document_id}"'
+            build_eq("document_id", document_id)
         )
         return str(task.task_uid)
 
@@ -244,7 +297,7 @@ class MeilisearchSearchProvider:
         result = self._client.index(name).search(
             "",
             {
-                "filter": f'document_id = "{document_id}"',
+                "filter": build_eq("document_id", document_id),
                 "limit": _MAX_CHUNK_SCAN,
                 "attributesToRetrieve": ["id", "content_checksum"],
             },
@@ -363,8 +416,7 @@ class MeilisearchSearchProvider:
         if filter_expr:
             params["filter"] = filter_expr
         if source_ids:
-            quoted = ", ".join(f'"{s}"' for s in source_ids)
-            source_clause = f"metadata.source_id IN [{quoted}]"
+            source_clause = build_in("metadata.source_id", source_ids)
             params["filter"] = compose_filters(params.get("filter", ""), source_clause)
 
         raw = self._client.index(INDEX_NAME).search(text, params)
@@ -398,8 +450,8 @@ class MeilisearchSearchProvider:
         """Search metadata fields (tags, entities, summary, document_type).
 
         Uses ``attributes_to_search_on`` to restrict the query to metadata
-        fields. Requires Meilisearch 1.8+. Fused into the main result set
-        with a lower weight than the full-text BM25 search.
+        fields. Requires Meilisearch 1.8+. Fused into the result set with a
+        lower weight than the full-text BM25 search.
 
         When *source_ids* is provided, only chunks whose ``metadata.source_id``
         matches one of the given source IDs are returned.
@@ -429,8 +481,7 @@ class MeilisearchSearchProvider:
         if filter_expr:
             params["filter"] = filter_expr
         if source_ids:
-            quoted = ", ".join(f'"{s}"' for s in source_ids)
-            source_clause = f"metadata.source_id IN [{quoted}]"
+            source_clause = build_in("metadata.source_id", source_ids)
             params["filter"] = compose_filters(params.get("filter", ""), source_clause)
 
         raw = self._client.index(INDEX_NAME).search(text, params)
@@ -464,7 +515,7 @@ class MeilisearchSearchProvider:
         """Search translated text fields (content_en, content_he).
 
         Uses ``attributes_to_search_on`` to restrict the query to translated
-        content fields. Fused into the main result set with a lower weight.
+        content fields. Fused into the result set with a lower weight.
 
         When *source_ids* is provided, only chunks whose ``metadata.source_id``
         matches one of the given source IDs are returned.
@@ -486,8 +537,7 @@ class MeilisearchSearchProvider:
         if filter_expr:
             params["filter"] = filter_expr
         if source_ids:
-            quoted = ", ".join(f'"{s}"' for s in source_ids)
-            source_clause = f"metadata.source_id IN [{quoted}]"
+            source_clause = build_in("metadata.source_id", source_ids)
             params["filter"] = compose_filters(params.get("filter", ""), source_clause)
 
         raw = self._client.index(INDEX_NAME).search(text, params)
