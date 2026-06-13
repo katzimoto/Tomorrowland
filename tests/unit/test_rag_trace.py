@@ -12,6 +12,7 @@ These tests verify that:
 
 from __future__ import annotations
 
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -406,6 +407,51 @@ def test_answer_stream_trace_no_results_path() -> None:
 # ---------------------------------------------------------------------------
 # RAG parallel retrieval (ThreadPoolExecutor)
 # ---------------------------------------------------------------------------
+
+
+def test_rag_hanging_qdrant_does_not_block_pool_shutdown() -> None:
+    """When Qdrant hangs, pool.shutdown(wait=False) must not block the retrieval.
+
+    Before the fix, the ThreadPoolExecutor context manager called
+    shutdown(wait=True) on exit, which blocked until all threads completed.
+    Now shutdown(wait=False, cancel_futures=True) is used so a stuck backend
+    cannot block the caller beyond the future.result(timeout) window.
+    """
+    import threading
+    from concurrent.futures import Future as _RealFuture
+
+    _hang_event = threading.Event()
+
+    def _hanging_search(**kwargs):
+        _hang_event.wait()  # Never set — hangs forever
+        return []
+
+    # Meili returns results, Qdrant hangs
+    chunks = [_make_chunk()]
+    srv = _make_service(chunks=None, meili_chunks=chunks)
+    srv._qdrant.search.side_effect = _hanging_search
+    srv._qdrant.search_filtered.side_effect = _hanging_search
+
+    # Patch future.result to use a very short timeout so the test completes
+    # quickly instead of waiting the default 30s.
+    _real_result = _RealFuture.result
+
+    def _short_timeout_result(self, timeout=None):
+        if timeout is not None:
+            timeout = 0.5
+        return _real_result(self, timeout=timeout)
+
+    t0 = time.perf_counter()
+    with patch.object(_RealFuture, "result", _short_timeout_result):
+        result = srv.answer("test question", group_ids=["group-1"])
+    elapsed = time.perf_counter() - t0
+
+    # BM25 results must be returned despite hanging Qdrant
+    assert result.retrieval_trace is not None
+    assert len(result.retrieval_trace.candidates) >= 1
+    assert result.retrieval_trace.retrieval_degraded is True
+    # Must NOT block beyond the short timeout + small overhead
+    assert elapsed < 5.0, f"Retrieval took {elapsed:.2f}s — pool shutdown may be blocking!"
 
 
 def test_rag_retrieval_uses_thread_pool_executor() -> None:

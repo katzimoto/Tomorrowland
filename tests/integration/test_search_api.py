@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -777,8 +779,6 @@ def test_search_backends_execute_in_parallel(
         SearchResult(document_id=document_id, score=0.9, chunk_text="chunk")
     ]
 
-    from concurrent.futures import ThreadPoolExecutor
-
     real_submit = ThreadPoolExecutor.submit
     submit_calls: list[str] = []
 
@@ -813,6 +813,71 @@ def test_search_backends_execute_in_parallel(
     assert "_run_qdrant" in submit_calls, (
         f"_run_qdrant not submitted to ThreadPoolExecutor: {submit_calls}"
     )
+
+
+def test_search_hanging_qdrant_does_not_block_shutdown(
+    migrated_engine: Engine,
+) -> None:
+    """When Qdrant hangs, pool.shutdown(wait=False) must not block the request.
+
+    Before the fix, the ThreadPoolExecutor context manager called
+    shutdown(wait=True) on exit, which blocked until all threads completed.
+    Now shutdown(wait=False, cancel_futures=True) is used so a stuck backend
+    cannot hold the request open beyond the future.result(timeout) window.
+    """
+    _setup_users(migrated_engine)
+    _, document_id = _create_source_with_doc(migrated_engine, "users", "Hello Doc")
+
+    import threading
+
+    _hang_event = threading.Event()
+
+    def _hanging_search(**kwargs):
+        _hang_event.wait()  # Never set — hangs forever
+        return []
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.side_effect = _hanging_search
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            qdrant_client=mock_qdrant,
+            meili_provider=_meili(migrated_engine),
+        )
+    )
+    token = _user_token(client)
+
+    # Patch future.result to use a very short timeout so the test completes
+    # quickly instead of waiting the default 30s.
+    from concurrent.futures import Future as _RealFuture
+
+    _real_result = _RealFuture.result
+
+    def _short_timeout_result(self, timeout=None):
+        if timeout is not None:
+            timeout = 0.5
+        return _real_result(self, timeout=timeout)
+
+    t0 = time.perf_counter()
+    with patch.object(_RealFuture, "result", _short_timeout_result):
+        response = client.post(
+            "/search",
+            json={"query": "hello", "page": 1, "page_size": 10},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    elapsed = time.perf_counter() - t0
+
+    # Must return BM25 results despite hanging Qdrant
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    assert len(data["results"]) >= 1
+    assert data["retrieval_degraded"] is True
+    # Must NOT block beyond the short timeout + small overhead.  Allow a
+    # generous margin for CI jitter (the pool has a 0.5s result timeout).
+    assert elapsed < 5.0, f"Request took {elapsed:.2f}s — pool shutdown may be blocking!"
 
 
 def test_search_drops_orphaned_qdrant_vector(
