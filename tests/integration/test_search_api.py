@@ -28,8 +28,12 @@ TEST_JWT_SECRET = "x" * 32
 
 
 class _FakeMeiliProvider:
-    def __init__(self, engine: Engine) -> None:
+    def __init__(self, engine: Engine, estimated_total: int | None = None) -> None:
         self._engine = engine
+        # When set, simulate Meilisearch reporting more estimated hits than the
+        # candidate window returned (corpus exceeds top_k).  Otherwise ``total``
+        # mirrors the number of returned rows (window held every match).
+        self._estimated_total = estimated_total
 
     def search(self, query: DocumentSearchQuery, user: object) -> SearchResults:
         # The real Meilisearch provider enforces document ACLs via a permission
@@ -67,11 +71,12 @@ class _FakeMeiliProvider:
         results = [
             SearchResult(document_id=str(to_uuid(row[0])), score=1.0, title=row[1]) for row in rows
         ]
-        return SearchResults(results=results, facets={}, total=len(results))
+        total = self._estimated_total if self._estimated_total is not None else len(results)
+        return SearchResults(results=results, facets={}, total=total)
 
 
-def _meili(engine: Engine) -> _FakeMeiliProvider:
-    return _FakeMeiliProvider(engine)
+def _meili(engine: Engine, estimated_total: int | None = None) -> _FakeMeiliProvider:
+    return _FakeMeiliProvider(engine, estimated_total=estimated_total)
 
 
 def _admin_token(client: TestClient) -> str:
@@ -1093,6 +1098,50 @@ def test_search_pagination_bm25_only_total_is_exact(
     assert data["limit"] == 2
 
 
+def test_search_pagination_bm25_only_approximate_when_window_truncated(
+    migrated_engine: Engine,
+) -> None:
+    """BM25-only is approximate when the corpus has more matches than the window.
+
+    When Meilisearch reports ``estimatedTotalHits`` larger than the candidate
+    window it returned, the merged total is a capped candidate count, not the
+    true corpus total — so ``total_is_approximate`` must be True even with no
+    vector results.
+    """
+    _setup_users(migrated_engine)
+
+    _create_source_with_doc(migrated_engine, "users", "Alpha Doc")
+    _create_source_with_doc(migrated_engine, "users", "Beta Doc")
+    _create_source_with_doc(migrated_engine, "users", "Gamma Doc")
+
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_qdrant.search.return_value = []
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET, app_env="dev"),
+            qdrant_client=mock_qdrant,
+            # Corpus reports 99 estimated hits while the window returns only 3.
+            meili_provider=_meili(migrated_engine, estimated_total=99),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.post(
+        "/search",
+        json={"query": "doc", "page": 1, "page_size": 2},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # total is still the paginable (post-filter) count, not the corpus estimate.
+    assert data["total"] == 3
+    # ...but flagged approximate because the window truncated the corpus.
+    assert data["total_is_approximate"] is True
+
+
 def test_search_pagination_hybrid_total_is_approximate(
     migrated_engine: Engine,
 ) -> None:
@@ -1246,7 +1295,7 @@ def test_search_pagination_empty_results(
 def test_search_pagination_degraded_backend_still_returns_metadata(
     migrated_engine: Engine,
 ) -> None:
-    """When both backends fail, response still has valid pagination metadata."""
+    """When the vector backend fails, response still has valid pagination metadata."""
     _setup_users(migrated_engine)
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)

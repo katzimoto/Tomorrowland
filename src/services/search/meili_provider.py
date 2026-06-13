@@ -392,7 +392,6 @@ class MeilisearchSearchProvider:
             results=results,
             facets=facets,
             total=meili_total,
-            total_is_approximate=False,
         )
 
     def search_rag(
