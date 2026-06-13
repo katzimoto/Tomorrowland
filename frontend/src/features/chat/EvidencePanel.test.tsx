@@ -6,8 +6,12 @@ import type { DocumentChatCitation, RetrievalTrace } from "@/api/chat";
 import * as documentsApi from "@/api/documents";
 import { ApiError } from "@/api/client";
 import * as citationFeedbackApi from "@/api/citationFeedback";
+import * as healthApi from "@/api/health";
 
 vi.mock("@/api/documents");
+vi.mock("@/api/health", () => ({
+  getSourceHealthSummary: vi.fn(),
+}));
 vi.mock("@/api/citationFeedback");
 
 vi.mock("@tanstack/react-router", () => ({
@@ -222,6 +226,37 @@ describe("EvidencePanel tab navigation", () => {
 
     expect(screen.getByRole("tab", { name: "Source" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Score")).toBeInTheDocument();
+  });
+
+  it("shows health indicator in Source tab when source_id is present", () => {
+    vi.mocked(healthApi.getSourceHealthSummary).mockResolvedValue({
+      status: "unknown",
+      severity: null,
+      issue_count: 0,
+      issues: [],
+      latest_check_at: null,
+    });
+    render(
+      <EvidencePanel
+        citation={makeCitation({ source_id: "src-1" })}
+        onClose={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Source" }));
+    expect(screen.getByText("Source health")).toBeInTheDocument();
+  });
+
+  it("does not fetch health summary when source_id is null", () => {
+    render(
+      <EvidencePanel
+        citation={makeCitation({ source_id: null })}
+        onClose={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Source" }));
+    expect(healthApi.getSourceHealthSummary).not.toHaveBeenCalled();
   });
 
   it("clicking Actions tab shows copy and report buttons", () => {

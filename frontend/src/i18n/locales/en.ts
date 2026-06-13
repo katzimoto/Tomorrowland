@@ -273,6 +273,12 @@ export interface Translations {
     evidenceDedupCount: string;
     evidenceScoreThresholdFiltered: string;
     evidenceRerankerDropped: string;
+    evidenceSourceHealth: string;
+    evidenceSourceHealthHealthy: string;
+    evidenceSourceHealthDegraded: string;
+    evidenceSourceHealthFailed: string;
+    evidenceSourceHealthUnknown: string;
+    evidenceSourceHealthNoData: string;
     feedbackTypeCorrect: string;
     feedbackTypeWrongPassage: string;
     feedbackTypeWrongLocation: string;
@@ -813,6 +819,12 @@ export const en: Translations = {
     evidenceDedupCount: "Deduplicated",
     evidenceScoreThresholdFiltered: "Below threshold",
     evidenceRerankerDropped: "Reranker dropped",
+    evidenceSourceHealth: "Source health",
+    evidenceSourceHealthHealthy: "Healthy",
+    evidenceSourceHealthDegraded: "Degraded",
+    evidenceSourceHealthFailed: "Failed",
+    evidenceSourceHealthUnknown: "Unknown",
+    evidenceSourceHealthNoData: "No recent source health check available.",
     feedbackTypeCorrect: "Citation is correct",
     feedbackTypeWrongPassage: "Wrong passage",
     feedbackTypeWrongLocation: "Right document, wrong location",

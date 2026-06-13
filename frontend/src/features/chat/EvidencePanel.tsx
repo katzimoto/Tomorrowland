@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { getPreview } from "@/api/documents";
 import { ApiError } from "@/api/client";
 import type { DocumentChatCitation, RetrievalTrace } from "@/api/chat";
+import { getSourceHealthSummary } from "@/api/health";
 import {
   submitCitationFeedback,
   type CitationFeedbackType,
@@ -12,6 +13,7 @@ import {
 import { useT } from "@/i18n/index";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { PreviewWithHighlight } from "./PreviewWithHighlight";
+import { HealthIndicator } from "./HealthIndicator";
 import styles from "./EvidencePanel.module.css";
 
 type TabId = "evidence" | "source" | "retrieval" | "actions";
@@ -146,6 +148,13 @@ export function EvidencePanel({
   const { data: preview, isLoading, isError, error } = useQuery({
     queryKey: ["evidence-preview", citation.document_id],
     queryFn: () => getPreview(citation.document_id),
+    staleTime: 2 * 60_000,
+  });
+
+  const { data: healthSummary, isLoading: healthLoading } = useQuery({
+    queryKey: ["source-health-summary", citation.source_id],
+    queryFn: () => getSourceHealthSummary(citation.source_id!),
+    enabled: !!citation.source_id,
     staleTime: 2 * 60_000,
   });
 
@@ -290,6 +299,12 @@ export function EvidencePanel({
             {citation.source_id && (
               <MetaRow label={t.chat.evidenceSourceId} value={citation.source_id} />
             )}
+            {citation.source_id && (
+              <HealthIndicator
+                summary={healthSummary}
+                loading={healthLoading}
+              />
+            )}
             {citation.language && (
               <MetaRow label={t.chat.evidenceOriginalLanguage} value={citation.language} />
             )}
@@ -319,6 +334,14 @@ export function EvidencePanel({
                   <span className={styles.traceDegraded}>{t.chat.evidenceRetrievalDegraded}</span>
                 )}
               </div>
+              {citation.source_id && (
+                <div className={styles.metaSection}>
+                  <HealthIndicator
+                    summary={healthSummary}
+                    loading={healthLoading}
+                  />
+                </div>
+              )}
               {retrievalTrace.degraded_backends && retrievalTrace.degraded_backends.length > 0 && (
                 <div className={styles.metaSection}>
                   <h4 className={styles.traceHeading}>{t.chat.evidenceRetrievalDegradedBackends}</h4>
