@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Hybrid search uses Reciprocal Rank Fusion instead of raw score addition (#761)**:
+  `merge_results()` no longer adds weighted raw Meilisearch/BM25 and Qdrant/vector
+  scores — those scales are uncalibrated, so direct addition let one backend
+  dominate by accident of scale. Fusion is now rank-based:
+  `fused = Σ weight_backend / (k + rank_backend)` with `k = 60` (RRF paper
+  default). The existing `search.vector_weight` (0.7) and `search.bm25_weight`
+  (0.3) config values are reused as RRF backend weights, and `RagService` keeps
+  its per-lane weights (BM25+vector, metadata, translated) — so the `/search`,
+  agent-search, and RAG paths all share the same fusion semantics. Effects: a
+  large raw vector score at a low rank can no longer beat a better-ranked BM25
+  hit; a candidate found by both backends is reliably boosted; ordering is
+  deterministic via `(-fused_score, best_individual_rank, document_id,
+  chunk_index, chunk_id)`. **Score-semantics change:** `SearchResult.score` (and
+  the trace-v2 `fused_score`) now carries a small positive RRF score
+  (~0.008–0.03), an ordering signal only — not a backend-native relevance score.
+  Trace attribution (`_backends`, `_fused_rank`, `_fused_score`), citation
+  metadata, and the reranker pass are unchanged; the reranker still receives the
+  fused pre-rerank ordering. `RagService`'s "reciprocal-rank fusion" docstring is
+  now accurate.
+
 ### Fixed
 - **Citation deduplication respects text lane and chunk identity (#764)**:
   RAG citations are now deduplicated by `chunk_id` (which embeds a lane suffix,
