@@ -64,6 +64,12 @@ export function getPreviewManifest(docId: string): Promise<PreviewManifest> {
   return api.get<PreviewManifest>(`/preview/${docId}/manifest`);
 }
 
+/** URL for a binary preview artifact (e.g. an Office document's converted PDF),
+ *  loaded the same way as the original-file download endpoint. */
+export function previewArtifactUrl(docId: string, artifactId: string): string {
+  return `/api/preview/${docId}/artifact/${artifactId}`;
+}
+
 /** Fetch a preview artifact as raw text (HTML/plain body). Auth header is
  *  attached by the API client — an `<iframe src>` cannot, which is why HTML
  *  artifacts are loaded here and rendered via `srcdoc`. */

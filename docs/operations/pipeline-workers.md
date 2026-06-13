@@ -40,6 +40,15 @@ the API mounts `files_data` read-only). A failed render is a **terminal**
 artifact state, not a job failure — the job still succeeds, so a broken file
 never loops through retry/DLQ; an admin re-render is the only retry path.
 
+Unlike the other workers, `preview-worker` runs from its **own image**
+(`docker/preview-worker.Dockerfile` = the backend image plus LibreOffice and
+fonts, `TOMORROWLAND_PREVIEW_WORKER_IMAGE`). LibreOffice converts Office
+documents (DOCX/PPTX/…) to a cached PDF that the pdf.js viewer renders; keeping
+soffice out of the base image means only this one worker carries its size. The
+release build packages this image into the air-gapped split-parts bundle. If
+the image is unavailable, Office documents fall back to their extracted-text
+preview (mail/EML/MSG previews need no LibreOffice and are unaffected).
+
 `intelligence_document` and `alert_document` are **best-effort** stages: if
 the model or alert service is unreachable, the stage is logged and the
 document's ingestion status is unaffected.

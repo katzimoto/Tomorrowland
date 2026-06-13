@@ -20,13 +20,16 @@ const MAX_SCALE = 3.0;
 
 interface PdfViewerProps {
   docId: string;
+  /** Override the PDF URL. Defaults to the original-file download endpoint;
+   *  Office previews pass their converted-PDF preview artifact URL here. */
+  src?: string;
   searchQuery?: string;
   activeSearchIndex?: number;
   onMatchCountChange?: (count: number) => void;
   initialPage?: number;
 }
 
-export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMatchCountChange, initialPage }: PdfViewerProps) {
+export function PdfViewer({ docId, src, searchQuery = "", activeSearchIndex = 0, onMatchCountChange, initialPage }: PdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState(0);
@@ -36,7 +39,7 @@ export function PdfViewer({ docId, searchQuery = "", activeSearchIndex = 0, onMa
   const [error, setError] = useState(false);
   const [perPageText, setPerPageText] = useState<string[]>([]);
 
-  const downloadUrl = `/api/download/${docId}`;
+  const downloadUrl = src ?? `/api/download/${docId}`;
 
   const pdfLoadTimer = useRef<string | null>(null);
   const appliedInitialPageRef = useRef<number | undefined>(undefined);

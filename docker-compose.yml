@@ -589,13 +589,17 @@ services:
   preview-worker:
     build:
       context: .
-      dockerfile: docker/backend.Dockerfile
-    image: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
+      dockerfile: docker/preview-worker.Dockerfile
+      args:
+        TOMORROWLAND_BACKEND_IMAGE: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
+    image: ${TOMORROWLAND_PREVIEW_WORKER_IMAGE:-tomorrowland/preview-worker:airgap}
     command: ["tomorrowland-preview-worker"]
     restart: unless-stopped
-    cpus: ${WORKER_CPUS:-1.00}
-    mem_limit: ${WORKER_MEM_LIMIT:-256m}
-    mem_reservation: ${WORKER_MEM_RESERVATION:-64m}
+    # LibreOffice conversion is heavier than the other workers — give it more
+    # headroom so a large document cannot starve it.
+    cpus: ${PREVIEW_WORKER_CPUS:-2.00}
+    mem_limit: ${PREVIEW_WORKER_MEM_LIMIT:-1024m}
+    mem_reservation: ${PREVIEW_WORKER_MEM_RESERVATION:-256m}
     environment: *app-environment
     depends_on:
       postgres:

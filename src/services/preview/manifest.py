@@ -44,6 +44,14 @@ _OFFICE_SHEETS_MIMES = {
     "application/vnd.oasis.opendocument.spreadsheet",
 }
 
+# DOCX/PPTX (and the legacy/ODF equivalents) convert to PDF via the preview
+# worker's LibreOffice. Spreadsheets are excluded — they render as sheet grids
+# (a later slice), not PDF.
+RENDERED_OFFICE_PDF_MIMES = _OFFICE_DOC_MIMES | _OFFICE_SLIDES_MIMES
+
+# Renderer labels produced by the preview worker (vs. ready-immediate kinds).
+WORKER_RENDERERS = {"email", "libreoffice_pdf"}
+
 # Default polling hint returned while a render job is in flight.
 PENDING_RETRY_AFTER_MS = 1500
 
@@ -66,10 +74,19 @@ def classify_kind(mime_type: str) -> PreviewKind:
     return "text"
 
 
+def worker_renderer(mime_type: str) -> str | None:
+    """Renderer label for a worker-rendered MIME type, or None if not one."""
+    mime = (mime_type or "").lower().split(";")[0].strip()
+    if mime in RENDERED_EMAIL_MIMES:
+        return "email"
+    if mime in RENDERED_OFFICE_PDF_MIMES:
+        return "libreoffice_pdf"
+    return None
+
+
 def renders_via_worker(mime_type: str) -> bool:
     """True when this MIME type produces artifacts via the preview worker."""
-    mime = (mime_type or "").lower().split(";")[0].strip()
-    return mime in RENDERED_EMAIL_MIMES
+    return worker_renderer(mime_type) is not None
 
 
 def immediate_renderer(kind: PreviewKind) -> str:

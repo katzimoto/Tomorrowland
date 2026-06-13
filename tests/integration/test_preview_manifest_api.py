@@ -207,23 +207,31 @@ def test_text_document_manifest_ready_immediately(migrated_engine: Engine, tmp_p
     assert count == 0
 
 
-def test_office_document_reports_text_fallback(migrated_engine: Engine, tmp_path: Path) -> None:
+def test_office_document_enqueues_worker_render(migrated_engine: Engine, tmp_path: Path) -> None:
     _setup_users(migrated_engine)
     files_root = tmp_path / "files"
+    files_root.mkdir()
+    docx = files_root / "doc1.docx"
+    docx.write_bytes(b"fake-docx")
     _source_id, doc_id = _create_doc(
         migrated_engine,
         mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        path=None,
+        path=str(docx),
         external_id="file:doc1",
     )
     client = _client(migrated_engine, files_root)
     auth = {"Authorization": f"Bearer {_token(client, 'user@example.com')}"}
 
     body = client.get(f"/preview/{doc_id}/manifest", headers=auth).json()
-    assert body["status"] == "ready"
+    assert body["status"] == "pending"
     assert body["kind"] == "office_doc"
-    assert body["renderer"] == "text"
-    assert body["office"]["text_fallback"] is True
+    assert body["renderer"] == "libreoffice_pdf"
+
+    with migrated_engine.begin() as connection:
+        count = connection.exec_driver_sql(
+            "SELECT COUNT(*) FROM pipeline_jobs WHERE job_type = 'preview_render'"
+        ).scalar()
+    assert count == 1
 
 
 def test_corrupt_email_fails_terminally(migrated_engine: Engine, tmp_path: Path) -> None:
@@ -420,3 +428,147 @@ def test_msg_manifest_renders_through_worker_path(migrated_engine: Engine, tmp_p
     assert body["status"] == "ready"
     assert body["email"]["subject"] == "Outlook preview"
     assert body["email"]["has_html_body"] is True
+
+
+def _make_pdf_bytes(pages: int) -> bytes:
+    import io as _io
+
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    for _ in range(pages):
+        writer.add_blank_page(width=200, height=200)
+    buf = _io.BytesIO()
+    writer.write(buf)
+    return buf.getvalue()
+
+
+def test_office_docx_manifest_renders_to_pdf(migrated_engine: Engine, tmp_path: Path) -> None:
+    _setup_users(migrated_engine)
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    docx = files_root / "report.docx"
+    docx.write_bytes(b"fake-docx-bytes")
+    _source_id, doc_id = _create_doc(
+        migrated_engine,
+        mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        path=str(docx),
+        external_id="file:report",
+    )
+    client = _client(migrated_engine, files_root)
+    auth = {"Authorization": f"Bearer {_token(client, 'user@example.com')}"}
+
+    first = client.get(f"/preview/{doc_id}/manifest", headers=auth).json()
+    assert first["status"] == "pending"
+    assert first["renderer"] == "libreoffice_pdf"
+    assert first["kind"] == "office_doc"
+
+    pdf_bytes = _make_pdf_bytes(4)
+
+    def _fake_convert(src: Path, out_dir: Path, timeout: float) -> Path:
+        target = out_dir / f"{src.stem}.pdf"
+        target.write_bytes(pdf_bytes)
+        return target
+
+    with (
+        patch("services.preview.office_pdf._convert_to_pdf", side_effect=_fake_convert),
+        migrated_engine.begin() as connection,
+    ):
+        status = render_document_preview(connection, _settings(files_root), UUID(doc_id))
+    assert status == "ready"
+
+    body = client.get(f"/preview/{doc_id}/manifest", headers=auth).json()
+    assert body["status"] == "ready"
+    assert body["renderer"] == "libreoffice_pdf"
+    assert body["office"]["pdf_artifact_id"] == "converted-pdf"
+    assert body["office"]["page_count"] == 4
+    assert body["navigation"]["unit"] == "page"
+    assert body["navigation"]["count"] == 4
+
+    artifact = client.get(f"/preview/{doc_id}/artifact/converted-pdf", headers=auth)
+    assert artifact.status_code == 200
+    assert artifact.headers["content-type"] == "application/pdf"
+    assert artifact.content == pdf_bytes
+
+
+def test_office_pptx_navigation_unit_is_slide(migrated_engine: Engine, tmp_path: Path) -> None:
+    _setup_users(migrated_engine)
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    pptx = files_root / "deck.pptx"
+    pptx.write_bytes(b"fake-pptx")
+    _source_id, doc_id = _create_doc(
+        migrated_engine,
+        mime_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        path=str(pptx),
+        external_id="file:deck",
+    )
+    client = _client(migrated_engine, files_root)
+    auth = {"Authorization": f"Bearer {_token(client, 'user@example.com')}"}
+    client.get(f"/preview/{doc_id}/manifest", headers=auth)
+
+    def _fake_convert(src: Path, out_dir: Path, timeout: float) -> Path:
+        target = out_dir / f"{src.stem}.pdf"
+        target.write_bytes(_make_pdf_bytes(2))
+        return target
+
+    with (
+        patch("services.preview.office_pdf._convert_to_pdf", side_effect=_fake_convert),
+        migrated_engine.begin() as connection,
+    ):
+        render_document_preview(connection, _settings(files_root), UUID(doc_id))
+
+    body = client.get(f"/preview/{doc_id}/manifest", headers=auth).json()
+    assert body["kind"] == "office_slides"
+    assert body["navigation"]["unit"] == "slide"
+
+
+def test_office_render_fails_when_soffice_unavailable(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    _setup_users(migrated_engine)
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    docx = files_root / "x.docx"
+    docx.write_bytes(b"fake")
+    _source_id, doc_id = _create_doc(
+        migrated_engine,
+        mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        path=str(docx),
+        external_id="file:x",
+    )
+    client = _client(migrated_engine, files_root)
+    auth = {"Authorization": f"Bearer {_token(client, 'user@example.com')}"}
+    client.get(f"/preview/{doc_id}/manifest", headers=auth)
+
+    with (
+        patch("services.preview.office_pdf.subprocess.run", side_effect=FileNotFoundError()),
+        migrated_engine.begin() as connection,
+    ):
+        status = render_document_preview(connection, _settings(files_root), UUID(doc_id))
+    assert status == "failed"
+
+    body = client.get(f"/preview/{doc_id}/manifest", headers=auth).json()
+    assert body["status"] == "failed"
+    assert body["error"]["category"] == "renderer_unavailable"
+
+
+def test_office_sheet_still_text_fallback_in_s4(migrated_engine: Engine, tmp_path: Path) -> None:
+    _setup_users(migrated_engine)
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    xlsx = files_root / "data.xlsx"
+    xlsx.write_bytes(b"fake-xlsx")
+    _source_id, doc_id = _create_doc(
+        migrated_engine,
+        mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        path=str(xlsx),
+        external_id="file:data",
+    )
+    client = _client(migrated_engine, files_root)
+    auth = {"Authorization": f"Bearer {_token(client, 'user@example.com')}"}
+    body = client.get(f"/preview/{doc_id}/manifest", headers=auth).json()
+    # Spreadsheets are not rendered via the worker yet (sheet grids come later).
+    assert body["status"] == "ready"
+    assert body["kind"] == "office_sheets"
+    assert body["renderer"] == "text"

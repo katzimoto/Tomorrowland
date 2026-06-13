@@ -120,6 +120,9 @@ class Settings(BaseSettings):
     preview_max_file_bytes: int = Field(default=104_857_600, ge=1)
     preview_max_inline_images: int = Field(default=50, ge=0)
     preview_max_inline_image_bytes: int = Field(default=5_242_880, ge=1)
+    # LibreOffice Office→PDF conversion (preview worker only).
+    preview_render_timeout_seconds: float = Field(default=120.0, gt=0)
+    preview_max_pages: int = Field(default=500, ge=1)
 
     feature_rag_qa: bool = True
     rag_max_chunks: int = Field(default=5, ge=1, le=50)

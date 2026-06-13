@@ -29,10 +29,11 @@ from services.preview.artifact_repository import (
 from services.preview.artifact_store import PreviewArtifactStore
 from services.preview.manifest import (
     PENDING_RETRY_AFTER_MS,
+    WORKER_RENDERERS,
     build_base_manifest,
     classify_kind,
     immediate_renderer,
-    renders_via_worker,
+    worker_renderer,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,11 +70,22 @@ def _utc_now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _kind_for_renderer(renderer: str) -> str:
+    """Best-effort kind for a pending row whose manifest isn't built yet."""
+    if renderer == "email":
+        return "email"
+    if renderer == "libreoffice_pdf":
+        return "office_doc"
+    if renderer in ("pdfjs", "image"):
+        return renderer if renderer == "image" else "pdf"
+    return "text"
+
+
 def _row_to_response(row: PreviewArtifactRow, *, is_admin: bool) -> PreviewManifestResponse:
     manifest = dict(row.manifest or {})
     manifest.setdefault("document_id", str(row.document_id))
     manifest.setdefault("cache_key", f"sha256:{row.content_sha256}" if row.content_sha256 else None)
-    manifest.setdefault("kind", "email" if row.renderer == "email" else "text")
+    manifest.setdefault("kind", _kind_for_renderer(row.renderer))
     manifest.setdefault("renderer", row.renderer)
     manifest.setdefault("navigation", {"unit": "none", "count": 0, "items": []})
     manifest.setdefault("artifacts", [])
@@ -156,8 +168,9 @@ def preview_manifest(
             return _row_to_response(row, is_admin=user.is_admin)
 
         kind = classify_kind(doc.mime_type)
-        if renders_via_worker(doc.mime_type) and settings.enable_preview_render:
-            row = repo.create_pending(document_id, sha, renderer="email")
+        renderer = worker_renderer(doc.mime_type)
+        if renderer is not None and settings.enable_preview_render:
+            row = repo.create_pending(document_id, sha, renderer=renderer)
         else:
             manifest = build_base_manifest(
                 document_id=str(document_id),
@@ -172,7 +185,7 @@ def preview_manifest(
             row = repo.get(document_id, sha)
             assert row is not None
 
-    if row.status == "pending" and row.renderer == "email":
+    if row.status == "pending" and row.renderer in WORKER_RENDERERS:
         _dispatch_render_job(request, document_id, doc.source_id)
     return _row_to_response(row, is_admin=user.is_admin)
 
