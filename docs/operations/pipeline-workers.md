@@ -22,6 +22,7 @@ to the next stage. The canonical 7-stage pipeline is:
 | `intelligence-worker` | `services.pipeline.intelligence_consumer` | Intelligence (summary, entities, tags) |
 | `alert-worker` | `services.pipeline.alert_consumer` | Alert matching |
 | `enrich-worker` | `services.pipeline.enrich_worker` | Enrich (re-translation) |
+| `preview-worker` | `services.pipeline.preview_worker` | Preview render (mail/Office artifacts) |
 
 **Queue transport**: RabbitMQ with per-stage queues, 30s retry tiers, and
 dead-letter queues (DLQ). Each stage has a primary queue, a retry queue, and
@@ -32,7 +33,21 @@ attention.
 (from a sync-now API call or the scheduler). Each worker processes its stage,
 marks progress via `pipeline_jobs.stage`, and publishes to the next queue.
 `intelligence` and `alert` run in parallel after indexing. `enrich` is
-triggered separately for frequently viewed documents.
+triggered separately for frequently viewed documents. `preview` is triggered
+on demand the first time a mail/Office document's preview manifest is
+requested (the API enqueues the job; the worker writes the artifacts because
+the API mounts `files_data` read-only). A failed render is a **terminal**
+artifact state, not a job failure — the job still succeeds, so a broken file
+never loops through retry/DLQ; an admin re-render is the only retry path.
+
+Unlike the other workers, `preview-worker` runs from its **own image**
+(`docker/preview-worker.Dockerfile` = the backend image plus LibreOffice and
+fonts, `TOMORROWLAND_PREVIEW_WORKER_IMAGE`). LibreOffice converts Office
+documents (DOCX/PPTX/…) to a cached PDF that the pdf.js viewer renders; keeping
+soffice out of the base image means only this one worker carries its size. The
+release build packages this image into the air-gapped split-parts bundle. If
+the image is unavailable, Office documents fall back to their extracted-text
+preview (mail/EML/MSG previews need no LibreOffice and are unaffected).
 
 `intelligence_document` and `alert_document` are **best-effort** stages: if
 the model or alert service is unreachable, the stage is logged and the

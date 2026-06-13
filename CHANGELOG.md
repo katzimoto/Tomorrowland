@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Mail preview rendering pipeline — slice 1 (#539)**: high-fidelity EML
+  preview behind a new manifest API. `GET /preview/{id}/manifest` reports
+  render status (`pending`/`running`/`ready`/`partial`/`failed`); mail bodies
+  render to a sanitized HTML artifact (`nh3` allowlist + deny-all CSP, served
+  for sandboxed-iframe display) plus a plain-text artifact, with `cid:` inline
+  images embedded as `data:` URIs and remote images/tracking pixels stripped
+  and counted. `GET /preview/{id}/artifact/{artifact_id}` serves artifacts by
+  opaque ID (no filesystem paths in responses); `POST /admin/preview/{id}/rerender`
+  clears a cached render. Artifacts are cached per `document_id + content_sha256`
+  in the new `document_preview_artifacts` table and on disk under
+  `files_root/previews/`. Rendering runs in a new `preview-worker`
+  (`tomorrowland-preview-worker`, queue `document.preview.requested`) so the
+  API keeps its read-only `files_data` mount; a render failure is terminal
+  (no retry loop on corrupt/oversized files). PDF/image/text documents report a
+  ready-immediate manifest and keep using the existing download/text endpoints;
+  Office kinds report a text fallback until later slices. New settings:
+  `ENABLE_PREVIEW_RENDER` (default `true`), `PREVIEW_MAX_FILE_BYTES`,
+  `PREVIEW_MAX_INLINE_IMAGES`, `PREVIEW_MAX_INLINE_IMAGE_BYTES`. New dependency:
+  `nh3`. See `docs/planning/preview-mail-office-first-2026-06.md`.
+- **Mail preview UI — slice 2 (#539)**: the document preview pane renders mail
+  through a new manifest-driven `EmailViewer` — a metadata header card, the
+  sanitized HTML body in a `sandbox=""` iframe with a Formatted/Text toggle,
+  collapsible quoted reply history, a blocked-remote-images notice, and an
+  attachment list that links to each attachment's child document. A
+  `ParentContextBanner` on attachment documents links back to the parent email.
+  In-document search and citation highlighting operate on the text body. The
+  pane falls back to the existing extracted-text email renderer whenever the
+  manifest is pending, disabled, or failed (zero regression). Extracted and
+  translation view modes keep the plain-text renderer.
+- **Outlook MSG preview — slice 3 (#539)**: `.msg` documents
+  (`application/vnd.ms-outlook`) now render through the same manifest pipeline
+  and `EmailViewer` as EML, via a new MSG renderer built on the existing
+  `extract-msg` dependency. HTML bodies are nh3-sanitized with `cid:` inline
+  images embedded; RTF-only Outlook bodies degrade to the plain-text body
+  (RTF→HTML conversion is a tracked follow-up). The EML and MSG renderers now
+  share a common manifest/inline-image assembler. No new dependency.
+- **Office DOCX/PPTX visual preview — slice 4 (#539)**: Word and PowerPoint
+  documents (and the legacy/ODF equivalents) now render a high-fidelity visual
+  preview. A new `preview-worker` image (`docker/preview-worker.Dockerfile` =
+  the backend image plus LibreOffice headless + fonts) converts the document to
+  a cached `converted.pdf` artifact, which the existing pdf.js viewer renders
+  with page/slide navigation, zoom, and in-document search. The frontend
+  `OfficeManifestPreview` dispatches to the PDF viewer when the render is ready
+  and falls back to the extracted-text/slides renderer while pending, disabled,
+  or failed. Conversion runs only in the preview worker (no macros, isolated
+  per-job LibreOffice profile, subprocess timeout, page-count cap → `partial`).
+  Spreadsheets are intentionally excluded (sheet-grid rendering is a later
+  slice) and keep their table preview. The release build packages the new image
+  into the air-gapped split-parts bundle. New settings:
+  `PREVIEW_RENDER_TIMEOUT_SECONDS`, `PREVIEW_MAX_PAGES`. New env var:
+  `TOMORROWLAND_PREVIEW_WORKER_IMAGE`.
+- **XLSX sheet-grid preview — slice 5 (#539)**: `.xlsx` spreadsheets render as
+  structured per-sheet grids with real sheet tabs (a new `SheetViewer`) instead
+  of flattened text. The preview worker emits one JSON grid artifact per sheet
+  (`openpyxl`, `data_only`), capped to the first rows/columns
+  (`PREVIEW_MAX_SHEET_ROWS`/`PREVIEW_MAX_SHEET_COLS`); over the cap the preview
+  is marked `partial` and a banner points to the download for the full sheet.
+  In-document search highlights and counts cell matches in the active sheet. The
+  frontend `SheetManifestPreview` falls back to the extracted-text table preview
+  while pending, disabled, or failed. Legacy `.xls` and `.ods` keep the table
+  preview (openpyxl reads only `.xlsx`).
+- **Preview admin diagnostics — slice 6 (#539)**: a `RendererStatusBadge` shown
+  to admins on the document preview surfaces the preview renderer, render status,
+  and (on failure) the error category/detail, plus a one-click **Re-render** that
+  discards the cached render and re-polls the manifest. A `sweep_orphans`
+  maintenance helper reclaims preview artifact directories left behind by
+  superseded versions or deleted documents.
 - **Docling PDF extractor (#649)**: `DoclingPdfExtractor` registered as a
   `QualityTier.HIGH` backend for `application/pdf` when `ENABLE_DOCLING=true`.
   Produces layout-aware Markdown (tables, multi-column, headings) for richer RAG

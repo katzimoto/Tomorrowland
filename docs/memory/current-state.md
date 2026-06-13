@@ -14,6 +14,57 @@ New architecture plan for #539 **supersedes the 2026-05-29 PDF-first plan commen
 
 Gap noted for implementers: tests/fixtures has **zero** mail fixtures (#671 corpus is Office/PDF only) — S1 adds `tests/fixtures/mail/`.
 
+**S1 IMPLEMENTED (2026-06-13, branch `feat/539-s1-preview-manifest` → `feature/preview-rendering`).** Backend EML preview + manifest pipeline:
+- Migration `f2a4c6e8b0d2` adds `document_preview_artifacts` (UNIQUE `document_id+content_sha256`); single linear head, downgrade verified.
+- New `src/services/preview/`: `manifest.py` (kind/renderer classification), `sanitizer.py` (nh3 allowlist; `*`-key empty-set override needed to drop nh3's default title/lang attrs — the #623 breakout vector), `email_renderer.py` (stdlib `email` MIME-tree parse — NOT the text-flattening `EmlExtractor`; cid→data: embedding, remote-image blocking+count, quoted-range heuristics), `artifact_store.py` (files_root/previews, traversal-guarded), `artifact_repository.py`, `render.py` (orchestrator — render failures are terminal artifact states, never raised; infra errors raise).
+- `preview_worker.py` (queue `document.preview.requested`, health 8088) + `publish_preview` + topology in `shared/rabbit.py`. API never writes artifacts (read-only mount honored); manifest endpoint enqueues the job, worker renders.
+- Router `preview_manifest.py`: `GET /preview/{id}/manifest` (pending→ready lifecycle; pdf/image/text ready-immediate, Office text-fallback), `GET …/artifact/{artifact_id}` (opaque-ID, CSP+nosniff on HTML), `POST /admin/preview/{id}/rerender`.
+- **Reusable discovery**: `DocumentRelationshipRepository.get_child_relationships()` is NEW — `get_relationships()` hardcodes `path_in_parent=None` (and even the existing `PreviewResponse.relationships` always carries null path). Use the new method when you need attachment→child filename matching.
+- Config: `ENABLE_PREVIEW_RENDER` + `PREVIEW_MAX_*`. Dep: `nh3`. Compose: `preview-worker` in both files + airgap validator. Fixtures: `tests/fixtures/mail/*.eml` (incl. `malicious.eml` XSS corpus).
+- Verified: ruff, mypy --strict (194 files), 32 unit + 13 integration preview tests, pipeline/relationship/rabbit regressions, migration round-trip, mkdocs --strict.
+- **S1 merged to `feature/preview-rendering`** (PR #737, squash `bb9910a`).
+
+**S2 IMPLEMENTED (2026-06-13, branch `feat/539-s2-email-viewer`).** Frontend EML viewer + manifest dispatch:
+- `frontend/src/api/preview.ts`: `PreviewManifest` types, `getPreviewManifest`, `getPreviewArtifactText` (raw-text fetch), `usePreviewManifest` (polls while pending/running using `retry_after_ms`). Added `api.getText` to `client.ts` (refactored shared `buildHeaders`) — needed because iframes can't send the Bearer header, so HTML artifacts load via fetch→`srcdoc`.
+- `renderers/EmailViewer.tsx`: header card, HTML body in `sandbox=""` iframe (srcdoc), Formatted/Text toggle, collapsible quoted ranges, blocked-images notice, attachment links to child docs. Search forces text view + highlights text body (HTML iframe is unreachable). `renderers/EmailManifestPreview.tsx`: dispatch wrapper — ready/partial→EmailViewer, pending/running→"Preparing…", failed/error/disabled→legacy EmailPreview fallback.
+- `ParentContextBanner.tsx` in DocumentPage (above PreviewPane) — links attachment docs back to parent email via existing `preview.relationships`.
+- PreviewPane email branch: default/original mode→EmailManifestPreview; extracted/translation already handled by the top text block (so the email branch is default-mode only). `EmailPreview` now only used as the fallback inside EmailManifestPreview.
+- i18n `preview.*` in en + he. Verified: typecheck, lint (0 errors; 4 pre-existing TextPreview warnings), 310 frontend tests pass (15 new across EmailViewer/EmailManifestPreview/ParentContextBanner).
+- **S2 merged to `feature/preview-rendering`** (PR #739, squash `563113c`).
+
+**S3 IMPLEMENTED (2026-06-13, branch `feat/539-s3-msg`).** Outlook MSG preview, backend-only:
+- `preview/email_common.py` NEW: shared `RenderedEmail`, `detect_quoted_ranges`, `cid_to_data_uri`, `assemble_email_manifest` — factored out of `email_renderer.py` so EML and MSG emit identical manifest shapes. `email_renderer` re-exports `detect_quoted_ranges`/`RenderedEmail` for back-compat (its tests import them).
+- `preview/msg_renderer.py` NEW: `render_msg(path)` via `extract_msg` (core dep). Partitions attachments into cid inline-images (embedded as data URIs) vs regular; htmlBody→nh3 sanitize; RTF-only→plain-text fallback. `render.py` dispatches MSG vs EML by mime; `manifest.RENDERED_EMAIL_MIMES` now includes `application/vnd.ms-outlook`.
+- **No frontend change**: MSG manifests are `kind:"email"`; PreviewPane already routes `application/vnd.ms-outlook` to EmailManifestPreview/EmailViewer.
+- **No `.msg` binary fixture** (can't generate offline) — MSG tested by mocking `extract_msg.Message`, the repo's established pattern (see `test_extraction_msg.py`). 5 unit + 1 integration test.
+- RTF-only-body → HTML conversion is tracked in **#740**. Verified: ruff, mypy --strict (196 files), preview suite (48 tests) + EML tests survive the refactor.
+- **S3 merged to `feature/preview-rendering`** (PR #741, squash `3e0c483`).
+
+**S4 IMPLEMENTED (2026-06-13, branch `feat/539-s4-office-pdf`). Owner approved the airgap image packaging.** Office DOCX/PPTX visual preview:
+- `preview/office_pdf.py` NEW: `render_office_pdf(path)` → `soffice --headless --norestore --convert-to pdf` (isolated per-job UserInstallation + HOME, subprocess timeout, page-count via pypdf, cap→partial). `OfficeRenderError(category)` maps to manifest error category (renderer_unavailable / render_timeout / render).
+- `manifest.py`: `RENDERED_OFFICE_PDF_MIMES` (= doc+slides mimes, NOT sheets), `worker_renderer(mime)→"email"|"libreoffice_pdf"|None`, `WORKER_RENDERERS`. `render.py` refactored into `_render_email`/`_render_office`/`_persist_render_failure`; dispatches by renderer. Manifest endpoint + `_kind_for_renderer` generalized off hardcoded "email".
+- Config: `preview_render_timeout_seconds`, `preview_max_pages`.
+- **Image/packaging**: `docker/preview-worker.Dockerfile` (FROM backend image + libreoffice-{writer,impress,calc}-nogui + fonts-liberation/dejavu). Compose `preview-worker` now builds from it (`TOMORROWLAND_PREVIEW_WORKER_IMAGE`, 2cpu/1g). `build-release-artifact.sh` builds+bundles the image; `.env.airgap.example` rewrite + validator already assert the service.
+- **Frontend**: `PdfViewer` gains optional `src` prop (defaults to `/api/download/{id}`; office passes `/api/preview/{id}/artifact/converted-pdf` — same auth mechanism as download). `OfficeManifestPreview` NEW dispatch wrapper (ready→PdfViewer, pending→preparing, failed/disabled/non-pdf→fallback). PreviewPane DOCX/PPTX branches (default/original mode) route through it with TextPreview/SlidesPreview as fallback; extracted/translation modes still hit the top text block.
+- XLSX/sheets still report ready-immediate text fallback (renderer "text") — sheet grids are S5.
+- Verified: ruff, mypy --strict (197 files), backend preview suite (unit+integration incl. office success/timeout-missing-binary/partial paths), 316 frontend tests (11 new: OfficeManifestPreview ×6, updated PreviewPane dispatch), typecheck, lint 0 errors, airgap compose renders.
+- **S4 merged to `feature/preview-rendering`** (PR #743, squash `70c8069`).
+
+**S5 IMPLEMENTED (2026-06-13, branch `feat/539-s5-sheet-grids`).** XLSX structured sheet-grid preview:
+- `preview/sheet_grid.py` NEW: `render_sheets(path)` via openpyxl (read_only, data_only) → one JSON grid artifact per sheet `{name, rows, truncated:{rows,cols}}`, capped at `preview_max_sheet_rows`/`cols` (defaults 200/50 — preview-sized, not full export; non-virtualized frontend). `manifest.py`: `RENDERED_SHEET_MIMES` = **xlsx only** (openpyxl can't read .xls/.ods → those keep text fallback), `worker_renderer`→"sheet_grid", in `WORKER_RENDERERS`. `render.py` `_render_sheets` branch (navigation.unit="sheet", items=[{index,label,artifact_id}]). `_kind_for_renderer` maps sheet_grid→office_sheets.
+- Config: `preview_max_sheet_rows`/`cols`.
+- **Frontend**: `SheetViewer` (sheet tabs, ARIA, per-sheet JSON fetch, native table, truncation note, active-sheet cell match counting — `cellMatches` is local to TablePreview so reimplemented inline). `SheetManifestPreview` dispatch wrapper. PreviewPane XLSX branch routes OOXML xlsx → SheetManifestPreview (fallback TablePreview); xls/tsv stay direct TablePreview. i18n `preview.sheet*` en+he.
+- Verified: ruff, mypy --strict (198 files), backend sheet unit + xlsx/xls integration (22 in the file), 324 frontend tests (12 new: SheetViewer ×3, SheetManifestPreview ×4, updated PreviewPane), typecheck, lint 0 errors.
+- Search-count limitation: counts matches in the **active sheet** only (documented).
+- **S5 merged to `feature/preview-rendering`** (PR #744, squash `51b75e8`).
+
+**S6 IMPLEMENTED (2026-06-13, branch `feat/539-s6-admin-diagnostics`).** Admin diagnostics + sweep — final feature slice:
+- Frontend `RendererStatusBadge` (admin-only via `getCurrentUser().is_admin`): renderer + status + failure category/detail + Re-render button (calls existing `POST /admin/preview/{id}/rerender`, then invalidates `["preview-manifest", docId]` to re-poll). Renders null for non-admins or non-worker renderers. Wired into DocumentPage above PreviewPane. `rerenderPreview()` API + `preview.rerender` i18n (en+he).
+- Backend `PreviewArtifactStore.sweep_orphans(valid_keys)` + `PreviewArtifactRepository.list_all_keys()` — maintenance helper to reclaim superseded/deleted artifact dirs (not cron-wired; invokable from a script/future admin endpoint).
+- Verified: ruff, mypy --strict (198 files), backend artifact-store (incl. sweep) + integration, 329 frontend tests (RendererStatusBadge ×5), typecheck, lint 0 errors.
+
+**ALL 6 SLICES COMPLETE on `feature/preview-rendering`.** Mail (EML/MSG) + Office (DOCX/PPTX visual, XLSX grids) + admin diagnostics shipped; PDF/image/text use ready-immediate manifests. Remaining: **final integration PR `feature/preview-rendering` → main** with the validation summary (per AGENTS.md feature-branch policy). Open follow-ups: #740 (RTF-only MSG bodies), active-sheet-only search count, orphan-sweep cron wiring.
+
 ## 2026-06-08 — docs: documentation overhaul — MkDocs wiki, archives, documentation policy
 
 Status: Active

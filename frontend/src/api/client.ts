@@ -40,14 +40,35 @@ function redirectToExpiredLogin() {
   authRedirectHandler(url.toString());
 }
 
-async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
-  const { skipAuthRedirect = false, ...requestInit } = init;
+function buildHeaders(requestInit: ApiRequestInit): Record<string, string> {
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(requestInit.headers as Record<string, string>),
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  return headers;
+}
+
+async function requestText(path: string, init: ApiRequestInit = {}): Promise<string> {
+  const { skipAuthRedirect = false, ...requestInit } = init;
+  const headers = buildHeaders(requestInit);
+  delete headers["Content-Type"];
+  const res = await fetch(`${BASE}${path}`, { ...requestInit, headers });
+  if (res.status === 401 && !skipAuthRedirect) {
+    sessionStorage.removeItem("tomorrowland_token");
+    redirectToExpiredLogin();
+    throw new ApiError(401, "Session expired");
+  }
+  if (!res.ok) {
+    throw new ApiError(res.status, res.statusText);
+  }
+  return res.text();
+}
+
+async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const { skipAuthRedirect = false, ...requestInit } = init;
+  const headers = buildHeaders(requestInit);
 
   const res = await fetch(`${BASE}${path}`, { ...requestInit, headers });
 
@@ -75,6 +96,7 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
 
 export const api = {
   get: <T>(path: string, init?: ApiRequestInit) => request<T>(path, init),
+  getText: (path: string, init?: ApiRequestInit) => requestText(path, init),
   post: <T>(path: string, body: unknown, init: ApiRequestInit = {}) =>
     request<T>(path, { ...init, method: "POST", body: JSON.stringify(body) }),
   patch: <T>(path: string, body: unknown, init: ApiRequestInit = {}) =>

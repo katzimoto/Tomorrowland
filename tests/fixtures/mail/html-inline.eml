@@ -1,0 +1,46 @@
+Subject: Design proposal
+From: alice@example.com
+To: bob@example.com
+Date: Tue, 06 Jan 2026 10:00:00 +0100
+Message-ID: <html-001@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============3653097699016122457=="
+
+--===============3653097699016122457==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Plain-text alternative of the design proposal.
+
+--===============3653097699016122457==
+MIME-Version: 1.0
+Content-Type: multipart/related;
+ boundary="===============9219405011065280248=="
+
+--===============9219405011065280248==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body>
+<h1>Design proposal</h1>
+<p>See the embedded diagram: <img src=3D"cid:178130654862.27200.2923907217679=
+190810@example.com" alt=3D"diagram"></p>
+<p>Tracking pixel follows: <img src=3D"https://tracker.example.net/px.gif" wi=
+dth=3D"1" height=3D"1"></p>
+<table border=3D"1"><tr><th>Item</th><td>Value</td></tr></table>
+</body></html>
+
+--===============9219405011065280248==
+Content-Type: image/png
+Content-Transfer-Encoding: base64
+Content-ID: <178130654862.27200.2923907217679190810@example.com>
+MIME-Version: 1.0
+Content-Disposition: inline
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmM
+IQAAAABJRU5ErkJggg==
+
+--===============9219405011065280248==--
+
+--===============3653097699016122457==--

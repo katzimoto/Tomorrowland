@@ -311,7 +311,7 @@ fi
 # The pipeline workers consume the RabbitMQ stage queues. Without them, uploaded
 # or synced documents are recorded but never parsed, translated, embedded,
 # indexed, or enriched.
-for worker in parse-worker translate-worker embed-worker index-worker intelligence-worker alert-worker enrich-worker; do
+for worker in parse-worker translate-worker embed-worker index-worker intelligence-worker alert-worker enrich-worker preview-worker; do
   if ! grep -q "${worker}:" "$tmp_dir/compose.rendered.yml"; then
     fail "air-gapped compose configuration must include the ${worker} service"
   fi

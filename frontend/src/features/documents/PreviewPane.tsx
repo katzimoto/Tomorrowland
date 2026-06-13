@@ -4,7 +4,9 @@ import { MarkdownPreview } from "./renderers/MarkdownPreview";
 import { HtmlPreview } from "./renderers/HtmlPreview";
 import { TablePreview } from "./renderers/TablePreview";
 import { ArchivePreview } from "./renderers/ArchivePreview";
-import { EmailPreview } from "./renderers/EmailPreview";
+import { EmailManifestPreview } from "./renderers/EmailManifestPreview";
+import { OfficeManifestPreview } from "./renderers/OfficeManifestPreview";
+import { SheetManifestPreview } from "./renderers/SheetManifestPreview";
 import { SlidesPreview } from "./renderers/SlidesPreview";
 import { ImageViewer } from "./renderers/ImageViewer";
 import { PdfViewer } from "./renderers/PdfViewer";
@@ -212,17 +214,32 @@ export function PreviewPane({
     mime === "application/vnd.ms-excel" ||
     mime === "text/tab-separated-values"
   ) {
-    return (
-      <div className={styles.pane}>
-        <TablePreview
-          docId={preview.document_id}
-          delimiter="\t"
-          searchQuery={searchQuery}
-          activeSearchIndex={activeSearchIndex}
-          onMatchCountChange={onMatchCountChange}
-        />
-      </div>
+    const tableFallback = (
+      <TablePreview
+        docId={preview.document_id}
+        delimiter="\t"
+        searchQuery={searchQuery}
+        activeSearchIndex={activeSearchIndex}
+        onMatchCountChange={onMatchCountChange}
+      />
     );
+    // Only OOXML .xlsx renders as structured sheet grids (openpyxl is
+    // XLSX-only); legacy .xls and TSV keep the extracted-text table preview.
+    if (
+      mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ) {
+      return (
+        <div className={styles.pane}>
+          <SheetManifestPreview
+            docId={preview.document_id}
+            fallback={tableFallback}
+            searchQuery={searchQuery}
+            onMatchCountChange={onMatchCountChange}
+          />
+        </div>
+      );
+    }
+    return <div className={styles.pane}>{tableFallback}</div>;
   }
 
   if (
@@ -244,11 +261,15 @@ export function PreviewPane({
   }
 
   if (mime === "message/rfc822" || mime === "application/vnd.ms-outlook") {
+    // Extracted/translation modes are handled by the text block above; here
+    // (default/original mode) the manifest-driven high-fidelity viewer renders,
+    // with its own fallback to the legacy EmailPreview when the render is
+    // unavailable, disabled, or failed.
     return (
       <div className={styles.pane}>
-        <EmailPreview
+        <EmailManifestPreview
           docId={preview.document_id}
-          text={text ?? ""}
+          fallbackText={text ?? ""}
           metadata={preview.metadata}
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
@@ -263,13 +284,23 @@ export function PreviewPane({
       "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
     mime === "application/vnd.ms-powerpoint"
   ) {
+    const slidesFallback = (
+      <SlidesPreview
+        text={text}
+        searchQuery={searchQuery}
+        activeSearchIndex={activeSearchIndex}
+        onMatchCountChange={onMatchCountChange}
+      />
+    );
     return (
       <div className={styles.pane}>
-        <SlidesPreview
-          text={text}
+        <OfficeManifestPreview
+          docId={preview.document_id}
+          fallback={slidesFallback}
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
+          initialPage={initialPage}
         />
       </div>
     );
@@ -322,14 +353,24 @@ export function PreviewPane({
     mime === "application/msword" ||
     mime === "application/rtf"
   ) {
+    const wordFallback = (
+      <TextPreview
+        docId={preview.document_id}
+        showOriginal={activeMode !== "translation"}
+        searchQuery={searchQuery}
+        activeSearchIndex={activeSearchIndex}
+        onMatchCountChange={onMatchCountChange}
+      />
+    );
     return (
       <div className={styles.pane}>
-        <TextPreview
+        <OfficeManifestPreview
           docId={preview.document_id}
-          showOriginal={activeMode !== "translation"}
+          fallback={wordFallback}
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}
           onMatchCountChange={onMatchCountChange}
+          initialPage={initialPage}
         />
       </div>
     );

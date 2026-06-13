@@ -586,6 +586,35 @@ services:
       - ./data:/data/mounted:ro
       - ${TOMORROWLAND_FOLDER_SOURCE_HOST_PATH:-./operator-data/folder-source}:${TOMORROWLAND_FOLDER_SOURCE_CONTAINER_PATH:-/sources/folder}:ro
 
+  preview-worker:
+    build:
+      context: .
+      dockerfile: docker/preview-worker.Dockerfile
+      args:
+        TOMORROWLAND_BACKEND_IMAGE: ${TOMORROWLAND_BACKEND_IMAGE:-tomorrowland/backend:airgap}
+    image: ${TOMORROWLAND_PREVIEW_WORKER_IMAGE:-tomorrowland/preview-worker:airgap}
+    command: ["tomorrowland-preview-worker"]
+    restart: unless-stopped
+    # LibreOffice conversion is heavier than the other workers — give it more
+    # headroom so a large document cannot starve it.
+    cpus: ${PREVIEW_WORKER_CPUS:-2.00}
+    mem_limit: ${PREVIEW_WORKER_MEM_LIMIT:-1024m}
+    mem_reservation: ${PREVIEW_WORKER_MEM_RESERVATION:-256m}
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8088/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - files_data:/data
+
   prometheus:
     profiles: ["monitoring"]
     image: prom/prometheus:v2.54.1

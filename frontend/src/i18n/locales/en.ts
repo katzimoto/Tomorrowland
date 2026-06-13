@@ -111,6 +111,29 @@ export interface Translations {
     downloadTranslation: string;
     downloadError: string;
   };
+  preview: {
+    loading: string;
+    preparing: string;
+    bodyUnavailable: string;
+    emailBodyLabel: string;
+    emailRegion: string;
+    bodyView: string;
+    viewFormatted: string;
+    viewText: string;
+    showQuoted: string;
+    subject: string;
+    from: string;
+    to: string;
+    cc: string;
+    date: string;
+    blockedImages: (n: number) => string;
+    attachments: (n: number) => string;
+    attachmentOf: string;
+    sheetRegion: string;
+    sheetTabs: string;
+    sheetTruncated: string;
+    rerender: string;
+  };
   insight: {
     tabSummary: string;
     tabQa: string;
@@ -610,6 +633,32 @@ export const en: Translations = {
     downloadText: "Download text",
     downloadTranslation: "Download translated",
     downloadError: "Download failed. The file may no longer be available.",
+  },
+  preview: {
+    loading: "Loading…",
+    preparing: "Preparing preview…",
+    bodyUnavailable: "Preview body unavailable.",
+    emailBodyLabel: "Email body",
+    emailRegion: "Email preview",
+    bodyView: "Body view",
+    viewFormatted: "Formatted",
+    viewText: "Text",
+    showQuoted: "Show quoted text",
+    subject: "Subject",
+    from: "From",
+    to: "To",
+    cc: "CC",
+    date: "Date",
+    blockedImages: (n) =>
+      n === 1
+        ? "1 remote image was blocked to protect your privacy."
+        : `${n} remote images were blocked to protect your privacy.`,
+    attachments: (n) => (n === 1 ? "1 attachment" : `${n} attachments`),
+    attachmentOf: "Attachment of:",
+    sheetRegion: "Spreadsheet preview",
+    sheetTabs: "Sheets",
+    sheetTruncated: "Preview shows the first rows and columns. Download the file for the full sheet.",
+    rerender: "Re-render",
   },
   insight: {
     tabSummary: "Summary",
