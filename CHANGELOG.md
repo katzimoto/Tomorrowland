@@ -66,6 +66,12 @@ All notable changes to this project will be documented in this file.
   frontend `SheetManifestPreview` falls back to the extracted-text table preview
   while pending, disabled, or failed. Legacy `.xls` and `.ods` keep the table
   preview (openpyxl reads only `.xlsx`).
+- **Preview admin diagnostics — slice 6 (#539)**: a `RendererStatusBadge` shown
+  to admins on the document preview surfaces the preview renderer, render status,
+  and (on failure) the error category/detail, plus a one-click **Re-render** that
+  discards the cached render and re-polls the manifest. A `sweep_orphans`
+  maintenance helper reclaims preview artifact directories left behind by
+  superseded versions or deleted documents.
 - **Docling PDF extractor (#649)**: `DoclingPdfExtractor` registered as a
   `QualityTier.HIGH` backend for `application/pdf` when `ENABLE_DOCLING=true`.
   Produces layout-aware Markdown (tables, multi-column, headings) for richer RAG

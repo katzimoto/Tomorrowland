@@ -132,6 +132,7 @@ export interface Translations {
     sheetRegion: string;
     sheetTabs: string;
     sheetTruncated: string;
+    rerender: string;
   };
   insight: {
     tabSummary: string;
@@ -657,6 +658,7 @@ export const en: Translations = {
     sheetRegion: "Spreadsheet preview",
     sheetTabs: "Sheets",
     sheetTruncated: "Preview shows the first rows and columns. Download the file for the full sheet.",
+    rerender: "Re-render",
   },
   insight: {
     tabSummary: "Summary",

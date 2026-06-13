@@ -173,6 +173,13 @@ class PreviewArtifactRepository:
             {"document_id": db_uuid(document_id), "sha": content_sha256},
         )
 
+    def list_all_keys(self) -> set[tuple[str, str]]:
+        """All live ``(document_id, content_sha256)`` pairs — for orphan sweeps."""
+        rows = self._connection.execute(
+            sa.text("SELECT document_id, content_sha256 FROM document_preview_artifacts")
+        ).all()
+        return {(str(to_uuid(r[0])), str(r[1])) for r in rows}
+
     def is_terminal(self, row: PreviewArtifactRow) -> bool:
         return row.status in _TERMINAL_STATUSES
 

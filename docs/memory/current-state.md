@@ -55,7 +55,15 @@ Gap noted for implementers: tests/fixtures has **zero** mail fixtures (#671 corp
 - Config: `preview_max_sheet_rows`/`cols`.
 - **Frontend**: `SheetViewer` (sheet tabs, ARIA, per-sheet JSON fetch, native table, truncation note, active-sheet cell match counting — `cellMatches` is local to TablePreview so reimplemented inline). `SheetManifestPreview` dispatch wrapper. PreviewPane XLSX branch routes OOXML xlsx → SheetManifestPreview (fallback TablePreview); xls/tsv stay direct TablePreview. i18n `preview.sheet*` en+he.
 - Verified: ruff, mypy --strict (198 files), backend sheet unit + xlsx/xls integration (22 in the file), 324 frontend tests (12 new: SheetViewer ×3, SheetManifestPreview ×4, updated PreviewPane), typecheck, lint 0 errors.
-- Search-count limitation: counts matches in the **active sheet** only (documented). **Next: S6 — admin diagnostics + rerender UI (RendererStatusBadge), orphan-dir sweep, then final integration PR `feature/preview-rendering`→main.**
+- Search-count limitation: counts matches in the **active sheet** only (documented).
+- **S5 merged to `feature/preview-rendering`** (PR #744, squash `51b75e8`).
+
+**S6 IMPLEMENTED (2026-06-13, branch `feat/539-s6-admin-diagnostics`).** Admin diagnostics + sweep — final feature slice:
+- Frontend `RendererStatusBadge` (admin-only via `getCurrentUser().is_admin`): renderer + status + failure category/detail + Re-render button (calls existing `POST /admin/preview/{id}/rerender`, then invalidates `["preview-manifest", docId]` to re-poll). Renders null for non-admins or non-worker renderers. Wired into DocumentPage above PreviewPane. `rerenderPreview()` API + `preview.rerender` i18n (en+he).
+- Backend `PreviewArtifactStore.sweep_orphans(valid_keys)` + `PreviewArtifactRepository.list_all_keys()` — maintenance helper to reclaim superseded/deleted artifact dirs (not cron-wired; invokable from a script/future admin endpoint).
+- Verified: ruff, mypy --strict (198 files), backend artifact-store (incl. sweep) + integration, 329 frontend tests (RendererStatusBadge ×5), typecheck, lint 0 errors.
+
+**ALL 6 SLICES COMPLETE on `feature/preview-rendering`.** Mail (EML/MSG) + Office (DOCX/PPTX visual, XLSX grids) + admin diagnostics shipped; PDF/image/text use ready-immediate manifests. Remaining: **final integration PR `feature/preview-rendering` → main** with the validation summary (per AGENTS.md feature-branch policy). Open follow-ups: #740 (RTF-only MSG bodies), active-sheet-only search count, orphan-sweep cron wiring.
 
 ## 2026-06-08 — docs: documentation overhaul — MkDocs wiki, archives, documentation policy
 

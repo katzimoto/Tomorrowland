@@ -139,6 +139,7 @@ export const he: Translations = {
     sheetRegion: "תצוגה מקדימה של גיליון",
     sheetTabs: "גיליונות",
     sheetTruncated: "התצוגה המקדימה מציגה את השורות והעמודות הראשונות. הורד את הקובץ לגיליון המלא.",
+    rerender: "רינדור מחדש",
   },
   insight: {
     tabSummary: "סיכום",
