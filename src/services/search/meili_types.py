@@ -206,6 +206,7 @@ class DocumentSearchFilters(BaseModel):
     workspace: list[str] = Field(default_factory=list)
     collection: list[str] = Field(default_factory=list)
     created_after: str | None = None
+    created_before: str | None = None
     updated_after: str | None = None
     imported_after: str | None = None
 

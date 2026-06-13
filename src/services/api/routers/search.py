@@ -9,6 +9,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
+from qdrant_client.models import FieldCondition, MatchAny
 
 from services.api._helpers import _fmt_dt, _translation_score, _verify_admin_membership
 from services.api.main import current_user
@@ -103,6 +104,7 @@ def search(
     meili_filters = _map_filters(request.filters)
     meili_sort = _map_sort(request.sort_by, request.sort_dir)
     meili_provider = http_request.app.state.meili_provider
+    qdrant_extra = _qdrant_extra_conditions(meili_filters)
 
     def _run_meilisearch() -> tuple[list[SearchResult], dict[str, dict[str, int]], bool]:
         backend_start = time.perf_counter()
@@ -137,6 +139,7 @@ def search(
                 group_ids=search_group_ids,
                 limit=50,
                 allow_all=is_admin,
+                extra_conditions=qdrant_extra or None,
             )
             http_request.app.state.metrics.search_backend_duration_seconds.labels(
                 "qdrant", "search"
@@ -250,12 +253,17 @@ def search(
             if _non_latest_fids:
                 family_current = _doc_repo.get_family_current_doc_ids(_non_latest_fids)
 
-    # Filter out older versions unless explicitly requested.
-    # Orphaned vectors (no doc row) are also dropped here.
-    if not request.include_older_versions:
-        merged = [
-            r for r in merged if r.document_id in all_docs and all_docs[r.document_id].is_latest
-        ]
+    # Filter merged results: drop orphaned vectors, older versions (unless
+    # requested), and any result that does not satisfy the user's filters.
+    # This post-filter is the uniform enforcement point — Qdrant/vector
+    # candidates that bypass backend-level filtering are caught here.
+    merged = [
+        r
+        for r in merged
+        if r.document_id in all_docs
+        and (request.include_older_versions or all_docs[r.document_id].is_latest)
+        and _matches_filters(all_docs[r.document_id], meili_filters)
+    ]
 
     start = (request.page - 1) * request.page_size
     end = start + request.page_size
@@ -334,13 +342,7 @@ def search(
 
 
 def _map_filters(raw: dict[str, Any]) -> DocumentSearchFilters:
-    """Convert the generic frontend filters dict to DocumentSearchFilters.
-
-    Note: Meilisearch's filter model supports ``created_after`` and
-    ``updated_after`` but has no ``created_before`` field. Date-range
-    upper bounds (``date_to``) are applied client-side; we only map
-    ``date_from`` as the lower-bound filter here.
-    """
+    """Convert the generic frontend filters dict to DocumentSearchFilters."""
     f = DocumentSearchFilters()
 
     if isinstance(raw.get("source"), list):
@@ -355,9 +357,72 @@ def _map_filters(raw: dict[str, Any]) -> DocumentSearchFilters:
         f.language = [raw["language"]]
     if isinstance(raw.get("date_from"), str):
         f.created_after = raw["date_from"]
-    # date_to is handled client-side — no created_before field in Meilisearch
+    if isinstance(raw.get("date_to"), str):
+        f.created_before = raw["date_to"]
 
     return f
+
+
+def _qdrant_extra_conditions(filters: DocumentSearchFilters) -> list[FieldCondition]:
+    """Build Qdrant payload conditions for filters available in the chunk payload.
+
+    Only fields stored in the Qdrant payload at index time can be pushed
+    here. All other filters are enforced by ``_matches_filters`` after
+    ``DocumentRow`` enrichment.
+    """
+    conditions: list[FieldCondition] = []
+    if filters.language:
+        conditions.append(
+            FieldCondition(key="source_language", match=MatchAny(any=filters.language))
+        )
+    return conditions
+
+
+def _matches_filters(doc: DocumentRow, filters: DocumentSearchFilters) -> bool:
+    """Return True if *doc* satisfies every active user filter.
+
+    Applied to all merged results after DocumentRow enrichment so that
+    Qdrant/vector candidates obey the same filters as Meilisearch/BM25
+    candidates.  An empty filter list is a no-op (returns True).
+    """
+    if filters.source and doc.source not in filters.source:
+        return False
+    if filters.mime_type and doc.mime_type not in filters.mime_type:
+        return False
+    if filters.language:
+        doc_lang = doc.source_language or ""
+        if doc_lang not in filters.language:
+            return False
+    if filters.tags:
+        raw_tags = doc.metadata.get("tags") or []
+        doc_tags: list[str] = [raw_tags] if isinstance(raw_tags, str) else list(raw_tags)
+        if not any(t in doc_tags for t in filters.tags):
+            return False
+    if filters.file_extension:
+        doc_ext = str(doc.metadata.get("file_extension") or "").lower()
+        if doc_ext not in [e.lower() for e in filters.file_extension]:
+            return False
+    if filters.created_after:
+        try:
+            cutoff = datetime.fromisoformat(filters.created_after)
+            if cutoff.tzinfo is None:
+                cutoff = cutoff.replace(tzinfo=UTC)
+            doc_dt = doc.created_at if doc.created_at.tzinfo else doc.created_at.replace(tzinfo=UTC)
+            if doc_dt < cutoff:
+                return False
+        except (ValueError, TypeError):
+            pass
+    if filters.created_before:
+        try:
+            cutoff = datetime.fromisoformat(filters.created_before)
+            if cutoff.tzinfo is None:
+                cutoff = cutoff.replace(tzinfo=UTC)
+            doc_dt = doc.created_at if doc.created_at.tzinfo else doc.created_at.replace(tzinfo=UTC)
+            if doc_dt > cutoff:
+                return False
+        except (ValueError, TypeError):
+            pass
+    return True
 
 
 _MEILI_SORT_MAP = {

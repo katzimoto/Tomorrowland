@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **Uniform filter enforcement across BM25 and vector results (#759)**:
+  `/search` filters (source, MIME type, language, tags, file extension, date
+  range) now apply equally to Meilisearch/BM25 and Qdrant/vector candidates.
+  A post-retrieval predicate (`_matches_filters`) is applied to all merged
+  results after `DocumentRow` enrichment and before pagination, ensuring no
+  out-of-filter Qdrant result can appear in the final response.  The
+  `date_to`/upper-bound date filter is now enforced server-side via a new
+  `created_before` field on `DocumentSearchFilters` (previously left
+  client-side).  The language filter is also pushed into Qdrant as a
+  `source_language` payload condition to reduce wasted vector candidates.
 - **Qdrant collection dimension alignment (#758)**: `/search` fallback
   `QdrantSearchClient` construction now passes `dimension=encoder.dimension`
   instead of the hard-wired default (384). When `app.state.qdrant_client` is
