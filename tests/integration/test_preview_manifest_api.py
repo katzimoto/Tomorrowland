@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 from uuid import UUID
 
 from fastapi.testclient import TestClient
@@ -369,3 +371,52 @@ def test_new_version_gets_fresh_manifest(migrated_engine: Engine, tmp_path: Path
     assert old_body["status"] == "ready"
     assert new_body["status"] == "pending"
     assert old_body["cache_key"] != new_body["cache_key"]
+
+
+def test_msg_manifest_renders_through_worker_path(migrated_engine: Engine, tmp_path: Path) -> None:
+    _setup_users(migrated_engine)
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    # A real .msg binary cannot be generated offline; mock extract_msg.Message
+    # at the renderer boundary (the repo's established pattern for MSG).
+    msg_path = files_root / "sample.msg"
+    msg_path.write_bytes(b"placeholder-msg-bytes")
+    _source_id, doc_id = _create_doc(
+        migrated_engine,
+        mime_type="application/vnd.ms-outlook",
+        path=str(msg_path),
+        external_id="mail:outlook-1",
+    )
+    fake_msg = SimpleNamespace(
+        subject="Outlook preview",
+        sender="alice@example.com",
+        to="bob@example.com",
+        cc="",
+        bcc="",
+        date="2026-01-10T09:00:00",
+        messageId="<o-1@example.com>",
+        inReplyTo=None,
+        htmlBody=b"<p>Outlook body</p>",
+        body="Outlook body",
+        attachments=[],
+        close=lambda: None,
+    )
+
+    client = _client(migrated_engine, files_root)
+    auth = {"Authorization": f"Bearer {_token(client, 'user@example.com')}"}
+
+    first = client.get(f"/preview/{doc_id}/manifest", headers=auth).json()
+    assert first["status"] == "pending"
+    assert first["kind"] == "email"
+
+    with (
+        patch("services.preview.msg_renderer.extract_msg.Message", return_value=fake_msg),
+        migrated_engine.begin() as connection,
+    ):
+        status = render_document_preview(connection, _settings(files_root), UUID(doc_id))
+    assert status == "ready"
+
+    body = client.get(f"/preview/{doc_id}/manifest", headers=auth).json()
+    assert body["status"] == "ready"
+    assert body["email"]["subject"] == "Outlook preview"
+    assert body["email"]["has_html_body"] is True

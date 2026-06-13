@@ -25,6 +25,7 @@ from services.preview.artifact_repository import PreviewArtifactRepository
 from services.preview.artifact_store import PreviewArtifactStore
 from services.preview.email_renderer import render_email
 from services.preview.manifest import build_base_manifest, renders_via_worker
+from services.preview.msg_renderer import render_msg
 from shared.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -101,11 +102,18 @@ def render_document_preview(
         return "failed"
 
     try:
-        rendered = render_email(
-            source_path.read_bytes(),
-            max_inline_images=settings.preview_max_inline_images,
-            max_inline_image_bytes=settings.preview_max_inline_image_bytes,
-        )
+        if doc.mime_type == "application/vnd.ms-outlook":
+            rendered = render_msg(
+                source_path,
+                max_inline_images=settings.preview_max_inline_images,
+                max_inline_image_bytes=settings.preview_max_inline_image_bytes,
+            )
+        else:
+            rendered = render_email(
+                source_path.read_bytes(),
+                max_inline_images=settings.preview_max_inline_images,
+                max_inline_image_bytes=settings.preview_max_inline_image_bytes,
+            )
         _resolve_attachment_documents(
             connection, document_id, rendered.email_manifest["attachments"]
         )

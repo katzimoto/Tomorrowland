@@ -21,10 +21,10 @@ PreviewKind = Literal[
 ]
 PreviewStatus = Literal["pending", "running", "ready", "partial", "failed"]
 
-# Only EML renders through the preview worker in S1. MSG joins in S3 and the
-# Office kinds in S4/S5; until then they report an honest text fallback so the
-# manifest never strands a document in "pending".
-RENDERED_EMAIL_MIMES = {"message/rfc822"}
+# EML and MSG render through the preview worker. The Office kinds join in
+# S4/S5; until then they report an honest text fallback so the manifest never
+# strands a document in "pending".
+RENDERED_EMAIL_MIMES = {"message/rfc822", "application/vnd.ms-outlook"}
 
 _OFFICE_DOC_MIMES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -51,7 +51,7 @@ PENDING_RETRY_AFTER_MS = 1500
 def classify_kind(mime_type: str) -> PreviewKind:
     """Map a MIME type onto the preview kind driving renderer dispatch."""
     mime = (mime_type or "").lower().split(";")[0].strip()
-    if mime in RENDERED_EMAIL_MIMES or mime == "application/vnd.ms-outlook":
+    if mime in RENDERED_EMAIL_MIMES:
         return "email"
     if mime in _OFFICE_DOC_MIMES:
         return "office_doc"
