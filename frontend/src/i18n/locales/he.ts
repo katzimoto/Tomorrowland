@@ -115,6 +115,28 @@ export const he: Translations = {
     downloadTranslation: "הורד תרגום",
     downloadError: "ההורדה נכשלה. ייתכן שהקובץ אינו זמין עוד.",
   },
+  preview: {
+    loading: "טוען…",
+    preparing: "מכין תצוגה מקדימה…",
+    bodyUnavailable: "גוף התצוגה המקדימה אינו זמין.",
+    emailBodyLabel: "גוף ההודעה",
+    emailRegion: "תצוגה מקדימה של דוא״ל",
+    bodyView: "תצוגת גוף",
+    viewFormatted: "מעוצב",
+    viewText: "טקסט",
+    showQuoted: "הצג טקסט מצוטט",
+    subject: "נושא",
+    from: "מאת",
+    to: "אל",
+    cc: "עותק",
+    date: "תאריך",
+    blockedImages: (n) =>
+      n === 1
+        ? "תמונה מרוחקת אחת נחסמה כדי להגן על פרטיותך."
+        : `${n} תמונות מרוחקות נחסמו כדי להגן על פרטיותך.`,
+    attachments: (n) => (n === 1 ? "צירוף אחד" : `${n} צירופים`),
+    attachmentOf: "צירוף של:",
+  },
   insight: {
     tabSummary: "סיכום",
     tabQa: "שאלות ותשובות",

@@ -4,7 +4,7 @@ import { MarkdownPreview } from "./renderers/MarkdownPreview";
 import { HtmlPreview } from "./renderers/HtmlPreview";
 import { TablePreview } from "./renderers/TablePreview";
 import { ArchivePreview } from "./renderers/ArchivePreview";
-import { EmailPreview } from "./renderers/EmailPreview";
+import { EmailManifestPreview } from "./renderers/EmailManifestPreview";
 import { SlidesPreview } from "./renderers/SlidesPreview";
 import { ImageViewer } from "./renderers/ImageViewer";
 import { PdfViewer } from "./renderers/PdfViewer";
@@ -244,11 +244,15 @@ export function PreviewPane({
   }
 
   if (mime === "message/rfc822" || mime === "application/vnd.ms-outlook") {
+    // Extracted/translation modes are handled by the text block above; here
+    // (default/original mode) the manifest-driven high-fidelity viewer renders,
+    // with its own fallback to the legacy EmailPreview when the render is
+    // unavailable, disabled, or failed.
     return (
       <div className={styles.pane}>
-        <EmailPreview
+        <EmailManifestPreview
           docId={preview.document_id}
-          text={text ?? ""}
+          fallbackText={text ?? ""}
           metadata={preview.metadata}
           searchQuery={searchQuery}
           activeSearchIndex={activeSearchIndex}

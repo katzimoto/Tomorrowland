@@ -41,9 +41,9 @@ vi.mock("./renderers/ArchivePreview", () => ({
   ),
 }));
 
-vi.mock("./renderers/EmailPreview", () => ({
-  EmailPreview: ({ searchQuery }: { searchQuery?: string }) => (
-    <div data-testid="email-preview" data-search-query={searchQuery} />
+vi.mock("./renderers/EmailManifestPreview", () => ({
+  EmailManifestPreview: ({ searchQuery }: { searchQuery?: string }) => (
+    <div data-testid="email-manifest-preview" data-search-query={searchQuery} />
   ),
 }));
 
@@ -404,14 +404,28 @@ describe("PreviewPane dispatch", () => {
       expect(screen.getByTestId("archive-preview")).toHaveAttribute("data-search-query", "archive");
     });
 
-    it("passes searchQuery to email preview for rfc822 MIME", () => {
+    it("routes rfc822 to the manifest viewer in default mode", () => {
       render(
         <PreviewPane
           preview={makePreview({ mime_type: "message/rfc822" })}
           searchQuery="email"
         />
       );
-      expect(screen.getByTestId("email-preview")).toHaveAttribute("data-search-query", "email");
+      expect(screen.getByTestId("email-manifest-preview")).toHaveAttribute(
+        "data-search-query",
+        "email",
+      );
+    });
+
+    it("routes rfc822 to the extracted-text preview in extracted mode", () => {
+      render(
+        <PreviewPane
+          preview={makePreview({ mime_type: "message/rfc822" })}
+          searchQuery="email"
+          activeMode="extracted"
+        />
+      );
+      expect(screen.getByTestId("text-preview")).toHaveAttribute("data-search-query", "email");
     });
 
     it("passes searchQuery to slides preview for pptx MIME", () => {

@@ -21,7 +21,15 @@ Gap noted for implementers: tests/fixtures has **zero** mail fixtures (#671 corp
 - Router `preview_manifest.py`: `GET /preview/{id}/manifest` (pending→ready lifecycle; pdf/image/text ready-immediate, Office text-fallback), `GET …/artifact/{artifact_id}` (opaque-ID, CSP+nosniff on HTML), `POST /admin/preview/{id}/rerender`.
 - **Reusable discovery**: `DocumentRelationshipRepository.get_child_relationships()` is NEW — `get_relationships()` hardcodes `path_in_parent=None` (and even the existing `PreviewResponse.relationships` always carries null path). Use the new method when you need attachment→child filename matching.
 - Config: `ENABLE_PREVIEW_RENDER` + `PREVIEW_MAX_*`. Dep: `nh3`. Compose: `preview-worker` in both files + airgap validator. Fixtures: `tests/fixtures/mail/*.eml` (incl. `malicious.eml` XSS corpus).
-- Verified: ruff, mypy --strict (194 files), 32 unit + 13 integration preview tests, pipeline/relationship/rabbit regressions, migration round-trip, mkdocs --strict. **Next: S2 (frontend EmailViewer + manifest dispatch).**
+- Verified: ruff, mypy --strict (194 files), 32 unit + 13 integration preview tests, pipeline/relationship/rabbit regressions, migration round-trip, mkdocs --strict.
+- **S1 merged to `feature/preview-rendering`** (PR #737, squash `bb9910a`).
+
+**S2 IMPLEMENTED (2026-06-13, branch `feat/539-s2-email-viewer`).** Frontend EML viewer + manifest dispatch:
+- `frontend/src/api/preview.ts`: `PreviewManifest` types, `getPreviewManifest`, `getPreviewArtifactText` (raw-text fetch), `usePreviewManifest` (polls while pending/running using `retry_after_ms`). Added `api.getText` to `client.ts` (refactored shared `buildHeaders`) — needed because iframes can't send the Bearer header, so HTML artifacts load via fetch→`srcdoc`.
+- `renderers/EmailViewer.tsx`: header card, HTML body in `sandbox=""` iframe (srcdoc), Formatted/Text toggle, collapsible quoted ranges, blocked-images notice, attachment links to child docs. Search forces text view + highlights text body (HTML iframe is unreachable). `renderers/EmailManifestPreview.tsx`: dispatch wrapper — ready/partial→EmailViewer, pending/running→"Preparing…", failed/error/disabled→legacy EmailPreview fallback.
+- `ParentContextBanner.tsx` in DocumentPage (above PreviewPane) — links attachment docs back to parent email via existing `preview.relationships`.
+- PreviewPane email branch: default/original mode→EmailManifestPreview; extracted/translation already handled by the top text block (so the email branch is default-mode only). `EmailPreview` now only used as the fallback inside EmailManifestPreview.
+- i18n `preview.*` in en + he. Verified: typecheck, lint (0 errors; 4 pre-existing TextPreview warnings), 310 frontend tests pass (15 new across EmailViewer/EmailManifestPreview/ParentContextBanner). **Next: S3 (MSG) or S4 (Office DOCX/PPTX + soffice preview-worker image).**
 
 ## 2026-06-08 — docs: documentation overhaul — MkDocs wiki, archives, documentation policy
 
