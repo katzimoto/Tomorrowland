@@ -1,0 +1,31 @@
+Subject: Contract documents
+From: alice@example.com
+To: bob@example.com
+Date: Thu, 08 Jan 2026 14:00:00 +0100
+Message-ID: <attach-001@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============1577091624799745734=="
+
+--===============1577091624799745734==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Both documents attached.
+
+--===============1577091624799745734==
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="contract.pdf"
+MIME-Version: 1.0
+
+JVBERi0xLjQgZmFrZS1idXQtcmVjb2duaXphYmxlIHBkZiBieXRlcyBmb3IgZml4dHVyZXM=
+
+--===============1577091624799745734==
+Content-Type: text/plain
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="appendix.txt"
+MIME-Version: 1.0
+
+YXBwZW5kaXggdGV4dCBjb250ZW50
+
+--===============1577091624799745734==--

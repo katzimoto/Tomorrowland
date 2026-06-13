@@ -14,6 +14,15 @@ New architecture plan for #539 **supersedes the 2026-05-29 PDF-first plan commen
 
 Gap noted for implementers: tests/fixtures has **zero** mail fixtures (#671 corpus is Office/PDF only) — S1 adds `tests/fixtures/mail/`.
 
+**S1 IMPLEMENTED (2026-06-13, branch `feat/539-s1-preview-manifest` → `feature/preview-rendering`).** Backend EML preview + manifest pipeline:
+- Migration `f2a4c6e8b0d2` adds `document_preview_artifacts` (UNIQUE `document_id+content_sha256`); single linear head, downgrade verified.
+- New `src/services/preview/`: `manifest.py` (kind/renderer classification), `sanitizer.py` (nh3 allowlist; `*`-key empty-set override needed to drop nh3's default title/lang attrs — the #623 breakout vector), `email_renderer.py` (stdlib `email` MIME-tree parse — NOT the text-flattening `EmlExtractor`; cid→data: embedding, remote-image blocking+count, quoted-range heuristics), `artifact_store.py` (files_root/previews, traversal-guarded), `artifact_repository.py`, `render.py` (orchestrator — render failures are terminal artifact states, never raised; infra errors raise).
+- `preview_worker.py` (queue `document.preview.requested`, health 8088) + `publish_preview` + topology in `shared/rabbit.py`. API never writes artifacts (read-only mount honored); manifest endpoint enqueues the job, worker renders.
+- Router `preview_manifest.py`: `GET /preview/{id}/manifest` (pending→ready lifecycle; pdf/image/text ready-immediate, Office text-fallback), `GET …/artifact/{artifact_id}` (opaque-ID, CSP+nosniff on HTML), `POST /admin/preview/{id}/rerender`.
+- **Reusable discovery**: `DocumentRelationshipRepository.get_child_relationships()` is NEW — `get_relationships()` hardcodes `path_in_parent=None` (and even the existing `PreviewResponse.relationships` always carries null path). Use the new method when you need attachment→child filename matching.
+- Config: `ENABLE_PREVIEW_RENDER` + `PREVIEW_MAX_*`. Dep: `nh3`. Compose: `preview-worker` in both files + airgap validator. Fixtures: `tests/fixtures/mail/*.eml` (incl. `malicious.eml` XSS corpus).
+- Verified: ruff, mypy --strict (194 files), 32 unit + 13 integration preview tests, pipeline/relationship/rabbit regressions, migration round-trip, mkdocs --strict. **Next: S2 (frontend EmailViewer + manifest dispatch).**
+
 ## 2026-06-08 — docs: documentation overhaul — MkDocs wiki, archives, documentation policy
 
 Status: Active

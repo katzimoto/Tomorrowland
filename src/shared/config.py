@@ -113,6 +113,14 @@ class Settings(BaseSettings):
     # Auto-detect source_language when not provided by the connector.
     enable_language_detection: bool = True
 
+    # --- Preview rendering (#539) ---
+    # Gates preview_render job dispatch; the manifest endpoint itself stays
+    # available and reports a text fallback when disabled.
+    enable_preview_render: bool = True
+    preview_max_file_bytes: int = Field(default=104_857_600, ge=1)
+    preview_max_inline_images: int = Field(default=50, ge=0)
+    preview_max_inline_image_bytes: int = Field(default=5_242_880, ge=1)
+
     feature_rag_qa: bool = True
     rag_max_chunks: int = Field(default=5, ge=1, le=50)
     rag_max_tokens_context: int = Field(default=2000, ge=100)

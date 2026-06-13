@@ -738,6 +738,46 @@ class DocumentRelationshipRepository:
             },
         )
 
+    def get_child_relationships(
+        self, parent_id: UUID, relationship_type: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Return child relationships for *parent_id*, including ``path_in_parent``.
+
+        Unlike :meth:`get_relationships` (which omits ``path_in_parent``), this
+        exposes the per-child path so callers can match a child document back to
+        its slot in the parent — e.g. an email attachment to its filename.
+        Ordered by ``created_at`` so duplicate filenames resolve in attach order.
+        """
+        clause = ""
+        params: dict[str, Any] = {"parent_id": db_uuid(parent_id)}
+        if relationship_type is not None:
+            clause = " AND r.relationship_type = :rtype"
+            params["rtype"] = relationship_type
+        rows = (
+            self._connection.execute(
+                sa.text(f"""
+                SELECT r.relationship_type, r.child_document_id AS other_id,
+                       r.path_in_parent, d.title
+                FROM document_relationships r
+                JOIN documents d ON d.id = r.child_document_id
+                WHERE r.parent_document_id = :parent_id{clause}
+                ORDER BY r.created_at, r.child_document_id
+                """),
+                params,
+            )
+            .mappings()
+            .all()
+        )
+        return [
+            {
+                "relationship_type": r["relationship_type"],
+                "other_document_id": str(to_uuid(r["other_id"])),
+                "title": r["title"],
+                "path_in_parent": r["path_in_parent"],
+            }
+            for r in rows
+        ]
+
     def get_relationships(self, document_id: UUID) -> list[dict[str, Any]]:
         """Return relationships for *document_id*.
 

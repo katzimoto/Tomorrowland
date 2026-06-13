@@ -1,0 +1,16 @@
+Subject: Quarterly figures
+From: Alice Sender <alice@example.com>
+To: bob@example.com, Carol <carol@example.com>
+Cc: dave@example.com
+Date: Mon, 05 Jan 2026 09:30:00 +0100
+Message-ID: <plain-001@example.com>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+Hello Bob,
+
+The Q4 figures are attached in the follow-up mail.
+
+Best,
+Alice
