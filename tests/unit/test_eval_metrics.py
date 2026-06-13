@@ -13,7 +13,6 @@ from tests.eval.metrics import (
     recall_at_k,
 )
 
-
 # ── recall_at_k ─────────────────────────────────────────────────────
 
 
@@ -66,7 +65,9 @@ def test_citation_accuracy_empty_gold():
 
 
 def test_citation_accuracy_require_all_pass():
-    assert citation_accuracy(["doc-1", "doc-2"], {"doc-1", "doc-2"}, require_all=True) == pytest.approx(1.0)
+    assert citation_accuracy(
+        ["doc-1", "doc-2"], {"doc-1", "doc-2"}, require_all=True
+    ) == pytest.approx(1.0)
 
 
 def test_citation_accuracy_require_all_fail():
@@ -87,23 +88,31 @@ def test_anchor_success_page_miss():
 
 
 def test_anchor_success_sheet_match():
-    result = citation_anchor_success([], ["Summary", "Details"], expected_page=None, expected_sheet_name="Summary")
+    result = citation_anchor_success(
+        [], ["Summary", "Details"], expected_page=None, expected_sheet_name="Summary"
+    )
     assert result is True
 
 
 def test_anchor_success_sheet_miss():
-    result = citation_anchor_success([], ["Details"], expected_page=None, expected_sheet_name="Summary")
+    result = citation_anchor_success(
+        [], ["Details"], expected_page=None, expected_sheet_name="Summary"
+    )
     assert result is False
 
 
 def test_anchor_success_no_expectation_returns_none():
-    result = citation_anchor_success([1, 2], ["Sheet1"], expected_page=None, expected_sheet_name=None)
+    result = citation_anchor_success(
+        [1, 2], ["Sheet1"], expected_page=None, expected_sheet_name=None
+    )
     assert result is None
 
 
 def test_anchor_success_page_takes_precedence_over_sheet():
     # expected_page is checked first; expected_sheet_name is ignored when page set
-    result = citation_anchor_success([5], ["Summary"], expected_page=5, expected_sheet_name="Missing")
+    result = citation_anchor_success(
+        [5], ["Summary"], expected_page=5, expected_sheet_name="Missing"
+    )
     assert result is True
 
 
@@ -151,7 +160,7 @@ def test_aggregate_pass_rate():
 def test_aggregate_no_answer_accuracy():
     results = [
         _make_case_result(expected_no_answer=True, has_answer=False),  # correct
-        _make_case_result(expected_no_answer=True, has_answer=True),   # wrong
+        _make_case_result(expected_no_answer=True, has_answer=True),  # wrong
     ]
     m = aggregate_metrics(results)
     assert m.no_answer_accuracy == pytest.approx(0.5)

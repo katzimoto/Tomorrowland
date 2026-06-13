@@ -139,9 +139,7 @@ def test_retrieval_case(
     cited_section_headings: list[str] = [
         c.section_heading for c in result.citations if c.section_heading
     ]
-    cited_languages: list[str] = [
-        c.language for c in result.citations if c.language
-    ]
+    cited_languages: list[str] = [c.language for c in result.citations if c.language]
     cited_translated_from: list[str] = [
         c.translated_from for c in result.citations if c.translated_from
     ]
