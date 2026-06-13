@@ -110,6 +110,7 @@ nav:
       - Extraction: context/extraction.md
       - Frontend: context/frontend.md
       - ACL & Permissions: context/acl-audit.md
+      - RAG Threat Model: security/rag-threat-model.md
   - Design & Specs:
       - Overview: design/README.md
       - Documents:
