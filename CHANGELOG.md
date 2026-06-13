@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Mail preview rendering pipeline — slice 1 (#539)**: high-fidelity EML
+  preview behind a new manifest API. `GET /preview/{id}/manifest` reports
+  render status (`pending`/`running`/`ready`/`partial`/`failed`); mail bodies
+  render to a sanitized HTML artifact (`nh3` allowlist + deny-all CSP, served
+  for sandboxed-iframe display) plus a plain-text artifact, with `cid:` inline
+  images embedded as `data:` URIs and remote images/tracking pixels stripped
+  and counted. `GET /preview/{id}/artifact/{artifact_id}` serves artifacts by
+  opaque ID (no filesystem paths in responses); `POST /admin/preview/{id}/rerender`
+  clears a cached render. Artifacts are cached per `document_id + content_sha256`
+  in the new `document_preview_artifacts` table and on disk under
+  `files_root/previews/`. Rendering runs in a new `preview-worker`
+  (`tomorrowland-preview-worker`, queue `document.preview.requested`) so the
+  API keeps its read-only `files_data` mount; a render failure is terminal
+  (no retry loop on corrupt/oversized files). PDF/image/text documents report a
+  ready-immediate manifest and keep using the existing download/text endpoints;
+  Office kinds report a text fallback until later slices. New settings:
+  `ENABLE_PREVIEW_RENDER` (default `true`), `PREVIEW_MAX_FILE_BYTES`,
+  `PREVIEW_MAX_INLINE_IMAGES`, `PREVIEW_MAX_INLINE_IMAGE_BYTES`. New dependency:
+  `nh3`. See `docs/planning/preview-mail-office-first-2026-06.md`.
 - **Docling PDF extractor (#649)**: `DoclingPdfExtractor` registered as a
   `QualityTier.HIGH` backend for `application/pdf` when `ENABLE_DOCLING=true`.
   Produces layout-aware Markdown (tables, multi-column, headings) for richer RAG

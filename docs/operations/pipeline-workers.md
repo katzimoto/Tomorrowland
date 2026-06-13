@@ -22,6 +22,7 @@ to the next stage. The canonical 7-stage pipeline is:
 | `intelligence-worker` | `services.pipeline.intelligence_consumer` | Intelligence (summary, entities, tags) |
 | `alert-worker` | `services.pipeline.alert_consumer` | Alert matching |
 | `enrich-worker` | `services.pipeline.enrich_worker` | Enrich (re-translation) |
+| `preview-worker` | `services.pipeline.preview_worker` | Preview render (mail/Office artifacts) |
 
 **Queue transport**: RabbitMQ with per-stage queues, 30s retry tiers, and
 dead-letter queues (DLQ). Each stage has a primary queue, a retry queue, and
@@ -32,7 +33,12 @@ attention.
 (from a sync-now API call or the scheduler). Each worker processes its stage,
 marks progress via `pipeline_jobs.stage`, and publishes to the next queue.
 `intelligence` and `alert` run in parallel after indexing. `enrich` is
-triggered separately for frequently viewed documents.
+triggered separately for frequently viewed documents. `preview` is triggered
+on demand the first time a mail/Office document's preview manifest is
+requested (the API enqueues the job; the worker writes the artifacts because
+the API mounts `files_data` read-only). A failed render is a **terminal**
+artifact state, not a job failure — the job still succeeds, so a broken file
+never loops through retry/DLQ; an admin re-render is the only retry path.
 
 `intelligence_document` and `alert_document` are **best-effort** stages: if
 the model or alert service is unreachable, the stage is logged and the

@@ -25,6 +25,7 @@ _STAGE_QUEUES = [
     "document.intelligence.requested",
     "document.alert.requested",
     "document.enrich.requested",
+    "document.preview.requested",
 ]
 
 

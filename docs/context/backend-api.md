@@ -8,6 +8,10 @@ Use this map for FastAPI route, auth, permissions, readiness, and API persistenc
 - `src/services/auth/` — JWT, password, LDAP boundary, repositories.
 - `src/services/permissions/` — authorization guards and document access checks.
 - `src/services/documents/` — document metadata repository and models.
+- `src/services/preview/` — snippet service plus the preview manifest pipeline
+  (renderers, artifact store/repository) behind `GET /preview/{id}/manifest`,
+  `GET /preview/{id}/artifact/{artifact_id}`, and
+  `POST /admin/preview/{id}/rerender` (router: `routers/preview_manifest.py`).
 - `src/shared/` — config, database helpers, logging, events.
 - `tests/conftest.py` — integration fixtures, especially `migrated_engine`.
 

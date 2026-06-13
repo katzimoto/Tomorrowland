@@ -38,6 +38,8 @@ services:
     pull_policy: never
   enrich-worker:
     pull_policy: never
+  preview-worker:
+    pull_policy: never
   postgres:
     pull_policy: never
   kafka:
