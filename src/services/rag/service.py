@@ -634,7 +634,11 @@ class RagService:
             )
 
             # Up to 4 concurrent backend calls: Qdrant + 3 Meilisearch branches.
-            with ThreadPoolExecutor(max_workers=4) as pool:
+            # NOTE: explicit pool + shutdown(wait=False) replaces the context-manager
+            # pattern so a stuck backend thread cannot hold the request open beyond
+            # the configured timeout. See intelligence/worker.py for the same pattern.
+            pool = ThreadPoolExecutor(max_workers=4)
+            try:
                 qdrant_future = (
                     pool.submit(_qdrant_callable, **_qdrant_kwargs)  # type: ignore[arg-type]
                     if not _embedding_failed
@@ -720,6 +724,11 @@ class RagService:
                         )
                 else:
                     raw_trans = []
+            finally:
+                # Do not wait for stuck threads. A thread already running can't
+                # be cancelled in Python (cancel() returns False once started),
+                # so cancel pending tasks and return without blocking.
+                pool.shutdown(wait=False, cancel_futures=True)
 
             # Scope filtering: count drops from BM25 branches before merging
             raw_bm25_len = len(raw_bm25)

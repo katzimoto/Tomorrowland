@@ -164,7 +164,11 @@ def search(
     # or read headers/body from inside these closures.
     if meili_provider is not None and query_vector is not None:
         # Both backends available — run in parallel.
-        with ThreadPoolExecutor(max_workers=2) as pool:
+        # NOTE: explicit pool + shutdown(wait=False) replaces the context-manager
+        # pattern so a stuck backend thread cannot hold the request open beyond
+        # the configured timeout. See intelligence/worker.py for the same pattern.
+        pool = ThreadPoolExecutor(max_workers=2)
+        try:
             meili_future = pool.submit(_run_meilisearch)
             qdrant_future = pool.submit(_run_qdrant, query_vector)
             try:
@@ -178,6 +182,11 @@ def search(
                 vector_results, _qdrant_degraded = [], True
                 logger.warning("Qdrant future failed/timed out — no vector results")
             retrieval_degraded = _meili_degraded or _qdrant_degraded
+        finally:
+            # Do not wait for stuck threads. A thread already running can't be
+            # cancelled in Python (cancel() returns False once started), so
+            # cancel pending tasks and return without blocking.
+            pool.shutdown(wait=False, cancel_futures=True)
     elif meili_provider is not None:
         # Encoder failed — vector unavailable; BM25-only is a degraded state.
         bm25_results, meili_facets, _meili_degraded = _run_meilisearch()
