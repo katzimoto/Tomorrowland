@@ -263,6 +263,15 @@ export interface Translations {
     evidenceCopyCitation: string;
     evidenceCopied: string;
     evidenceReportBadCitation: string;
+    evidenceBackends: string;
+    evidenceFusedRank: string;
+    evidenceRerankerDelta: string;
+    evidenceFinalContextRank: string;
+    evidenceRetrievalDegradedBackends: string;
+    evidenceScopeFiltered: string;
+    evidenceDedupCount: string;
+    evidenceScoreThresholdFiltered: string;
+    evidenceRerankerDropped: string;
     feedbackTypeCorrect: string;
     feedbackTypeWrongPassage: string;
     feedbackTypeWrongLocation: string;
@@ -793,6 +802,15 @@ export const en: Translations = {
     evidenceCopyCitation: "Copy citation",
     evidenceCopied: "Copied!",
     evidenceReportBadCitation: "Report problem",
+    evidenceBackends: "Backends",
+    evidenceFusedRank: "Fused rank",
+    evidenceRerankerDelta: "Reranker rank",
+    evidenceFinalContextRank: "Context position",
+    evidenceRetrievalDegradedBackends: "Degraded backends",
+    evidenceScopeFiltered: "Scope filtered",
+    evidenceDedupCount: "Deduplicated",
+    evidenceScoreThresholdFiltered: "Below threshold",
+    evidenceRerankerDropped: "Reranker dropped",
     feedbackTypeCorrect: "Citation is correct",
     feedbackTypeWrongPassage: "Wrong passage",
     feedbackTypeWrongLocation: "Right document, wrong location",

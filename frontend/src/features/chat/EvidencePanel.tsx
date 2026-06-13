@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ExternalLink, X, Copy, Check, Flag } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -133,6 +133,16 @@ export function EvidencePanel({
   const excerpt = citation.text_excerpt ?? citation.chunk_text ?? "";
   const location = locationLine(citation);
 
+  const tracedCandidate = useMemo(
+    () =>
+      retrievalTrace?.candidates.find(
+        (c) =>
+          c.document_id === citation.document_id &&
+          (citation.chunk_index == null || c.chunk_index === citation.chunk_index),
+      ),
+    [retrievalTrace, citation.document_id, citation.chunk_index],
+  );
+
   const { data: preview, isLoading, isError, error } = useQuery({
     queryKey: ["evidence-preview", citation.document_id],
     queryFn: () => getPreview(citation.document_id),
@@ -221,6 +231,32 @@ export function EvidencePanel({
             {citation.translated_from && (
               <MetaRow label={t.chat.evidenceTranslatedFrom} value={citation.translated_from} />
             )}
+            {tracedCandidate && (
+              <>
+                {tracedCandidate.backends && tracedCandidate.backends.length > 0 && (
+                  <div className={styles.metaRow}>
+                    <span className={styles.metaLabel}>{t.chat.evidenceBackends}</span>
+                    <span className={styles.backendChips}>
+                      {tracedCandidate.backends.map((b) => (
+                        <span key={b.backend} className={styles.backendChip}>{b.backend}</span>
+                      ))}
+                    </span>
+                  </div>
+                )}
+                {tracedCandidate.fused_rank != null && (
+                  <MetaRow label={t.chat.evidenceFusedRank} value={String(tracedCandidate.fused_rank)} />
+                )}
+                {tracedCandidate.reranker_delta && (
+                  <MetaRow
+                    label={t.chat.evidenceRerankerDelta}
+                    value={`${tracedCandidate.reranker_delta.input_rank} → ${tracedCandidate.reranker_delta.output_rank ?? "—"}`}
+                  />
+                )}
+                {tracedCandidate.final_context_rank != null && (
+                  <MetaRow label={t.chat.evidenceFinalContextRank} value={`#${tracedCandidate.final_context_rank}`} />
+                )}
+              </>
+            )}
           </div>
           {isLoading && (
             <div className={styles.loadingArea}>
@@ -283,6 +319,34 @@ export function EvidencePanel({
                   <span className={styles.traceDegraded}>{t.chat.evidenceRetrievalDegraded}</span>
                 )}
               </div>
+              {retrievalTrace.degraded_backends && retrievalTrace.degraded_backends.length > 0 && (
+                <div className={styles.metaSection}>
+                  <h4 className={styles.traceHeading}>{t.chat.evidenceRetrievalDegradedBackends}</h4>
+                  {retrievalTrace.degraded_backends.map((db) => (
+                    <div key={db.backend} className={styles.metaRow}>
+                      <span className={styles.metaLabel}>{db.backend}</span>
+                      <span className={styles.metaValue}>{db.error_category}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(() => {
+                const counts = [
+                  { label: t.chat.evidenceScopeFiltered, value: retrievalTrace.scope_filtered_count },
+                  { label: t.chat.evidenceDedupCount, value: retrievalTrace.dedup_count },
+                  { label: t.chat.evidenceScoreThresholdFiltered, value: retrievalTrace.score_threshold_filtered_count },
+                  { label: t.chat.evidenceRerankerDropped, value: retrievalTrace.reranker_dropped_count },
+                ].filter((item) => (item.value ?? 0) > 0);
+                return counts.length > 0 ? (
+                  <div className={styles.traceSummary}>
+                    {counts.map((item) => (
+                      <span key={item.label} className={styles.traceSummaryItem}>
+                        {item.label}: {item.value}
+                      </span>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
               <h4 className={styles.traceHeading}>{t.chat.evidenceRetrievalStages}</h4>
               <table className={styles.traceTable}>
                 <thead>
@@ -309,6 +373,7 @@ export function EvidencePanel({
                     <th>Title</th>
                     <th>Score</th>
                     <th>p.</th>
+                    <th>#ctx</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -317,6 +382,7 @@ export function EvidencePanel({
                       <td className={styles.truncate}>{c.doc_title ?? c.document_id}</td>
                       <td>{c.score.toFixed(3)}</td>
                       <td>{c.page_number ?? "—"}</td>
+                      <td>{c.final_context_rank ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
