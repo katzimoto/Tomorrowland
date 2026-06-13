@@ -81,6 +81,8 @@ def search(
     # ── Run Meilisearch and Qdrant in parallel ──────────────────────────
     bm25_results: list[SearchResult] = []
     meili_facets: dict[str, dict[str, int]] = {}
+    meili_total: int = 0
+    meili_total_is_approximate: bool = False
     vector_results: list[SearchResult] = []
 
     # Pre-compute encoder outside the thread pool to avoid extra work.
@@ -106,7 +108,7 @@ def search(
     meili_provider = http_request.app.state.meili_provider
     qdrant_extra = _qdrant_extra_conditions(meili_filters)
 
-    def _run_meilisearch() -> tuple[list[SearchResult], dict[str, dict[str, int]], bool]:
+    def _run_meilisearch() -> tuple[list[SearchResult], dict[str, dict[str, int]], bool, int, bool]:
         backend_start = time.perf_counter()
         try:
             meili_results = meili_provider.search(
@@ -121,13 +123,19 @@ def search(
             http_request.app.state.metrics.search_backend_duration_seconds.labels(
                 "meilisearch", "search"
             ).observe(time.perf_counter() - backend_start)
-            return meili_results.results, meili_results.facets, False
+            return (
+                meili_results.results,
+                meili_results.facets,
+                False,
+                meili_results.total,
+                meili_results.total_is_approximate,
+            )
         except Exception:
             logger.warning(
                 "Meilisearch search degraded route=/search stage=bm25_search correlation_id=%s",
                 get_correlation_id(),
             )
-            return [], {}, True
+            return [], {}, True, 0, False
 
     def _run_qdrant(
         query_vector: list[float],
@@ -172,9 +180,19 @@ def search(
             meili_future = pool.submit(_run_meilisearch)
             qdrant_future = pool.submit(_run_qdrant, query_vector)
             try:
-                bm25_results, meili_facets, _meili_degraded = meili_future.result(timeout=30)
+                (
+                    bm25_results,
+                    meili_facets,
+                    _meili_degraded,
+                    meili_total,
+                    meili_total_is_approximate,
+                ) = meili_future.result(timeout=30)
             except Exception:
-                bm25_results, meili_facets, _meili_degraded = [], {}, True
+                bm25_results = []
+                meili_facets = {}
+                _meili_degraded = True
+                meili_total = 0
+                meili_total_is_approximate = False
                 logger.warning("Meilisearch future failed/timed out — degraded to BM25-only")
             try:
                 vector_results, _qdrant_degraded = qdrant_future.result(timeout=30)
@@ -189,7 +207,9 @@ def search(
             pool.shutdown(wait=False, cancel_futures=True)
     elif meili_provider is not None:
         # Encoder failed — vector unavailable; BM25-only is a degraded state.
-        bm25_results, meili_facets, _meili_degraded = _run_meilisearch()
+        bm25_results, meili_facets, _meili_degraded, meili_total, meili_total_is_approximate = (
+            _run_meilisearch()
+        )
         retrieval_degraded = True
     elif query_vector is not None:
         # Meilisearch not configured — run Qdrant only.
@@ -261,6 +281,11 @@ def search(
             ]
             if _non_latest_fids:
                 family_current = _doc_repo.get_family_current_doc_ids(_non_latest_fids)
+
+    # Record candidate_count BEFORE post-filtering so callers can distinguish
+    # how many candidates survived the backend merge from how many were removed
+    # by version/filter enforcement.
+    candidate_count = len(merged)
 
     # Filter merged results: drop orphaned vectors, older versions (unless
     # requested), and any result that does not satisfy the user's filters.
@@ -335,9 +360,27 @@ def search(
     http_request.app.state.metrics.search_duration_seconds.labels("hybrid").observe(
         time.perf_counter() - metrics_start
     )
+
+    # Total is always the post-filter merged list size (the number of items
+    # available for pagination).  This is the only safe value for the frontend's
+    # infinite-scroll pagination logic (loaded < total → more pages).
+    #
+    # total_is_approximate indicates whether the candidate windows from the
+    # backend(s) may have excluded relevant corpus matches:
+    #   - BM25-only: False (Meilisearch had full visibility within top_k).
+    #   - Hybrid or vector-only: True (both backend candidate windows constrain
+    #     the result set; the true corpus total may be higher).
+    total = len(merged)
+    total_is_approximate = bool(vector_results)
+
     return SearchResponse(
         results=results,
-        total=len(merged),
+        total=total,
+        total_is_approximate=total_is_approximate,
+        candidate_count=candidate_count,
+        returned_count=len(results),
+        offset=start,
+        limit=request.page_size,
         query=request.query,
         facets=meili_facets,
         reranker_applied=reranker_applied,

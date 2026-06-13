@@ -386,7 +386,14 @@ class MeilisearchSearchProvider:
             )
             for i in items
         ]
-        return SearchResults(results=results, facets=facets)
+
+        meili_total = raw.get("estimatedTotalHits", len(items))
+        return SearchResults(
+            results=results,
+            facets=facets,
+            total=meili_total,
+            total_is_approximate=False,
+        )
 
     def search_rag(
         self,

@@ -50,6 +50,7 @@ export interface Translations {
     modeKeyword: string;
     modeSemantic: string;
     resultCount: (n: number) => string;
+    resultApproximate: (n: number) => string;
     activeFilters: string;
     removeFilter: (label: string) => string;
     resultsLabel: string;
@@ -578,6 +579,7 @@ export const en: Translations = {
     modeKeyword: "Keyword",
     modeSemantic: "Semantic",
     resultCount: (n) => `${n.toLocaleString()} result${n !== 1 ? "s" : ""}`,
+    resultApproximate: (n) => `~${n.toLocaleString()} result${n !== 1 ? "s" : ""}`,
     activeFilters: "Active filters",
     removeFilter: (label) => `Remove filter: ${label}`,
     resultsLabel: "Search results",

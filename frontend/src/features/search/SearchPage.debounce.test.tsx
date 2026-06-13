@@ -52,6 +52,11 @@ beforeEach(() => {
   vi.mocked(searchApi.search).mockResolvedValue({
     results: mockResults,
     total: 1,
+    total_is_approximate: true,
+    candidate_count: 1,
+    returned_count: 1,
+    offset: 0,
+    limit: 20,
     query: "annual",
   });
   vi.mocked(getPreview).mockClear();
@@ -252,6 +257,11 @@ describe("SearchPage — filter integration", () => {
     vi.mocked(searchApi.search).mockResolvedValueOnce({
       results: mockResults,
       total: 1,
+      total_is_approximate: true,
+      candidate_count: 1,
+      returned_count: 1,
+      offset: 0,
+      limit: 20,
       query: "annual",
       retrieval_degraded: true,
     });

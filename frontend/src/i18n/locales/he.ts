@@ -52,6 +52,7 @@ export const he: Translations = {
     modeKeyword: "מילות מפתח",
     modeSemantic: "סמנטי",
     resultCount: (n: number) => `${n.toLocaleString()} תוצאות`,
+    resultApproximate: (n: number) => `~${n.toLocaleString()} תוצאות`,
     activeFilters: "מסננים פעילים",
     removeFilter: (label: string) => `הסר מסנן: ${label}`,
     resultsLabel: "תוצאות חיפוש",

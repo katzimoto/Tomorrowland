@@ -17,3 +17,5 @@ class SearchResult:
 class SearchResults:
     results: list[SearchResult]
     facets: dict[str, dict[str, int]]
+    total: int = 0
+    total_is_approximate: bool = False
