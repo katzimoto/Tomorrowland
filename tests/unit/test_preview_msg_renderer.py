@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from services.preview.msg_renderer import render_msg
+from services.preview.msg_renderer import _rtf_to_html, render_msg
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
 
@@ -63,7 +63,8 @@ def test_msg_html_body_sanitized_and_metadata() -> None:
     assert "evil" not in html
 
 
-def test_msg_rtf_only_body_falls_back_to_text() -> None:
+def test_msg_no_rtf_body_falls_back_to_text() -> None:
+    """No htmlBody and no rtfBody attribute → text-only fallback."""
     msg = SimpleNamespace(
         subject="RTF only",
         sender="alice@example.com",
@@ -83,6 +84,65 @@ def test_msg_rtf_only_body_falls_back_to_text() -> None:
     assert rendered.email_manifest["has_html_body"] is False
     assert rendered.email_manifest["has_text_body"] is True
     assert rendered.artifacts["body-text"][2] == b"Plain body fallback"
+
+
+def test_msg_rtf_body_converted_to_html() -> None:
+    """rtfBody is converted to sanitized HTML via soffice."""
+    msg = SimpleNamespace(
+        subject="RTF rich",
+        sender="alice@example.com",
+        to="bob@example.com",
+        cc="",
+        bcc="",
+        date=None,
+        messageId=None,
+        inReplyTo=None,
+        htmlBody=None,
+        html=None,
+        body="Plain fallback",
+        rtfBody=b"{\\rtf1\\ansi\\b Hello\\b0 World}",
+        attachments=[],
+        close=lambda: None,
+    )
+    with patch(
+        "services.preview.msg_renderer._rtf_to_html",
+        return_value="<p><b>Hello</b> World</p>",
+    ):
+        rendered = _render_with(msg)
+    assert rendered.email_manifest["has_html_body"] is True
+    assert rendered.email_manifest["has_text_body"] is True
+    html = rendered.artifacts["body-html"][2].decode("utf-8")
+    assert "<b>Hello</b>" in html
+    text = rendered.artifacts["body-text"][2].decode("utf-8")
+    assert "Plain fallback" in text
+
+
+def test_msg_rtf_body_falls_back_when_soffice_unavailable() -> None:
+    """rtfBody present but soffice unavailable → text-only fallback."""
+    msg = SimpleNamespace(
+        subject="RTF fail",
+        sender="alice@example.com",
+        to="bob@example.com",
+        cc="",
+        bcc="",
+        date=None,
+        messageId=None,
+        inReplyTo=None,
+        htmlBody=None,
+        html=None,
+        body="Fallback text",
+        rtfBody=b"{\\rtf1\\ansi\\b Hello\\b0 World}",
+        attachments=[],
+        close=lambda: None,
+    )
+    with patch(
+        "services.preview.msg_renderer._rtf_to_html",
+        return_value=None,
+    ):
+        rendered = _render_with(msg)
+    assert rendered.email_manifest["has_html_body"] is False
+    assert rendered.email_manifest["has_text_body"] is True
+    assert rendered.artifacts["body-text"][2] == b"Fallback text"
 
 
 def test_msg_inline_image_embedded_regular_attachment_listed() -> None:
@@ -133,6 +193,22 @@ def test_msg_inline_image_cap_skips_and_counts() -> None:
     rendered = _render_with(msg, max_inline_images=0)
     assert rendered.email_manifest["inline_images"] == []
     assert rendered.email_manifest["skipped_inline_images"] == 1
+
+
+def test_rtf_to_html_returns_none_when_soffice_missing() -> None:
+    """FileNotFoundError from missing soffice returns None."""
+    with patch("services.preview.msg_renderer.subprocess.run") as mock_run:
+        mock_run.side_effect = FileNotFoundError("soffice not found")
+        result = _rtf_to_html(b"{\\rtf1 hello}", timeout=5.0)
+    assert result is None
+
+
+def test_rtf_to_html_returns_none_on_nonzero_exit() -> None:
+    """Non-zero return from soffice returns None."""
+    with patch("services.preview.msg_renderer.subprocess.run") as mock_run:
+        mock_run.return_value = SimpleNamespace(returncode=1, stderr=b"error")
+        result = _rtf_to_html(b"{\\rtf1 fake}", timeout=5.0)
+    assert result is None
 
 
 def test_msg_message_closed_after_render() -> None:

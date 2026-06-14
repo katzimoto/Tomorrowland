@@ -30,6 +30,13 @@ All notable changes to this project will be documented in this file.
   client (`listEvidencePacks`, `getEvidencePack`, `createEvidencePack`,
   `addEvidencePackItem`) over the `/evidence-packs` API from #676. Export and
   agent-created packs remain out of scope (#678, #663/#565).
+- **RTF-only Outlook MSG bodies → sanitized HTML (#740)**: When an Outlook
+  ``.msg`` file stores its body as RTF only (no HTML body — common for messages
+  composed in Outlook), the preview renderer now converts the decompressed RTF
+  body to sanitized HTML via LibreOffice ``soffice --convert-to html``, then
+  runs it through the same nh3 allowlist + CSP + sandboxed iframe path as
+  HTML-body messages. Falls back to the plain-text body when LibreOffice is
+  unavailable. No remote-resource fetches; air-gap safe.
 - **Evidence pack schema and API (#676), with permission/audit tests (#679)**:
   New backend foundation for durable, auditable evidence packs — owner-scoped
   collections of source-backed citations, passages, claims, and notes. Adds the

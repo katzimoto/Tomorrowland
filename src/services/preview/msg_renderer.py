@@ -2,14 +2,17 @@
 
 Uses ``extract_msg`` (a core dependency) to read the MAPI message, then emits
 the same artifacts and manifest ``email`` section as the EML renderer so the
-frontend EmailViewer renders both identically. Reduced fidelity vs. EML:
-Outlook stores either an HTML body or an RTF-only body; the RTF-only case
-degrades to the plain-text body (RTF→HTML conversion is a staged follow-up).
+frontend EmailViewer renders both identically. When the message stores its body
+as **RTF only** (common for Outlook-internal mail) the renderer converts the
+decompressed RTF body to sanitized HTML via LibreOffice ``soffice --convert-to
+html``, falling back to the plain-text body when LibreOffice is unavailable.
 """
 
 from __future__ import annotations
 
 import logging
+import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -83,11 +86,49 @@ def _attachment_ctype(att: object) -> str:
     )
 
 
+def _rtf_to_html(rtf_body: bytes, timeout: float = 30.0) -> str | None:
+    """Convert RTF bytes to HTML via LibreOffice ``soffice --convert-to html``.
+
+    Returns the HTML string on success, or ``None`` when soffice is unavailable
+    or the conversion fails (caller falls back to the plain-text body).
+    """
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            rtf_path = Path(tmp, "body.rtf")
+            rtf_path.write_bytes(rtf_body)
+            result = subprocess.run(
+                [
+                    "soffice",
+                    "--headless",
+                    "--norestore",
+                    "--nofirststartwizard",
+                    "--convert-to",
+                    "html",
+                    "--outdir",
+                    tmp,
+                    str(rtf_path),
+                ],
+                capture_output=True,
+                timeout=timeout,
+                check=False,
+            )
+            if result.returncode != 0:
+                return None
+            html_path = Path(tmp, "body.html")
+            return html_path.read_text("utf-8", errors="replace") if html_path.is_file() else None
+    except FileNotFoundError:
+        return None
+    except subprocess.TimeoutExpired:
+        logger.warning("soffice RTF→HTML conversion timed out after %ss", timeout)
+        return None
+
+
 def render_msg(
     path: Path,
     *,
     max_inline_images: int,
     max_inline_image_bytes: int,
+    rtf_timeout: float = 30.0,
 ) -> RenderedEmail:
     """Render an Outlook .msg file into preview artifacts and the manifest."""
     msg = extract_msg.Message(str(path))  # type: ignore[no-untyped-call]
@@ -96,6 +137,7 @@ def render_msg(
             msg,
             max_inline_images=max_inline_images,
             max_inline_image_bytes=max_inline_image_bytes,
+            rtf_timeout=rtf_timeout,
         )
     finally:
         try:
@@ -109,6 +151,7 @@ def _render_open_msg(
     *,
     max_inline_images: int,
     max_inline_image_bytes: int,
+    rtf_timeout: float = 30.0,
 ) -> RenderedEmail:
     # Partition attachments into inline images (referenced by cid) and regular
     # attachments, respecting the inline-image caps.
@@ -162,6 +205,15 @@ def _render_open_msg(
         artifacts["body-html"] = ("body.html", "text/html", sanitized.html.encode("utf-8"))
         blocked_remote_images = sanitized.blocked_remote_images
         embedded_count = sanitized.embedded_inline_images
+    else:
+        rtf_body = getattr(msg, "rtfBody", None)
+        if rtf_body:
+            rtf_html = _rtf_to_html(rtf_body, timeout=rtf_timeout)
+            if rtf_html:
+                sanitized = sanitize_email_html(rtf_html, cid_data_uris)
+                artifacts["body-html"] = ("body.html", "text/html", sanitized.html.encode("utf-8"))
+                blocked_remote_images = sanitized.blocked_remote_images
+                embedded_count = sanitized.embedded_inline_images
 
     text_body = _safe_str(getattr(msg, "body", None))
     quoted_ranges: list[dict[str, Any]] = []
