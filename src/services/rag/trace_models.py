@@ -97,6 +97,29 @@ class RetrievalStageTrace(BaseModel):
     description: str | None = None
 
 
+class ContextPackingTrace(BaseModel):
+    """Trace of hierarchy-aware context expansion during RAG context packing."""
+
+    model_config = ConfigDict(frozen=True)
+
+    expansion_applied: bool = False
+    """True when at least one chunk was expanded with parent/sibling layout blocks."""
+    expanded_chunk_ids: list[str] = Field(default_factory=list)
+    """Chunk IDs (from chunk_id) that were expanded."""
+    parent_blocks_added: int = 0
+    """Number of parent heading blocks added across all expansions."""
+    sibling_blocks_added: int = 0
+    """Number of sibling blocks added across all expansions."""
+    budget_words: int = 0
+    """Maximum context words for expansion (approximated from rag_max_tokens_context)."""
+    dropped_for_budget: int = 0
+    """Number of expansion candidates dropped because the budget was exhausted."""
+    sections_matched: int = 0
+    """Number of chunks whose (page_number, section_heading) matched a layout section."""
+    sections_not_found: int = 0
+    """Number of chunks whose (page_number, section_heading) did not match any section."""
+
+
 class RetrievalTrace(BaseModel):
     """Complete non-invasive trace of a RAG retrieval operation.
 
@@ -128,3 +151,7 @@ class RetrievalTrace(BaseModel):
     """Candidates removed for falling below the configured score threshold."""
     reranker_dropped_count: int = 0
     """Candidates dropped by the reranker (min-score or top-n cutoff)."""
+
+    # v3: hierarchy expansion
+    context_packing: ContextPackingTrace | None = None
+    """Trace of hierarchy-aware context packing; None when expansion was not attempted."""

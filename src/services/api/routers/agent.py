@@ -601,6 +601,7 @@ def ask_corpus(
             score_threshold=settings.rag_score_threshold,
             meili_provider=request.app.state.meili_provider,
             reranker=NoOpReranker(),
+            enable_hierarchy_expansion=settings.feature_document_chat_hierarchy_expansion,
         )
 
         try:

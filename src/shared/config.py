@@ -144,6 +144,7 @@ class Settings(BaseSettings):
     feature_document_chat_reranker: bool = True
     feature_document_chat_metadata_search: bool = True
     feature_document_chat_translated_text: bool = True
+    feature_document_chat_hierarchy_expansion: bool = False
     feature_document_chat_streaming: bool = True
     auto_enrich_threshold: int = Field(default=5, ge=0)
 

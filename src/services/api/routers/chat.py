@@ -368,6 +368,7 @@ def create_message(
             reranker=reranker,
             enable_metadata_search=settings.feature_document_chat_metadata_search,
             enable_translated_text=settings.feature_document_chat_translated_text,
+            enable_hierarchy_expansion=settings.feature_document_chat_hierarchy_expansion,
         )
 
         phase_start = time.perf_counter()
@@ -606,6 +607,7 @@ def create_message_stream(
             reranker=reranker,
             enable_metadata_search=settings.feature_document_chat_metadata_search,
             enable_translated_text=settings.feature_document_chat_translated_text,
+            enable_hierarchy_expansion=settings.feature_document_chat_hierarchy_expansion,
         )
 
         # Persist the user message now that scope validation passed.

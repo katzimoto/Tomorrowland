@@ -9,7 +9,16 @@ from shared.config import Settings
 
 def test_health_route_is_public_runtime_probe() -> None:
     engine = sa.create_engine("sqlite:///:memory:")
-    app = create_app(engine, Settings(_env_file=None, auth_provider="local", jwt_secret="x" * 32))
+    app = create_app(
+        engine,
+        Settings(
+            _env_file=None,
+            auth_provider="local",
+            jwt_secret="x" * 32,
+            feature_meilisearch_search=False,
+            feature_document_chat=False,
+        ),
+    )
     client = TestClient(app)
     response = client.get("/health")
     assert response.status_code == 200
@@ -25,6 +34,8 @@ def test_cors_allows_configured_origin() -> None:
             auth_provider="local",
             jwt_secret="x" * 32,
             cors_origins="https://tomorrowland.example",
+            feature_meilisearch_search=False,
+            feature_document_chat=False,
         ),
     )
     client = TestClient(app)
@@ -50,6 +61,8 @@ def test_cors_rejects_unconfigured_origin() -> None:
             auth_provider="local",
             jwt_secret="x" * 32,
             cors_origins="https://tomorrowland.example",
+            feature_meilisearch_search=False,
+            feature_document_chat=False,
         ),
     )
     client = TestClient(app)
