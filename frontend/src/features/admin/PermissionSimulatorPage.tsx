@@ -86,18 +86,6 @@ export function PermissionSimulatorPage() {
     queryFn: () => adminApi.listUsers(),
   });
 
-  // Fetch groups list
-  const groupsQuery = useQuery({
-    queryKey: ["admin", "groups"],
-    queryFn: () => adminApi.listGroups(),
-  });
-
-  // Fetch sources list
-  const sourcesQuery = useQuery({
-    queryKey: ["admin", "sources"],
-    queryFn: () => adminApi.listSources(),
-  });
-
   // ── Handlers ──────────────────────────────────────────────────────────
 
   const parseGroupIds = (raw: string): string[] | null => {
@@ -553,7 +541,7 @@ export function PermissionSimulatorPage() {
           </div>
         )) ?? null}
 
-        {!checks && result.error && (
+        {!checks && !!result?.error && (
           <div className={styles.errorInline}>{String(result.error)}: {String(result.detail ?? "")}</div>
         )}
       </div>
