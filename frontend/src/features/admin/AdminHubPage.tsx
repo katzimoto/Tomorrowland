@@ -7,6 +7,7 @@ import {
   Cpu,
   ShieldQuestion,
   FlaskConical,
+  ShieldCheck,
 } from "lucide-react";
 import styles from "./AdminHubPage.module.css";
 
@@ -83,6 +84,17 @@ export function AdminHubPage() {
           <span className={styles.cardTitle}>LDAP Mappings</span>
           <span className={styles.cardDesc}>
             Search LDAP groups and map them to Tomorrowland groups
+          </span>
+        </button>
+        <button
+          type="button"
+          className={styles.card}
+          onClick={() => navigate({ to: "/admin/permission-simulator" })}
+        >
+          <ShieldCheck size={32} className={styles.cardIcon} />
+          <span className={styles.cardTitle}>Permission Simulator</span>
+          <span className={styles.cardDesc}>
+            Simulate user/group access and diagnose allow/deny reasoning
           </span>
         </button>
         <button

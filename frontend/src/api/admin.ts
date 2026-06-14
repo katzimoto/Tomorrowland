@@ -363,6 +363,28 @@ export const adminApi = {
     api.post<LdapGroupMapping>("/admin/ldap/group-mappings", payload),
   deleteLdapGroupMapping: (mappingId: string) =>
     api.delete(`/admin/ldap/group-mappings/${mappingId}`),
+
+  // --- Permission Simulator (#717) ---
+  checkSourceAccess: (payload: PermissionSimulatorCheckPayload) =>
+    api.post<PermissionSimulatorVerdict>(
+      "/admin/permission-simulator/check-source",
+      payload,
+    ),
+  checkDocumentAccess: (payload: PermissionSimulatorCheckPayload & { document_id: string }) =>
+    api.post<PermissionSimulatorVerdict>(
+      "/admin/permission-simulator/check-document",
+      payload,
+    ),
+  simulateSearch: (payload: PermissionSimulatorSearchPayload) =>
+    api.post<PermissionSimulatorSearchResult>(
+      "/admin/permission-simulator/search",
+      payload,
+    ),
+  auditAccess: (payload: PermissionSimulatorAuditPayload) =>
+    api.post<PermissionSimulatorAuditResult>(
+      "/admin/permission-simulator/audit",
+      payload,
+    ),
 };
 
 export interface IngestionStatusJob {
@@ -568,6 +590,83 @@ export interface LdapGroupMappingCreatePayload {
   ldap_external_id: string | null;
   ldap_display_name: string;
   target_group_id: string;
+}
+
+// --- Permission Simulator (#717) ---
+
+export interface PermissionSimulatorCheckPayload {
+  source_id?: string;
+  user_id?: string | null;
+  group_ids?: string[] | null;
+}
+
+export interface PermissionSimulatorVerdict {
+  verdict: "allow" | "deny";
+  reason_category: string;
+  reasoning_path: string[];
+  effective_groups: string[];
+  source_permission_groups: string[];
+  matching_groups: string[];
+  is_admin: boolean;
+  user_id?: string;
+  user_email?: string;
+  document_id?: string;
+  source_id?: string;
+  document_title?: string | null;
+  document_mime_type?: string | null;
+  document_source_type?: string | null;
+}
+
+export interface PermissionSimulatorSearchPayload {
+  query: string;
+  user_id?: string | null;
+  group_ids?: string[] | null;
+  top_k?: number;
+  source_filter?: string[] | null;
+  mime_type_filter?: string[] | null;
+}
+
+export interface PermissionSimulatorSearchResult {
+  search_filter: string;
+  filter_explanation: { step: string; group_names: string[] | null }[];
+  effective_group_ids: string[];
+  effective_group_names: string[];
+  is_admin: boolean;
+  user_id: string;
+  user_email: string;
+  query: string;
+  note?: string;
+  bm25_results?: {
+    document_id: string;
+    title: string | null;
+    score: number;
+    chunk_index: number;
+  }[];
+  bm25_total?: number;
+  bm25_error?: string;
+}
+
+export interface PermissionSimulatorAuditPayload {
+  user_id?: string | null;
+  group_ids?: string[] | null;
+  source_id?: string | null;
+  document_id?: string | null;
+}
+
+export interface PermissionSimulatorAuditResult {
+  error?: string;
+  detail?: string;
+  simulated_user?: {
+    id: string;
+    email: string;
+    display_name: string | null;
+    is_admin: boolean;
+    auth_source: string;
+  };
+  checks?: ({
+    type: string;
+    target: string;
+  } & PermissionSimulatorVerdict)[];
 }
 
 // --- Quality Lab (#714) ---

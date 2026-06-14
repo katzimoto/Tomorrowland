@@ -48,6 +48,7 @@ const AdminUserDetailPage = lazyRoute(() => import("@/features/admin/AdminUserDe
 const AdminModelProvidersPage = lazyRoute(() => import("@/features/admin/AdminModelProvidersPage"), "AdminModelProvidersPage");
 const AdminLdapPage = lazyRoute(() => import("@/features/admin/AdminLdapPage"), "AdminLdapPage");
 const QualityLabPage = lazyRoute(() => import("@/features/admin/QualityLabPage"), "QualityLabPage");
+const PermissionSimulatorPage = lazyRoute(() => import("@/features/admin/PermissionSimulatorPage"), "PermissionSimulatorPage");
 
 // Auth pages need their own Suspense + ErrorBoundary (no AppLayout shell above them).
 function LoginPage() {
@@ -267,6 +268,12 @@ const qualityLabRoute = createRoute({
   component: QualityLabPage,
 });
 
+const permissionSimulatorRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/permission-simulator",
+  component: PermissionSimulatorPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -295,6 +302,7 @@ const routeTree = rootRoute.addChildren([
     adminModelProvidersRoute,
     adminLdapRoute,
     qualityLabRoute,
+    permissionSimulatorRoute,
   ]),
 ]);
 
