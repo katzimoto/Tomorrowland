@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { BookmarkPlus } from "lucide-react";
 import type { DocumentChatCitation, RetrievalTrace } from "@/api/chat";
+import { SaveToEvidencePackDialog } from "@/features/evidence/SaveToEvidencePackDialog";
+import { draftFromCitation } from "@/features/evidence/draftFromCitation";
 import { useT } from "@/i18n/index";
 import styles from "./ChatCitationCard.module.css";
 
@@ -23,6 +27,7 @@ function locationLine(citation: DocumentChatCitation): string {
 
 export function ChatCitationCard({ citation, index, trace, onOpenCitation }: ChatCitationCardProps) {
   const t = useT();
+  const [saveOpen, setSaveOpen] = useState(false);
   const title =
     citation.document_title ?? citation.doc_title ?? t.chat.untitledDocument;
   const excerpt = citation.text_excerpt ?? citation.chunk_text ?? "";
@@ -59,20 +64,41 @@ export function ChatCitationCard({ citation, index, trace, onOpenCitation }: Cha
           </span>
         )}
         {excerpt && <p className={styles.excerpt}>{excerpt}</p>}
-        <Link
-          to="/doc/$docId"
-          params={{ docId: citation.document_id }}
-          search={{
-            page: citation.page_number ?? undefined,
-            chunk: citation.chunk_index ?? undefined,
-          }}
-          className={styles.openLink}
-          target="_blank"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {t.chat.openDocument}
-        </Link>
+        <div className={styles.actions}>
+          <Link
+            to="/doc/$docId"
+            params={{ docId: citation.document_id }}
+            search={{
+              page: citation.page_number ?? undefined,
+              chunk: citation.chunk_index ?? undefined,
+            }}
+            className={styles.openLink}
+            target="_blank"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {t.chat.openDocument}
+          </Link>
+          {excerpt && (
+            <button
+              type="button"
+              className={styles.saveBtn}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSaveOpen(true);
+              }}
+            >
+              <BookmarkPlus size={13} />
+              {t.chat.saveToEvidencePack}
+            </button>
+          )}
+        </div>
       </div>
+      <SaveToEvidencePackDialog
+        open={saveOpen}
+        onClose={() => setSaveOpen(false)}
+        draft={draftFromCitation(citation, t.chat.untitledDocument)}
+        createdFrom="chat"
+      />
     </li>
   );
 }

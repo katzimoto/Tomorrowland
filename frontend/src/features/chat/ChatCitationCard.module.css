@@ -52,6 +52,13 @@
   overflow: hidden;
 }
 
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
 .openLink {
   font-size: 0.8rem;
   color: var(--color-accent);
@@ -61,4 +68,20 @@
 
 .openLink:hover {
   text-decoration: underline;
+}
+
+.saveBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.saveBtn:hover {
+  color: var(--color-accent);
 }

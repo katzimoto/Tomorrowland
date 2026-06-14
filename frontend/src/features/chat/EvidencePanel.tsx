@@ -1,11 +1,13 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ExternalLink, X, Copy, Check, Flag } from "lucide-react";
+import { ExternalLink, X, Copy, Check, Flag, BookmarkPlus } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { getPreview } from "@/api/documents";
 import { ApiError } from "@/api/client";
 import type { DocumentChatCitation, RetrievalTrace } from "@/api/chat";
 import { getSourceHealthSummary } from "@/api/health";
+import { SaveToEvidencePackDialog } from "@/features/evidence/SaveToEvidencePackDialog";
+import { draftFromCitation } from "@/features/evidence/draftFromCitation";
 import {
   submitCitationFeedback,
   type CitationFeedbackType,
@@ -130,6 +132,7 @@ export function EvidencePanel({
   const [activeTab, setActiveTab] = useState<TabId>("evidence");
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
 
   const title = citation.document_title ?? citation.doc_title ?? t.chat.untitledDocument;
   const excerpt = citation.text_excerpt ?? citation.chunk_text ?? "";
@@ -436,6 +439,12 @@ export function EvidencePanel({
               {copied ? <Check size={16} /> : <Copy size={16} />}
               {copied ? t.chat.evidenceCopied : t.chat.evidenceCopyCitation}
             </button>
+            {excerpt && (
+              <button className={styles.actionBtn} onClick={() => setSaveOpen(true)}>
+                <BookmarkPlus size={16} />
+                {t.chat.saveEvidence}
+              </button>
+            )}
             <button
               className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
               onClick={() => setShowFeedbackForm((v) => !v)}
@@ -452,6 +461,13 @@ export function EvidencePanel({
           )}
         </div>
       )}
+
+      <SaveToEvidencePackDialog
+        open={saveOpen}
+        onClose={() => setSaveOpen(false)}
+        draft={draftFromCitation(citation, t.chat.untitledDocument)}
+        createdFrom="chat"
+      />
     </aside>
   );
 }

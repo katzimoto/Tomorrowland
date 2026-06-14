@@ -1,10 +1,17 @@
-import { FileText, Image, Archive, Mail, File, Info, Eye } from "lucide-react";
+import { useState } from "react";
+import { FileText, Image, Archive, Mail, File, Info, Eye, BookmarkPlus } from "lucide-react";
 import { Badge } from "@/components/primitives/Badge";
 import { VersionBadge } from "@/features/documents/VersionBadge";
+import { SaveToEvidencePackDialog } from "@/features/evidence/SaveToEvidencePackDialog";
 import DOMPurify from "dompurify";
 import { useT } from "@/i18n/index";
 import type { SearchResult } from "@/api/search";
 import styles from "./ResultRow.module.css";
+
+/** Strip highlight markup to a plain-text excerpt for saving. */
+function plainText(raw: string): string {
+  return DOMPurify.sanitize(raw, { ALLOWED_TAGS: [] }).trim();
+}
 
 /**
  * Safely render Meilisearch highlight snippets.
@@ -46,8 +53,10 @@ interface ResultRowProps {
 
 export function ResultRow({ result, id, selected = false, onClick, onSelect, onPreview, onPrefetch }: ResultRowProps) {
   const t = useT();
+  const [saveOpen, setSaveOpen] = useState(false);
   const visibleTags = result.tags.slice(0, 4);
   const extraTags = result.tags.length - visibleTags.length;
+  const passageExcerpt = plainText(result.snippet ?? "");
 
   return (
     <div
@@ -106,6 +115,20 @@ export function ResultRow({ result, id, selected = false, onClick, onSelect, onP
               <span>{t.search.previewLabel}</span>
             </button>
           )}
+          {passageExcerpt && (
+            <button
+              className={styles.previewBtn}
+              aria-label={t.search.savePassage}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setSaveOpen(true);
+              }}
+            >
+              <BookmarkPlus size={14} />
+              <span>{t.search.savePassage}</span>
+            </button>
+          )}
           {result.why && result.why.length > 0 && (
             <button
               className={styles.whyBtn}
@@ -123,6 +146,17 @@ export function ResultRow({ result, id, selected = false, onClick, onSelect, onP
           )}
         </div>
       </div>
+      <SaveToEvidencePackDialog
+        open={saveOpen}
+        onClose={() => setSaveOpen(false)}
+        draft={{
+          document_id: result.document_id,
+          item_type: "passage",
+          text_excerpt: passageExcerpt,
+          title: result.title,
+        }}
+        createdFrom="search"
+      />
     </div>
   );
 }

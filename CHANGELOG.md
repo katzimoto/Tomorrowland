@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Save citations and passages into evidence packs from the UI (#677)**:
+  New `Save to evidence pack` / `Save evidence` / `Save passage` entry points on
+  chat citation cards, the Evidence Inspector (Actions tab), and search result
+  rows. Each opens a shared `SaveToEvidencePackDialog` that previews the item,
+  lets the user create a new pack or add to an existing one, and preserves the
+  document id, citation id, page/section, and excerpt. The dialog detects when
+  the same passage is already in the selected pack and blocks a duplicate save,
+  and surfaces permission failures clearly (403 → "you don't have permission",
+  404 → "document no longer available"). Backed by a new `evidencePacks` API
+  client (`listEvidencePacks`, `getEvidencePack`, `createEvidencePack`,
+  `addEvidencePackItem`) over the `/evidence-packs` API from #676. Export and
+  agent-created packs remain out of scope (#678, #663/#565).
 - **Evidence pack schema and API (#676), with permission/audit tests (#679)**:
   New backend foundation for durable, auditable evidence packs — owner-scoped
   collections of source-backed citations, passages, claims, and notes. Adds the
