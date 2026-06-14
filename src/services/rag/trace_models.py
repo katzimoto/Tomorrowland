@@ -110,8 +110,8 @@ class ContextPackingTrace(BaseModel):
     """Number of parent heading blocks added across all expansions."""
     sibling_blocks_added: int = 0
     """Number of sibling blocks added across all expansions."""
-    budget_tokens: int = 0
-    """Maximum context tokens for expansion (from rag_max_tokens_context)."""
+    budget_words: int = 0
+    """Maximum context words for expansion (approximated from rag_max_tokens_context)."""
     dropped_for_budget: int = 0
     """Number of expansion candidates dropped because the budget was exhausted."""
     sections_matched: int = 0
