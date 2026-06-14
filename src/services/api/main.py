@@ -236,6 +236,7 @@ def create_app(
     from services.api.routers.chat import router as chat_router
     from services.api.routers.citation_feedback import router as citation_feedback_router
     from services.api.routers.documents import router as documents_router
+    from services.api.routers.evidence import router as evidence_router
     from services.api.routers.health_summary import router as health_summary_router
     from services.api.routers.preview_manifest import router as preview_manifest_router
     from services.api.routers.search import router as search_router
@@ -271,5 +272,6 @@ def create_app(
     app.include_router(vault_router)
     app.include_router(agent_router)
     app.include_router(citation_feedback_router)
+    app.include_router(evidence_router)
 
     return app
