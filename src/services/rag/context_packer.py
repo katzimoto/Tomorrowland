@@ -74,7 +74,7 @@ def expand_chunks(
     sections_not_found = 0
 
     if not enabled or not chunks:
-        return chunks, ContextPackingTrace(budget_tokens=budget_words)
+        return chunks, ContextPackingTrace(budget_words=budget_words)
 
     total_expansion_words = 0
 
@@ -178,7 +178,7 @@ def expand_chunks(
         expanded_chunk_ids=expanded_chunk_ids,
         parent_blocks_added=parent_blocks_added,
         sibling_blocks_added=sibling_blocks_added,
-        budget_tokens=budget_words,
+        budget_words=budget_words,
         dropped_for_budget=dropped_for_budget,
         sections_matched=sections_matched,
         sections_not_found=sections_not_found,
