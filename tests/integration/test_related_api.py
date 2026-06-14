@@ -271,11 +271,19 @@ def test_expertise_ranks_weighted_signals_and_hides_private_evidence(
 
 
 def test_related_routes_are_registered(migrated_engine: Engine) -> None:
-    """The related-docs and expertise endpoints are registered."""
+    """Verify that the related docs and expertise routes are registered.
+
+    Uses TestClient to avoid internal ``_IncludedRouter.path`` access
+    (not available on new Starlette).
+    """
     app = create_app(migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32))
     client = TestClient(app)
-    assert client.get("/documents/00000000-0000-0000-0000-000000000000/related").status_code != 404
-    assert client.get("/expertise").status_code != 404
+
+    resp = client.get("/documents/00000000-0000-0000-0000-000000000001/related")
+    assert resp.status_code == 401
+
+    resp = client.get("/expertise?topic=test")
+    assert resp.status_code == 401
 
 
 def test_expertise_rejects_blank_topic_without_testclient(
