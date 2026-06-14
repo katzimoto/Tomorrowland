@@ -68,6 +68,7 @@ jobs:
           set -euo pipefail
           release_dir="dist/tomorrowland-release-${{ steps.version.outputs.safe_version }}"
           docker compose --env-file "$release_dir/.env.airgap.example" \
+            -f "$release_dir/docker-compose.yml" \
             -f "$release_dir/docker-compose.airgap.yml" config --images | tee "$release_dir/compose-images.txt"
           if grep -Eq '^[[:space:]]+build:' "$release_dir/docker-compose.airgap.yml"; then
             echo "Forbidden build step found in docker-compose.airgap.yml" >&2
