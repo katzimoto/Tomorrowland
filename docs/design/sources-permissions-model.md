@@ -284,3 +284,15 @@ No schema change required.
 `user_groups` and `source_permissions` are unchanged by Phase C. Existing flat
 memberships continue to work. The `group_memberships` table starts empty and
 adds behaviour only when admin creates nested relationships.
+
+## Consumers of this model
+
+### Evidence packs (v0.6, #676 / #679)
+
+Evidence packs **consume** this permission model without changing it. Pack items
+are anchored to documents; `EvidencePackService` calls `assert_doc_access` on
+write and re-checks `user_can_access_source` for every item on read/export, so a
+saved excerpt is hidden the moment the owner loses access to its document. Packs
+themselves are owner-scoped (no source grant, no admin bypass on ownership). The
+full surface-by-surface contract lives in `docs/context/acl-audit.md` →
+"Evidence packs API permission model".

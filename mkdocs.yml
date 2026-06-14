@@ -148,6 +148,7 @@ nav:
       - RAG: api/rag.md
       - Auth & Permissions: api/auth.md
       - Documents: api/documents.md
+      - Evidence Packs: api/evidence.md
       - Intelligence: api/intelligence.md
       - Shared: api/shared.md
   - Reference:
