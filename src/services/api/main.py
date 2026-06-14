@@ -219,6 +219,9 @@ def create_app(
     from services.api.routers.admin.ldap import router as admin_ldap_router
     from services.api.routers.admin.model_providers import router as admin_model_providers_router
     from services.api.routers.admin.parsers import router as admin_parsers_router
+    from services.api.routers.admin.permission_simulator import (
+        router as admin_permission_simulator_router,
+    )
     from services.api.routers.admin.preview_artifacts import (
         router as admin_preview_artifacts_router,
     )
@@ -266,6 +269,7 @@ def create_app(
     app.include_router(admin_ldap_router)
     app.include_router(admin_model_providers_router)
     app.include_router(admin_parsers_router)
+    app.include_router(admin_permission_simulator_router)
     app.include_router(admin_rabbit_router)
     app.include_router(admin_source_profiles_router)
     app.include_router(admin_source_qa_router)
