@@ -29,6 +29,8 @@ const SearchPage = lazyRoute(() => import("@/features/search/SearchPage"), "Sear
 const DocumentPage = lazyRoute(() => import("@/features/documents/DocumentPage"), "DocumentPage");
 const ChatPage = lazyRoute(() => import("@/features/chat/ChatPage"), "ChatPage");
 const SubscriptionsPage = lazyRoute(() => import("@/features/subscriptions/SubscriptionsPage"), "SubscriptionsPage");
+const EvidencePacksPage = lazyRoute(() => import("@/features/evidence/EvidencePacksPage"), "EvidencePacksPage");
+const EvidencePackDetailPage = lazyRoute(() => import("@/features/evidence/EvidencePackDetailPage"), "EvidencePackDetailPage");
 const NotificationsPage = lazyRoute(() => import("@/features/notifications/NotificationsPage"), "NotificationsPage");
 const HistoryPage = lazyRoute(() => import("@/features/history/HistoryPage"), "HistoryPage");
 const ExpertisePage = lazyRoute(() => import("@/features/expertise/ExpertisePage"), "ExpertisePage");
@@ -150,6 +152,18 @@ const subscriptionsRoute = createRoute({
   component: SubscriptionsPage,
 });
 
+const evidenceRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/evidence",
+  component: EvidencePacksPage,
+});
+
+const evidenceDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/evidence/$packId",
+  component: EvidencePackDetailPage,
+});
+
 const notificationsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/notifications",
@@ -255,6 +269,8 @@ const routeTree = rootRoute.addChildren([
     docRoute,
     chatRoute,
     subscriptionsRoute,
+    evidenceRoute,
+    evidenceDetailRoute,
     notificationsRoute,
     historyRoute,
     expertiseRoute,

@@ -65,6 +65,26 @@ export function createEvidencePack(req: CreateEvidencePackRequest): Promise<Evid
   return api.post<EvidencePack>("/evidence-packs", req);
 }
 
+export interface UpdateEvidencePackRequest {
+  title?: string;
+  description?: string | null;
+}
+
+export function updateEvidencePack(
+  packId: string,
+  req: UpdateEvidencePackRequest,
+): Promise<EvidencePack> {
+  return api.patch<EvidencePack>(`/evidence-packs/${packId}`, req);
+}
+
+export function deleteEvidencePack(packId: string): Promise<void> {
+  return api.delete<void>(`/evidence-packs/${packId}`);
+}
+
+export function removeEvidencePackItem(packId: string, itemId: string): Promise<void> {
+  return api.delete<void>(`/evidence-packs/${packId}/items/${itemId}`);
+}
+
 export function addEvidencePackItem(
   packId: string,
   item: EvidencePackItemInput,
