@@ -18,7 +18,11 @@ Usage::
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from services.documents.layout_block_repository import LayoutBlockRepository
 
 from services.documents.models import LayoutBlockRow
 
@@ -225,9 +229,9 @@ def get_neighborhood(
 
 
 def resolve_chunk_layout_block_ids(
-    chunks: list[dict[str, object]],
+    chunks: list[dict[str, Any]],
     document_id: UUID,
-    layout_repo: object,
+    layout_repo: LayoutBlockRepository,
 ) -> None:
     """Try to add ``layout_block_id`` to each chunk dict (mutates in place).
 
@@ -266,14 +270,16 @@ def resolve_chunk_layout_block_ids(
     section_map = build_section_map(blocks)
 
     for chunk in chunks:
-        page = chunk.get("page_number")
-        heading = chunk.get("section_heading")
+        page_raw = chunk.get("page_number")
+        heading_raw = chunk.get("section_heading")
         chunk_text = chunk.get("text")
 
-        if page is None or heading is None or not chunk_text:
+        if page_raw is None or heading_raw is None or not chunk_text:
             continue
 
-        section = section_map.get((page, str(heading)))
+        page: int | None = page_raw if isinstance(page_raw, int) else None
+        heading: str = str(heading_raw)
+        section = section_map.get((page, heading))
         if section is None or not section.blocks:
             continue
 
