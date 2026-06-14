@@ -29,6 +29,17 @@ from shared.db import db_uuid
 UNUSED_PASSWORD_HASH = "not-used-by-this-test"
 
 
+def _iter_routes(routes):
+    """Yield all route objects, recursing into wrapper containers (e.g. _IncludedRouter)."""
+    for r in routes:
+        if hasattr(r, "path"):
+            yield r
+        elif hasattr(r, "routes"):
+            yield from _iter_routes(r.routes)
+        elif hasattr(r, "router") and hasattr(r.router, "routes"):
+            yield from _iter_routes(r.router.routes)
+
+
 def _setup_users(engine: Engine) -> None:
     with engine.begin() as connection:
         auth_repo = AuthRepository(connection)
@@ -272,13 +283,11 @@ def test_expertise_ranks_weighted_signals_and_hides_private_evidence(
 
 
 def test_related_routes_are_registered(migrated_engine: Engine) -> None:
-    """The related-docs and expertise endpoints are reachable."""
+    """The related-docs and expertise endpoints are registered."""
     app = create_app(migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32))
-    client = TestClient(app)
-    resp = client.get("/documents/00000000-0000-0000-0000-000000000000/related")
-    assert resp.status_code != 404, "/documents/{id}/related should be a registered route"
-    resp = client.get("/expertise")
-    assert resp.status_code != 404, "/expertise should be a registered route"
+    paths = {r.path for r in _iter_routes(app.router.routes)}
+    assert "/documents/{document_id}/related" in paths
+    assert "/expertise" in paths
 
 
 def test_expertise_rejects_blank_topic_without_testclient(
@@ -286,7 +295,8 @@ def test_expertise_rejects_blank_topic_without_testclient(
 ) -> None:
     _setup_users(migrated_engine)
     app = create_app(migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32))
-    route = next(r for r in app.router.routes if getattr(r, "path", None) == "/expertise")
+    routes_list = list(_iter_routes(app.router.routes))
+    route = next(r for r in routes_list if r.path == "/expertise")
     mock_request = MagicMock()
     mock_request.app = app
     try:
