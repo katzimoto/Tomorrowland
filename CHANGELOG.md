@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Evidence pack schema and API (#676), with permission/audit tests (#679)**:
+  New backend foundation for durable, auditable evidence packs — owner-scoped
+  collections of source-backed citations, passages, claims, and notes. Adds the
+  `evidence_packs` and `evidence_pack_items` tables (migration `c7e2a9b4d1f3`),
+  a permission-first service layer, and a CRUD API under `/evidence-packs`
+  (create/list/get/update/delete packs; add/remove items; add item from a
+  citation payload; minimal JSON/Markdown export). Security guarantees: packs
+  are strictly owner-scoped (a non-owner — including an admin — gets a 404, so
+  pack existence is not leaked); adding a document-anchored item requires
+  *current* access to that document; pack reads and exports filter out items
+  whose document the caller can no longer access, so a stored excerpt never
+  leaks after access is revoked or the document is deleted; rejected items are
+  never echoed in error responses. Every mutation (create/update/delete,
+  item add/remove) writes an `audit_log` row with actor, action, pack id,
+  document id (where safe), timestamp, and the request/correlation id. No
+  Hermes write tools or agent-created packs are introduced; UI is deferred to
+  #677/#678.
+
 ## [0.5.0] - 2026-06-14
 
 ### Changed

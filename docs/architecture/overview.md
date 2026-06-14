@@ -6,7 +6,8 @@ Compose application for connected and air-gapped environments.
 ## Runtime components
 
 - FastAPI backend for auth, admin operations, document APIs, search, preview,
-  comments, annotations, subscriptions, readiness, and orchestration endpoints.
+  comments, annotations, subscriptions, evidence packs, readiness, and
+  orchestration endpoints.
 - React frontend built with TypeScript and Vite.
 - PostgreSQL for application metadata and permissions.
 - Meilisearch for keyword (BM25) search.

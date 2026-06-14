@@ -229,6 +229,46 @@ Highest first.
   vault export) must adopt the `assert_doc_access`-first pattern from the
   start.
 
+## Evidence packs API permission model (#676 / #679)
+
+Added in v0.6. Evidence packs are user-owned, durable collections of
+source-backed evidence. The permission contract is implemented in
+`services/evidence/service.py` (the security boundary) and audited in
+`services/api/routers/evidence.py`.
+
+| Surface | Endpoint | Auth | Ownership gate | Document ACL | Admin bypass | Leakage risk | Notes |
+|---|---|---|---|---|---|---|---|
+| Create pack | `POST /evidence-packs` | yes | owner = caller | n/a | no | none | audited `create` |
+| List packs | `GET /evidence-packs` | yes | `owner_user_id == caller` | n/a | no | none | only own packs |
+| Get pack detail | `GET /evidence-packs/{id}` | yes | owner-only → 404 otherwise | per-item filter at read | no (owner-only) | none | inaccessible items omitted |
+| Update pack | `PATCH /evidence-packs/{id}` | yes | owner-only → 404 | n/a | no | none | audited `update` |
+| Delete pack | `DELETE /evidence-packs/{id}` | yes | owner-only → 404 | n/a | no | none | audited `delete`; items cascade |
+| Add item | `POST /evidence-packs/{id}/items` | yes | owner-only → 404 | `assert_doc_access` before insert | inherited (doc-level) | none | audited `item_add` |
+| Add item from citation | `POST …/items/from-citation` | yes | owner-only → 404 | `assert_doc_access` before insert | inherited | none | maps `chunk_text`→`text_excerpt`; audited `item_add` |
+| Remove item | `DELETE …/items/{item_id}` | yes | owner-only → 404 | n/a | no | none | audited `item_remove` |
+| Export pack | `GET /evidence-packs/{id}/export` | yes | owner-only → 404 | per-item filter (reuses detail) | no (owner-only) | none | JSON/Markdown; inaccessible items excluded |
+
+Invariants enforced and regression-tested in `tests/integration/test_evidence_packs_api.py`:
+
+- **Owner-scoped, fail-closed by 404.** Non-owners — including admins who do not
+  own the pack — receive `404` on every pack/item operation, so pack existence
+  is never leaked. (Packs follow the subscription precedent: no admin bypass on
+  ownership.)
+- **Write requires current document access.** `add_item` /
+  `add_item_from_citation` call `assert_doc_access` before persisting; an
+  inaccessible document (403) or unknown document (404) can never become an item.
+- **Read/export hide revoked or deleted documents.** `get_pack_detail` filters
+  every item through `_can_access_document` (source-grant check, admin bypass at
+  the document layer only). A stored `text_excerpt` is never returned once the
+  owner loses access, and export reuses the same filter.
+- **No raw text in error responses.** Rejected excerpts are not echoed in 403/404
+  bodies.
+- **Audit on every mutation.** `_audit_log` writes `evidence_pack` rows for
+  `create`/`update`/`delete`/`item_add`/`item_remove` with actor (`user_id`),
+  action, pack id (`resource_id`), and `details` carrying the request/correlation
+  id plus `item_id`/`document_id` where relevant. No document text is stored in
+  the audit detail.
+
 ## Handoff
 
 - Files read: `AGENTS.md`, `docs/agents/token-efficiency.md`,

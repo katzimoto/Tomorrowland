@@ -3,6 +3,45 @@
 Canonical shared memory for active project state. Keep this file compact and factual.
 <!-- Compaction cutoff: 2026-06-01. Older Done entries archived to docs/memory/archive/current-state.md. -->
 
+## 2026-06-14 — #676/#679 Evidence pack schema + API + security tests (done, PR open)
+
+Status: Done (branch `feat/676-evidence-pack-schema-api`, PR open → main)
+Source: Claude Code session 2026-06-14
+
+First execution step of v0.6 Evidence Packs (#662). Backend-only foundation —
+no UI (#677/#678 own that), no Hermes/agent write tools (#681 deferred).
+
+- **Schema** (migration `c7e2a9b4d1f3`, single head off `f2a4c6e8b0d2`):
+  `evidence_packs` (owner_user_id, title, description, source_scope JSON,
+  created_from CHECK chat|search|agent|manual, metadata JSON) +
+  `evidence_pack_items` (evidence_pack_id, document_id, chunk_id, citation_id,
+  page_number, section_heading, text_excerpt, translated_text, claim,
+  item_type CHECK citation|passage|claim|note). Both FKs `ON DELETE CASCADE`.
+  **Decision: `document_id` is NOT NULL on items** — every item (incl. notes)
+  is doc-anchored so the ACL is uniform. Downgrade round-trip verified.
+- **Layers**: `src/services/evidence/{models,repository,service}.py` +
+  router `src/services/api/routers/evidence.py` (registered in `main.py`).
+  `EvidencePackService` is the security boundary; repo is dumb CRUD; audit is
+  done in the router via the existing `_audit_log` (first non-admin caller of it).
+- **Permission model** (documented in `docs/context/acl-audit.md` → "Evidence
+  packs API permission model"): packs are **strictly owner-scoped — non-owner,
+  incl. admin, gets 404** (no enumeration; mirrors the subscriptions precedent,
+  no admin bypass on ownership). Item add calls `assert_doc_access`; read/export
+  filter every item through `user_can_access_source` so a stored excerpt is
+  hidden once access is revoked or the doc is deleted. Minimal JSON/Markdown
+  export reuses the same filter.
+- **Tests**: `tests/integration/test_evidence_packs_api.py` (26 passing) covers
+  cross-user 404s, inaccessible-doc add 403, revoked-doc hidden on read+export,
+  no-text-in-errors, citation-derived add, and audit rows for all 5 mutations.
+- Verified: ruff, mypy --strict (207 files), 26/26 integration, migration
+  round-trip, mkdocs --strict.
+- **Follow-ups**: `_json_load` in the repo could consolidate onto shared
+  `db_resolve_json`; PATCH only sets provided non-null fields (can't null-out
+  description) — matches annotations; if admin oversight of packs is ever
+  wanted it's an additive change to `_load_owned_pack`.
+
+---
+
 ## 2026-06-13 — #764 Citation dedup by chunk identity and text lane (done)
 
 Status: Done
