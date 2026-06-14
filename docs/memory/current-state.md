@@ -5,7 +5,7 @@ Canonical shared memory for active project state. Keep this file compact and fac
 
 ## 2026-06-14 — Current product baseline
 
-Status: **post-foundation / pre-rollout**.
+Status: **v0.6 released**.
 
 Tomorrowland is now best understood as an air-gapped, permission-aware document intelligence workspace with:
 
@@ -17,7 +17,8 @@ Tomorrowland is now best understood as an air-gapped, permission-aware document 
 - hierarchy-aware RAG context packing and coarse-to-fine section routing implemented but disabled by default;
 - RAG threat model and offline regression coverage for prompt-injection/ACL/metadata/translation leakage risks.
 
-Open implementation PR count observed 2026-06-14: **0**.
+Latest release: **v0.6** (2026-06-15).
+Open implementation PR count observed 2026-06-15: **0**.
 
 ---
 
