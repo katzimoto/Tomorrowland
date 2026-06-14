@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-14
+
 ### Changed
 - **Hybrid search uses Reciprocal Rank Fusion instead of raw score addition (#761)**:
   `merge_results()` no longer adds weighted raw Meilisearch/BM25 and Qdrant/vector

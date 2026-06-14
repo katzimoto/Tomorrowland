@@ -1,6 +1,6 @@
 [project]
 name = "tomorrowland"
-version = "0.2.0"
+version = "0.5.0"
 description = "Local semantic search engine foundation"
 requires-python = ">=3.11"
 dependencies = [
