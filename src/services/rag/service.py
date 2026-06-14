@@ -37,6 +37,7 @@ from .trace_models import (
 logger = logging.getLogger(__name__)
 
 CANDIDATE_LIMIT = 40
+MAX_COARSE_PAIRS = 5
 
 
 class _RetrievalExtras(TypedDict):
@@ -134,6 +135,7 @@ class RagService:
         enable_metadata_search: bool = False,
         enable_translated_text: bool = False,
         enable_hierarchy_expansion: bool = False,
+        enable_coarse_to_fine_routing: bool = False,
     ) -> None:
         self._qdrant = qdrant_client
         self._encoder = encoder
@@ -170,6 +172,7 @@ class RagService:
         self._enable_metadata_search = enable_metadata_search
         self._enable_translated_text = enable_translated_text
         self._enable_hierarchy_expansion = enable_hierarchy_expansion
+        self._enable_coarse_to_fine_routing = enable_coarse_to_fine_routing
 
     def answer(
         self,
@@ -935,12 +938,171 @@ class RagService:
                 }
             )
 
+        # ── Coarse-to-fine section routing (#715 PR4) ────────────────
+        if self._enable_coarse_to_fine_routing and chunks:
+            coarse_start = time.perf_counter()
+            # Extract top (document_id, section_heading) pairs from Stage 1
+            pairs: list[tuple[str, str]] = []
+            seen_pairs: set[tuple[str, str]] = set()
+            for c in chunks:
+                doc_id = c.get("document_id")
+                heading = c.get("section_heading")
+                if isinstance(doc_id, str) and isinstance(heading, str) and doc_id and heading:
+                    pair = (doc_id, heading)
+                    if pair not in seen_pairs:
+                        seen_pairs.add(pair)
+                        pairs.append(pair)
+                        if len(pairs) >= MAX_COARSE_PAIRS:
+                            break
+            stages.append(
+                self._build_stage_trace("coarse_section_search", len(pairs), coarse_start)
+            )
+
+            if pairs:
+                fine_start = time.perf_counter()
+                fine_results = self._fine_retrieve(pairs, query_vector, qdrant_filter)
+                stages.append(
+                    self._build_stage_trace("fine_section_search", len(fine_results), fine_start)
+                )
+
+                if fine_results:
+                    # Build fine-stage backend attribution (pre-merge)
+                    fine_backend_attrs: dict[str, list[dict[str, Any]]] = {}
+                    for rank, r in enumerate(fine_results, 1):
+                        key = _chunk_key(r)
+                        fine_backend_attrs.setdefault(key, []).append(
+                            {"backend": "vector", "score": r.score, "rank": rank}
+                        )
+
+                    # Merge fine results with BM25/metadata/translated from Stage 1
+                    if self._meili is not None:
+                        fine_merged = merge_results(
+                            bm25_results=bm25_results,
+                            vector_results=fine_results,
+                            vector_weight=0.5,
+                            bm25_weight=0.5,
+                        )
+                        if self._enable_metadata_search and meta_results:
+                            fine_merged = merge_results(
+                                bm25_results=meta_results,
+                                vector_results=fine_merged,
+                                vector_weight=0.2,
+                                bm25_weight=0.8,
+                            )
+                        if self._enable_translated_text and trans_results:
+                            fine_merged = merge_results(
+                                bm25_results=trans_results,
+                                vector_results=fine_merged,
+                                vector_weight=0.2,
+                                bm25_weight=0.8,
+                            )
+                        fine_results = fine_merged
+
+                    # Rebuild fused_info from post-merge results
+                    fine_fused: dict[str, tuple[int, float]] = {}
+                    for fused_rank, r in enumerate(fine_results, 1):
+                        key = _chunk_key(r)
+                        if key not in fine_fused:
+                            fine_fused[key] = (fused_rank, r.score)
+
+                    # Deduplicate fine-stage results
+                    fine_unique: list[SearchResult] = []
+                    fine_seen: set[str] = set()
+                    fine_dedup_count = 0
+                    for r in fine_results:
+                        cid = (r.metadata or {}).get("chunk_id") or f"{r.document_id}-unknown"
+                        if cid not in fine_seen:
+                            fine_seen.add(cid)
+                            fine_unique.append(r)
+                        else:
+                            fine_dedup_count += 1
+
+                    # Reset stage-1 counts since fine stage replaces candidates
+                    dedup_count = fine_dedup_count
+
+                    # Rebuild chunks from fine results
+                    chunks.clear()
+                    for r in fine_unique:
+                        key = _chunk_key(r)
+                        fe = fine_fused.get(key)
+                        fused_rank_val = fe[0] if fe else None
+                        fused_score_val = fe[1] if fe else None
+                        chunks.append(
+                            {
+                                "document_id": r.document_id,
+                                "chunk_id": (r.metadata or {}).get("chunk_id"),
+                                "chunk_index": (r.metadata or {}).get("chunk_index"),
+                                "chunk_text": r.chunk_text or "",
+                                "score": r.score,
+                                "doc_title": title_cache.get(r.document_id),
+                                "source_id": (r.metadata or {}).get("source_id"),
+                                "language": (r.metadata or {}).get("language"),
+                                "source_language": (r.metadata or {}).get("source_language"),
+                                "text_lane": (r.metadata or {}).get("text_lane"),
+                                "translated_from": (r.metadata or {}).get("translated_from"),
+                                "page_number": (r.metadata or {}).get("page_number"),
+                                "section_heading": (r.metadata or {}).get("section_heading"),
+                                "_backends": fine_backend_attrs.get(key)
+                                or backend_attrs.get(key, []),
+                                "_fused_rank": fused_rank_val,
+                                "_fused_score": fused_score_val,
+                            }
+                        )
+
         retrieval_extras: _RetrievalExtras = {
             "degraded_backends": degraded_backends,
             "scope_filtered_count": scope_filtered_count,
             "dedup_count": dedup_count,
         }
         return chunks, stages, _retrieval_degraded, retrieval_extras
+
+    def _fine_retrieve(
+        self,
+        pairs: list[tuple[str, str]],
+        query_vector: list[float],
+        qdrant_filter: Filter | None,
+    ) -> list[SearchResult]:
+        """Run Qdrant vector search scoped to specific (document_id, section_heading) pairs.
+
+        Constructs a Qdrant Filter with a ``should`` clause for each pair so
+        results are restricted to chunks belonging to the identified sections.
+        Preserves the existing ACL/scope filter by and-ing it into the ``must``
+        array alongside the section-scope ``should`` block.
+        """
+        should_clauses: list[Condition] = []
+        for doc_id, heading in pairs:
+            should_clauses.append(
+                Filter(
+                    must=[
+                        FieldCondition(key="document_id", match=MatchValue(value=doc_id)),
+                        FieldCondition(key="section_heading", match=MatchValue(value=heading)),
+                    ]
+                )
+            )
+        pair_filter = Filter(should=should_clauses)
+
+        # Merge with base ACL/scope filter
+        must_conditions: list[Condition] = []
+        if qdrant_filter and qdrant_filter.must:
+            if isinstance(qdrant_filter.must, list):
+                must_conditions.extend(qdrant_filter.must)
+            else:
+                must_conditions.append(qdrant_filter.must)
+        must_conditions.append(pair_filter)
+        final_filter = Filter(must=must_conditions)
+
+        try:
+            return self._qdrant.search_filtered(
+                vector=query_vector,
+                query_filter=final_filter,
+                limit=CANDIDATE_LIMIT,
+            )
+        except Exception as exc:
+            logger.warning(
+                "RAG fine section retrieval degraded error_type=%s",
+                exc.__class__.__name__,
+            )
+            return []
 
     @staticmethod
     def _build_stage_trace(
