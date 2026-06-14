@@ -10,7 +10,7 @@ from services.documents.repository import DocumentRepository, TranslationVersion
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
-from services.translation.client import LibreTranslateClient, build_translation_metadata
+from services.translation.client import LibreTranslateClient, _safe_str, build_translation_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +26,9 @@ def _build_fast_metadata(
     fallback_reason: str | None = None,
 ) -> dict[str, Any]:
     """Build translation metadata for fast-lane ingestion (#727)."""
-    provider = translator.provider if translator else "libretranslate_argos"
-    provider_version = translator.provider_version if translator else None
-    model_family = translator.model_family if translator else None
+    provider = (_safe_str(translator.provider) if translator else None) or "libretranslate_argos"
+    provider_version = _safe_str(translator.provider_version) if translator else None
+    model_family = _safe_str(translator.model_family) if translator else None
     validation_status = "warning" if fallback_used else "ok"
     return build_translation_metadata(
         provider=provider,

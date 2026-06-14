@@ -17,6 +17,15 @@ _DEFAULT_PROVIDER = "libretranslate_argos"
 _DEFAULT_MODEL_FAMILY = "argos"
 
 
+def _safe_str(value: object) -> str | None:
+    """Return *value* as a string, or None if it is not a real string.
+
+    Defends against MagicMock and other non-serializable test doubles
+    leaking into JSON metadata (#727).
+    """
+    return value if isinstance(value, str) else None
+
+
 def build_translation_metadata(
     *,
     provider: str,

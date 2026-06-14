@@ -20,7 +20,7 @@ from services.search.encoder import TextEncoder
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.meili_types import ChunkMetadata, SearchChunkRecord
 from services.search.qdrant import QdrantSearchClient
-from services.translation.client import LibreTranslateClient, build_translation_metadata
+from services.translation.client import LibreTranslateClient, _safe_str, build_translation_metadata
 from shared.correlation import get_correlation_id
 from shared.metrics import MetricsRegistry
 
@@ -40,9 +40,9 @@ def _build_enrich_metadata(
     fallback_reason: str | None = None,
 ) -> dict[str, Any]:
     """Build translation metadata for high-lane enrichment (#727)."""
-    provider = translator.provider if translator else "libretranslate_argos"
-    provider_version = translator.provider_version if translator else None
-    model_family = translator.model_family if translator else None
+    provider = (_safe_str(translator.provider) if translator else None) or "libretranslate_argos"
+    provider_version = _safe_str(translator.provider_version) if translator else None
+    model_family = _safe_str(translator.model_family) if translator else None
     validation_status = "warning" if fallback_used else "ok"
     return build_translation_metadata(
         provider=provider,
