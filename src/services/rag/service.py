@@ -375,6 +375,7 @@ class RagService:
             dedup_count=retrieval_extras["dedup_count"],
             score_threshold_filtered_count=score_threshold_filtered_count,
             reranker_dropped_count=reranker_dropped_count,
+            context_packing=packing_trace,
         )
 
         if metrics is not None:
@@ -564,6 +565,7 @@ class RagService:
             dedup_count=retrieval_extras["dedup_count"],
             score_threshold_filtered_count=score_threshold_filtered_count,
             reranker_dropped_count=reranker_dropped_count,
+            context_packing=packing_trace,
         )
 
         yield (
