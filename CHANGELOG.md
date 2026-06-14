@@ -4,7 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-15
+
 ### Added
+- **Permission Simulator admin dashboard (#717)**: new `/admin/permission-simulator`
+  page for simulating user/group/source/document/query access and explaining allow/
+  deny reasons without leaking inaccessible text. Backend service resolves
+  transitive group membership, evaluates `is_admin` bypass, checks source access
+  (direct and cross-source), applies document-level ACLs, and runs a user-find
+  step (supporting 0, 1, and multi-group results) to determine permission outcome.
+  The API returns a detailed access trace — step-by-step reasoning with
+  allow/deny per check — and surfaces per-item citation access for RAG. Frontend
+  provides interactive step-through with expandable check details. Permissions are
+  never queried for disabled sources. Supports group-name-based user lookups and
+  source-name autocomplete.
+- **Hierarchy-aware RAG context packing and coarse-to-fine section routing (#715)**:
+  Two independently-gated RAG improvements for layout-aware documents. Hierarchy
+  expansion enriches each retrieved chunk with its parent section heading and
+  neighbouring sibling blocks from the document's layout hierarchy (when layout
+  blocks are available). Coarse-to-fine routing runs a second-stage Qdrant vector
+  search scoped to document sections identified by Stage 1 retrieval. Both ship
+  **disabled by default** (`FEATURE_DOCUMENT_CHAT_HIERARCHY_EXPANSION=false`,
+  `FEATURE_DOCUMENT_CHAT_COARSE_TO_FINE_ROUTING=false`) pending controlled
+  rollout evaluation (#787). New files: `src/services/rag/context_packer.py`,
+  `src/services/rag/layout_hierarchy.py`; new trace fields on `RetrievalTrace`
+  (`context_packing` v3). Unit tests in `test_rag_context_packer.py`,
+  `test_rag_coarse_to_fine.py`, `test_rag_layout_hierarchy.py`.
+- **Controlled rollout evaluation for #715 feature flags (#787)**: end-to-end
+  evaluation comparing 4 configurations (baseline, hierarchy-only, coarse-to-fine-only,
+  combined) across the offline eval suite. Created scripts for orchestration
+  (`scripts/run-rollout-eval.sh`) and comparison (`scripts/compare-eval-runs.py`).
+  Decision: both flags remain default-off pending a layout-aware indexed corpus.
+  Full report: `docs/agents/rollout-eval-787.md`.
 - **Quality Lab admin dashboard (#714)**: new `/admin/quality-lab` page for
   uploading eval result JSON from offline/nightly runs and tracking retrieval
   quality trends across runs. Backend stores runs in `quality_lab_runs` and
