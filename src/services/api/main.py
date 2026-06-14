@@ -222,6 +222,7 @@ def create_app(
     from services.api.routers.admin.preview_artifacts import (
         router as admin_preview_artifacts_router,
     )
+    from services.api.routers.admin.quality_lab import router as admin_quality_lab_router
     from services.api.routers.admin.rabbit import router as admin_rabbit_router
     from services.api.routers.admin.source_profiles import router as admin_source_profiles_router
     from services.api.routers.admin.source_qa import router as admin_source_qa_router
@@ -258,6 +259,7 @@ def create_app(
     app.include_router(admin_sources_router)
     app.include_router(admin_config_router)
     app.include_router(admin_preview_artifacts_router)
+    app.include_router(admin_quality_lab_router)
     app.include_router(admin_dlq_router)
     app.include_router(admin_intelligence_router)
     app.include_router(admin_jobs_router)
