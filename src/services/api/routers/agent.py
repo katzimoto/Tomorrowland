@@ -602,6 +602,7 @@ def ask_corpus(
             meili_provider=request.app.state.meili_provider,
             reranker=NoOpReranker(),
             enable_hierarchy_expansion=settings.feature_document_chat_hierarchy_expansion,
+            enable_coarse_to_fine_routing=settings.feature_document_chat_coarse_to_fine_routing,
         )
 
         try:
