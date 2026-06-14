@@ -28,6 +28,14 @@ All notable changes to this project will be documented in this file.
   now accurate.
 
 ### Fixed
+- **Air-gap artifact validation no longer false-fails on the `mcp-server` image
+  check**: `scripts/validate-airgap-artifact.sh` verified the `mcp-server`
+  service declared an `image:` by scanning a fixed 20-line window after the
+  service header. In rendered `docker compose config` output keys are sorted
+  alphabetically, so `mcp-server`'s large `environment`/`healthcheck` blocks
+  pushed its (correctly declared) `image:` past that window, failing the release
+  packaging job. The check now extracts the full `mcp-server` service block and
+  confirms the `image:` reference within it, independent of key ordering.
 - **Citation deduplication respects text lane and chunk identity (#764)**:
   RAG citations are now deduplicated by `chunk_id` (which embeds a lane suffix,
   e.g. `-orig-0` vs `-tr-0`) rather than the legacy `(document_id, chunk_index)`

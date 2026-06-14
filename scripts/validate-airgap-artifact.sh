@@ -288,7 +288,15 @@ if ! grep -q 'mcp-server:' "$tmp_dir/compose.rendered.yml"; then
 fi
 
 # Verify the mcp-server service uses an image: reference (not build-only).
-if ! grep -A 20 'mcp-server:' "$tmp_dir/compose.rendered.yml" | grep -q 'image:'; then
+# Extract the full mcp-server service block (rendered `docker compose config`
+# indents services with two spaces and sorts keys alphabetically, so `image:`
+# can fall well past the start of the block when a service has a large
+# environment/healthcheck section) and confirm it declares an image.
+if ! awk '
+  /^  mcp-server:/ { in_block = 1; next }
+  /^  [^ ]/        { in_block = 0 }
+  in_block         { print }
+' "$tmp_dir/compose.rendered.yml" | grep -q 'image:'; then
   fail "mcp-server service must declare an image: reference for airgap deployment"
 fi
 
