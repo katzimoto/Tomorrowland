@@ -130,7 +130,7 @@ describe("ChatCitationCard", () => {
         <ChatCitationCard citation={citation} index={0} onOpenCitation={onOpen} />
       </ul>,
     );
-    const card = screen.getByRole("button");
+    const card = screen.getByRole("button", { name: "Contract.pdf" });
     fireEvent.click(card);
     expect(onOpen).toHaveBeenCalledWith(citation, undefined);
   });
@@ -143,7 +143,7 @@ describe("ChatCitationCard", () => {
         <ChatCitationCard citation={citation} index={0} onOpenCitation={onOpen} />
       </ul>,
     );
-    const card = screen.getByRole("button");
+    const card = screen.getByRole("button", { name: "Contract.pdf" });
     fireEvent.keyDown(card, { key: "Enter" });
     expect(onOpen).toHaveBeenCalledWith(citation, undefined);
   });
@@ -156,7 +156,7 @@ describe("ChatCitationCard", () => {
         <ChatCitationCard citation={citation} index={0} onOpenCitation={onOpen} />
       </ul>,
     );
-    const card = screen.getByRole("button");
+    const card = screen.getByRole("button", { name: "Contract.pdf" });
     fireEvent.keyDown(card, { key: " " });
     expect(onOpen).toHaveBeenCalledWith(citation, undefined);
   });
@@ -177,13 +177,15 @@ describe("ChatCitationCard", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("does not have button role when onOpenCitation is not provided", () => {
+  it("does not make the card a button when onOpenCitation is not provided", () => {
     render(
       <ul>
         <ChatCitationCard citation={makeCitation()} index={0} />
       </ul>,
     );
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    // The card itself is not a button; only the Save action is.
+    expect(screen.queryByRole("button", { name: "Contract.pdf" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Save to evidence pack/ })).toBeInTheDocument();
   });
 
   it("forwards trace to onOpenCitation when trace prop is provided", () => {
@@ -202,7 +204,7 @@ describe("ChatCitationCard", () => {
       </ul>,
     );
 
-    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(screen.getByRole("button", { name: "Contract.pdf" }));
     expect(onOpen).toHaveBeenCalledWith(citation, trace);
   });
 });

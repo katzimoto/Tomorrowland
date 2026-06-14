@@ -73,6 +73,7 @@ export interface Translations {
     previewLabel: string;
     preview: (title: string) => string;
     whyThisResult: string;
+    savePassage: string;
     today: string;
     daysAgo: (n: number) => string;
   };
@@ -240,6 +241,8 @@ export interface Translations {
     retry: string;
     starterHeading: string;
     openDocument: string;
+    saveToEvidencePack: string;
+    saveEvidence: string;
     evidenceClose: string;
     evidenceLoading: string;
     evidenceNotFound: string;
@@ -611,6 +614,7 @@ export const en: Translations = {
     previewLabel: "Preview",
     preview: (title) => `Quick preview: ${title}`,
     whyThisResult: "Why this result?",
+    savePassage: "Save passage",
     today: "Today",
     daysAgo: (n) => `${n}d ago`,
   },
@@ -786,6 +790,8 @@ export const en: Translations = {
     retry: "Retry",
     starterHeading: "Try asking",
     openDocument: "Open document",
+    saveToEvidencePack: "Save to evidence pack",
+    saveEvidence: "Save evidence",
     evidenceClose: "Close",
     evidenceLoading: "Loading preview…",
     evidenceNotFound: "Document not found.",
