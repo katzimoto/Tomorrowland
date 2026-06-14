@@ -200,29 +200,29 @@ export function QualityLabPage() {
               {renderMetricChip("Pass Rate", run.pass_rate, "pass_rate")}
               {renderMetricChip(
                 "MRR",
-                run.summary?.mrr ?? 0,
+                (run.summary?.mrr as number | undefined) ?? 0,
                 "mrr",
                 formatFloat,
               )}
               {renderMetricChip(
                 "Citation",
-                run.summary?.citation_accuracy ?? 0,
+                (run.summary?.citation_accuracy as number | undefined) ?? 0,
                 "citation_accuracy",
               )}
               {renderMetricChip(
                 "Anchor",
-                run.summary?.anchor_accuracy ?? 1,
+                (run.summary?.anchor_accuracy as number | undefined) ?? 1,
                 "anchor_accuracy",
               )}
-              {run.summary?.expansion_cases_total > 0 &&
+              {((run.summary?.expansion_cases_total as number | undefined) ?? 0) > 0 &&
                 renderMetricChip(
                   "Expansion",
-                  run.summary?.expansion_coverage ?? 0,
+                  (run.summary?.expansion_coverage as number | undefined) ?? 0,
                   "expansion_coverage",
                 )}
               {renderMetricChip(
                 "No-Ans",
-                run.summary?.no_answer_accuracy ?? 0,
+                (run.summary?.no_answer_accuracy as number | undefined) ?? 0,
                 "no_answer_accuracy",
               )}
             </div>
@@ -293,30 +293,30 @@ export function QualityLabPage() {
 
         <div className={styles.detailSummary}>
           {renderMetricChip("Pass Rate", detail.pass_rate, "pass_rate")}
-          {renderMetricChip("MRR", detail.summary?.mrr ?? 0, "mrr", formatFloat)}
+          {renderMetricChip("MRR", (detail.summary?.mrr as number | undefined) ?? 0, "mrr", formatFloat)}
           {renderMetricChip(
             "Citation",
-            detail.summary?.citation_accuracy ?? 0,
+            (detail.summary?.citation_accuracy as number | undefined) ?? 0,
             "citation_accuracy",
           )}
           {renderMetricChip(
             "No-Answer",
-            detail.summary?.no_answer_accuracy ?? 0,
+            (detail.summary?.no_answer_accuracy as number | undefined) ?? 0,
             "no_answer_accuracy",
           )}
           {renderMetricChip(
             "Anchor",
-            detail.summary?.anchor_accuracy ?? 1,
+            (detail.summary?.anchor_accuracy as number | undefined) ?? 1,
             "anchor_accuracy",
           )}
           {renderMetricChip(
             "Expansion",
-            detail.summary?.expansion_coverage ?? 0,
+            (detail.summary?.expansion_coverage as number | undefined) ?? 0,
             "expansion_coverage",
           )}
           {renderMetricChip(
             "Leakage",
-            detail.summary?.unauthorized_leakage_count ?? 0,
+            (detail.summary?.unauthorized_leakage_count as number | undefined) ?? 0,
             "unauthorized_leakage_count",
             (v) => v.toString(),
           )}
