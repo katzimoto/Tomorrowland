@@ -56,6 +56,27 @@ Impact:
 - Reviewers: a second index message for an already-indexed document must NOT
   re-fire enrichment unless `enrich=True`.
 
+## 2026-06-15 — #715 rollout: both flags remain default-off pending layout-aware corpus
+
+Status: Active
+Source: Issue #787 rollout evaluation
+
+Decision:
+- `feature_document_chat_hierarchy_expansion` stays default-off (`False`).
+- `feature_document_chat_coarse_to_fine_routing` stays default-off (`False`).
+- The evaluation found no regressions when enabling either flag (identical
+  pass/fail metrics), but the dev corpus has no `layout_blocks` data, so both
+  features are no-ops in practice.
+- Full eval infrastructure committed: `scripts/run-rollout-eval.sh`,
+  `scripts/compare-eval-runs.py`, `eval-results/` with 4 config JSON outputs.
+- Revisit after a layout-aware corpus exists and #714 Quality Lab dashboard is
+  operational for storing/comparing results.
+
+Impact:
+- No code changes to flag defaults.
+- Operator can still enable via `.env` for testing on layout-aware deployments.
+- Next evaluator can reuse `scripts/run-rollout-eval.sh` directly.
+
 ## 2026-06-08 — Documentation framework: MkDocs Material with CI enforcement
 
 Status: Active

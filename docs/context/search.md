@@ -400,3 +400,115 @@ path — no BM25 or metadata results were returned.
 ```bash
 pytest tests/unit/test_rag_trace.py -q -k embedding_failure
 ```
+
+---
+
+## Hierarchy-aware context packing and coarse-to-fine section routing (#715)
+
+Added 2026-06-14/15. Two related but independently-gated RAG improvements for
+layout-aware documents. Both are **default-off** (`False` in Settings) pending
+controlled rollout evaluation (#787).
+
+### Feature flags
+
+```ini
+FEATURE_DOCUMENT_CHAT_HIERARCHY_EXPANSION=false
+FEATURE_DOCUMENT_CHAT_COARSE_TO_FINE_ROUTING=false
+```
+
+### Hierarchy expansion
+
+**Core file**: `src/services/rag/context_packer.py` — `expand_chunks()`
+
+Controls whether the RAG context packer enriches each retrieved chunk with its
+parent section heading and neighbouring sibling blocks from the document's
+layout hierarchy.
+
+When enabled, after retrieval/reranking/final-context selection:
+
+1. For each chunk, the packer resolves its `layout_block_id` (precise, PR3) or
+   falls back to `(page_number, section_heading)` matching.
+2. `get_neighborhood()` or `get_neighborhood_by_block_id()` from
+   `src/services/rag/layout_hierarchy.py` returns parent headings and nearby
+   sibling blocks (radius=3) from the `layout_blocks` table.
+3. Prepends `"Section: {heading}"` + sibling text before the original chunk
+   text.
+4. Enforces a word budget (`rag_max_tokens_context`) — drops expansions that
+   exceed it.
+
+**Safety invariants** (from `docs/context/rag-hierarchy-context-packing.md`):
+
+- Same-document-only expansion — never pulls context from another document.
+- No eviction of original chunks — expansion is additive only.
+- Flat fallback for documents without layout blocks or unresolved anchors.
+- Permission boundaries unchanged — expansion operates on already-filtered
+  chunks.
+- Traces store identifiers, counts, and budgets only — not raw text.
+
+**Trace model**: `ContextPackingTrace` (v3) on `RetrievalTrace.context_packing`:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `expansion_applied` | `bool` | Whether any chunk was expanded |
+| `expanded_chunk_ids` | `list[str]` | Chunk IDs that got expansion |
+| `parent_blocks_added` | `int` | Count of parent headings prepended |
+| `sibling_blocks_added` | `int` | Count of sibling blocks added |
+| `budget_words` | `int` | Word budget for expansion |
+| `dropped_for_budget` | `int` | Expansions dropped due to budget |
+| `sections_matched` | `int` | Sections resolved by layout_block_id or fallback |
+| `sections_not_found` | `int` | Chunks whose section could not be resolved |
+
+### Coarse-to-fine routing
+
+**Location**: `src/services/rag/service.py`, lines 941–1050 (inside `_retrieve_chunks()`)
+
+Controls whether Stage 1 (flat retrieval) candidates are used to scope a second
+fine-grained Qdrant vector search within specific document sections.
+
+When enabled:
+
+1. Extracts up to `MAX_COARSE_PAIRS=5` unique `(document_id, section_heading)`
+   pairs from the top Stage 1 chunks.
+2. Calls `_fine_retrieve()` which constructs a Qdrant `Filter` with a `should`
+   clause per pair, AND-ed with the existing ACL/scope filter.
+3. Merges fine-stage Qdrant results with BM25/metadata/translated Stage-1
+   results using weighted RRF.
+4. If fine retrieval returns nothing, Stage 1 results are preserved unchanged
+   (safe fallback).
+
+### Prerequisites
+
+Both features require layout-aware documents in the index:
+
+- `layout_blocks` table populated by Docling-enabled document extraction.
+- Chunks indexed with `layout_block_id`, `section_heading`, and `page_number`
+  in their Qdrant payloads.
+- `resolve_chunk_layout_block_ids()` backfill on chunks indexed before the
+  layout-aware pipeline was enabled.
+
+When the corpus has no layout data (current dev state), enabling these flags
+is a no-op — results are identical to disabled baseline.
+
+### Rollout status
+
+See `docs/agents/rollout-eval-787.md` for the full evaluation results and
+decision. Summary: both flags remain default-off until a layout-aware corpus
+exists for controlled comparison.
+
+### Tests
+
+```bash
+pytest tests/unit/test_rag_context_packer.py -q
+pytest tests/unit/test_rag_coarse_to_fine.py -q
+pytest tests/unit/test_rag_layout_hierarchy.py -q
+pytest tests/unit/test_rag_trace.py -q -k context_packing
+pytest tests/eval/ --eval  # requires live Qdrant + Ollama
+```
+
+### Related docs
+
+- `docs/context/rag-hierarchy-context-packing.md` — architecture and rollout plan
+- `docs/agents/rollout-eval-787.md` — controlled rollout evaluation report
+- `docs/security/rag-threat-model.md` — threat model coverage
+- `scripts/run-rollout-eval.sh` — orchestrates multi-config eval runs
+- `scripts/compare-eval-runs.py` — compares eval JSON results

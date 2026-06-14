@@ -102,11 +102,19 @@ Purpose: let admins simulate user/group/source/document/query access and explain
 
 Why now: Evidence Packs, exports, derived translations, and future Hermes workflows all rely on explainable permission safety.
 
-### #787 Controlled #715 rollout experiment
+### #787 Controlled #715 rollout experiment — DONE
 
-Purpose: evaluate hierarchy expansion and coarse-to-fine routing under controlled metrics before enabling either by default.
+Status: **Done — evaluation complete, both flags remain default-off**.
 
-Suggested dependency: #714 skeleton or equivalent stored eval artifacts.
+Results: `docs/agents/rollout-eval-787.md`. All 4 configurations (baseline,
+hierarchy-only, coarse-to-fine-only, combined) produced identical metrics
+(30/31 pass, 0 leakage). Hierarchy expansion never activated because the dev
+corpus has no `layout_blocks` data — features require Docling-enabled indexing.
+
+Decision: Keep both flags default-off until a layout-aware corpus exists for
+controlled comparison. Full evaluation infrastructure (runner scripts,
+comparison tool, result artifacts) committed under `scripts/` and
+`eval-results/`.
 
 ### #726 Translation quality roadmap
 
