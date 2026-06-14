@@ -269,7 +269,7 @@ class DocumentRepository:
         return self._row_to_model(row)
 
     def get_family_current_doc_ids(self, family_ids: list[UUID]) -> dict[UUID, UUID]:
-        """Return mapping of family_id → current_document_id for a batch of families."""
+        """Return mapping of family_id to current_document_id for a batch of families."""
         if not family_ids:
             return {}
         rows = self._connection.execute(
@@ -404,6 +404,8 @@ class TranslationVersionRepository:
         target_language: str = "en",
         request_note: str | None = None,
         translated_text: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        provider: str | None = None,
     ) -> dict[str, Any]:
         """Create a translation version and return its record.
 
@@ -420,18 +422,19 @@ class TranslationVersionRepository:
                     INSERT INTO document_translation_versions (
                         id, document_id, version_number, label, quality, request_type,
                         status, source_language, target_language, requested_by_id,
-                        request_note, translated_text
+                        request_note, translated_text, metadata, provider
                     )
                     VALUES (
                         :id, :document_id, :version_number, :label, :quality, :request_type,
                         :status,
                         (SELECT source_language FROM documents WHERE id = :document_id),
-                        :target_language, :requested_by_id, :request_note, :translated_text
+                        :target_language, :requested_by_id, :request_note, :translated_text,
+                        :metadata, :provider
                     )
                     RETURNING id, document_id, version_number, label, source_language,
                               target_language, quality, request_type, status,
                               requested_by_id, requested_at
-                    """),
+                    """).bindparams(sa.bindparam("metadata", type_=sa.JSON())),
                 {
                     "id": db_uuid(version_id),
                     "document_id": db_uuid(document_id),
@@ -444,6 +447,8 @@ class TranslationVersionRepository:
                     "requested_by_id": (db_uuid(requested_by_id) if requested_by_id else None),
                     "request_note": request_note,
                     "translated_text": translated_text,
+                    "metadata": metadata or {},
+                    "provider": provider,
                 },
             )
             .mappings()
@@ -457,7 +462,7 @@ class TranslationVersionRepository:
         """List translation versions for a document, newest first.
 
         Available versions whose ``translated_text`` is identical to the
-        document's ``content_text`` are excluded — they represent no-op
+        document's ``content_text`` are excluded -- they represent no-op
         translations (document already in the target language or LibreTranslate
         returned the input unchanged) and should not be surfaced in the UI.
         Non-available versions (pending / running / failed) are always returned
@@ -524,6 +529,8 @@ class TranslationVersionRepository:
         status: str,
         translated_text: str | None = None,
         error_summary: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        provider: str | None = None,
     ) -> None:
         """Update version status and optional result fields."""
         self._connection.execute(
@@ -536,6 +543,12 @@ class TranslationVersionRepository:
                     error_summary = COALESCE(
                         :error_summary, error_summary
                     ),
+                    metadata = COALESCE(
+                        :metadata, metadata
+                    ),
+                    provider = COALESCE(
+                        :provider, provider
+                    ),
                     started_at = CASE
                         WHEN :status = 'running'
                         THEN CURRENT_TIMESTAMP
@@ -547,11 +560,13 @@ class TranslationVersionRepository:
                         ELSE completed_at
                     END
                 WHERE id = :id
-                """),
+                """).bindparams(sa.bindparam("metadata", type_=sa.JSON())),
             {
                 "status": status,
                 "translated_text": translated_text,
                 "error_summary": error_summary,
+                "metadata": metadata,
+                "provider": provider,
                 "id": db_uuid(version_id),
             },
         )
@@ -710,7 +725,7 @@ class DocumentRelationshipRepository:
         relationship_type: str,
         path_in_parent: str | None = None,
     ) -> None:
-        """Record a parent→child relationship. No-op if it already exists."""
+        """Record a parent-to-child relationship. No-op if it already exists."""
         existing = self._connection.execute(
             sa.text("""
                 SELECT 1 FROM document_relationships
@@ -745,7 +760,7 @@ class DocumentRelationshipRepository:
 
         Unlike :meth:`get_relationships` (which omits ``path_in_parent``), this
         exposes the per-child path so callers can match a child document back to
-        its slot in the parent — e.g. an email attachment to its filename.
+        its slot in the parent -- e.g. an email attachment to its filename.
         Ordered by ``created_at`` so duplicate filenames resolve in attach order.
         """
         clause = ""

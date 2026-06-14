@@ -20,13 +20,44 @@ from services.search.encoder import TextEncoder
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.meili_types import ChunkMetadata, SearchChunkRecord
 from services.search.qdrant import QdrantSearchClient
-from services.translation.client import LibreTranslateClient
+from services.translation.client import LibreTranslateClient, build_translation_metadata
 from shared.correlation import get_correlation_id
 from shared.metrics import MetricsRegistry
 
 logger = logging.getLogger(__name__)
 
 _ALLOWED_JOB_TYPES = ["enrich_document"]
+
+
+def _build_enrich_metadata(
+    *,
+    translator: LibreTranslateClient | None,
+    source_language: str | None,
+    target_language: str,
+    input_text: str,
+    output_text: str,
+    fallback_used: bool = False,
+    fallback_reason: str | None = None,
+) -> dict[str, Any]:
+    """Build translation metadata for high-lane enrichment (#727)."""
+    provider = translator.provider if translator else "libretranslate_argos"
+    provider_version = translator.provider_version if translator else None
+    model_family = translator.model_family if translator else None
+    validation_status = "warning" if fallback_used else "ok"
+    return build_translation_metadata(
+        provider=provider,
+        provider_version=provider_version,
+        model_family=model_family,
+        quality_lane="high",
+        purpose="display",
+        source_language=source_language,
+        target_language=target_language,
+        input_text=input_text,
+        output_text=output_text,
+        validation_status=validation_status,
+        fallback_used=fallback_used,
+        fallback_reason=fallback_reason,
+    )
 
 
 class EnrichmentSubtaskError(RuntimeError):
@@ -121,10 +152,12 @@ class SlowWorker:
             text = content_text
 
             # 2. Translate to the document's configured target language
+            source_lang = doc.source_language
+            target_lang = doc.target_language or "en"
             translated = self._translator.translate(
                 text,
-                source_lang=doc.source_language,
-                target_lang=doc.target_language or "en",
+                source_lang=source_lang,
+                target_lang=target_lang,
             )
 
             # 3. No-op guard: translation returned the same text (document already
@@ -143,7 +176,22 @@ class SlowWorker:
                     version_id,
                     reason,
                 )
-                self._version_repo.update_version_status(version_id, "failed", error_summary=reason)
+                _meta = _build_enrich_metadata(
+                    translator=self._translator,
+                    source_language=source_lang,
+                    target_language=target_lang,
+                    input_text=text,
+                    output_text=translated,
+                    fallback_used=True,
+                    fallback_reason=reason,
+                )
+                self._version_repo.update_version_status(
+                    version_id,
+                    "failed",
+                    error_summary=reason,
+                    metadata=_meta,
+                    provider=_meta.get("provider"),
+                )
                 # Bump translation_quality to "high" so enrichment stops
                 # retrying this document.  The document already has a "fast"
                 # translation and the enrichment attempt proved no further
@@ -151,9 +199,21 @@ class SlowWorker:
                 self._doc_repo.update_translation_quality(doc.id, "high")
                 return
 
-            # 4. Store translated text on version
+            # 4. Store translated text on version with metadata (#727)
+            _meta = _build_enrich_metadata(
+                translator=self._translator,
+                source_language=source_lang,
+                target_language=target_lang,
+                input_text=text,
+                output_text=translated,
+                fallback_used=False,
+            )
             self._version_repo.update_version_status(
-                version_id, "available", translated_text=translated
+                version_id,
+                "available",
+                translated_text=translated,
+                metadata=_meta,
+                provider=_meta.get("provider"),
             )
 
             # 5. Chunk and index (reuse legacy indexing)
@@ -165,8 +225,24 @@ class SlowWorker:
         except Exception as exc:
             if isinstance(exc, EnrichmentSubtaskError):
                 raise  # version already marked available; job retried/dead-lettered above
+            # Build fallback metadata for the failure case (#727)
+            source_lang = doc.source_language
+            target_lang = doc.target_language or "en"
+            _meta = _build_enrich_metadata(
+                translator=self._translator,
+                source_language=source_lang,
+                target_language=target_lang,
+                input_text=content_text,
+                output_text="",
+                fallback_used=True,
+                fallback_reason=str(exc)[:500],
+            )
             self._version_repo.update_version_status(
-                version_id, "failed", error_summary="Translation failed"
+                version_id,
+                "failed",
+                error_summary="Translation failed",
+                metadata=_meta,
+                provider=_meta.get("provider"),
             )
             raise
 

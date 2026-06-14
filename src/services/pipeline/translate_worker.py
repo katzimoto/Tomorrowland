@@ -10,9 +10,40 @@ from services.documents.repository import DocumentRepository, TranslationVersion
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
-from services.translation.client import LibreTranslateClient
+from services.translation.client import LibreTranslateClient, build_translation_metadata
 
 logger = logging.getLogger(__name__)
+
+
+def _build_fast_metadata(
+    *,
+    translator: LibreTranslateClient | None,
+    source_language: str | None,
+    target_language: str,
+    input_text: str,
+    output_text: str,
+    fallback_used: bool = False,
+    fallback_reason: str | None = None,
+) -> dict[str, Any]:
+    """Build translation metadata for fast-lane ingestion (#727)."""
+    provider = translator.provider if translator else "libretranslate_argos"
+    provider_version = translator.provider_version if translator else None
+    model_family = translator.model_family if translator else None
+    validation_status = "warning" if fallback_used else "ok"
+    return build_translation_metadata(
+        provider=provider,
+        provider_version=provider_version,
+        model_family=model_family,
+        quality_lane="fast",
+        purpose="search",
+        source_language=source_language,
+        target_language=target_language,
+        input_text=input_text,
+        output_text=output_text,
+        validation_status=validation_status,
+        fallback_used=fallback_used,
+        fallback_reason=fallback_reason,
+    )
 
 
 class TranslateConsumer(BaseConsumer):
@@ -77,12 +108,23 @@ class TranslateConsumer(BaseConsumer):
         quality = "fast" if did_translate else None
 
         if self._version_repo and did_translate:
+            # Build translation metadata for fast-lane ingestion (#727)
+            _meta = _build_fast_metadata(
+                translator=self._translator,
+                source_language=lang,
+                target_language=target_lang,
+                input_text=content_text,
+                output_text=translated,
+                fallback_used=False,
+            )
             existing = self._version_repo.find_pending_or_running(document_id, target_lang)
             if existing is not None:
                 self._version_repo.update_version_status(
                     UUID(str(existing["id"])),
                     "available",
                     translated_text=translated,
+                    metadata=_meta,
+                    provider=_meta.get("provider"),
                 )
             else:
                 self._version_repo.create_version(
@@ -92,6 +134,8 @@ class TranslateConsumer(BaseConsumer):
                     request_type="ingestion",
                     target_language=target_lang,
                     translated_text=translated,
+                    metadata=_meta,
+                    provider=_meta.get("provider"),
                 )
 
         # Defer document indexing status to the IndexConsumer — do not call
