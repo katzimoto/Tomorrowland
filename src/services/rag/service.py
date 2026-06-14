@@ -14,6 +14,7 @@ from qdrant_client.models import Condition, FieldCondition, Filter, MatchAny, Ma
 from sqlalchemy.engine import Connection
 
 from services.chat.models import ChatScope
+from services.documents.layout_block_repository import LayoutBlockRepository
 from services.documents.repository import DocumentRepository
 from services.intelligence.llm_provider import LLMProvider
 from services.search.encoder import TextEncoder
@@ -21,9 +22,11 @@ from services.search.hybrid import SearchResult, merge_results
 from services.search.qdrant import QdrantSearchClient
 from shared.metrics import current_metrics
 
+from .context_packer import expand_chunks
 from .models import AnswerResponse, Citation
 from .trace_models import (
     BackendAttributionTrace,
+    ContextPackingTrace,
     DegradedBackendInfo,
     RerankerDeltaTrace,
     RetrievalCandidateTrace,
@@ -130,6 +133,7 @@ class RagService:
         reranker: Any | None = None,
         enable_metadata_search: bool = False,
         enable_translated_text: bool = False,
+        enable_hierarchy_expansion: bool = False,
     ) -> None:
         self._qdrant = qdrant_client
         self._encoder = encoder
@@ -165,6 +169,7 @@ class RagService:
         self._reranker = reranker
         self._enable_metadata_search = enable_metadata_search
         self._enable_translated_text = enable_translated_text
+        self._enable_hierarchy_expansion = enable_hierarchy_expansion
 
     def answer(
         self,
@@ -215,6 +220,7 @@ class RagService:
                 degraded_backends=retrieval_extras["degraded_backends"],
                 scope_filtered_count=retrieval_extras["scope_filtered_count"],
                 dedup_count=retrieval_extras["dedup_count"],
+                context_packing=ContextPackingTrace(),
             )
             if metrics is not None:
                 metrics.rag_requests_total.labels("success").inc()
@@ -266,7 +272,21 @@ class RagService:
         chunks = chunks[:effective_top_k]
         stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
 
-        # 4. Assemble context
+        # 4. Hierarchy-aware context expansion
+        phase_start = time.perf_counter()
+        layout_repo = LayoutBlockRepository(self._connection)
+        chunks, packing_trace = expand_chunks(
+            chunks,
+            layout_repo=layout_repo,
+            enabled=self._enable_hierarchy_expansion,
+            budget_words=self._max_tokens_context,
+        )
+        if metrics is not None:
+            metrics.rag_duration_seconds.labels("context_packing").observe(
+                time.perf_counter() - phase_start
+            )
+
+        # 5. Assemble context
         phase_start = time.perf_counter()
         context = self._assemble_context(chunks)
         if metrics is not None:
@@ -426,6 +446,15 @@ class RagService:
         chunks = chunks[:effective_top_k]
         stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
 
+        # Hierarchy-aware context expansion
+        layout_repo = LayoutBlockRepository(self._connection)
+        chunks, packing_trace = expand_chunks(
+            chunks,
+            layout_repo=layout_repo,
+            enabled=self._enable_hierarchy_expansion,
+            budget_words=self._max_tokens_context,
+        )
+
         if not chunks:
             trace = RetrievalTrace(
                 stages=stages,
@@ -438,6 +467,7 @@ class RagService:
                 dedup_count=retrieval_extras["dedup_count"],
                 score_threshold_filtered_count=score_threshold_filtered_count,
                 reranker_dropped_count=reranker_dropped_count,
+                context_packing=packing_trace,
             )
             yield (
                 "done",
