@@ -6,6 +6,7 @@ export const he: Translations = {
     qa: "שאלות ותשובות",
     chat: "צ'אט",
     subscriptions: "מנויים",
+    evidence: "חבילות ראיות",
     notifications: "התראות",
     history: "היסטוריה",
     expertise: "מומחיות",

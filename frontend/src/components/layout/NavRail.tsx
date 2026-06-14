@@ -7,6 +7,7 @@ import {
   Bell,
   History,
   Bookmark,
+  Layers,
   Activity,
   Shield,
   Network,
@@ -20,7 +21,7 @@ import { TomorrowlandLogo } from "@/components/brand/TomorrowlandLogo";
 import { logout } from "@/api/auth";
 import styles from "./NavRail.module.css";
 
-type NavKey = "search" | "chat" | "subscriptions" | "notifications" | "history" | "expertise" | "sourceHealth" | "admin";
+type NavKey = "search" | "chat" | "subscriptions" | "evidence" | "notifications" | "history" | "expertise" | "sourceHealth" | "admin";
 
 interface NavItem {
   to: string;
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/search", key: "search", icon: <Search size={20} /> },
   { to: "/chat", key: "chat", icon: <MessagesSquare size={20} /> },
   { to: "/subscriptions", key: "subscriptions", icon: <Bookmark size={20} /> },
+  { to: "/evidence", key: "evidence", icon: <Layers size={20} /> },
   { to: "/notifications", key: "notifications", icon: <Bell size={20} /> },
   { to: "/history", key: "history", icon: <History size={20} /> },
   { to: "/expertise", key: "expertise", icon: <Network size={20} /> },

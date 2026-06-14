@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Evidence pack detail UI with Markdown/JSON export (#678)**:
+  New `Evidence packs` nav section. The list page (`/evidence`) shows the
+  caller's packs; the detail page (`/evidence/$packId`) reviews a pack with
+  editable title/description, items grouped by source document (original
+  excerpt, translated excerpt, page/section/chunk references, item type), an
+  open-source-document link, and per-item removal. Two offline-friendly exports
+  — Markdown and JSON — are built client-side from the loaded pack and preserve
+  full citation/source metadata (document id, citation id, page/section/chunk,
+  translated text, claim). Permission checks are enforced by the API on both
+  display and export: the detail response only contains items whose document the
+  caller can still access, so the page and exports never include items for a
+  removed or now-inaccessible document. Reorder is deferred (no backend
+  ordering); PDF export and sharing remain out of scope.
 - **Save citations and passages into evidence packs from the UI (#677)**:
   New `Save to evidence pack` / `Save evidence` / `Save passage` entry points on
   chat citation cards, the Evidence Inspector (Actions tab), and search result

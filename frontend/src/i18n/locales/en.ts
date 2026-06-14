@@ -4,6 +4,7 @@ export interface Translations {
     qa: string;
     chat: string;
     subscriptions: string;
+    evidence: string;
     notifications: string;
     history: string;
     expertise: string;
@@ -541,6 +542,7 @@ export const en: Translations = {
     qa: "Q&A",
     chat: "Chat",
     subscriptions: "Subscriptions",
+    evidence: "Evidence packs",
     notifications: "Notifications",
     history: "History",
     expertise: "Expertise",
