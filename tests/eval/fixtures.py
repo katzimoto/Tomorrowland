@@ -434,4 +434,94 @@ EVAL_CASES: list[dict] = [
         "language": "en",
         "tags": ["security", "permissions", "revoked", "stale-index", "no-answer"],
     },
+    # ──────────────────────────────────────────────────────────────────
+    # hierarchy-expansion (#715 PR2) — cases that exercise
+    # hierarchy-aware context packing and whose expansion_applied
+    # field feeds the expansion_coverage diagnostic.
+    # ──────────────────────────────────────────────────────────────────
+    {
+        "id": "he-001",
+        "category": "layout_aware",
+        "question": (
+            "What different approaches are described in the Methodology and Results sections?"
+        ),
+        "gold_ids": [],
+        "expected_no_answer": False,
+        "notes": (
+            "Multi-section answer: the correct answer draws from two distinct "
+            "sections in the same document. Hierarchy expansion should pack the "
+            "parent headings and sibling blocks for both sections."
+        ),
+        "language": "en",
+        "tags": ["expansion", "layout", "multi-section"],
+    },
+    {
+        "id": "he-002",
+        "category": "table_heavy",
+        "question": (
+            "What are the column headers and total values in the quarterly financial table?"
+        ),
+        "gold_ids": [],
+        "expected_no_answer": False,
+        "notes": (
+            "Table-heavy hierarchy case: the table's caption and column headers "
+            "are sibling/child blocks of the table itself. Hierarchy expansion "
+            "should include the caption and header row alongside the table data "
+            "so the LLM can interpret the values correctly."
+        ),
+        "language": "en",
+        "tags": ["expansion", "tables", "layout"],
+        "table_context_required": True,
+    },
+    {
+        "id": "he-003",
+        "category": "preview_anchor",
+        "question": "What compliance requirements are listed on page 3?",
+        "gold_ids": [],
+        "expected_no_answer": False,
+        "notes": (
+            "Page-region citation: the question targets a specific page. "
+            "Citations must carry page_number and the expansion must not "
+            "pull blocks from other pages unless they are parent headings. "
+            "Verifies that expansion stays within the correct page neighborhood."
+        ),
+        "language": "en",
+        "tags": ["expansion", "anchor", "page-region"],
+        "expected_anchor_kind": "pdf",
+        "expected_page": None,
+    },
+    {
+        "id": "he-004",
+        "category": "layout_aware",
+        "question": (
+            "How does the evidence in the Introduction section relate "
+            "to the findings in the Conclusions?"
+        ),
+        "gold_ids": [],
+        "expected_no_answer": False,
+        "notes": (
+            "Split-answer across sibling sections: the answer requires content "
+            "from two neighbouring (but distinct) sections. Hierarchy expansion "
+            "should retrieve sibling blocks from both sections while keeping "
+            "each section's context coherent."
+        ),
+        "language": "en",
+        "tags": ["expansion", "layout", "split-answer"],
+    },
+    {
+        "id": "he-005",
+        "category": "multi_document",
+        "question": "Compare the security policies described across the available documents.",
+        "gold_ids": [],
+        "expected_no_answer": False,
+        "notes": (
+            "Cross-document hierarchy safety: the answer requires citations from "
+            "multiple documents, but hierarchy expansion must never cross "
+            "document boundaries. Each citation's expanded context must come "
+            "from the same document as the original chunk. This case verifies "
+            "the same-document-only expansion invariant."
+        ),
+        "language": "en",
+        "tags": ["expansion", "multi-doc", "security"],
+    },
 ]

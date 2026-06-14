@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import UUID
 
 from services.chunking.splitter import chunk_text, resolve_chunk_locations
+from services.documents.layout_block_repository import LayoutBlockRepository
 from services.documents.repository import DocumentRepository
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
 from services.search.encoder import TextEncoder
 from services.search.qdrant import QdrantSearchClient
+
+logger = logging.getLogger(__name__)
 
 
 class EmbedConsumer(BaseConsumer):
@@ -137,6 +141,20 @@ class EmbedConsumer(BaseConsumer):
             qdrant_chunks.append(entry)
 
         if qdrant_chunks:
+            # PR3: resolve layout_block_id for precise chunk→block linkage.
+            # Layout blocks are written by parse_worker before embed runs,
+            # so they should exist for most documents.
+            from services.rag.layout_hierarchy import resolve_chunk_layout_block_ids
+
+            try:
+                layout_repo = LayoutBlockRepository(self._doc_repo._connection)
+                resolve_chunk_layout_block_ids(qdrant_chunks, document_id, layout_repo)
+            except Exception:
+                logger.debug(
+                    "layout_block_id resolution skipped for document_id=%s",
+                    document_id,
+                )
+
             self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
 
         self._job_repo.mark_running_stage(job_id, "embedded")

@@ -27,6 +27,10 @@ class RetrievalMetrics:
     anchor_accuracy: float = 1.0
     anchor_cases_total: int = 0
     anchor_cases_passed: int = 0
+    # Hierarchy expansion metrics (v3, #715)
+    expansion_coverage: float = 0.0
+    expansion_cases_total: int = 0
+    expansion_cases_passed: int = 0
 
     @property
     def pass_rate(self) -> float:
@@ -90,7 +94,7 @@ def citation_anchor_success(
     return None
 
 
-def aggregate_metrics(case_results: list[dict]) -> RetrievalMetrics:
+def aggregate_metrics(case_results: list[dict[str, object]]) -> RetrievalMetrics:
     """Compute aggregate metrics from a list of per-case result dicts.
 
     Each case dict should have:
@@ -103,6 +107,8 @@ def aggregate_metrics(case_results: list[dict]) -> RetrievalMetrics:
         latency_by_stage: dict[str, float]
         passed: bool
         anchor_matched: bool | None  (optional, v2)
+        expansion_applied: bool | None  (optional, v3)
+        expansion_eligible: bool  (optional, v3)
     """
     metrics = RetrievalMetrics(total_cases=len(case_results))
     ks = [1, 3, 5, 10]
@@ -115,6 +121,8 @@ def aggregate_metrics(case_results: list[dict]) -> RetrievalMetrics:
     latency_accumulator: dict[str, list[float]] = {}
     anchor_total = 0
     anchor_passed = 0
+    expansion_total = 0
+    expansion_passed = 0
 
     for case in case_results:
         retrieved = case.get("retrieved_ids", [])
@@ -147,6 +155,12 @@ def aggregate_metrics(case_results: list[dict]) -> RetrievalMetrics:
             if anchor_matched:
                 anchor_passed += 1
 
+        # Hierarchy expansion (v3, #715): only count cases tagged as expansion-eligible
+        if case.get("expansion_eligible"):
+            expansion_total += 1
+            if case.get("expansion_applied"):
+                expansion_passed += 1
+
     n = len(case_results) or 1
     c = citation_cases or 1
     na = no_answer_cases or 1
@@ -159,5 +173,8 @@ def aggregate_metrics(case_results: list[dict]) -> RetrievalMetrics:
     metrics.anchor_cases_total = anchor_total
     metrics.anchor_cases_passed = anchor_passed
     metrics.anchor_accuracy = anchor_passed / anchor_total if anchor_total else 1.0
+    metrics.expansion_cases_total = expansion_total
+    metrics.expansion_cases_passed = expansion_passed
+    metrics.expansion_coverage = expansion_passed / expansion_total if expansion_total else 0.0
 
     return metrics

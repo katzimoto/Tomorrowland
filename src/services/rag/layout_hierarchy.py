@@ -18,7 +18,11 @@ Usage::
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from services.documents.layout_block_repository import LayoutBlockRepository
 
 from services.documents.models import LayoutBlockRow
 
@@ -224,6 +228,70 @@ def get_neighborhood(
     return parent_headings, sibling_before, sibling_after
 
 
+def resolve_chunk_layout_block_ids(
+    chunks: list[dict[str, Any]],
+    document_id: UUID,
+    layout_repo: LayoutBlockRepository,
+) -> None:
+    """Try to add ``layout_block_id`` to each chunk dict (mutates in place).
+
+    Called at Qdrant index time (PR3) after page_number / section_heading
+    have been resolved.  Looks up layout blocks from the database and, for
+    each chunk, finds the first non-heading block in the matching section
+    whose text appears in the chunk — that block becomes the anchor used
+    by the context packer at query time.
+
+    When layout blocks are missing, unavailable, or no match is found the
+    chunk is left unchanged and the packer will fall back to
+    ``(page_number, section_heading)`` matching.
+
+    Parameters
+    ----------
+    chunks:
+        List of chunk dicts (with ``page_number``, ``section_heading``,
+        and ``text`` keys).  Mutated in place.
+    document_id:
+        Document UUID whose layout blocks to look up.
+    layout_repo:
+        ``LayoutBlockRepository`` instance (duck-typed — only needs
+        ``list_by_document``).
+    """
+    if not chunks:
+        return
+
+    try:
+        blocks = layout_repo.list_by_document(document_id)
+    except Exception:
+        return
+
+    if not blocks:
+        return
+
+    section_map = build_section_map(blocks)
+
+    for chunk in chunks:
+        page_raw = chunk.get("page_number")
+        heading_raw = chunk.get("section_heading")
+        chunk_text = chunk.get("text")
+
+        if page_raw is None or heading_raw is None or not chunk_text:
+            continue
+
+        page: int | None = page_raw if isinstance(page_raw, int) else None
+        heading: str = str(heading_raw)
+        section = section_map.get((page, heading))
+        if section is None or not section.blocks:
+            continue
+
+        # Find the first content block in this section whose text
+        # appears in the chunk — that block is the best anchor.
+        chunk_text_str = str(chunk_text)
+        for block in section.blocks:
+            if block.text and block.text in chunk_text_str:
+                chunk["layout_block_id"] = str(block.id)
+                break
+
+
 def section_exists(
     blocks: list[LayoutBlockRow],
     page_number: int | None,
@@ -237,3 +305,100 @@ def section_exists(
         return False
     key = (page_number, section_heading)
     return key in build_section_map(blocks)
+
+
+def get_neighborhood_by_block_id(
+    blocks: list[LayoutBlockRow],
+    layout_block_id: str,
+    *,
+    radius: int = 3,
+) -> tuple[list[LayoutBlockRow], list[LayoutBlockRow], list[LayoutBlockRow]]:
+    """Return (parent_headings, sibling_before, sibling_after) anchored at a specific block.
+
+    Unlike :func:`get_neighborhood`, which anchors at the first non-heading
+    block in a section (heuristic), this function uses a precise
+    ``layout_block_id`` from the chunk payload (PR3) to anchor at the exact
+    block the chunk's text starts from.
+
+    Parameters
+    ----------
+    blocks:
+        Layout blocks for a single document, ordered by ``reading_order``.
+    layout_block_id:
+        UUID string of the anchor layout block (from the chunk's Qdrant payload).
+    radius:
+        Maximum number of siblings to return before and after the anchor.
+
+    Returns
+    -------
+    tuple:
+        - **parent_headings**: heading block(s) that contain this block.
+        - **sibling_before**: non-heading blocks preceding the anchor within
+          the same section, up to ``radius``.
+        - **sibling_after**: non-heading blocks following the anchor within
+          the same section, up to ``radius``.
+
+    When the block ID is not found, returns three empty lists — the caller
+    should fall back to :func:`get_neighborhood`.
+    """
+    try:
+        target_id = UUID(layout_block_id)
+    except (ValueError, TypeError):
+        return [], [], []
+
+    # Find the anchor block and its position in the full block list.
+    anchor_block: LayoutBlockRow | None = None
+    anchor_pos: int = -1
+    for i, b in enumerate(blocks):
+        if b.id == target_id:
+            anchor_block = b
+            anchor_pos = i
+            break
+
+    if anchor_block is None:
+        return [], [], []
+
+    # Build the section map to find which section this block belongs to.
+    section_map = build_section_map(blocks)
+
+    # Find the section containing this block's (page, section_heading).
+    # First, find the section heading for this block by walking backwards
+    # to the nearest preceding heading block.
+    current_section_key: SectionKey | None = None
+    for i in range(anchor_pos, -1, -1):
+        b = blocks[i]
+        if b.block_type == "heading" and b.text:
+            current_section_key = (b.page_number, b.text)
+            break
+
+    if current_section_key is None or current_section_key not in section_map:
+        return [], [], []
+
+    section = section_map[current_section_key]
+    if not section.blocks:
+        return [], [], []
+
+    # Find the anchor's position within the section's content blocks.
+    anchor_section_idx: int = -1
+    for i, b in enumerate(section.blocks):
+        if b.id == target_id:
+            anchor_section_idx = i
+            break
+
+    if anchor_section_idx == -1:
+        # Block not in this section's content blocks — fall back to
+        # first content block heuristic.
+        anchor_section_idx = 0
+
+    sibling_before = section.blocks[max(0, anchor_section_idx - radius) : anchor_section_idx]
+    sibling_after = section.blocks[
+        anchor_section_idx + 1 : min(len(section.blocks), anchor_section_idx + radius + 1)
+    ]
+
+    parent_headings: list[LayoutBlockRow] = []
+    for b in blocks:
+        if b.id == section.heading_block_id:
+            parent_headings.append(b)
+            break
+
+    return parent_headings, sibling_before, sibling_after

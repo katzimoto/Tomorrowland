@@ -26,7 +26,11 @@ from typing import Any
 from uuid import UUID
 
 from services.documents.layout_block_repository import LayoutBlockRepository
-from services.rag.layout_hierarchy import build_section_map, get_neighborhood
+from services.rag.layout_hierarchy import (
+    build_section_map,
+    get_neighborhood,
+    get_neighborhood_by_block_id,
+)
 from services.rag.trace_models import ContextPackingTrace
 
 logger = logging.getLogger(__name__)
@@ -83,6 +87,7 @@ def expand_chunks(
         page_number: int | None = chunk.get("page_number")
         section_heading: str | None = chunk.get("section_heading")
         chunk_id: str | None = chunk.get("chunk_id")
+        layout_block_id: str | None = chunk.get("layout_block_id")
 
         if not document_id_str or not section_heading:
             sections_not_found += 1
@@ -120,13 +125,21 @@ def expand_chunks(
 
         sections_matched += 1
 
-        # Get neighborhood: parent headings + sibling blocks
-        parent_headings, sibling_before, sibling_after = get_neighborhood(
-            blocks,
-            page_number,
-            section_heading,
-            radius=_EXPANSION_RADIUS,
-        )
+        # PR3: precise layout_block_id-based anchoring when available.
+        # Falls back to (page_number, section_heading) heuristic.
+        if layout_block_id:
+            parent_headings, sibling_before, sibling_after = get_neighborhood_by_block_id(
+                blocks,
+                layout_block_id,
+                radius=_EXPANSION_RADIUS,
+            )
+        else:
+            parent_headings, sibling_before, sibling_after = get_neighborhood(
+                blocks,
+                page_number,
+                section_heading,
+                radius=_EXPANSION_RADIUS,
+            )
 
         if not parent_headings and not sibling_before and not sibling_after:
             sections_not_found += 1
