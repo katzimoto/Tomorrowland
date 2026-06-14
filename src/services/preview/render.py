@@ -134,6 +134,7 @@ def _render_email(
                 source_path,
                 max_inline_images=settings.preview_max_inline_images,
                 max_inline_image_bytes=settings.preview_max_inline_image_bytes,
+                rtf_timeout=settings.preview_render_timeout_seconds,
             )
         else:
             rendered = render_email(
