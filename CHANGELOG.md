@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Quality Lab admin dashboard (#714)**: new `/admin/quality-lab` page for
+  uploading eval result JSON from offline/nightly runs and tracking retrieval
+  quality trends across runs. Backend stores runs in `quality_lab_runs` and
+  `quality_lab_results` tables (migration `b2c3d4e5f6a7`). The admin API
+  (`POST/GET/DELETE /admin/quality-lab/runs`, `GET /admin/quality-lab/trends`)
+  accepts the same JSON shape emitted by `pytest tests/eval/ --eval
+  --eval-output results.json`. The trends endpoint supports 7 metrics
+  (pass_rate, MRR, citation_accuracy, anchor_accuracy, expansion_coverage,
+  no_answer_accuracy, unauthorized_leakage_count) for comparing retrieval
+  configurations (flat vs hierarchy expansion vs coarse-to-fine vs combined)
+  before enabling them by default. Frontend includes a file uploader, run
+  history list with metric chips, per-run detail with per-category per-case
+  pass/fail table, and a bar-chart trends view with selectable metric.
 - **Evidence pack detail UI with Markdown/JSON export (#678)**:
   New `Evidence packs` nav section. The list page (`/evidence`) shows the
   caller's packs; the detail page (`/evidence/$packId`) reviews a pack with

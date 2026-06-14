@@ -47,6 +47,7 @@ const AdminUsersPage = lazyRoute(() => import("@/features/admin/AdminUsersPage")
 const AdminUserDetailPage = lazyRoute(() => import("@/features/admin/AdminUserDetailPage"), "AdminUserDetailPage");
 const AdminModelProvidersPage = lazyRoute(() => import("@/features/admin/AdminModelProvidersPage"), "AdminModelProvidersPage");
 const AdminLdapPage = lazyRoute(() => import("@/features/admin/AdminLdapPage"), "AdminLdapPage");
+const QualityLabPage = lazyRoute(() => import("@/features/admin/QualityLabPage"), "QualityLabPage");
 
 // Auth pages need their own Suspense + ErrorBoundary (no AppLayout shell above them).
 function LoginPage() {
@@ -260,6 +261,12 @@ const adminLdapRoute = createRoute({
   component: AdminLdapPage,
 });
 
+const qualityLabRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/quality-lab",
+  component: QualityLabPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -287,6 +294,7 @@ const routeTree = rootRoute.addChildren([
     adminUserDetailRoute,
     adminModelProvidersRoute,
     adminLdapRoute,
+    qualityLabRoute,
   ]),
 ]);
 

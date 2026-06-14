@@ -320,6 +320,35 @@ export const adminApi = {
   getSourceHealth: (sourceId: string) =>
     api.get<SourceHealthResponse>(`/admin/sources/${sourceId}/qa`),
 
+  // --- Quality Lab (#714) ---
+  uploadQualityLabRun: (payload: { results: unknown[]; eval_config: string; git_commit?: string }) =>
+    api.post<{ run_id: string; case_count: number }>(
+      "/admin/quality-lab/runs",
+      payload,
+    ),
+  listQualityLabRuns: (limit?: number, offset?: number) => {
+    const qs = new URLSearchParams();
+    if (limit !== undefined) qs.set("limit", String(limit));
+    if (offset !== undefined) qs.set("offset", String(offset));
+    const q = qs.toString();
+    return api.get<QualityLabRun[]>(
+      `/admin/quality-lab/runs${q ? `?${q}` : ""}`,
+    );
+  },
+  getQualityLabRun: (runId: string) =>
+    api.get<QualityLabRunDetail>(`/admin/quality-lab/runs/${runId}`),
+  getQualityLabTrends: (metric?: string, limit?: number) => {
+    const qs = new URLSearchParams();
+    if (metric) qs.set("metric", metric);
+    if (limit !== undefined) qs.set("limit", String(limit));
+    const q = qs.toString();
+    return api.get<QualityLabTrendPoint[]>(
+      `/admin/quality-lab/trends${q ? `?${q}` : ""}`,
+    );
+  },
+  deleteQualityLabRun: (runId: string) =>
+    api.delete(`/admin/quality-lab/runs/${runId}`),
+
   // --- LDAP Group Search & Mappings ---
   searchLdapGroups: (query: string, limit?: number) => {
     const qs = new URLSearchParams({ q: query });
@@ -539,4 +568,38 @@ export interface LdapGroupMappingCreatePayload {
   ldap_external_id: string | null;
   ldap_display_name: string;
   target_group_id: string;
+}
+
+// --- Quality Lab (#714) ---
+
+export interface QualityLabRun {
+  id: string;
+  eval_config: string;
+  git_commit: string | null;
+  summary: Record<string, unknown> | null;
+  case_count: number;
+  passed_count: number;
+  pass_rate: number;
+  created_by: string | null;
+  created_at: string | null;
+}
+
+export interface QualityLabRunResult {
+  id: string;
+  case_id: string;
+  category: string;
+  passed: boolean;
+  result_json: Record<string, unknown> | null;
+}
+
+export interface QualityLabRunDetail extends QualityLabRun {
+  results: QualityLabRunResult[];
+}
+
+export interface QualityLabTrendPoint {
+  run_id: string;
+  eval_config: string;
+  created_at: string | null;
+  metric: string;
+  value: number;
 }

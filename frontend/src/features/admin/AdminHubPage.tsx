@@ -6,6 +6,7 @@ import {
   Activity,
   Cpu,
   ShieldQuestion,
+  FlaskConical,
 } from "lucide-react";
 import styles from "./AdminHubPage.module.css";
 
@@ -82,6 +83,17 @@ export function AdminHubPage() {
           <span className={styles.cardTitle}>LDAP Mappings</span>
           <span className={styles.cardDesc}>
             Search LDAP groups and map them to Tomorrowland groups
+          </span>
+        </button>
+        <button
+          type="button"
+          className={styles.card}
+          onClick={() => navigate({ to: "/admin/quality-lab" })}
+        >
+          <FlaskConical size={32} className={styles.cardIcon} />
+          <span className={styles.cardTitle}>Quality Lab</span>
+          <span className={styles.cardDesc}>
+            Upload eval results and track retrieval quality trends
           </span>
         </button>
       </div>
