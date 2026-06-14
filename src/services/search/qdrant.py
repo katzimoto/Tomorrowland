@@ -118,6 +118,8 @@ class QdrantSearchClient:
                 payload["page_number"] = chunk["page_number"]
             if "section_heading" in chunk:
                 payload["section_heading"] = chunk["section_heading"]
+            if "layout_block_id" in chunk:
+                payload["layout_block_id"] = chunk["layout_block_id"]
             # Qdrant point IDs must be valid UUIDs or unsigned integers.
             # chunk_id is a human-readable string (e.g. "<uuid>-orig-0") that
             # is not itself a valid UUID, so derive a stable UUID5 from it.
@@ -198,6 +200,7 @@ class QdrantSearchClient:
                 "chunk_index",
                 "page_number",
                 "section_heading",
+                "layout_block_id",
             ):
                 if extra_key in payload:
                     meta[extra_key] = payload[extra_key]
@@ -250,6 +253,7 @@ class QdrantSearchClient:
                 "chunk_index",
                 "page_number",
                 "section_heading",
+                "layout_block_id",
             ):
                 if extra_key in payload:
                     meta[extra_key] = payload[extra_key]
@@ -329,6 +333,7 @@ class QdrantSearchClient:
                 "chunk_index",
                 "page_number",
                 "section_heading",
+                "layout_block_id",
             ):
                 if extra_key in payload:
                     meta[extra_key] = payload[extra_key]

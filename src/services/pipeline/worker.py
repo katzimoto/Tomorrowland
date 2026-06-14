@@ -13,6 +13,7 @@ from uuid import UUID
 
 from services.alerts.service import AlertMatcher
 from services.chunking.splitter import chunk_text, resolve_chunk_locations
+from services.documents.layout_block_repository import LayoutBlockRepository
 from services.documents.repository import DocumentRelationshipRepository, DocumentRepository
 from services.extraction.base import AttachmentData, ExtractionResult
 from services.extraction.language import LanguageDetector
@@ -396,6 +397,19 @@ class PipelineWorker:
                 )
 
             if qdrant_chunks:
+                # PR3: resolve layout_block_id for precise chunk→block linkage.
+                # Best-effort — blocks may not exist yet (async parse stage).
+                from services.rag.layout_hierarchy import resolve_chunk_layout_block_ids
+
+                try:
+                    layout_repo = LayoutBlockRepository(self._doc_repo._connection)
+                    resolve_chunk_layout_block_ids(qdrant_chunks, document_id, layout_repo)
+                except Exception:
+                    logger.debug(
+                        "layout_block_id resolution skipped for document_id=%s",
+                        document_id,
+                    )
+
                 start = time.perf_counter()
                 # delete_existing removes stale chunks from prior runs before writing new ones.
                 self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)

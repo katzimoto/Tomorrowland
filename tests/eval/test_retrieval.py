@@ -127,10 +127,11 @@ def test_retrieval_case(
     scope_filtered_count = trace.scope_filtered_count if trace else 0
     dedup_count = trace.dedup_count if trace else 0
 
-    layout_expansion_applied = any(
-        "layout" in (s.stage or "").lower() or "parent" in (s.description or "").lower()
-        for s in (trace.stages if trace else [])
-    )
+    # ── Trace v3: hierarchy expansion (#715) ────────────────────────
+    expansion_applied: bool | None = None
+    if trace and trace.context_packing is not None:
+        expansion_applied = trace.context_packing.expansion_applied
+    expansion_eligible = "expansion" in case.get("tags", [])
 
     # ── Citation anchor fields ────────────────────────────────────────
     cited_page_numbers: list[int] = [
@@ -185,7 +186,9 @@ def test_retrieval_case(
         "reranker_dropped_count": reranker_dropped_count,
         "scope_filtered_count": scope_filtered_count,
         "dedup_count": dedup_count,
-        "layout_expansion_applied": layout_expansion_applied,
+        # v3 hierarchy expansion
+        "expansion_applied": expansion_applied,
+        "expansion_eligible": expansion_eligible,
         # citation anchor fields
         "expected_anchor_kind": case.get("expected_anchor_kind"),
         "cited_page_numbers": cited_page_numbers,
@@ -232,6 +235,10 @@ def test_aggregate_metrics(eval_results_collector: list[dict]) -> None:
         "anchor_accuracy": metrics.anchor_accuracy,
         "anchor_cases_total": metrics.anchor_cases_total,
         "anchor_cases_passed": metrics.anchor_cases_passed,
+        # v3 hierarchy expansion metrics (#715)
+        "expansion_coverage": metrics.expansion_coverage,
+        "expansion_cases_total": metrics.expansion_cases_total,
+        "expansion_cases_passed": metrics.expansion_cases_passed,
     }
     print("\n\n=== Eval Aggregate Metrics ===")
     print(json.dumps(report, indent=2))
