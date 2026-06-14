@@ -273,7 +273,7 @@ def test_expertise_ranks_weighted_signals_and_hides_private_evidence(
 
 def test_related_routes_are_registered(migrated_engine: Engine) -> None:
     app = create_app(migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32))
-    paths = {route.path for route in app.routes}
+    paths = {route.path for route in app.routes if hasattr(route, "path")}
 
     assert "/documents/{document_id}/related" in paths
     assert "/expertise" in paths
@@ -284,7 +284,7 @@ def test_expertise_rejects_blank_topic_without_testclient(
 ) -> None:
     _setup_users(migrated_engine)
     app = create_app(migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32))
-    route = next(route for route in app.routes if route.path == "/expertise")
+    route = next(route for route in app.routes if getattr(route, "path", None) == "/expertise")
 
     mock_request = MagicMock()
     mock_request.app = app

@@ -10,7 +10,7 @@ from shared.config import Settings
 def test_health_route_is_public_runtime_probe() -> None:
     engine = sa.create_engine("sqlite:///:memory:")
     app = create_app(engine, Settings(_env_file=None, auth_provider="local", jwt_secret="x" * 32))
-    route = next(route for route in app.routes if route.path == "/health")
+    route = next(route for route in app.routes if getattr(route, "path", None) == "/health")
 
     assert route.endpoint() == {"status": "ok", "service": "api"}
 
