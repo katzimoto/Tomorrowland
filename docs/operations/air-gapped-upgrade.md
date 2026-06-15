@@ -86,7 +86,7 @@ The scripts do not intentionally delete or recreate these volumes.
 Ollama model bundles are optional release assets separate from the platform
 archive. Reload the model bundle when any of these are true:
 
-- the deployment has no existing `ollama_data` model for the configured
+- the deployment has no existing `ollama_llm_data` model for the configured
   `OLLAMA_MODEL`,
 - release notes instruct operators to use a new default model/digest,
 - the operator changes `OLLAMA_MODEL` in `.env`, or
@@ -147,7 +147,7 @@ changes:
    ```
 
 4. Reindex existing documents so they are embedded with the new model. This
-   populates the new Qdrant collection (`documents_v{dimension}`) while the old
+   populates the new Qdrant collection (`tomorrowland_chunks_{dimension}`) while the old
    collection remains intact for rollback:
 
    ```bash
@@ -181,8 +181,8 @@ changes:
    ```
 
 The load script is intentionally non-destructive: it merges bundled `models/`
-files into `ollama_data`, stops/restarts only the Ollama service when needed, and
-never runs `docker compose down -v`. Do not delete or recreate `ollama_data`
+files into `ollama_llm_data`, stops/restarts only the Ollama LLM service when
+needed, and never runs `docker compose down -v`. Do not delete or recreate `ollama_llm_data`
 casually; it may contain an operator-approved model, locally cached blobs, or a
 previous working model needed for rollback. If you must remove obsolete model
 blobs later, do so only after backing up the volume and confirming the new model

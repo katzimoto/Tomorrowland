@@ -9,9 +9,13 @@ Compose application for connected and air-gapped environments.
   comments, annotations, subscriptions, evidence packs, readiness, and
   orchestration endpoints.
 - React frontend built with TypeScript and Vite.
+- Pipeline workers (parse, translate, embed, index, intelligence, alert,
+  enrich, preview) that process ingested documents asynchronously.
 - PostgreSQL for application metadata and permissions.
 - Meilisearch for keyword (BM25) search.
 - Qdrant for vector search.
+- RabbitMQ as the pipeline stage message bus between the ingestion workers.
+- Redis for caching (configuration, rate limits, sessions).
 - Kafka-compatible event plumbing for NiFi-produced events where configured.
 - LibreTranslate for bundled offline translation language packs.
 - Optional Ollama runtime and model bundle for local Q&A/RAG and intelligence.

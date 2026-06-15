@@ -478,7 +478,7 @@ curl -s http://localhost:11434/api/tags | grep -q "$EMBEDDING_MODEL" \
 #### Qdrant collection isolation
 
 Since vector safety (#184/#197), each embedding dimension creates an isolated
-Qdrant collection named `documents_v{dimension}` (e.g. `documents_v4096`). When
+Qdrant collection named `tomorrowland_chunks_{dimension}` (e.g. `tomorrowland_chunks_4096`). When
 the embedding model or dimension changes, a new collection is created
 automatically on first search/upsert. Old collections are preserved for
 rollback but are not automatically deleted.
@@ -939,7 +939,7 @@ or marked unavailable by the application.
 - Ollama model weights remain a separate release asset rather than being
   embedded in the platform archive. Model bundles are optional add-on artifacts. Operators may omit or replace the
   default `qwen3:4b` bundle; local Q&A/RAG features are degraded until a matching
-  model is loaded into `ollama_data`.
+  model is loaded into `ollama_llm_data`.
 - NiFi event ingestion requires operator-provided drain invocation; no
   dedicated NiFi drain worker or live NiFi/Kafka CI validation is included.
 - Atlassian-native permission synchronization is not present; use Tomorrowland
