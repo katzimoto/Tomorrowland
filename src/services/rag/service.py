@@ -877,177 +877,27 @@ class RagService:
         else:
             results = vector_results
 
-        # ── Record fused rank/score per key before dedup ────────────
-        fused_info: dict[str, tuple[int, float]] = {}
-        for fused_rank, r in enumerate(results, 1):
-            key = _chunk_key(r)
-            if key not in fused_info:
-                fused_info[key] = (fused_rank, r.score)
-
-        # ── Deduplicate + look up doc titles ────────────────────────
+        # ── Deduplicate + look up doc titles + build chunk dicts ────
         t7 = time.perf_counter()
-        seen_chunk_ids: set[str] = set()
-        unique_results = []
-        dedup_count = 0
-        for r in results:
-            chunk_id = (r.metadata or {}).get("chunk_id") or f"{r.document_id}-unknown"
-            if chunk_id not in seen_chunk_ids:
-                seen_chunk_ids.add(chunk_id)
-                unique_results.append(r)
-            else:
-                dedup_count += 1
-        stages.append(self._build_stage_trace("dedup_filter", len(unique_results), t7))
-
-        # Look up doc titles in one batch query — avoids N+1 per-document get_by_id calls.
-        doc_repo = DocumentRepository(self._connection)
-        doc_ids: list[UUID] = []
-        for r in unique_results:
-            with suppress(ValueError):
-                doc_ids.append(UUID(r.document_id))
-        title_cache: dict[str, str | None] = {}
-        if doc_ids:
-            # Deduplicate before batch lookup.
-            for doc in doc_repo.list_by_ids(list(set(doc_ids))):
-                title_cache[str(doc.id)] = doc.title
-
-        chunks = []
-        for r in unique_results:
-            key = _chunk_key(r)
-            fused_entry = fused_info.get(key)
-            fused_rank_val: int | None = fused_entry[0] if fused_entry is not None else None
-            fused_score_val: float | None = fused_entry[1] if fused_entry is not None else None
-            chunks.append(
-                {
-                    "document_id": r.document_id,
-                    "chunk_id": (r.metadata or {}).get("chunk_id"),
-                    "chunk_index": (r.metadata or {}).get("chunk_index"),
-                    "chunk_text": r.chunk_text or "",
-                    "score": r.score,
-                    "doc_title": title_cache.get(r.document_id),
-                    "source_id": (r.metadata or {}).get("source_id"),
-                    "language": (r.metadata or {}).get("language"),
-                    "source_language": (r.metadata or {}).get("source_language"),
-                    "text_lane": (r.metadata or {}).get("text_lane"),
-                    "translated_from": (r.metadata or {}).get("translated_from"),
-                    "page_number": (r.metadata or {}).get("page_number"),
-                    "section_heading": (r.metadata or {}).get("section_heading"),
-                    # v2 attribution
-                    "_backends": backend_attrs.get(key, []),
-                    "_fused_rank": fused_rank_val,
-                    "_fused_score": fused_score_val,
-                }
-            )
+        chunks, dedup_count, title_cache = self._deduplicate_and_build_chunks(
+            results,
+            backend_attrs,
+        )
+        stages.append(self._build_stage_trace("dedup_filter", len(chunks), t7))
 
         # ── Coarse-to-fine section routing (#715 PR4) ────────────────
         if self._enable_coarse_to_fine_routing and chunks:
-            coarse_start = time.perf_counter()
-            # Extract top (document_id, section_heading) pairs from Stage 1
-            pairs: list[tuple[str, str]] = []
-            seen_pairs: set[tuple[str, str]] = set()
-            for c in chunks:
-                doc_id = c.get("document_id")
-                heading = c.get("section_heading")
-                if isinstance(doc_id, str) and isinstance(heading, str) and doc_id and heading:
-                    pair = (doc_id, heading)
-                    if pair not in seen_pairs:
-                        seen_pairs.add(pair)
-                        pairs.append(pair)
-                        if len(pairs) >= MAX_COARSE_PAIRS:
-                            break
-            stages.append(
-                self._build_stage_trace("coarse_section_search", len(pairs), coarse_start)
+            chunks, dedup_count = self._coarse_to_fine_routing(
+                chunks,
+                bm25_results,
+                meta_results,
+                trans_results,
+                query_vector,
+                qdrant_filter,
+                backend_attrs,
+                title_cache,
+                stages,
             )
-
-            if pairs:
-                fine_start = time.perf_counter()
-                fine_results = self._fine_retrieve(pairs, query_vector, qdrant_filter)
-                stages.append(
-                    self._build_stage_trace("fine_section_search", len(fine_results), fine_start)
-                )
-
-                if fine_results:
-                    # Build fine-stage backend attribution (pre-merge)
-                    fine_backend_attrs: dict[str, list[dict[str, Any]]] = {}
-                    for rank, r in enumerate(fine_results, 1):
-                        key = _chunk_key(r)
-                        fine_backend_attrs.setdefault(key, []).append(
-                            {"backend": "vector", "score": r.score, "rank": rank}
-                        )
-
-                    # Merge fine results with BM25/metadata/translated from Stage 1
-                    if self._meili is not None:
-                        fine_merged = merge_results(
-                            bm25_results=bm25_results,
-                            vector_results=fine_results,
-                            vector_weight=0.5,
-                            bm25_weight=0.5,
-                        )
-                        if self._enable_metadata_search and meta_results:
-                            fine_merged = merge_results(
-                                bm25_results=meta_results,
-                                vector_results=fine_merged,
-                                vector_weight=0.2,
-                                bm25_weight=0.8,
-                            )
-                        if self._enable_translated_text and trans_results:
-                            fine_merged = merge_results(
-                                bm25_results=trans_results,
-                                vector_results=fine_merged,
-                                vector_weight=0.2,
-                                bm25_weight=0.8,
-                            )
-                        fine_results = fine_merged
-
-                    # Rebuild fused_info from post-merge results
-                    fine_fused: dict[str, tuple[int, float]] = {}
-                    for fused_rank, r in enumerate(fine_results, 1):
-                        key = _chunk_key(r)
-                        if key not in fine_fused:
-                            fine_fused[key] = (fused_rank, r.score)
-
-                    # Deduplicate fine-stage results
-                    fine_unique: list[SearchResult] = []
-                    fine_seen: set[str] = set()
-                    fine_dedup_count = 0
-                    for r in fine_results:
-                        cid = (r.metadata or {}).get("chunk_id") or f"{r.document_id}-unknown"
-                        if cid not in fine_seen:
-                            fine_seen.add(cid)
-                            fine_unique.append(r)
-                        else:
-                            fine_dedup_count += 1
-
-                    # Reset stage-1 counts since fine stage replaces candidates
-                    dedup_count = fine_dedup_count
-
-                    # Rebuild chunks from fine results
-                    chunks.clear()
-                    for r in fine_unique:
-                        key = _chunk_key(r)
-                        fe = fine_fused.get(key)
-                        fused_rank_val = fe[0] if fe else None
-                        fused_score_val = fe[1] if fe else None
-                        chunks.append(
-                            {
-                                "document_id": r.document_id,
-                                "chunk_id": (r.metadata or {}).get("chunk_id"),
-                                "chunk_index": (r.metadata or {}).get("chunk_index"),
-                                "chunk_text": r.chunk_text or "",
-                                "score": r.score,
-                                "doc_title": title_cache.get(r.document_id),
-                                "source_id": (r.metadata or {}).get("source_id"),
-                                "language": (r.metadata or {}).get("language"),
-                                "source_language": (r.metadata or {}).get("source_language"),
-                                "text_lane": (r.metadata or {}).get("text_lane"),
-                                "translated_from": (r.metadata or {}).get("translated_from"),
-                                "page_number": (r.metadata or {}).get("page_number"),
-                                "section_heading": (r.metadata or {}).get("section_heading"),
-                                "_backends": fine_backend_attrs.get(key)
-                                or backend_attrs.get(key, []),
-                                "_fused_rank": fused_rank_val,
-                                "_fused_score": fused_score_val,
-                            }
-                        )
 
         retrieval_extras: _RetrievalExtras = {
             "degraded_backends": degraded_backends,
@@ -1103,6 +953,178 @@ class RagService:
                 exc.__class__.__name__,
             )
             return []
+
+    def _deduplicate_and_build_chunks(
+        self,
+        results: list[SearchResult],
+        backend_attrs: dict[str, list[dict[str, Any]]],
+    ) -> tuple[list[dict[str, Any]], int, dict[str, str | None]]:
+        fused_info: dict[str, tuple[int, float]] = {}
+        for fused_rank, r in enumerate(results, 1):
+            key = _chunk_key(r)
+            if key not in fused_info:
+                fused_info[key] = (fused_rank, r.score)
+
+        seen_chunk_ids: set[str] = set()
+        unique_results = []
+        dedup_count = 0
+        for r in results:
+            chunk_id = (r.metadata or {}).get("chunk_id") or f"{r.document_id}-unknown"
+            if chunk_id not in seen_chunk_ids:
+                seen_chunk_ids.add(chunk_id)
+                unique_results.append(r)
+            else:
+                dedup_count += 1
+
+        doc_repo = DocumentRepository(self._connection)
+        doc_ids: list[UUID] = []
+        for r in unique_results:
+            with suppress(ValueError):
+                doc_ids.append(UUID(r.document_id))
+        title_cache: dict[str, str | None] = {}
+        if doc_ids:
+            for doc in doc_repo.list_by_ids(list(set(doc_ids))):
+                title_cache[str(doc.id)] = doc.title
+
+        chunks = []
+        for r in unique_results:
+            key = _chunk_key(r)
+            fused_entry = fused_info.get(key)
+            fused_rank_val: int | None = fused_entry[0] if fused_entry is not None else None
+            fused_score_val: float | None = fused_entry[1] if fused_entry is not None else None
+            chunks.append(
+                {
+                    "document_id": r.document_id,
+                    "chunk_id": (r.metadata or {}).get("chunk_id"),
+                    "chunk_index": (r.metadata or {}).get("chunk_index"),
+                    "chunk_text": r.chunk_text or "",
+                    "score": r.score,
+                    "doc_title": title_cache.get(r.document_id),
+                    "source_id": (r.metadata or {}).get("source_id"),
+                    "language": (r.metadata or {}).get("language"),
+                    "source_language": (r.metadata or {}).get("source_language"),
+                    "text_lane": (r.metadata or {}).get("text_lane"),
+                    "translated_from": (r.metadata or {}).get("translated_from"),
+                    "page_number": (r.metadata or {}).get("page_number"),
+                    "section_heading": (r.metadata or {}).get("section_heading"),
+                    "_backends": backend_attrs.get(key, []),
+                    "_fused_rank": fused_rank_val,
+                    "_fused_score": fused_score_val,
+                }
+            )
+        return chunks, dedup_count, title_cache
+
+    def _coarse_to_fine_routing(
+        self,
+        chunks: list[dict[str, Any]],
+        bm25_results: list[SearchResult],
+        meta_results: list[SearchResult],
+        trans_results: list[SearchResult],
+        query_vector: list[float],
+        qdrant_filter: Filter | None,
+        backend_attrs: dict[str, list[dict[str, Any]]],
+        title_cache: dict[str, str | None],
+        stages: list[RetrievalStageTrace],
+    ) -> tuple[list[dict[str, Any]], int]:
+        coarse_start = time.perf_counter()
+        pairs: list[tuple[str, str]] = []
+        seen_pairs: set[tuple[str, str]] = set()
+        for c in chunks:
+            doc_id = c.get("document_id")
+            heading = c.get("section_heading")
+            if isinstance(doc_id, str) and isinstance(heading, str) and doc_id and heading:
+                pair = (doc_id, heading)
+                if pair not in seen_pairs:
+                    seen_pairs.add(pair)
+                    pairs.append(pair)
+                    if len(pairs) >= MAX_COARSE_PAIRS:
+                        break
+        stages.append(self._build_stage_trace("coarse_section_search", len(pairs), coarse_start))
+
+        if not pairs:
+            return chunks, 0
+
+        fine_start = time.perf_counter()
+        fine_results = self._fine_retrieve(pairs, query_vector, qdrant_filter)
+        stages.append(self._build_stage_trace("fine_section_search", len(fine_results), fine_start))
+
+        if not fine_results:
+            return chunks, 0
+
+        fine_backend_attrs: dict[str, list[dict[str, Any]]] = {}
+        for rank, r in enumerate(fine_results, 1):
+            key = _chunk_key(r)
+            fine_backend_attrs.setdefault(key, []).append(
+                {"backend": "vector", "score": r.score, "rank": rank}
+            )
+
+        if self._meili is not None:
+            fine_merged = merge_results(
+                bm25_results=bm25_results,
+                vector_results=fine_results,
+                vector_weight=0.5,
+                bm25_weight=0.5,
+            )
+            if self._enable_metadata_search and meta_results:
+                fine_merged = merge_results(
+                    bm25_results=meta_results,
+                    vector_results=fine_merged,
+                    vector_weight=0.2,
+                    bm25_weight=0.8,
+                )
+            if self._enable_translated_text and trans_results:
+                fine_merged = merge_results(
+                    bm25_results=trans_results,
+                    vector_results=fine_merged,
+                    vector_weight=0.2,
+                    bm25_weight=0.8,
+                )
+            fine_results = fine_merged
+
+        fine_fused: dict[str, tuple[int, float]] = {}
+        for fused_rank, r in enumerate(fine_results, 1):
+            key = _chunk_key(r)
+            if key not in fine_fused:
+                fine_fused[key] = (fused_rank, r.score)
+
+        fine_unique: list[SearchResult] = []
+        fine_seen: set[str] = set()
+        dedup_count = 0
+        for r in fine_results:
+            cid = (r.metadata or {}).get("chunk_id") or f"{r.document_id}-unknown"
+            if cid not in fine_seen:
+                fine_seen.add(cid)
+                fine_unique.append(r)
+            else:
+                dedup_count += 1
+
+        chunks.clear()
+        for r in fine_unique:
+            key = _chunk_key(r)
+            fe = fine_fused.get(key)
+            fused_rank_val = fe[0] if fe else None
+            fused_score_val = fe[1] if fe else None
+            chunks.append(
+                {
+                    "document_id": r.document_id,
+                    "chunk_id": (r.metadata or {}).get("chunk_id"),
+                    "chunk_index": (r.metadata or {}).get("chunk_index"),
+                    "chunk_text": r.chunk_text or "",
+                    "score": r.score,
+                    "doc_title": title_cache.get(r.document_id),
+                    "source_id": (r.metadata or {}).get("source_id"),
+                    "language": (r.metadata or {}).get("language"),
+                    "source_language": (r.metadata or {}).get("source_language"),
+                    "text_lane": (r.metadata or {}).get("text_lane"),
+                    "translated_from": (r.metadata or {}).get("translated_from"),
+                    "page_number": (r.metadata or {}).get("page_number"),
+                    "section_heading": (r.metadata or {}).get("section_heading"),
+                    "_backends": fine_backend_attrs.get(key) or backend_attrs.get(key, []),
+                    "_fused_rank": fused_rank_val,
+                    "_fused_score": fused_score_val,
+                }
+            )
+        return chunks, dedup_count
 
     @staticmethod
     def _build_stage_trace(
