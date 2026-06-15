@@ -1,0 +1,25 @@
+Raport Kwartalny - Podsumowanie dla Zarządu
+
+Data: 15 stycznia 2026
+Od: Dział Finansowy, office@company.pl
+
+Sekcja 1: Przegląd
+Przychody za czwarty kwartał wyniosły 124 500 000 zł, co oznacza
+wzrost o 8,3% w porównaniu z analogicznym kwartałem ubiegłego roku.
+Zysk operacyjny wyniósł 32 000 000 zł.
+
+Sekcja 2: Przychody według Regionu
+- Ameryka Północna: 4 200 000 USD (5 800 szt.)
+- Europa: 3 100 000 EUR (4 200 szt.)
+- Azja-Pacyfik: 450 000 000 JPY (9 500 szt.)
+
+Sekcja 3: Perspektywy na 2026 rok
+Firma przewiduje 12% wzrost rocznych przychodów, pod warunkiem
+zatwierdzenia nowego produktu:
+https://portal.company.pl/products/new-2026.
+
+Kontakt: Anna Kowalska, tel. 22 555 01 23
+e-mail: anna.kowalska@company.pl
+
+Identyfikator dokumentu: Q4-2025-FIN-PL-001
+Wersja: 2.1

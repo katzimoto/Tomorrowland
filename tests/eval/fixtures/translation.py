@@ -328,7 +328,7 @@ TRANSLATION_EVAL_CASES: list[dict] = [
         "allows_fast_baseline": True,
     },
     # ==================================================================
-    # French + Spanish → English (extended European coverage)
+    # French + Spanish → English
     # ==================================================================
     {
         "id": "tr-fr-001-enterprise",
@@ -366,6 +366,277 @@ TRANSLATION_EVAL_CASES: list[dict] = [
             "https://portal.company.es/products/new-2026",
             "maria.garcia@company.es",
             "Q4-2025-FIN-ES-001",
+        ],
+        "expected_tokens_min": 30,
+        "allows_fast_baseline": True,
+    },
+    # ==================================================================
+    # Persian → English (NEW: user request)
+    # ==================================================================
+    {
+        "id": "tr-fa-001-placeholders",
+        "category": "placeholder_preservation",
+        "source_lang": "fa",
+        "target_lang": "en",
+        "source_text": (
+            "لطفاً به آدرس https://portal.company.ir/products/new-2026 مراجعه کنید\n"
+            "یا با ایمیل ali.mohammadi@company.ir تماس بگیرید. تلفن ۰۲۱-۵۵۵۰-۰۱۲۳.\n"
+            "شناسه سند: Q4-2025-FIN-IR-001، نسخه: ۲.۱"
+        ),
+        "notes": (
+            "Persian text with URL, email, phone, document ID, and version number. "
+            "RTL script with Arabic-derived characters."
+        ),
+        "tags": ["persian", "placeholders", "rtl"],
+        "expected_placeholders": [
+            "https://portal.company.ir/products/new-2026",
+            "ali.mohammadi@company.ir",
+            "Q4-2025-FIN-IR-001",
+        ],
+        "expected_tokens_min": 15,
+        "allows_fast_baseline": True,
+    },
+    {
+        "id": "tr-fa-002-enterprise",
+        "category": "document_section",
+        "source_lang": "fa",
+        "target_lang": "en",
+        "source_text": (FIXTURES_DIR / "persian_enterprise.txt").read_text(encoding="utf-8"),
+        "notes": (
+            "Full Persian enterprise document. RTL script, Persian numerals, "
+            "mixed currency formats, URLs, and emails."
+        ),
+        "tags": ["persian", "enterprise", "full", "rtl"],
+        "expected_placeholders": [
+            "https://portal.company.ir/products/new-2026",
+            "ali.mohammadi@company.ir",
+            "Q4-2025-FIN-IR-001",
+        ],
+        "expected_tokens_min": 30,
+        "allows_fast_baseline": True,
+    },
+    # ==================================================================
+    # Turkish → English (NEW: user request)
+    # ==================================================================
+    {
+        "id": "tr-tr-001-placeholders",
+        "category": "placeholder_preservation",
+        "source_lang": "tr",
+        "target_lang": "en",
+        "source_text": (
+            "Detaylar için https://portal.company.com.tr/products/new-2026 adresini ziyaret edin\n"
+            "veya mehmet.yilmaz@company.com.tr adresine e-posta gönderin. Tel: 0212 555 01 23.\n"
+            "Belge Kimli\u011fi: Q4-2025-FIN-TR-001, Sürüm: 2.1"
+        ),
+        "notes": (
+            "Turkish text with URL, email, phone, document ID, and version number. "
+            "Latin script with Turkish-specific characters (ı, ş, ğ, ü, ö, ç)."
+        ),
+        "tags": ["turkish", "placeholders"],
+        "expected_placeholders": [
+            "https://portal.company.com.tr/products/new-2026",
+            "mehmet.yilmaz@company.com.tr",
+            "Q4-2025-FIN-TR-001",
+            "2.1",
+        ],
+        "expected_tokens_min": 15,
+        "allows_fast_baseline": True,
+    },
+    {
+        "id": "tr-tr-002-enterprise",
+        "category": "document_section",
+        "source_lang": "tr",
+        "target_lang": "en",
+        "source_text": (FIXTURES_DIR / "turkish_enterprise.txt").read_text(encoding="utf-8"),
+        "notes": (
+            "Full Turkish enterprise document. Latin script with Turkish-specific "
+            "characters, mixed currency formats, URLs, and emails."
+        ),
+        "tags": ["turkish", "enterprise", "full"],
+        "expected_placeholders": [
+            "https://portal.company.com.tr/products/new-2026",
+            "mehmet.yilmaz@company.com.tr",
+            "Q4-2025-FIN-TR-001",
+        ],
+        "expected_tokens_min": 30,
+        "allows_fast_baseline": True,
+    },
+    # ==================================================================
+    # Korean → English (NEW: user request)
+    # ==================================================================
+    {
+        "id": "tr-ko-001-placeholders",
+        "category": "placeholder_preservation",
+        "source_lang": "ko",
+        "target_lang": "en",
+        "source_text": (
+            "자세한 내용은 https://portal.company.kr/products/new-2026을 방문하시거나\n"
+            "minjun.kim@company.kr로 이메일을 보내주세요. 전화 02-5550-0123.\n"
+            "문서 ID: Q4-2025-FIN-KR-001, 버전: 2.1"
+        ),
+        "notes": (
+            "Korean text with URL, email, phone, document ID, and version number. "
+            "Hangul script with mixed alphanumeric identifiers."
+        ),
+        "tags": ["korean", "placeholders"],
+        "expected_placeholders": [
+            "https://portal.company.kr/products/new-2026",
+            "minjun.kim@company.kr",
+            "Q4-2025-FIN-KR-001",
+            "2.1",
+        ],
+        "expected_tokens_min": 15,
+        "allows_fast_baseline": True,
+    },
+    {
+        "id": "tr-ko-002-enterprise",
+        "category": "document_section",
+        "source_lang": "ko",
+        "target_lang": "en",
+        "source_text": (FIXTURES_DIR / "korean_enterprise.txt").read_text(encoding="utf-8"),
+        "notes": (
+            "Full Korean enterprise document. Hangul script, mixed currency formats, "
+            "URLs, emails, and document metadata."
+        ),
+        "tags": ["korean", "enterprise", "full"],
+        "expected_placeholders": [
+            "https://portal.company.kr/products/new-2026",
+            "minjun.kim@company.kr",
+            "Q4-2025-FIN-KR-001",
+        ],
+        "expected_tokens_min": 30,
+        "allows_fast_baseline": True,
+    },
+    # ==================================================================
+    # Japanese → English (NEW: user request)
+    # ==================================================================
+    {
+        "id": "tr-ja-001-placeholders",
+        "category": "placeholder_preservation",
+        "source_lang": "ja",
+        "target_lang": "en",
+        "source_text": (
+            "詳細は https://portal.company.jp/products/new-2026 をご覧いただくか、\n"
+            "taro.tanaka@company.jp までメールでお問い合わせください。電話 03-5550-0123。\n"
+            "文書ID: Q4-2025-FIN-JP-001、バージョン: 2.1"
+        ),
+        "notes": (
+            "Japanese text with URL, email, phone, document ID, and version number. "
+            "Mixed kanji/kana script with embedded Latin alphanumeric identifiers."
+        ),
+        "tags": ["japanese", "placeholders"],
+        "expected_placeholders": [
+            "https://portal.company.jp/products/new-2026",
+            "taro.tanaka@company.jp",
+            "Q4-2025-FIN-JP-001",
+            "2.1",
+        ],
+        "expected_tokens_min": 15,
+        "allows_fast_baseline": True,
+    },
+    {
+        "id": "tr-ja-002-enterprise",
+        "category": "document_section",
+        "source_lang": "ja",
+        "target_lang": "en",
+        "source_text": (FIXTURES_DIR / "japanese_enterprise.txt").read_text(encoding="utf-8"),
+        "notes": (
+            "Full Japanese enterprise document. Mixed kanji/kana script, "
+            "currency formats (JPY), URLs, emails, and document metadata."
+        ),
+        "tags": ["japanese", "enterprise", "full"],
+        "expected_placeholders": [
+            "https://portal.company.jp/products/new-2026",
+            "taro.tanaka@company.jp",
+            "Q4-2025-FIN-JP-001",
+        ],
+        "expected_tokens_min": 30,
+        "allows_fast_baseline": True,
+    },
+    # ==================================================================
+    # Italian → English (NEW: user request)
+    # ==================================================================
+    {
+        "id": "tr-it-001-enterprise",
+        "category": "document_section",
+        "source_lang": "it",
+        "target_lang": "en",
+        "source_text": (FIXTURES_DIR / "italian_enterprise.txt").read_text(encoding="utf-8"),
+        "notes": (
+            "Full Italian enterprise document. Latin script with accented "
+            "characters, European number formatting, URLs, and emails."
+        ),
+        "tags": ["italian", "enterprise", "full"],
+        "expected_placeholders": [
+            "https://portal.company.it/products/new-2026",
+            "marco.rossi@company.it",
+            "Q4-2025-FIN-IT-001",
+        ],
+        "expected_tokens_min": 30,
+        "allows_fast_baseline": True,
+    },
+    # ==================================================================
+    # Portuguese → English (NEW: user request)
+    # ==================================================================
+    {
+        "id": "tr-pt-001-enterprise",
+        "category": "document_section",
+        "source_lang": "pt",
+        "target_lang": "en",
+        "source_text": (FIXTURES_DIR / "portuguese_enterprise.txt").read_text(encoding="utf-8"),
+        "notes": (
+            "Full Portuguese enterprise document. Latin script with accented "
+            "characters, European number formatting, URLs, and emails."
+        ),
+        "tags": ["portuguese", "enterprise", "full"],
+        "expected_placeholders": [
+            "https://portal.company.pt/products/new-2026",
+            "joao.silva@company.pt",
+            "Q4-2025-FIN-PT-001",
+        ],
+        "expected_tokens_min": 30,
+        "allows_fast_baseline": True,
+    },
+    # ==================================================================
+    # Dutch → English (NEW: user request)
+    # ==================================================================
+    {
+        "id": "tr-nl-001-enterprise",
+        "category": "document_section",
+        "source_lang": "nl",
+        "target_lang": "en",
+        "source_text": (FIXTURES_DIR / "dutch_enterprise.txt").read_text(encoding="utf-8"),
+        "notes": (
+            "Full Dutch enterprise document. Latin script, European number "
+            "formatting with dots as thousands separators, URLs, and emails."
+        ),
+        "tags": ["dutch", "enterprise", "full"],
+        "expected_placeholders": [
+            "https://portal.company.nl/products/new-2026",
+            "jan.devries@company.nl",
+            "Q4-2025-FIN-NL-001",
+        ],
+        "expected_tokens_min": 30,
+        "allows_fast_baseline": True,
+    },
+    # ==================================================================
+    # Polish → English (NEW: user request)
+    # ==================================================================
+    {
+        "id": "tr-pl-001-enterprise",
+        "category": "document_section",
+        "source_lang": "pl",
+        "target_lang": "en",
+        "source_text": (FIXTURES_DIR / "polish_enterprise.txt").read_text(encoding="utf-8"),
+        "notes": (
+            "Full Polish enterprise document. Latin script with Polish-specific "
+            "characters (ą, ę, ś, ć, ń, ó, ż, ź, ł), European number formatting."
+        ),
+        "tags": ["polish", "enterprise", "full"],
+        "expected_placeholders": [
+            "https://portal.company.pl/products/new-2026",
+            "anna.kowalska@company.pl",
+            "Q4-2025-FIN-PL-001",
         ],
         "expected_tokens_min": 30,
         "allows_fast_baseline": True,

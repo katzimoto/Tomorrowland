@@ -1,0 +1,25 @@
+Relatório Trimestral - Resumo Executivo
+
+Data: 15 de janeiro de 2026
+De: Departamento Financeiro, office@company.pt
+
+Seção 1: Visão Geral
+A receita do quarto trimestre totalizou 124.500.000 €, um aumento
+de 8,3% em relação ao mesmo trimestre do ano anterior. O lucro
+operacional foi de 32.000.000 €.
+
+Seção 2: Receita por Região
+- América do Norte: $4.200.000 (5.800 unidades)
+- Europa: €3.100.000 (4.200 unidades)
+- Ásia-Pacífico: ¥450.000.000 (9.500 unidades)
+
+Seção 3: Perspectivas 2026
+A empresa prevê um crescimento anual de 12% na receita, sujeito
+à aprovação do novo produto:
+https://portal.company.pt/products/new-2026.
+
+Contacto: João Silva, tel. 21 555 01 23
+email: joao.silva@company.pt
+
+ID do Documento: Q4-2025-FIN-PT-001
+Versão: 2.1
