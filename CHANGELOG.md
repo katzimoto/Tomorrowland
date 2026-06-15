@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Translation model bundle contract (#730)**: defines a self-contained, offline-loadable
+  translation model bundle format for future providers (OPUS-MT, NLLB, CTranslate2).
+  `models/translation/manifest.schema.json` — JSON Schema v1.0 for the manifest format
+  (provider metadata, supported languages, language pairs, file inventory with SHA-256
+  checksums, expected runtime environment, and license info). `models/translation/README.md`
+  — full contract documentation. New Python module `src/services/translation/model_bundle.py`
+  provides `TranslationModelManifest`, `BundleValidator`, `parse_manifest()`, and
+  `load_manifest_from_path()` for runtime bundle loading with checksum/integrity verification
+  and health reporting. Connected build script (`scripts/build-translation-model-bundle.sh`)
+  detects provider metadata, collects language pairs, exports model files, and generates the
+  manifest. Air-gapped loader script (`scripts/load-translation-model-bundle.sh`) validates
+  and installs bundles in offline environments. New config setting
+  `TRANSLATION_MODEL_BUNDLE_PATH`. Both scripts are packaged in the platform release archive
+  and validated by the air-gap artifact check. Does not change current LibreTranslate/Argos
+  provider behavior. 44 unit tests.
+- **CTranslate2 OPUS-MT high-quality translation provider (#731)**: adds the first genuinely
+  different high-quality offline translation provider. `CTranslate2OpusProvider` implements the
+  `TranslationProvider` ABC, loading pair-specific CTranslate2 model directories from the
+  translation model bundle defined in #730. Caches per-pair `ctranslate2.Translator` instances
+  and supports standard SentencePiece tokenization (source.spm/target.spm or shared model).
+  Automatic baseline fallback to LibreTranslate/Argos when a pair is unavailable, source_lang
+  is None, or translation fails — callers never need to check availability. `SlowWorker` gains
+  an optional `high_provider` parameter with `_resolve_translator()` that picks the best
+  provider per language pair. `enrich_worker.py` constructs `CTranslate2OpusProvider` when
+  `TRANSLATION_HIGH_PROVIDER_BUNDLE_PATH` is configured and not empty. Provider, lane,
+  purpose, and validation metadata is recorded into translation versions. Health reporting
+  covers bundle validity, loaded pair count, and baseline status. Requires
+  `pip install tomorrowland[ctranslate2]`. New config setting
+  `TRANSLATION_HIGH_PROVIDER_BUNDLE_PATH` in config.py and `.env.example`. 15 unit tests.
+
 ## [0.6.0] - 2026-06-15
 
 ### Added
