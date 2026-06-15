@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from services.translation.segment_pipeline import (
     PlaceholderMap,
     Segment,
@@ -443,7 +445,8 @@ class TestRunSegmentPipeline:
         assert result == ""
         assert validation.segment_count == 0
 
-    def test_translation_exception_on_segment(self) -> None:
+    def test_translation_exception_propagates(self) -> None:
+        """Hard exceptions from translate_fn propagate — callers handle retry."""
         call_count = [0]
 
         def translate_second_crashes(text: str, source: str | None, target: str) -> str:
@@ -453,15 +456,13 @@ class TestRunSegmentPipeline:
             return "Translated: " + text
 
         text = "A.\n\nB.\n\nC."
-        result, validation = run_segment_pipeline(
-            text,
-            translate_fn=translate_second_crashes,
-            source_lang="en",
-            target_lang="fr",
-        )
-
-        assert validation.failed_segment_count >= 1
-        assert "B." in result  # original text used for failed segment
+        with pytest.raises(RuntimeError, match="Provider unavailable"):
+            run_segment_pipeline(
+                text,
+                translate_fn=translate_second_crashes,
+                source_lang="en",
+                target_lang="fr",
+            )
 
     def test_placeholder_protection_in_pipeline(self) -> None:
         def mock_translate(text: str, source: str | None, target: str) -> str:

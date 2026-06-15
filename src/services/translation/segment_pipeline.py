@@ -461,20 +461,14 @@ def run_segment_pipeline(
         protected_segments.append(protected)
         placeholder_maps.append(ph_map)
 
-    # 3. Translate each segment individually
+    # 3. Translate each segment individually.
+    #    Hard exceptions propagate — callers handle retry/DLQ.
+    #    Only soft no-op results (translation returns unchanged text)
+    #    are treated as segment failures.
     translated_texts: list[str] = []
     failed_indices: set[int] = set()
     for i, seg_text in enumerate(protected_segments):
-        try:
-            result = translate_fn(seg_text, source_lang, target_lang)
-        except Exception as exc:
-            logger.warning(
-                "Segment %d translation failed (%s), using original",
-                i,
-                exc,
-            )
-            result = seg_text
-            failed_indices.add(i)
+        result = translate_fn(seg_text, source_lang, target_lang)
 
         # If translation returned the original protected text (no-op), mark
         # as failed so we use the real original text.
