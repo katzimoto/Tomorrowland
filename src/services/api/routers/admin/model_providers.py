@@ -639,7 +639,8 @@ def admin_discover_models(
         with urllib.request.urlopen(req, timeout=15) as resp:
             import json
 
-            data = json.loads(resp.read().decode())
+            raw = resp.read(1_048_576)  # limit response to 1 MB
+            data = json.loads(raw.decode())
 
         if provider.provider_type == "ollama":
             models = data.get("models", [])

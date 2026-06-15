@@ -31,7 +31,7 @@ export function Dialog({ open, onClose, title, children, width = "480px" }: Dial
     const handler = () => onClose();
     el.addEventListener("close", handler);
     return () => el.removeEventListener("close", handler);
-  }, [onClose]);
+  }, [onClose, open]);
 
   if (!open) return null;
 

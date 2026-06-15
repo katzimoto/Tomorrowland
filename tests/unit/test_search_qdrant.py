@@ -164,7 +164,7 @@ def test_search_vector() -> None:
 
     assert len(results) == 2
     assert results[0].document_id == "doc-1"
-    assert results[0].score == 0.95
+    assert results[0].score == pytest.approx(0.95)
     assert results[0].chunk_text == "hello"
     assert results[0].metadata is not None
     assert results[0].metadata["chunk_id"] == "doc-1-0"

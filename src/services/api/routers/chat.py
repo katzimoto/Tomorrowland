@@ -679,7 +679,7 @@ def create_message_stream(
                     assistant_txn.rollback()
                 # Persist a user-visible error message in its own transaction so
                 # it survives even though the answer transaction was rolled back.
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(sa.exc.SQLAlchemyError):
                     error_txn = connection.begin()
                     repo.create_message(
                         ChatMessageCreate(
@@ -695,7 +695,7 @@ def create_message_stream(
                     error_txn.commit()
             finally:
                 if not committed:
-                    with contextlib.suppress(Exception):
+                    with contextlib.suppress(sa.exc.SQLAlchemyError):
                         assistant_txn.rollback()
                 connection.close()
 

@@ -144,6 +144,8 @@ export function CodeViewer({
       setCopied(true);
       if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
       copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      // Clipboard write denied — silently ignore
     });
   }
 
