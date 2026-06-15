@@ -21,7 +21,7 @@ from services.intelligence.provider_registry import ProviderRegistry
 from services.intelligence.task_defaults import TaskDefaultResolver
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.qdrant import QdrantSearchClient
-from services.translation.client import LibreTranslateClient
+from services.translation.provider import TranslationProvider
 from shared.config import Settings
 from shared.config_cache import get_cached_admins_group_id
 from shared.metrics import (
@@ -53,7 +53,7 @@ def create_app(
     engine: Engine,
     settings: Settings | None = None,
     ldap_authenticator: LdapAuthenticator | None = None,
-    translator: LibreTranslateClient | None = None,
+    translator: TranslationProvider | None = None,
     qdrant_client: QdrantSearchClient | None = None,
     llm_provider: LLMProvider | None = None,
     meili_provider: MeilisearchSearchProvider | None = None,

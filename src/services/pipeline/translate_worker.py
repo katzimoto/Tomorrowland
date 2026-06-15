@@ -11,7 +11,8 @@ from services.documents.repository import DocumentRepository, TranslationVersion
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
-from services.translation.client import LibreTranslateClient, _safe_str, build_translation_metadata
+from services.translation.client import _safe_str, build_translation_metadata
+from services.translation.provider import TranslationProvider
 from services.translation.segment_pipeline import run_segment_pipeline
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def _build_fast_metadata(
     *,
-    translator: LibreTranslateClient | None,
+    translator: TranslationProvider | None,
     source_language: str | None,
     target_language: str,
     input_text: str,
@@ -36,8 +37,8 @@ def _build_fast_metadata(
     pipeline_validation_status: str | None = None,
 ) -> dict[str, Any]:
     """Build translation metadata for fast-lane ingestion (#727, #728)."""
-    provider = (_safe_str(translator.provider) if translator else None) or "libretranslate_argos"
-    provider_version = _safe_str(translator.provider_version) if translator else None
+    provider = (_safe_str(translator.name) if translator else None) or "libretranslate_argos"
+    provider_version = _safe_str(translator.version) if translator else None
     model_family = _safe_str(translator.model_family) if translator else None
     # Pipeline status takes precedence over fallback-derived status (#728)
     validation_status = (
@@ -76,7 +77,7 @@ class TranslateConsumer(BaseConsumer):
         rabbit: Any,
         job_repo: PipelineJobRepository,
         publisher: DocumentPublisher,
-        translator: LibreTranslateClient | None = None,
+        translator: TranslationProvider | None = None,
         version_repo: TranslationVersionRepository | None = None,
         doc_repo: DocumentRepository | None = None,
         layout_repo: LayoutBlockRepository | None = None,
@@ -243,7 +244,7 @@ def main() -> None:
     from services.documents.repository import DocumentRepository, TranslationVersionRepository
     from services.pipeline.jobs import PipelineJobRepository
     from services.pipeline.publisher import DocumentPublisher
-    from services.translation.client import LibreTranslateClient
+    from services.translation.libretranslate_provider import LibreTranslateArgosProvider
     from shared.config import Settings
     from shared.rabbit import RabbitClient
 
@@ -255,7 +256,7 @@ def main() -> None:
     job_repo = PipelineJobRepository(connection)
     doc_repo = DocumentRepository(connection)
     publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
-    translator = LibreTranslateClient(base_url=settings.libretranslate_url)
+    translator = LibreTranslateArgosProvider(base_url=settings.libretranslate_url)
     version_repo = TranslationVersionRepository(connection)
     layout_repo = LayoutBlockRepository(connection)
     consumer = TranslateConsumer(

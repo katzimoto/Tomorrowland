@@ -23,7 +23,7 @@ from services.search.encoder import TextEncoder
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.meili_types import ChunkMetadata, SearchChunkRecord
 from services.search.qdrant import QdrantSearchClient
-from services.translation.client import LibreTranslateClient
+from services.translation.provider import TranslationProvider
 from shared.correlation import get_correlation_id
 from shared.metrics import MetricsRegistry
 
@@ -68,7 +68,7 @@ class PipelineWorker:
         self,
         document_repository: DocumentRepository,
         extractor_registry: ExtractorRegistry,
-        translator: LibreTranslateClient,
+        translator: TranslationProvider,
         encoder: TextEncoder,
         qdrant_client: QdrantSearchClient,
         meili_provider: MeilisearchSearchProvider | None = None,
