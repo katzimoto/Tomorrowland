@@ -11,7 +11,7 @@ from sqlalchemy import Engine
 
 from services.api.main import create_app
 from services.search.qdrant import QdrantSearchClient
-from services.translation.client import LibreTranslateClient
+from services.translation.provider import TranslationProvider
 from shared.config import Settings
 from tests.integration.test_pipeline import (
     TEST_JWT_SECRET,
@@ -43,7 +43,7 @@ def test_sync_now_publishes_to_rabbitmq(
         rabbitmq_enabled=True,
     )
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator = MagicMock(spec=TranslationProvider)
     mock_translator.translate.return_value = "Bonjour le monde"
 
     client = TestClient(
@@ -103,7 +103,7 @@ def test_sync_now_skips_rabbitmq_when_disabled(
         rabbitmq_enabled=False,
     )
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator = MagicMock(spec=TranslationProvider)
 
     client = TestClient(
         create_app(

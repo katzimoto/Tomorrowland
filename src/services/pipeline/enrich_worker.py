@@ -68,7 +68,7 @@ def main() -> None:
     from services.search.factory import build_encoder
     from services.search.meili_provider import MeilisearchSearchProvider
     from services.search.qdrant import QdrantSearchClient
-    from services.translation.client import LibreTranslateClient
+    from services.translation.libretranslate_provider import LibreTranslateArgosProvider
     from shared.config import Settings
     from shared.rabbit import RabbitClient
 
@@ -80,7 +80,7 @@ def main() -> None:
     job_repo = PipelineJobRepository(connection)
     doc_repo = DocumentRepository(connection)
     version_repo = TranslationVersionRepository(connection)
-    translator = LibreTranslateClient(base_url=settings.libretranslate_url)
+    translator = LibreTranslateArgosProvider(base_url=settings.libretranslate_url)
     encoder = build_encoder(settings)
     qdrant_client = QdrantSearchClient(url=settings.qdrant_url)
     meili_client = meilisearch.Client(

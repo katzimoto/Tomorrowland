@@ -17,7 +17,7 @@ from services.auth.repository import AuthRepository
 from services.connectors.base import ConnectorDocument
 from services.documents.repository import DocumentRepository
 from services.search.qdrant import QdrantSearchClient
-from services.translation.client import LibreTranslateClient
+from services.translation.provider import TranslationProvider
 from shared.config import Settings
 
 
@@ -166,7 +166,7 @@ def test_sync_now_persists_connector_metadata(
         ingestion_router, "build_connector", lambda _source_row: _MetadataConnector()
     )
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator = MagicMock(spec=TranslationProvider)
     mock_translator.translate.return_value = "bonjour from smb"
     client = TestClient(
         api_main.create_app(

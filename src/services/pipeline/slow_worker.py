@@ -21,7 +21,9 @@ from services.search.encoder import TextEncoder
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.meili_types import ChunkMetadata, SearchChunkRecord
 from services.search.qdrant import QdrantSearchClient
-from services.translation.client import LibreTranslateClient, _safe_str, build_translation_metadata
+from services.translation.client import _safe_str, build_translation_metadata
+from services.translation.libretranslate_provider import LibreTranslateArgosProvider
+from services.translation.provider import TranslationProvider
 from services.translation.segment_pipeline import run_segment_pipeline
 from shared.correlation import get_correlation_id
 from shared.metrics import MetricsRegistry
@@ -33,7 +35,7 @@ _ALLOWED_JOB_TYPES = ["enrich_document"]
 
 def _build_enrich_metadata(
     *,
-    translator: LibreTranslateClient | None,
+    translator: TranslationProvider | None,
     source_language: str | None,
     target_language: str,
     input_text: str,
@@ -50,8 +52,8 @@ def _build_enrich_metadata(
     pipeline_validation_status: str | None = None,
 ) -> dict[str, Any]:
     """Build translation metadata for high-lane enrichment (#727, #728)."""
-    provider = (_safe_str(translator.provider) if translator else None) or "libretranslate_argos"
-    provider_version = _safe_str(translator.provider_version) if translator else None
+    provider = (_safe_str(translator.name) if translator else None) or "libretranslate_argos"
+    provider_version = _safe_str(translator.version) if translator else None
     model_family = _safe_str(translator.model_family) if translator else None
     # Pipeline status takes precedence over fallback-derived status (#728)
     validation_status = (
@@ -94,7 +96,7 @@ class SlowWorker:
     def __init__(
         self,
         document_repository: DocumentRepository,
-        translator: LibreTranslateClient,
+        translator: TranslationProvider,
         encoder: TextEncoder,
         qdrant_client: QdrantSearchClient,
         version_repository: TranslationVersionRepository | None = None,
@@ -677,7 +679,7 @@ if __name__ == "__main__":
         version_repo = TranslationVersionRepository(conn)
         layout_repo = LayoutBlockRepository(conn)
         qdrant_client = QdrantSearchClient(url=settings.qdrant_url)
-        translator = LibreTranslateClient(base_url=settings.libretranslate_url)
+        translator = LibreTranslateArgosProvider(base_url=settings.libretranslate_url)
         encoder = build_encoder(settings)
 
         intelligence_worker = IntelligenceWorker(

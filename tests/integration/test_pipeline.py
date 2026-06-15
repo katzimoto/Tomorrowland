@@ -12,7 +12,7 @@ from services.api.main import create_app
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.search.qdrant import QdrantSearchClient
-from services.translation.client import LibreTranslateClient
+from services.translation.provider import TranslationProvider
 from shared.config import Settings
 
 TEST_JWT_SECRET = "x" * 32
@@ -69,7 +69,7 @@ def test_sync_now_indexes_document(
     source_id = _create_folder_source(migrated_engine, source_folder)
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator = MagicMock(spec=TranslationProvider)
     mock_translator.translate.return_value = "Bonjour le monde"
 
     client = TestClient(
@@ -137,7 +137,7 @@ def test_sync_now_matches_alert_subscriptions(
         )
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator = MagicMock(spec=TranslationProvider)
     mock_translator.translate.return_value = "security update"
 
     client = TestClient(
@@ -173,7 +173,7 @@ def test_sync_now_skips_duplicate(
     source_id = _create_folder_source(migrated_engine, source_folder)
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator = MagicMock(spec=TranslationProvider)
     mock_translator.translate.return_value = "Bonjour le monde"
 
     client = TestClient(
@@ -219,7 +219,7 @@ def test_sync_now_translation_failure_still_indexes(
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
     # Translator returns original text (simulated failure)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator = MagicMock(spec=TranslationProvider)
     mock_translator.translate.return_value = "Hello world"
 
     client = TestClient(
@@ -268,7 +268,7 @@ def test_sync_now_pipeline_failure_sets_failed_status(
     source_id = _create_folder_source(migrated_engine, source_folder)
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator = MagicMock(spec=TranslationProvider)
     mock_translator.translate.return_value = "Bonjour le monde"
 
     client = TestClient(
@@ -462,7 +462,7 @@ def test_sync_now_with_pre_extracted_text(
             )
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator = MagicMock(spec=TranslationProvider)
     mock_translator.translate.return_value = "Stub document body from NiFi."
 
     _ingestion = "services.api.routers.admin.ingestion"
@@ -542,7 +542,7 @@ def test_sync_now_middle_item_failure_continues_sync(
             )
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator = MagicMock(spec=TranslationProvider)
     mock_translator.translate.side_effect = lambda text, **_: text
 
     _ingestion = "services.api.routers.admin.ingestion"
@@ -628,7 +628,7 @@ def test_sync_now_document_creation_failure_continues_sync(
             )
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator = MagicMock(spec=TranslationProvider)
     mock_translator.translate.side_effect = lambda text, **_: text
 
     from services.documents.repository import DocumentRepository
@@ -775,7 +775,7 @@ def test_sync_now_smb_preserves_temp_files_for_worker(
             )
 
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
-    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator = MagicMock(spec=TranslationProvider)
     mock_translator.translate.side_effect = lambda text, **_: text
 
     _ingestion = "services.api.routers.admin.ingestion"

@@ -1,6 +1,8 @@
 """Translation package."""
 
 from services.translation.client import LibreTranslateClient, build_translation_metadata
+from services.translation.libretranslate_provider import LibreTranslateArgosProvider
+from services.translation.provider import TranslationProvider
 from services.translation.segment_pipeline import (
     PlaceholderMap,
     Segment,
@@ -14,9 +16,11 @@ from services.translation.segment_pipeline import (
 )
 
 __all__ = [
+    "LibreTranslateArgosProvider",
     "LibreTranslateClient",
     "PlaceholderMap",
     "Segment",
+    "TranslationProvider",
     "ValidationResult",
     "build_segments",
     "build_translation_metadata",
