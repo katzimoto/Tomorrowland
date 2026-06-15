@@ -45,7 +45,6 @@ class _SearchDispatch:
 router = APIRouter(tags=["search"])
 
 
-@router.post("/search", response_model=SearchResponse)
 def _run_meilisearch(
     meili_provider: Any,
     query: str,
