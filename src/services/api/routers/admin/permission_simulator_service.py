@@ -96,6 +96,34 @@ class PermissionSimulatorService:
 
     # ── Source / Document access check ────────────────────────────────────
 
+    @staticmethod
+    def _build_verdict(
+        *,
+        verdict: str,
+        reason_category: str,
+        reasoning_path: list[str],
+        effective_groups: list[str],
+        source_permission_groups: list[str],
+        matching_groups: list[str],
+        is_admin: bool,
+        user_id: str | None = None,
+        user_email: str | None = None,
+    ) -> dict[str, object]:
+        d: dict[str, object] = {
+            "verdict": verdict,
+            "reason_category": reason_category,
+            "reasoning_path": reasoning_path,
+            "effective_groups": effective_groups,
+            "source_permission_groups": source_permission_groups,
+            "matching_groups": matching_groups,
+            "is_admin": is_admin,
+        }
+        if user_id is not None:
+            d["user_id"] = user_id
+        if user_email is not None:
+            d["user_email"] = user_email
+        return d
+
     def check_source_access(
         self,
         source_id: str,
@@ -113,31 +141,31 @@ class PermissionSimulatorService:
         matching_groups: list[str] = []
 
         if user is None:
-            return {
-                "verdict": "deny",
-                "reason_category": "invalid_user",
-                "reasoning_path": ["Simulated user not found or invalid ID."],
-                "effective_groups": [],
-                "source_permission_groups": [],
-                "matching_groups": [],
-                "is_admin": False,
-            }
+            return self._build_verdict(
+                verdict="deny",
+                reason_category="invalid_user",
+                reasoning_path=["Simulated user not found or invalid ID."],
+                effective_groups=[],
+                source_permission_groups=[],
+                matching_groups=[],
+                is_admin=False,
+            )
 
         is_admin = user.is_admin
 
         if is_admin:
             reasoning.append("User has is_admin=True — global bypass applies.")
-            return {
-                "verdict": "allow",
-                "reason_category": "admin_bypass",
-                "reasoning_path": reasoning,
-                "effective_groups": [],
-                "source_permission_groups": [],
-                "matching_groups": [],
-                "is_admin": True,
-                "user_id": str(user.id),
-                "user_email": user.email,
-            }
+            return self._build_verdict(
+                verdict="allow",
+                reason_category="admin_bypass",
+                reasoning_path=reasoning,
+                effective_groups=[],
+                source_permission_groups=[],
+                matching_groups=[],
+                is_admin=True,
+                user_id=str(user.id),
+                user_email=user.email,
+            )
 
         reasoning.append(f"User {user.email} is not an admin — checking group membership.")
 
@@ -160,17 +188,17 @@ class PermissionSimulatorService:
         try:
             sid = UUID(source_id)
         except ValueError:
-            return {
-                "verdict": "deny",
-                "reason_category": "invalid_source",
-                "reasoning_path": ["Invalid source_id."],
-                "effective_groups": effective_group_names,
-                "source_permission_groups": [],
-                "matching_groups": [],
-                "is_admin": False,
-                "user_id": str(user.id),
-                "user_email": user.email,
-            }
+            return self._build_verdict(
+                verdict="deny",
+                reason_category="invalid_source",
+                reasoning_path=["Invalid source_id."],
+                effective_groups=effective_group_names,
+                source_permission_groups=[],
+                matching_groups=[],
+                is_admin=False,
+                user_id=str(user.id),
+                user_email=user.email,
+            )
 
         perm_rows = self._connection.execute(
             sa.text("SELECT group_id FROM source_permissions WHERE source_id = :sid"),
@@ -185,17 +213,17 @@ class PermissionSimulatorService:
             reasoning.append(
                 f"Source {source_id} has no source_permissions rows — only admins can access it."
             )
-            return {
-                "verdict": "deny",
-                "reason_category": "no_source_permissions",
-                "reasoning_path": reasoning,
-                "effective_groups": effective_group_names,
-                "source_permission_groups": source_permission_groups,
-                "matching_groups": [],
-                "is_admin": False,
-                "user_id": str(user.id),
-                "user_email": user.email,
-            }
+            return self._build_verdict(
+                verdict="deny",
+                reason_category="no_source_permissions",
+                reasoning_path=reasoning,
+                effective_groups=effective_group_names,
+                source_permission_groups=source_permission_groups,
+                matching_groups=[],
+                is_admin=False,
+                user_id=str(user.id),
+                user_email=user.email,
+            )
 
         reasoning.append(f"Source {source_id} is granted to groups: {source_permission_groups}.")
 
@@ -207,32 +235,32 @@ class PermissionSimulatorService:
             reasoning.append(
                 f"User's effective groups intersect with source grants via: {matching_groups}."
             )
-            return {
-                "verdict": "allow",
-                "reason_category": "group_membership",
-                "reasoning_path": reasoning,
-                "effective_groups": effective_group_names,
-                "source_permission_groups": source_permission_groups,
-                "matching_groups": matching_groups,
-                "is_admin": False,
-                "user_id": str(user.id),
-                "user_email": user.email,
-            }
+            return self._build_verdict(
+                verdict="allow",
+                reason_category="group_membership",
+                reasoning_path=reasoning,
+                effective_groups=effective_group_names,
+                source_permission_groups=source_permission_groups,
+                matching_groups=matching_groups,
+                is_admin=False,
+                user_id=str(user.id),
+                user_email=user.email,
+            )
 
         reasoning.append(
             "No intersection between user's effective groups and source grants — access denied."
         )
-        return {
-            "verdict": "deny",
-            "reason_category": "no_group_match",
-            "reasoning_path": reasoning,
-            "effective_groups": effective_group_names,
-            "source_permission_groups": source_permission_groups,
-            "matching_groups": matching_groups,
-            "is_admin": False,
-            "user_id": str(user.id),
-            "user_email": user.email,
-        }
+        return self._build_verdict(
+            verdict="deny",
+            reason_category="no_group_match",
+            reasoning_path=reasoning,
+            effective_groups=effective_group_names,
+            source_permission_groups=source_permission_groups,
+            matching_groups=matching_groups,
+            is_admin=False,
+            user_id=str(user.id),
+            user_email=user.email,
+        )
 
     def check_document_access(
         self,

@@ -18,6 +18,42 @@ from services.search.hybrid import SearchResult
 
 COLLECTION_NAME_PREFIX = "tomorrowland_chunks"
 
+_OPTIONAL_PAYLOAD_FIELDS = (
+    "source_id",
+    "title",
+    "source_language",
+    "language",
+    "text_lane",
+    "translated_from",
+    "translation_version_id",
+    "translation_quality",
+    "translation_validation_status",
+    "content_en",
+    "content_he",
+    "chunk_index",
+    "page_number",
+    "section_heading",
+    "layout_block_id",
+)
+
+
+def _point_to_search_result(
+    point: Any,
+    score: float | None = None,
+) -> SearchResult:
+    """Convert a Qdrant point to a SearchResult, extracting metadata."""
+    payload = point.payload or {}
+    meta: dict[str, Any] = {"chunk_id": payload.get("chunk_id", str(point.id))}
+    for key in _OPTIONAL_PAYLOAD_FIELDS:
+        if key in payload:
+            meta[key] = payload[key]
+    return SearchResult(
+        document_id=payload.get("document_id", ""),
+        score=score if score is not None else float(point.score),
+        chunk_text=payload.get("text"),
+        metadata=meta,
+    )
+
 
 class QdrantSearchClient:
     """Thin wrapper around the Qdrant client for vector (semantic) search."""
@@ -98,34 +134,9 @@ class QdrantSearchClient:
                 "chunk_index": chunk["chunk_index"],
                 "text": chunk["text"],
             }
-            if "source_id" in chunk:
-                payload["source_id"] = chunk["source_id"]
-            if "title" in chunk:
-                payload["title"] = chunk["title"]
-            if "source_language" in chunk:
-                payload["source_language"] = chunk["source_language"]
-            if "language" in chunk:
-                payload["language"] = chunk["language"]
-            if "text_lane" in chunk:
-                payload["text_lane"] = chunk["text_lane"]
-            if "translated_from" in chunk:
-                payload["translated_from"] = chunk["translated_from"]
-            if "translation_version_id" in chunk:
-                payload["translation_version_id"] = chunk["translation_version_id"]
-            if "translation_quality" in chunk:
-                payload["translation_quality"] = chunk["translation_quality"]
-            if "translation_validation_status" in chunk:
-                payload["translation_validation_status"] = chunk["translation_validation_status"]
-            if "content_en" in chunk:
-                payload["content_en"] = chunk["content_en"]
-            if "content_he" in chunk:
-                payload["content_he"] = chunk["content_he"]
-            if "page_number" in chunk:
-                payload["page_number"] = chunk["page_number"]
-            if "section_heading" in chunk:
-                payload["section_heading"] = chunk["section_heading"]
-            if "layout_block_id" in chunk:
-                payload["layout_block_id"] = chunk["layout_block_id"]
+            payload.update(
+                {k: chunk[k] for k in _OPTIONAL_PAYLOAD_FIELDS if k in chunk}
+            )
             # Qdrant point IDs must be valid UUIDs or unsigned integers.
             # chunk_id is a human-readable string (e.g. "<uuid>-orig-0") that
             # is not itself a valid UUID, so derive a stable UUID5 from it.
@@ -192,35 +203,10 @@ class QdrantSearchClient:
             with_payload=True,
         )
 
-        search_results: list[SearchResult] = []
-        for point in response.points:
-            payload = point.payload or {}
-            meta: dict[str, Any] = {"chunk_id": payload.get("chunk_id", str(point.id))}
-            for extra_key in (
-                "source_id",
-                "title",
-                "language",
-                "source_language",
-                "text_lane",
-                "translated_from",
-                "chunk_index",
-                "page_number",
-                "section_heading",
-                "layout_block_id",
-                "translation_version_id",
-                "translation_quality",
-                "translation_validation_status",
-            ):
-                if extra_key in payload:
-                    meta[extra_key] = payload[extra_key]
-            search_results.append(
-                SearchResult(
-                    document_id=payload.get("document_id", ""),
-                    score=float(point.score),
-                    chunk_text=payload.get("text"),
-                    metadata=meta,
-                )
-            )
+        search_results: list[SearchResult] = [
+            _point_to_search_result(point)
+            for point in response.points
+        ]
 
         return search_results
 
@@ -248,37 +234,10 @@ class QdrantSearchClient:
             with_payload=True,
         )
 
-        search_results: list[SearchResult] = []
-        for point in response.points:
-            payload = point.payload or {}
-            meta: dict[str, Any] = {"chunk_id": payload.get("chunk_id", str(point.id))}
-            for extra_key in (
-                "source_id",
-                "title",
-                "language",
-                "source_language",
-                "text_lane",
-                "translated_from",
-                "chunk_index",
-                "page_number",
-                "section_heading",
-                "layout_block_id",
-                "translation_version_id",
-                "translation_quality",
-                "translation_validation_status",
-            ):
-                if extra_key in payload:
-                    meta[extra_key] = payload[extra_key]
-            search_results.append(
-                SearchResult(
-                    document_id=payload.get("document_id", ""),
-                    score=float(point.score),
-                    chunk_text=payload.get("text"),
-                    metadata=meta,
-                )
-            )
-
-        return search_results
+        return [
+            _point_to_search_result(point)
+            for point in response.points
+        ]
 
     def list_chunks_by_document(
         self,
@@ -331,35 +290,10 @@ class QdrantSearchClient:
             if next_page_id is None:
                 break
 
-        results: list[SearchResult] = []
-        for point in points:
-            payload = point.payload or {}
-            meta: dict[str, Any] = {"chunk_id": payload.get("chunk_id", str(point.id))}
-            for extra_key in (
-                "source_id",
-                "title",
-                "language",
-                "source_language",
-                "text_lane",
-                "translated_from",
-                "chunk_index",
-                "page_number",
-                "section_heading",
-                "layout_block_id",
-                "translation_version_id",
-                "translation_quality",
-                "translation_validation_status",
-            ):
-                if extra_key in payload:
-                    meta[extra_key] = payload[extra_key]
-            results.append(
-                SearchResult(
-                    document_id=payload.get("document_id", ""),
-                    score=0.0,
-                    chunk_text=payload.get("text"),
-                    metadata=meta,
-                )
-            )
+        results: list[SearchResult] = [
+            _point_to_search_result(point, score=0.0)
+            for point in points
+        ]
 
         results.sort(
             key=lambda r: (

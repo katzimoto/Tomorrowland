@@ -241,18 +241,103 @@ class PipelineWorker:
                 max(len(original_chunks), len(translated_chunks))
             )
 
-        # 5. Index chunks in Meilisearch when configured. Uses original text
-        #    for content and translated text for content_en so queries in
-        #    either language can find the document.
-        if self._meili is not None:
+        # 5. Index chunks in Meilisearch when configured.
+        self._index_meilisearch(
+            document_id=document_id,
+            doc=doc,
+            original_chunks=original_chunks,
+            translated_chunks=translated_chunks,
+            allowed_group_ids=allowed_group_ids,
+            text=text,
+            translated=translated,
+        )
+
+        # 6. Index chunks in Qdrant (vector indexing is degraded/best-effort).
+        self._index_qdrant(
+            document_id=document_id,
+            doc=doc,
+            original_chunks=original_chunks,
+            translated_chunks=translated_chunks,
+            _extraction_result=_extraction_result,
+            allowed_group_ids=allowed_group_ids,
+            text=text,
+        )
+
+        # 7. Update status after text indexing has succeeded. Vector/Meilisearch
+        #    indexing may be degraded; a future async job model should persist
+        #    stage-specific retry state for those failures.
+        self._doc_repo.update_indexed(document_id, "indexed", translation_quality)
+
+        # 8. Process email/archive attachments as child documents (best-effort).
+        #     Attachments are already extracted into _extraction_result by the
+        #     extractor itself — the pipeline is fully agnostic to file type here.
+        #     _seen tracks SHA-256 hashes of content already processed in this
+        #     call chain to break circular references (e.g. ZIP-A → ZIP-B → ZIP-A).
+        if _extraction_result is not None and _extraction_result.attachments:
             try:
-                pair_count = min(len(original_chunks), len(translated_chunks))
-                meili_records = [
+                self._process_attachments(
+                    document_id, doc, _extraction_result.attachments, _seen or frozenset()
+                )
+            except Exception:
+                logger.exception(
+                    "Attachment processing failed for document_id=%s correlation=%s",
+                    document_id,
+                    get_correlation_id(),
+                )
+
+        return ProcessResult(
+            extracted_text=text,
+            translated_text=translated,
+            translation_quality=translation_quality,
+        )
+
+    def _index_meilisearch(
+        self,
+        *,
+        document_id: UUID,
+        doc: Any,
+        original_chunks: list[str],
+        translated_chunks: list[str],
+        allowed_group_ids: list[str],
+        text: str,
+        translated: str,
+    ) -> None:
+        """Index chunks in Meilisearch (best-effort, failures are logged only)."""
+        if self._meili is None:
+            return
+        try:
+            pair_count = min(len(original_chunks), len(translated_chunks))
+            meili_records = [
+                SearchChunkRecord.from_parts(
+                    document_id=str(document_id),
+                    chunk_index=idx,
+                    title=doc.title or "",
+                    content=orig_chunk,
+                    allowed_group_ids=allowed_group_ids,
+                    metadata=ChunkMetadata(
+                        source_id=str(doc.source_id),
+                        source=doc.source,
+                        mime_type=doc.mime_type,
+                        file_name=Path(doc.path).name if doc.path else None,
+                        language=doc.source_language,
+                    ),
+                    content_en=tran_chunk if translated != text else None,
+                )
+                for idx, (orig_chunk, tran_chunk) in enumerate(
+                    zip(
+                        original_chunks[:pair_count],
+                        translated_chunks[:pair_count],
+                        strict=False,
+                    )
+                )
+            ]
+            for idx in range(pair_count, len(original_chunks)):
+                meili_records.append(
                     SearchChunkRecord.from_parts(
                         document_id=str(document_id),
                         chunk_index=idx,
                         title=doc.title or "",
-                        content=orig_chunk,
+                        content=original_chunks[idx],
                         allowed_group_ids=allowed_group_ids,
                         metadata=ChunkMetadata(
                             source_id=str(doc.source_id),
@@ -261,56 +346,37 @@ class PipelineWorker:
                             file_name=Path(doc.path).name if doc.path else None,
                             language=doc.source_language,
                         ),
-                        content_en=tran_chunk if translated != text else None,
+                        content_en=None,
                     )
-                    for idx, (orig_chunk, tran_chunk) in enumerate(
-                        zip(
-                            original_chunks[:pair_count],
-                            translated_chunks[:pair_count],
-                            strict=False,
-                        )
-                    )
-                ]
-                # Any extra original-only chunks (e.g. when translation is shorter)
-                for idx in range(pair_count, len(original_chunks)):
-                    meili_records.append(
-                        SearchChunkRecord.from_parts(
-                            document_id=str(document_id),
-                            chunk_index=idx,
-                            title=doc.title or "",
-                            content=original_chunks[idx],
-                            allowed_group_ids=allowed_group_ids,
-                            metadata=ChunkMetadata(
-                                source_id=str(doc.source_id),
-                                source=doc.source,
-                                mime_type=doc.mime_type,
-                                file_name=Path(doc.path).name if doc.path else None,
-                                language=doc.source_language,
-                            ),
-                            content_en=None,
-                        )
-                    )
-                if meili_records:
-                    start = time.perf_counter()
-                    self._meili.index_batch(meili_records)
-                    if self._metrics is not None:
-                        self._metrics.search_backend_duration_seconds.labels(
-                            "meilisearch", "index"
-                        ).observe(time.perf_counter() - start)
-                        self._metrics.search_index_documents.labels("meilisearch").inc()
-            except Exception as exc:
-                logger.error(
-                    "Meilisearch indexing failed for document_id=%s error_type=%s correlation=%s",
-                    document_id,
-                    exc.__class__.__name__,
-                    get_correlation_id(),
                 )
+            if meili_records:
+                start = time.perf_counter()
+                self._meili.index_batch(meili_records)
+                if self._metrics is not None:
+                    self._metrics.search_backend_duration_seconds.labels(
+                        "meilisearch", "index"
+                    ).observe(time.perf_counter() - start)
+                    self._metrics.search_index_documents.labels("meilisearch").inc()
+        except Exception as exc:
+            logger.error(
+                "Meilisearch indexing failed for document_id=%s error_type=%s correlation=%s",
+                document_id,
+                exc.__class__.__name__,
+                get_correlation_id(),
+            )
 
-        # 6. Index chunks in Qdrant. Vector indexing is degraded/best-effort
-        #    relative to text indexing: failures are logged safely but do not
-        #    turn a text-indexed document into a failed document.
-        #    Both original and translated text are chunked and indexed so that
-        #    vector search can match in either language.
+    def _index_qdrant(
+        self,
+        *,
+        document_id: UUID,
+        doc: Any,
+        original_chunks: list[str],
+        translated_chunks: list[str],
+        _extraction_result: ExtractionResult | None,
+        allowed_group_ids: list[str],
+        text: str,
+    ) -> None:
+        """Index chunks in Qdrant (degraded/best-effort; failures are logged only)."""
         try:
             qdrant_chunks: list[dict[str, Any]] = []
 
@@ -343,7 +409,6 @@ class PipelineWorker:
                     entry["section_heading"] = section_heading
                 return entry
 
-            # Resolve location metadata for original chunks from extraction result
             location_segments_dicts: list[dict[str, Any]] = []
             if _extraction_result is not None and _extraction_result.location_segments:
                 location_segments_dicts = [
@@ -351,7 +416,6 @@ class PipelineWorker:
                 ]
             orig_locations = resolve_chunk_locations(text, original_chunks, location_segments_dicts)
 
-            # Collect all chunk texts
             chunk_texts: list[str] = []
             chunk_meta: list[dict[str, Any]] = []
 
@@ -380,7 +444,6 @@ class PipelineWorker:
                     }
                 )
 
-            # Batch-encode all chunks in a single Ollama call
             vectors = self._encoder.encode_batch(chunk_texts)
 
             for i, meta in enumerate(chunk_meta):
@@ -397,8 +460,6 @@ class PipelineWorker:
                 )
 
             if qdrant_chunks:
-                # PR3: resolve layout_block_id for precise chunk→block linkage.
-                # Best-effort — blocks may not exist yet (async parse stage).
                 from services.rag.layout_hierarchy import resolve_chunk_layout_block_ids
 
                 try:
@@ -411,7 +472,6 @@ class PipelineWorker:
                     )
 
                 start = time.perf_counter()
-                # delete_existing removes stale chunks from prior runs before writing new ones.
                 self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
                 if self._metrics is not None:
                     self._metrics.search_backend_duration_seconds.labels(
@@ -425,34 +485,6 @@ class PipelineWorker:
                 exc.__class__.__name__,
                 get_correlation_id(),
             )
-
-        # 7. Update status after text indexing has succeeded. Vector/Meilisearch
-        #    indexing may be degraded; a future async job model should persist
-        #    stage-specific retry state for those failures.
-        self._doc_repo.update_indexed(document_id, "indexed", translation_quality)
-
-        # 8. Process email/archive attachments as child documents (best-effort).
-        #     Attachments are already extracted into _extraction_result by the
-        #     extractor itself — the pipeline is fully agnostic to file type here.
-        #     _seen tracks SHA-256 hashes of content already processed in this
-        #     call chain to break circular references (e.g. ZIP-A → ZIP-B → ZIP-A).
-        if _extraction_result is not None and _extraction_result.attachments:
-            try:
-                self._process_attachments(
-                    document_id, doc, _extraction_result.attachments, _seen or frozenset()
-                )
-            except Exception:
-                logger.exception(
-                    "Attachment processing failed for document_id=%s correlation=%s",
-                    document_id,
-                    get_correlation_id(),
-                )
-
-        return ProcessResult(
-            extracted_text=text,
-            translated_text=translated,
-            translation_quality=translation_quality,
-        )
 
     def _process_attachments(
         self,

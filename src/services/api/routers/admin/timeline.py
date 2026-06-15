@@ -309,6 +309,23 @@ def admin_retry_document(
     return {"requeued": count, "action": "retry"}
 
 
+def _re_enqueue_action(
+    document_id: UUID,
+    request: Request,
+    user: TokenPayload,
+    job_type: str,
+    action: str,
+) -> dict[str, object]:
+    """Re-enqueue a pipeline job and return the RetryResponse dict."""
+    require_admin(user)
+    with request.app.state.engine.begin() as conn:
+        title, _, source_id = _get_document_info(conn, document_id)
+        if title is None or source_id is None:
+            raise HTTPException(status_code=404, detail="Document not found or missing source")
+        count = _re_enqueue_job(conn, document_id, source_id, job_type, user.sub, action)
+    return {"requeued": count, "action": action}
+
+
 @router.post(
     "/admin/documents/{document_id}/reprocess",
     response_model=RetryResponse,
@@ -319,23 +336,7 @@ def admin_reprocess_document(
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, object]:
     """Re-run document extraction by re-enqueuing a process_document job."""
-    require_admin(user)
-
-    with request.app.state.engine.begin() as conn:
-        title, _, source_id = _get_document_info(conn, document_id)
-        if title is None or source_id is None:
-            raise HTTPException(status_code=404, detail="Document not found or missing source")
-
-        count = _re_enqueue_job(
-            conn,
-            document_id,
-            source_id,
-            "process_document",
-            user.sub,
-            "reprocess",
-        )
-
-    return {"requeued": count, "action": "reprocess"}
+    return _re_enqueue_action(document_id, request, user, "process_document", "reprocess")
 
 
 @router.post(
@@ -348,23 +349,7 @@ def admin_reocr_document(
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, object]:
     """Re-run OCR for a document if eligible."""
-    require_admin(user)
-
-    with request.app.state.engine.begin() as conn:
-        title, _, source_id = _get_document_info(conn, document_id)
-        if title is None or source_id is None:
-            raise HTTPException(status_code=404, detail="Document not found or missing source")
-
-        count = _re_enqueue_job(
-            conn,
-            document_id,
-            source_id,
-            "process_document",
-            user.sub,
-            "reocr",
-        )
-
-    return {"requeued": count, "action": "reocr"}
+    return _re_enqueue_action(document_id, request, user, "process_document", "reocr")
 
 
 @router.post(
@@ -377,23 +362,7 @@ def admin_retranslate_document(
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, object]:
     """Re-run translation for a document."""
-    require_admin(user)
-
-    with request.app.state.engine.begin() as conn:
-        title, _, source_id = _get_document_info(conn, document_id)
-        if title is None or source_id is None:
-            raise HTTPException(status_code=404, detail="Document not found or missing source")
-
-        count = _re_enqueue_job(
-            conn,
-            document_id,
-            source_id,
-            "translate_document",
-            user.sub,
-            "retranslate",
-        )
-
-    return {"requeued": count, "action": "retranslate"}
+    return _re_enqueue_action(document_id, request, user, "translate_document", "retranslate")
 
 
 @router.post(
@@ -406,20 +375,4 @@ def admin_reembed_document(
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, object]:
     """Re-embed and re-index a document (triggers vector_index_document job)."""
-    require_admin(user)
-
-    with request.app.state.engine.begin() as conn:
-        title, _, source_id = _get_document_info(conn, document_id)
-        if title is None or source_id is None:
-            raise HTTPException(status_code=404, detail="Document not found or missing source")
-
-        count = _re_enqueue_job(
-            conn,
-            document_id,
-            source_id,
-            "vector_index_document",
-            user.sub,
-            "reembed",
-        )
-
-    return {"requeued": count, "action": "reembed"}
+    return _re_enqueue_action(document_id, request, user, "vector_index_document", "reembed")
