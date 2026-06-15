@@ -221,6 +221,16 @@ class Settings(BaseSettings):
     # Docker image (as with the default LibreTranslate Argos setup).
     translation_model_bundle_path: str = ""
 
+    # --- High-quality translation provider (#731) ---
+    # Path to an extracted translation model bundle for the high-quality
+    # provider (OPUS-MT via CTranslate2). When set and the bundle contains
+    # models for the requested language pair, the slow/enrich worker uses
+    # this provider instead of the LibreTranslate Argos baseline.
+    # Falls back silently to the baseline when the bundle is missing,
+    # unhealthy, or doesn't cover the requested language pair.
+    # Requires: pip install tomorrowland[ctranslate2]
+    translation_high_provider_bundle_path: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         """Return configured CORS origins from a comma-separated setting."""

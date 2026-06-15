@@ -1,6 +1,7 @@
 """Translation package."""
 
 from services.translation.client import LibreTranslateClient, build_translation_metadata
+from services.translation.ctranslate2_provider import CTranslate2OpusProvider
 from services.translation.libretranslate_provider import LibreTranslateArgosProvider
 from services.translation.model_bundle import (
     BundleIntegrityReport,
@@ -25,6 +26,7 @@ from services.translation.segment_pipeline import (
 __all__ = [
     "BundleIntegrityReport",
     "BundleValidator",
+    "CTranslate2OpusProvider",
     "LibreTranslateArgosProvider",
     "LibreTranslateClient",
     "PlaceholderMap",
