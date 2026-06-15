@@ -283,6 +283,28 @@ def _require_feature_enabled(
         raise HTTPException(status_code=404, detail=detail)
 
 
+def resolve_feature_flag(
+    connection: sa.Connection,
+    settings: Any,
+    *,
+    attr: str,
+    config_key: str,
+) -> bool:
+    """Return the effective value of a boolean feature flag.
+
+    The admin-editable ``system_config`` value (when present) overrides the
+    environment default carried on *settings*. Falls back to the env default
+    when no runtime override has been stored. Uses the in-process TTL cache.
+    """
+    from shared.config_cache import get_cached_config
+
+    default = bool(getattr(settings, attr, False))
+    value = get_cached_config(connection, config_key)
+    if value is None:
+        return default
+    return _config_bool(value, default=default)
+
+
 def require_subscriptions_enabled(connection: sa.Connection, settings: Any) -> None:
     """Raise 404 when subscriptions are disabled."""
     _require_feature_enabled(

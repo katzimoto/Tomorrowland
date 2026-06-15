@@ -519,6 +519,41 @@ def test_admin_reset_config(migrated_engine: Engine) -> None:
     assert vector_weight["value"] == 0.7
 
 
+def test_admin_update_seeds_default_only_config_key(migrated_engine: Engine) -> None:
+    """A registered default key with no stored row is editable and upserts.
+
+    Simulates an existing deployment upgraded with a newer default key that the
+    foundation migration already seeded — we delete the row to reproduce a DB
+    that predates the key, then confirm the admin API surfaces and writes it.
+    """
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    key = "feature.document_chat_hierarchy_expansion"
+
+    with migrated_engine.begin() as conn:
+        conn.execute(sa.text("DELETE FROM system_config WHERE key = :k"), {"k": key})
+
+    # Still surfaced from the defaults registry, flagged as a default.
+    listing = client.get("/admin/config", headers=headers).json()
+    entry = next(c for c in listing if c["key"] == key)
+    assert entry["is_default"] is True
+    assert entry["value"] is False
+
+    # Writing it upserts a row rather than 404ing.
+    resp = client.put(f"/admin/config/{key}", json={"value": True}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["value"] is True
+
+    listing2 = client.get("/admin/config", headers=headers).json()
+    entry2 = next(c for c in listing2 if c["key"] == key)
+    assert entry2["is_default"] is False
+    assert entry2["value"] is True
+
+
 # DLQ
 
 

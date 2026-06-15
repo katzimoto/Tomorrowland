@@ -40,6 +40,43 @@ exist in the running RC. Confirm against `CHANGELOG.md` and the live API.
 
 ---
 
+## Admin runtime configuration (Admin → Configuration)
+
+Feature flags, the default LLM model/prompts, and search tuning ship with
+environment defaults (`.env` → `Settings`), but admins can override most of them
+at runtime **without a restart** from **Admin → Configuration** (`/admin/config`).
+
+- The page lists every registered key from `SYSTEM_CONFIG_DEFAULTS`
+  (`src/shared/feature_flags.py`), grouped into Feature Flags, LLM Model &
+  Prompts, Search & Retrieval, and Other.
+- Each key shows whether it is a **Default** (env value, no override stored) or
+  **Overridden** (an admin value is persisted in `system_config`).
+- Saving a value upserts it into `system_config`; the in-process config cache
+  (30 s TTL) is invalidated so the change applies within seconds. **Reset to
+  defaults** restores every key to its registered default.
+- Resolution order at request time: a stored `system_config` value wins;
+  otherwise the env default on `Settings` applies. Keys never written keep using
+  the env default (`load default value if needed`).
+
+The two hierarchy-aware RAG flags ship dark but are now runtime-toggleable here
+for controlled rollout (still default `false`):
+
+| Config key                                    | Env var                                          | Default |
+|-----------------------------------------------|--------------------------------------------------|---------|
+| `feature.document_chat_hierarchy_expansion`   | `FEATURE_DOCUMENT_CHAT_HIERARCHY_EXPANSION`      | `false` |
+| `feature.document_chat_coarse_to_fine_routing`| `FEATURE_DOCUMENT_CHAT_COARSE_TO_FINE_ROUTING`   | `false` |
+
+**LLM model selection.** Per-task model/provider routing (chat, utility,
+reranking, embedding, …) lives in **Admin → Model Providers**: register a
+provider, discover/declare model descriptors, set per-task defaults, then
+**Reload** to apply without a restart. The `llm.model` config key is a simple
+default-name fallback for deployments that do not use the provider registry.
+Startup/infrastructure-only flags (Meilisearch index topology, extraction
+binaries such as OCR/Docling, preview rendering) remain env-only because they
+are read at service/worker boot, not per request.
+
+---
+
 ## RAG Configuration
 
 RAG (`POST /qa`) retrieves chunks from Qdrant, assembles a bounded context,

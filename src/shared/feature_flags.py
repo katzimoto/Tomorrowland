@@ -21,6 +21,8 @@ SYSTEM_CONFIG_DEFAULTS: Final[MappingProxyType[str, JsonValue]] = MappingProxyTy
         "feature.document_chat_reranker": True,
         "feature.document_chat_streaming": True,
         "feature.document_chat_translated_text": True,
+        "feature.document_chat_hierarchy_expansion": False,
+        "feature.document_chat_coarse_to_fine_routing": False,
         "feature.local_llm_dev": False,
         "llm.model": "qwen3:4b",
         "llm.qa_system_prompt": (
@@ -50,6 +52,10 @@ ENV_FEATURE_TO_CONFIG_KEY: Final[MappingProxyType[str, str]] = MappingProxyType(
         "FEATURE_DOCUMENT_CHAT_METADATA_SEARCH": "feature.document_chat_metadata_search",
         "FEATURE_DOCUMENT_CHAT_TRANSLATED_TEXT": "feature.document_chat_translated_text",
         "FEATURE_DOCUMENT_CHAT_STREAMING": "feature.document_chat_streaming",
+        "FEATURE_DOCUMENT_CHAT_HIERARCHY_EXPANSION": ("feature.document_chat_hierarchy_expansion"),
+        "FEATURE_DOCUMENT_CHAT_COARSE_TO_FINE_ROUTING": (
+            "feature.document_chat_coarse_to_fine_routing"
+        ),
         "FEATURE_RAG_QA": "feature.rag_qa",
         "FEATURE_SUMMARIZATION": "feature.summarization",
         "FEATURE_ENTITY_EXTRACTION": "feature.entity_extraction",

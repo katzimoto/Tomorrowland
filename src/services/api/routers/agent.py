@@ -26,6 +26,7 @@ from services.api._helpers import (
     _verify_admin_membership,
     related_docs_limit,
     require_related_docs_enabled,
+    resolve_feature_flag,
 )
 from services.api.main import current_user
 from services.auth.models import TokenPayload
@@ -601,8 +602,18 @@ def ask_corpus(
             score_threshold=settings.rag_score_threshold,
             meili_provider=request.app.state.meili_provider,
             reranker=NoOpReranker(),
-            enable_hierarchy_expansion=settings.feature_document_chat_hierarchy_expansion,
-            enable_coarse_to_fine_routing=settings.feature_document_chat_coarse_to_fine_routing,
+            enable_hierarchy_expansion=resolve_feature_flag(
+                connection,
+                settings,
+                attr="feature_document_chat_hierarchy_expansion",
+                config_key="feature.document_chat_hierarchy_expansion",
+            ),
+            enable_coarse_to_fine_routing=resolve_feature_flag(
+                connection,
+                settings,
+                attr="feature_document_chat_coarse_to_fine_routing",
+                config_key="feature.document_chat_coarse_to_fine_routing",
+            ),
         )
 
         try:

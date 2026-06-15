@@ -8,6 +8,7 @@ import {
   ShieldQuestion,
   FlaskConical,
   ShieldCheck,
+  SlidersHorizontal,
 } from "lucide-react";
 import styles from "./AdminHubPage.module.css";
 
@@ -73,6 +74,17 @@ export function AdminHubPage() {
           <span className={styles.cardTitle}>Model Providers</span>
           <span className={styles.cardDesc}>
             Manage LLM providers, model descriptors, and task defaults
+          </span>
+        </button>
+        <button
+          type="button"
+          className={styles.card}
+          onClick={() => navigate({ to: "/admin/config" })}
+        >
+          <SlidersHorizontal size={32} className={styles.cardIcon} />
+          <span className={styles.cardTitle}>Configuration</span>
+          <span className={styles.cardDesc}>
+            Toggle feature flags and edit LLM prompts and search tuning
           </span>
         </button>
         <button

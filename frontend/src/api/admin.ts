@@ -153,6 +153,16 @@ export interface ChildGroup {
   name: string;
 }
 
+export type SystemConfigValue = boolean | number | string;
+
+export interface SystemConfigEntry {
+  key: string;
+  value: SystemConfigValue;
+  updated_at: string | null;
+  /** True when the value is the registered default and no override is stored. */
+  is_default: boolean;
+}
+
 export const adminApi = {
   connectorTypes: () => api.get<ConnectorType[]>("/admin/connector-types"),
   sourceLanguages: () => api.get<string[]>("/admin/source-languages"),
@@ -315,6 +325,15 @@ export const adminApi = {
     ),
   deleteTaskDefault: (taskType: string) =>
     api.delete(`/admin/model-task-defaults/${taskType}`),
+
+  // --- System Configuration (feature flags, LLM prompts, search tuning) ---
+  listConfig: () => api.get<SystemConfigEntry[]>("/admin/config"),
+  updateConfig: (key: string, value: SystemConfigValue) =>
+    api.put<SystemConfigEntry>(`/admin/config/${encodeURIComponent(key)}`, {
+      value,
+    }),
+  resetConfig: () =>
+    api.post<{ reset: boolean; keys: string[] }>("/admin/config/reset", {}),
 
   // --- Source Health (#674) ---
   getSourceHealth: (sourceId: string) =>

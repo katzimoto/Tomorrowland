@@ -85,6 +85,33 @@ Known follow-ups:
 
 ---
 
+## 2026-06-15 — Admin Configuration UI + runtime-toggleable chat flags
+
+Branch `claude/admin-ui-flags-llm-config-fr5eqd`.
+
+- New **Admin → Configuration** page (`/admin/config`, `AdminConfigPage.tsx`)
+  exposes the existing `/admin/config` registry: feature flags as toggles, LLM
+  model/prompts as text, search/alerts tuning as numbers. Per-key save + reset.
+  `adminApi.listConfig/updateConfig/resetConfig` added; route + hub card wired.
+- `/admin/config` backend is now **defaults-aware**: `GET` merges
+  `SYSTEM_CONFIG_DEFAULTS` with stored rows (adds `is_default`); `PUT` **upserts**
+  (seeds default-only keys, still 404s for unknown keys); `reset` upserts. Values
+  are JSON-decoded so the API returns typed bool/str/number (fixes prior `'true'`
+  / `'"qwen3:4b"'` raw-text quirk noted in `config_cache.py`). No migration needed.
+- Two previously settings-only dark RAG flags are now runtime-toggleable via the
+  config registry (still default false): `feature.document_chat_hierarchy_expansion`,
+  `feature.document_chat_coarse_to_fine_routing`. Added to `SYSTEM_CONFIG_DEFAULTS`
+  + `ENV_FEATURE_TO_CONFIG_KEY`; new `resolve_feature_flag()` helper in `_helpers.py`
+  resolves DB-override-then-env; wired at the 3 `RagService` build sites in
+  `chat.py` (x2) and `agent.py`.
+- **LLM model config** was already fully UI-driven via Admin → Model Providers
+  (providers/descriptors/per-task defaults/discover/test/**reload**). Left as-is;
+  config page links to it. Startup/infra flags (Meilisearch topology, OCR/Docling
+  extraction, preview render) remain env-only by design (read at boot, not per request).
+- Tests: `tests/integration/test_admin.py` (default-only upsert),
+  `tests/unit/test_feature_flag_resolution.py`, `AdminConfigPage.test.tsx`. Verified:
+  ruff, mkdocs --strict, backend config/chat/agent suites, frontend admin tests (100), tsc, eslint.
+
 ## Active next work
 
 ### #714 Quality Lab — priority:next, status:ready
