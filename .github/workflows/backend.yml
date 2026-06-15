@@ -94,6 +94,9 @@ jobs:
       - name: Check boolean-integer SQL comparisons
         run: python scripts/check-boolean-int-sql.py
 
+      - name: Check aggregate-without-GROUP-BY SQL
+        run: python scripts/check-sql-group-by.py
+
       - name: Unit tests (fast, no services needed)
         run: pytest tests/ -n auto -q --ignore=tests/integration --cov=src --cov-branch --cov-fail-under=60
 
