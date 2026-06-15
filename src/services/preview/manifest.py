@@ -91,11 +91,6 @@ def worker_renderer(mime_type: str) -> str | None:
     return None
 
 
-def renders_via_worker(mime_type: str) -> bool:
-    """True when this MIME type produces artifacts via the preview worker."""
-    return worker_renderer(mime_type) is not None
-
-
 def immediate_renderer(kind: PreviewKind) -> str:
     """Renderer label for kinds served without artifacts (ready immediately)."""
     if kind == "pdf":

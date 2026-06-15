@@ -635,25 +635,3 @@ class PipelineJobRepository:
             )
 
         return document_title, source_name, jobs
-
-    def reap_stale_locks(self, max_age_seconds: int = 300) -> int:
-        """Reset jobs stuck in ``running`` state past *max_age_seconds* to ``pending``.
-
-        Returns the number of jobs reset.
-        This allows crashed workers' jobs to be picked up by other workers.
-        """
-        cutoff = datetime.now(UTC) - timedelta(seconds=max_age_seconds)
-        result = self._connection.execute(
-            sa.text("""
-                UPDATE pipeline_jobs
-                SET status = 'pending',
-                    locked_by = NULL,
-                    locked_at = NULL,
-                    updated_at = :updated_at
-                WHERE status = 'running'
-                  AND locked_at IS NOT NULL
-                  AND locked_at <= :cutoff
-            """),
-            {"cutoff": cutoff, "updated_at": datetime.now(UTC)},
-        )
-        return result.rowcount if result.rowcount is not None else 0

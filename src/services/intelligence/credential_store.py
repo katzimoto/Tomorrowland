@@ -15,7 +15,6 @@ from sqlalchemy.engine import Connection
 
 logger = logging.getLogger(__name__)
 
-MASK_PREFIX = "tl-cred:"
 MASK_SUFFIX_LEN = 4
 
 
