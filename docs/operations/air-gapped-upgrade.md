@@ -147,7 +147,7 @@ changes:
    ```
 
 4. Reindex existing documents so they are embedded with the new model. This
-   populates the new Qdrant collection (`documents_v{dimension}`) while the old
+   populates the new Qdrant collection (`tomorrowland_chunks_{dimension}`) while the old
    collection remains intact for rollback:
 
    ```bash

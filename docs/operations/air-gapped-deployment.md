@@ -471,7 +471,7 @@ curl -s http://localhost:11434/api/tags | grep -q "$EMBEDDING_MODEL" \
 #### Qdrant collection isolation
 
 Since vector safety (#184/#197), each embedding dimension creates an isolated
-Qdrant collection named `documents_v{dimension}` (e.g. `documents_v4096`). When
+Qdrant collection named `tomorrowland_chunks_{dimension}` (e.g. `tomorrowland_chunks_4096`). When
 the embedding model or dimension changes, a new collection is created
 automatically on first search/upsert. Old collections are preserved for
 rollback but are not automatically deleted.

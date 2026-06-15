@@ -108,6 +108,18 @@ deduplication (external_id hashing), version families, and user tags.
   - `tests/integration/test_document_text_api.py`
   - `tests/integration/test_sync_now_lifecycle.py`
 
+### evidence
+Evidence packs — permission-enforced collections of document citations and
+snippets. Acts as the security boundary for assembling and retrieving curated
+evidence for RAG and reporting.
+
+- **Entry point:** `src/services/evidence/service.py` (`EvidencePackService`),
+  `src/services/evidence/repository.py` (`EvidencePackRepository`)
+- **Router:** `src/services/api/routers/evidence.py`
+- **Key deps:** auth, permissions, documents
+- **Tests:**
+  - `tests/integration/test_evidence_packs_api.py`
+
 ### extraction
 Text extraction — extracts plain text from 20+ file formats (PDF, DOCX,
 XLSX, PPTX, HTML, EPUB, EML, MSG, ODT, ODS, ODP, RTF, plain text, JSON,

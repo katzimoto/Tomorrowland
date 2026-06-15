@@ -252,10 +252,6 @@ So `EMBEDDING_DIMENSION=768` ⇒ `tomorrowland_chunks_768`, and switching to
 upsert. The old collection is preserved on disk and can be deleted manually
 once you no longer want to roll back.
 
-> Note: `docs/operations/air-gapped-deployment.md` documents a historical
-> name (`documents_v{dimension}`) for this collection. The current code uses
-> `tomorrowland_chunks_{dimension}`. Treat the code as authoritative.
-
 ### Swap procedure
 
 1. **Confirm the new model is loaded into Ollama** (or reachable through
