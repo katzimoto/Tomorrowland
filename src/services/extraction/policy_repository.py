@@ -23,18 +23,6 @@ def _ensure_json(value: Any) -> str:
     return json.dumps(value if value is not None else {})
 
 
-def _resolve_json(value: Any) -> Any:
-    """Deserialize a JSON column from the database."""
-    if value is None:
-        return None
-    if isinstance(value, (list, dict)):
-        return value
-    try:
-        return json.loads(str(value)) if value else None
-    except (json.JSONDecodeError, TypeError):
-        return None
-
-
 def _row_to_dict(row: sa.RowMapping) -> dict[str, Any]:
     """Convert a parser_policies row to a dict with proper UUID/JSON handling."""
     return {

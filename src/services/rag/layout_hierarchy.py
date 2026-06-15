@@ -66,11 +66,6 @@ class SectionInfo:
                 parts.append(b.text)
         return "\n".join(p for p in parts if p)
 
-    @property
-    def sibling_block_texts(self) -> list[str]:
-        """Text of non-heading sibling blocks (content within the section)."""
-        return [b.text for b in self.blocks if b.text and b.block_type != "heading"]
-
     def __repr__(self) -> str:
         return (
             f"SectionInfo(heading={self.heading_text!r}, "

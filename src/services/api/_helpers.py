@@ -265,46 +265,55 @@ def _notification_response(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def require_subscriptions_enabled(connection: sa.Connection, settings: Any) -> None:
-    """Raise 404 when subscriptions are disabled.
-
-    Uses in-process TTL cache to avoid per-request DB round-trips.
-    """
+def _require_feature_enabled(
+    connection: sa.Connection,
+    settings: Any,
+    *,
+    attr: str,
+    config_key: str,
+    detail: str,
+) -> None:
+    """Raise 404 when a feature is disabled. Uses in-process TTL cache."""
     from shared.config_cache import get_cached_config
 
-    if not settings.feature_subscriptions:
-        raise HTTPException(status_code=404, detail="Subscriptions are disabled")
-    value = get_cached_config(connection, "feature.subscriptions")
+    if not getattr(settings, attr, False):
+        raise HTTPException(status_code=404, detail=detail)
+    value = get_cached_config(connection, config_key)
     if value is not None and not _config_bool(value, default=True):
-        raise HTTPException(status_code=404, detail="Subscriptions are disabled")
+        raise HTTPException(status_code=404, detail=detail)
+
+
+def require_subscriptions_enabled(connection: sa.Connection, settings: Any) -> None:
+    """Raise 404 when subscriptions are disabled."""
+    _require_feature_enabled(
+        connection,
+        settings,
+        attr="feature_subscriptions",
+        config_key="feature.subscriptions",
+        detail="Subscriptions are disabled",
+    )
 
 
 def require_related_docs_enabled(connection: sa.Connection, settings: Any) -> None:
-    """Raise 404 when related documents are disabled.
-
-    Uses in-process TTL cache to avoid per-request DB round-trips.
-    """
-    from shared.config_cache import get_cached_config
-
-    if not settings.feature_related_docs:
-        raise HTTPException(status_code=404, detail="Related documents are disabled")
-    value = get_cached_config(connection, "feature.related_docs")
-    if value is not None and not _config_bool(value, default=True):
-        raise HTTPException(status_code=404, detail="Related documents are disabled")
+    """Raise 404 when related documents are disabled."""
+    _require_feature_enabled(
+        connection,
+        settings,
+        attr="feature_related_docs",
+        config_key="feature.related_docs",
+        detail="Related documents are disabled",
+    )
 
 
 def require_expertise_enabled(connection: sa.Connection, settings: Any) -> None:
-    """Raise 404 when expertise map is disabled.
-
-    Uses in-process TTL cache to avoid per-request DB round-trips.
-    """
-    from shared.config_cache import get_cached_config
-
-    if not settings.feature_expertise_map:
-        raise HTTPException(status_code=404, detail="Expertise map is disabled")
-    value = get_cached_config(connection, "feature.expertise_map")
-    if value is not None and not _config_bool(value, default=True):
-        raise HTTPException(status_code=404, detail="Expertise map is disabled")
+    """Raise 404 when expertise map is disabled."""
+    _require_feature_enabled(
+        connection,
+        settings,
+        attr="feature_expertise_map",
+        config_key="feature.expertise_map",
+        detail="Expertise map is disabled",
+    )
 
 
 def related_docs_limit(connection: sa.Connection) -> int:
@@ -335,16 +344,3 @@ def default_alert_threshold(connection: sa.Connection) -> float:
     with _suppress(ValueError):
         return float(value)
     return 0.75
-
-
-def alerts_check_on_ingest(connection: sa.Connection) -> bool:
-    """Return whether ingest-time alert matching is enabled.
-
-    Uses in-process TTL cache to avoid per-request DB round-trips.
-    """
-    from shared.config_cache import get_cached_config
-
-    value = get_cached_config(connection, "alerts.check_on_ingest")
-    if value is None:
-        return True
-    return _config_bool(value, default=True)

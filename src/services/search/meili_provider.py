@@ -211,11 +211,6 @@ class MeilisearchSearchProvider:
         task = self._client.swap_indexes([{"indexes": [INDEX_NAME, SHADOW_INDEX_NAME]}])
         return str(task.task_uid)
 
-    def drop_shadow_index(self) -> str:
-        """Delete the shadow index. Call after a successful swap and validation."""
-        task = self._client.index(SHADOW_INDEX_NAME).delete()
-        return str(task.task_uid)
-
     # ------------------------------------------------------------------
     # Write operations
     # ------------------------------------------------------------------

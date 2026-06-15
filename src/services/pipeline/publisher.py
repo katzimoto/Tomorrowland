@@ -163,22 +163,6 @@ class DocumentPublisher:
             attempt=attempt,
         )
 
-    def publish_preview(
-        self,
-        *,
-        job_id: UUID,
-        document_id: UUID,
-        source_id: UUID,
-        attempt: int = 1,
-    ) -> None:
-        self._publish(
-            "preview",
-            job_id=job_id,
-            document_id=document_id,
-            source_id=source_id,
-            attempt=attempt,
-        )
-
     def publish_enrich(
         self,
         *,

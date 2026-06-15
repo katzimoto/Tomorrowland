@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import zipfile
 from pathlib import Path
-from xml.etree import ElementTree as ET
 
 from services.extraction.base import ExtractionResult
+from services.extraction.opendocument import _extract_odf_text
 
 
 class OdtExtractor:
@@ -14,18 +13,4 @@ class OdtExtractor:
 
     def extract(self, path: Path) -> ExtractionResult:
         """Return text from all paragraph nodes inside content.xml."""
-        try:
-            with zipfile.ZipFile(path, "r") as zf:
-                if "content.xml" not in zf.namelist():
-                    return ExtractionResult(text="")
-                xml = zf.read("content.xml").decode("utf-8")
-            root = ET.fromstring(xml)
-            texts: list[str] = []
-            for elem in root.iter():
-                if elem.tag.endswith("}p"):
-                    para_text = "".join(elem.itertext())
-                    if para_text:
-                        texts.append(para_text)
-            return ExtractionResult(text="\n".join(texts))
-        except (OSError, zipfile.BadZipFile, ET.ParseError, UnicodeDecodeError):
-            return ExtractionResult(text="")
+        return ExtractionResult(text=_extract_odf_text(path))
