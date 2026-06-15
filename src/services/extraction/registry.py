@@ -39,6 +39,8 @@ _ODT_MIME = "application/vnd.oasis.opendocument.text"
 _ODS_MIME = "application/vnd.oasis.opendocument.spreadsheet"
 _ODP_MIME = "application/vnd.oasis.opendocument.presentation"
 
+_ALWAYS_SNIFF: frozenset[str] = frozenset({"application/zip", "application/octet-stream"})
+
 # Alias map: non-canonical MIME type → canonical registered type.
 # Resolved in get() before the main extractor dict is consulted.
 _ALIASES: dict[str, str] = {
@@ -290,6 +292,52 @@ class ExtractorRegistry:
         """Return the canonical MIME type after alias resolution."""
         return _ALIASES.get(mime_type, mime_type)
 
+    def _sniff_and_retry(
+        self,
+        path: Path,
+        mime_type: str,
+        result: ExtractionResult,
+    ) -> ExtractionResult:
+        """Sniff file content and retry extraction when the stored MIME type is wrong.
+
+        For generic MIME types (application/zip, application/octet-stream) we
+        ALWAYS try content sniffing — the stored type may be a mislabel.
+        For any other MIME type we only retry when extraction returned nothing.
+        """
+        should_sniff = (mime_type in _ALWAYS_SNIFF or not result.text) and path.exists()
+        if not should_sniff:
+            return result
+
+        sniffed = sniff_office_mime(path)
+        if not sniffed or sniffed == mime_type:
+            return result
+
+        # OLE compound document: application/x-ole-storage is aliased to
+        # MsgExtractor in _ALIASES, so bypass get() and use XlsExtractor
+        # directly (xlrd handles .xls OLE natively; fails fast on .doc/.ppt).
+        if sniffed == "application/x-ole-storage":
+            retry_extractor: object | None = None
+            for ext in self._by_mime.get("application/vnd.ms-excel", []):
+                retry_extractor = ext
+                break
+        else:
+            retry_extractor = self.get(sniffed)
+
+        if retry_extractor is None:
+            return result
+
+        retry_result = retry_extractor.extract(path)  # type: ignore[attr-defined]
+        if not retry_result.text:
+            return result
+
+        logger.debug(
+            "extraction recovered via content sniffing original_mime=%s sniffed=%s path=%s",
+            mime_type,
+            sniffed,
+            path,
+        )
+        return retry_result  # type: ignore[no-any-return]
+
     def extract(self, path: Path, mime_type: str) -> ExtractionResult:
         """Extract content from *path* using the extractor for *mime_type*.
 
@@ -322,37 +370,7 @@ class ExtractorRegistry:
             extractor = self._fallback
         result = extractor.extract(path)  # type: ignore[attr-defined]
 
-        # Sniff-and-retry strategy:
-        # * For generic MIME types (application/zip, application/octet-stream) we
-        #   ALWAYS try content sniffing — the stored type may be a mislabel, and
-        #   ZipExtractor on a DOCX would return an XML-file listing, not doc text.
-        # * For any other MIME type we only retry when extraction returned nothing.
-        _always_sniff: frozenset[str] = frozenset({"application/zip", "application/octet-stream"})
-        should_sniff = (mime_type in _always_sniff or not result.text) and path.exists()
-        if should_sniff:
-            sniffed = sniff_office_mime(path)
-            if sniffed and sniffed != mime_type:
-                # OLE compound document: application/x-ole-storage is aliased to
-                # MsgExtractor in _ALIASES, so bypass get() and use XlsExtractor
-                # directly (xlrd handles .xls OLE natively; fails fast on .doc/.ppt).
-                if sniffed == "application/x-ole-storage":
-                    retry_extractor: object | None = None
-                    for ext in self._by_mime.get("application/vnd.ms-excel", []):
-                        retry_extractor = ext
-                        break
-                else:
-                    retry_extractor = self.get(sniffed)
-                if retry_extractor is not None:
-                    retry_result = retry_extractor.extract(path)  # type: ignore[attr-defined]
-                    if retry_result.text:
-                        logger.debug(
-                            "extraction recovered via content sniffing "
-                            "original_mime=%s sniffed=%s path=%s",
-                            mime_type,
-                            sniffed,
-                            path,
-                        )
-                        result = retry_result
+        result = self._sniff_and_retry(path, mime_type, result)
 
         if not result.text:
             logger.debug(
@@ -361,4 +379,4 @@ class ExtractorRegistry:
                 path,
                 path.exists(),
             )
-        return result  # type: ignore[no-any-return]
+        return result

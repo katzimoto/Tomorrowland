@@ -320,13 +320,13 @@ class IntelligenceWorker:
                 reduce_raw = self._ollama.generate(reduce_prompt)
                 normalized = normalize_summary_output(reduce_raw)
 
-            norm_lang = normalized["language"] if normalized["language"] != "unknown" else None
-            norm_doc_type = (
-                normalized["document_type"] if normalized["document_type"] != "unknown" else None
-            )
-            norm_source = (
-                normalized["source_text"] if normalized["source_text"] != "unknown" else None
-            )
+            _norm_keys = ("language", "document_type", "source_text")
+            _norm: dict[str, str | None] = {
+                k: normalized[k] if normalized.get(k) != "unknown" else None for k in _norm_keys
+            }
+            norm_lang = _norm["language"]
+            norm_doc_type = _norm["document_type"]
+            norm_source = _norm["source_text"]
             summary_text = normalized["summary"].strip()
             if not summary_text:
                 summary_text = stripped[:500].split(". ")[0] or stripped[:200]
