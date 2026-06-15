@@ -86,8 +86,6 @@ export function PermissionSimulatorPage() {
     queryFn: () => adminApi.listUsers(),
   });
 
-
-
   // ── Handlers ──────────────────────────────────────────────────────────
 
   const parseGroupIds = (raw: string): string[] | null => {
@@ -543,7 +541,7 @@ export function PermissionSimulatorPage() {
           </div>
         )) ?? null}
 
-        {!checks && !!result.error && (
+        {!checks && !!result?.error && (
           <div className={styles.errorInline}>{String(result.error)}: {String(result.detail ?? "")}</div>
         )}
       </div>
