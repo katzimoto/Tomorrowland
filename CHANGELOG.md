@@ -34,6 +34,22 @@ All notable changes to this project will be documented in this file.
   covers bundle validity, loaded pair count, and baseline status. Requires
   `pip install tomorrowland[ctranslate2]`. New config setting
   `TRANSLATION_HIGH_PROVIDER_BUNDLE_PATH` in config.py and `.env.example`. 15 unit tests.
+- **Multilingual translation benchmark fixtures (#732)**: offline fixture corpus and
+  eval harness for comparing fast (LibreTranslate/Argos) and high (CTranslate2/OPUS-MT)
+  translation providers on realistic enterprise documents across 15 source languages.
+  Fixture corpus (`tests/fixtures/translation/`) includes 15 enterprise text files in
+  Hebrew, Chinese, Arabic, Russian, French, Spanish, Persian (RTL + Persian numerals),
+  Turkish, Korean (Hangul), Japanese (kanji/kana), Italian, Portuguese, Dutch, and
+  Polish, plus an OCR-damaged English file for robustness testing. Eval fixtures
+  (`tests/eval/fixtures/translation.py`) define 34 `TRANSLATION_EVAL_CASES` across
+  8 categories (placeholder_preservation, number_preservation, language_detection,
+  search_impact_smoke, low_quality_text, table_like_text, document_section,
+  locale_formatting). Translation metrics module (`tests/eval/metrics_translation.py`)
+  provides `TranslationCaseResult` and `TranslationAggregateMetrics` with
+  `placeholder_preservation`, `number_preservation`, `token_sufficiency`,
+  `source_text_fidelity`, and `language_detection_accuracy` scoring functions.
+  Eval harness (`tests/eval/test_translation.py`, `@pytest.mark.eval`) compares
+  fast vs high providers head-to-head. 19 unit tests for all metric functions.
 
 ## [0.6.0] - 2026-06-15
 
