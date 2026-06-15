@@ -102,14 +102,14 @@ class Settings(BaseSettings):
 
     # --- Extraction feature flags ---
     # Requires tesseract-ocr + poppler-utils in PATH (or Docker image).
-    enable_ocr: bool = False
+    enable_ocr: bool = True
     # Requires LibreOffice (soffice) in PATH.
     enable_legacy_office: bool = False
     # Use native Markdown converters for DOCX/PPTX/XLSX → structured extraction.
     enable_markitdown: bool = True
     # Use Docling for layout-aware PDF extraction (tables, multi-column, headings).
     # Requires ``pip install docling`` (or the [docling] optional extra).
-    enable_docling: bool = False
+    enable_docling: bool = True
     # Auto-detect source_language when not provided by the connector.
     enable_language_detection: bool = True
 
@@ -144,8 +144,8 @@ class Settings(BaseSettings):
     feature_document_chat_reranker: bool = True
     feature_document_chat_metadata_search: bool = True
     feature_document_chat_translated_text: bool = True
-    feature_document_chat_hierarchy_expansion: bool = False
-    feature_document_chat_coarse_to_fine_routing: bool = False
+    feature_document_chat_hierarchy_expansion: bool = True
+    feature_document_chat_coarse_to_fine_routing: bool = True
     feature_document_chat_streaming: bool = True
     # Enable local-dev LLM documentation & model recommendations for CPU-only
     # machines with limited RAM (e.g. 16GB, no discrete GPU). Default: false
@@ -179,7 +179,7 @@ class Settings(BaseSettings):
     # --- Search reranker (BGE / cross-encoder) ---
     # When enabled, the top search_reranker_depth results from the hybrid merge
     # are re-scored and re-sorted by a cross-encoder reranker.
-    search_reranker_enabled: bool = False
+    search_reranker_enabled: bool = True
     # Number of top candidates (after merge) to send to the reranker.
     search_reranker_depth: int = Field(default=20, ge=1, le=200)
     # URL of a TEI-compatible /rerank endpoint.
