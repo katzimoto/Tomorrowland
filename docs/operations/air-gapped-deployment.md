@@ -31,6 +31,13 @@ tomorrowland-ollama-bundle-<model>-<version>.tar.gz   local AI model weights
 tomorrowland-ollama-bundle-<model>-<version>.tar.gz.sha256
 ```
 
+Optional (for future translation providers that load models from disk — not required
+for the default LibreTranslate Argos setup):
+
+```text
+tomorrowland-translation-bundle-<provider>-<version>.tar.gz
+```
+
 The platform archive is small. The Docker image bundle is large and distributed
 as split parts so each file stays within GitHub Release asset size limits.
 Operators do not need to manually reassemble the parts; the wrapper script
@@ -846,6 +853,79 @@ LIBRETRANSLATE_URL=http://localhost:5000 bash scripts/validate-translation-langu
    environment.
 4. Bundle the new image into the next release artifact.
 5. Update the language matrix in this document.
+
+### Translation model bundle (future providers)
+
+The default LibreTranslate Argos provider bakes its models into the Docker
+image at build time — no separate model bundle is required. When Tomorrowland
+adds new translation providers that load model files from disk (OPUS-MT via
+CTranslate2, NLLB-200, etc.), those providers will use the **translation model
+bundle** contract defined in `models/translation/`.
+
+#### Bundle format
+
+A translation model bundle is a `.tar.gz` with this internal layout:
+
+```text
+tomorrowland-translation-bundle-<provider>-<version>/
+├── manifest.json           # Machine-readable bundle descriptor
+├── checksums.txt           # SHA-256 checksums for every file
+├── README.md               # Build notes and loading instructions
+└── models/                 # Provider-specific model files
+    └── ...
+```
+
+`manifest.json` records the provider name, model family, supported languages,
+language pairs, expected runtime environment, file inventory with SHA-256
+checksums, and license metadata. The schema is defined in
+`models/translation/manifest.schema.json` in the source repository.
+
+#### Building (connected environment)
+
+Run the build script on a connected machine with access to the provider's
+model registry or a running LibreTranslate instance:
+
+```bash
+bash scripts/build-translation-model-bundle.sh <version> [--provider <name>]
+```
+
+The script queries the provider for language coverage, exports model files,
+computes checksums, and writes the manifest and checksums.
+
+#### Loading (air-gapped)
+
+Transfer the bundle to the air-gapped host alongside the platform archive,
+then load it:
+
+```bash
+# For providers that read models from a Docker volume:
+bash scripts/load-translation-model-bundle.sh \
+  --bundle ../tomorrowland-translation-bundle-<provider>-<version>.tar.gz \
+  --docker-volume tomorrowland_libretranslate_data
+
+# For providers that read models from a local directory:
+bash scripts/load-translation-model-bundle.sh \
+  --bundle ../tomorrowland-translation-bundle-<provider>-<version>.tar.gz \
+  --target-dir /path/to/models
+```
+
+The loader validates outer and inner checksums, verifies manifest structure,
+and copies model files to the target.
+
+#### Runtime validation
+
+Translation providers that implement the `TranslationProvider` ABC (#729) and
+support local model loading will validate the bundle at startup via
+`BundleValidator` and report health status. A missing or corrupt bundle
+reports `"status": "unhealthy"` in the provider's health endpoint.
+
+#### Relationship to built-in Argos models
+
+The current LibreTranslate Argos setup does **not** use the translation model
+bundle at runtime — models are baked into the Docker image and persisted via
+the `libretranslate_data` volume. The bundle contract exists for future
+providers. Operators should not expect to load a translation model bundle for
+the default Argos provider in the current release.
 
 ### Unsupported-language behavior
 
