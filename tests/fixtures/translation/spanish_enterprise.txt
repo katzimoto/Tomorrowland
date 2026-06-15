@@ -1,0 +1,25 @@
+Informe trimestral - Resumen ejecutivo
+
+Fecha: 15 de enero de 2026
+De: Departamento financiero, office@company.es
+
+Sección 1: Resumen general
+Los ingresos del cuarto trimestre alcanzaron 124.500.000 €, un aumento
+del 8,3% respecto al mismo trimestre del año anterior. El beneficio
+operativo fue de 32.000.000 €.
+
+Sección 2: Ingresos por región
+- América del Norte: 4.200.000 $ (5.800 unidades)
+- Europa: 3.100.000 € (4.200 unidades)
+- Asia-Pacífico: 450.000.000 ¥ (9.500 unidades)
+
+Sección 3: Perspectivas 2026
+La empresa prevé un crecimiento de los ingresos anuales del 12%, sujeto
+a la aprobación del nuevo producto:
+https://portal.company.es/products/new-2026.
+
+Contacto: María García, tel. 91 555 01 23
+correo: maria.garcia@company.es.
+
+Identificador del documento: Q4-2025-FIN-ES-001
+Versión: 2.1
