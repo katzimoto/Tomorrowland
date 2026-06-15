@@ -105,6 +105,7 @@ nav:
       - Overview: context/README.md
       - Testing Guide: development/testing.md
       - Local Demo: development/local-demo.md
+      - Local LLM Dev: context/local-llm-dev.md
       - Backend API: context/backend-api.md
       - Search: context/search.md
       - Extraction: context/extraction.md

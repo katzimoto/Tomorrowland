@@ -21,6 +21,7 @@ SYSTEM_CONFIG_DEFAULTS: Final[MappingProxyType[str, JsonValue]] = MappingProxyTy
         "feature.document_chat_reranker": True,
         "feature.document_chat_streaming": True,
         "feature.document_chat_translated_text": True,
+        "feature.local_llm_dev": False,
         "llm.model": "qwen3:4b",
         "llm.qa_system_prompt": (
             "You are a knowledge assistant. Answer based only on the context provided."
@@ -57,6 +58,7 @@ ENV_FEATURE_TO_CONFIG_KEY: Final[MappingProxyType[str, str]] = MappingProxyType(
         "FEATURE_EXPERTISE_MAP": "feature.expertise_map",
         "FEATURE_RELATED_DOCS": "feature.related_docs",
         "FEATURE_AUTO_TAGGING": "feature.auto_tagging",
+        "FEATURE_LOCAL_LLM_DEV": "feature.local_llm_dev",
         "AUTO_ENRICH_THRESHOLD": "auto_enrich.threshold",
     }
 )

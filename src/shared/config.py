@@ -147,6 +147,9 @@ class Settings(BaseSettings):
     feature_document_chat_hierarchy_expansion: bool = False
     feature_document_chat_coarse_to_fine_routing: bool = False
     feature_document_chat_streaming: bool = True
+    # Enable local-dev LLM documentation & model recommendations for CPU-only
+    # machines with limited RAM (e.g. 16GB, no discrete GPU). Default: false
+    feature_local_llm_dev: bool = False
     auto_enrich_threshold: int = Field(default=5, ge=0)
 
     embedding_provider: str = ""
