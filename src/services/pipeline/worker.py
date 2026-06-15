@@ -387,6 +387,11 @@ class PipelineWorker:
                 *,
                 lang: str | None,
                 suffix: str,
+                text_lane: str = "original",
+                translated_from: str | None = None,
+                translation_version_id: str = "",
+                translation_quality: str = "",
+                translation_validation_status: str = "",
                 page_number: int | None = None,
                 section_heading: str | None = None,
             ) -> dict[str, Any]:
@@ -398,11 +403,18 @@ class PipelineWorker:
                     "text": chunk_text_content,
                     "vector": vector,
                     "source_id": str(doc.source_id),
+                    "text_lane": text_lane,
                 }
                 if doc.title:
                     entry["title"] = doc.title
                 if lang:
                     entry["language"] = lang
+                if translated_from:
+                    entry["translated_from"] = translated_from
+                if translation_version_id:
+                    entry["translation_version_id"] = translation_version_id
+                    entry["translation_quality"] = translation_quality
+                    entry["translation_validation_status"] = translation_validation_status
                 if page_number is not None:
                     entry["page_number"] = page_number
                 if section_heading is not None:
@@ -426,6 +438,8 @@ class PipelineWorker:
                     {
                         "lang": doc.source_language,
                         "suffix": "orig",
+                        "text_lane": "original",
+                        "translated_from": None,
                         "idx": idx,
                         "page_number": loc.get("page_number"),
                         "section_heading": loc.get("section_heading"),
@@ -437,7 +451,9 @@ class PipelineWorker:
                 chunk_meta.append(
                     {
                         "lang": doc.target_language,
-                        "suffix": "trans",
+                        "suffix": "tr",
+                        "text_lane": "translated",
+                        "translated_from": doc.source_language,
                         "idx": idx,
                         "page_number": None,
                         "section_heading": None,
@@ -454,6 +470,8 @@ class PipelineWorker:
                         meta["idx"],
                         lang=meta["lang"],
                         suffix=meta["suffix"],
+                        text_lane=meta.get("text_lane", "original"),
+                        translated_from=meta.get("translated_from"),
                         page_number=meta.get("page_number"),
                         section_heading=meta.get("section_heading"),
                     )

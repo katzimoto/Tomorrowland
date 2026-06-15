@@ -98,6 +98,11 @@ def _build_user_filter(filters: DocumentSearchFilters) -> str:
     return " AND ".join(f"({p})" for p in parts)
 
 
+def _formatted_or(hit: dict[str, Any], field: str) -> str:
+    """Return the language-matched formatted value, falling back to the raw field."""
+    return hit.get("_formatted", {}).get(field) or hit.get(field) or ""
+
+
 def _map_result(hit: dict[str, Any]) -> DocumentSearchResult:
     """Map a single Meilisearch hit to a DocumentSearchResult."""
     pos_raw = hit.get("position") or {}
@@ -120,12 +125,12 @@ def _map_result(hit: dict[str, Any]) -> DocumentSearchResult:
     )
 
     # Prefer the language-matched snippet field; fall back to original content.
-    snippet = hit.get("_formatted", {}).get("content") or hit.get("content") or ""
+    snippet = _formatted_or(hit, "content")
 
     return DocumentSearchResult(
         document_id=hit["document_id"],
         chunk_id=hit["id"],
-        title=hit.get("_formatted", {}).get("title") or hit.get("title") or "",
+        title=_formatted_or(hit, "title"),
         heading=hit.get("heading"),
         section_path=hit.get("section_path") or [],
         snippet=snippet,

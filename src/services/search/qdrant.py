@@ -37,6 +37,10 @@ _OPTIONAL_PAYLOAD_FIELDS = (
 )
 
 
+def _group_condition(group_ids: list[str]) -> FieldCondition:
+    return FieldCondition(key="group_id", match=MatchAny(any=group_ids))
+
+
 def _point_to_search_result(
     point: Any,
     score: float | None = None,
@@ -181,7 +185,7 @@ class QdrantSearchClient:
 
         must_conditions: list[FieldCondition] = []
         if group_ids:
-            must_conditions.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
+            must_conditions.append(_group_condition(group_ids))
         elif not allow_all:
             # No group IDs and no admin bypass → return nothing safely.
             return []
@@ -263,7 +267,7 @@ class QdrantSearchClient:
             FieldCondition(key="document_id", match=MatchValue(value=document_id)),
         ]
         if group_ids:
-            must_conditions.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
+            must_conditions.append(_group_condition(group_ids))
         scroll_filter = Filter(must=must_conditions)
 
         # Pull all matching points from Qdrant via scroll pagination;
@@ -316,7 +320,7 @@ class QdrantSearchClient:
             FieldCondition(key="document_id", match=MatchValue(value=document_id)),
         ]
         if group_ids:
-            must_conditions.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
+            must_conditions.append(_group_condition(group_ids))
         count_filter = Filter(must=must_conditions)
 
         count_result = self._client.count(

@@ -63,6 +63,19 @@ _CFG_UPDATED_SINCE = "updated_since"
 _VALID_PROJECT_KEY_RE = re.compile(r"^[A-Za-z0-9_]{1,255}$")
 
 
+def _subtask_metadata(subtask: dict[str, Any]) -> dict[str, Any]:
+    """Extract key, summary and status from a Jira subtask object."""
+    sub_fields = subtask.get("fields")
+    sub_fields = sub_fields if isinstance(sub_fields, dict) else {}
+    status = sub_fields.get("status")
+    status = status if isinstance(status, dict) else {}
+    return {
+        "key": subtask.get("key"),
+        "summary": sub_fields.get("summary"),
+        "status": status.get("name"),
+    }
+
+
 class _ConfigHelperMixin:
     """Helper methods for reading typed config values from a connector's config dict."""
 
@@ -1334,24 +1347,7 @@ class JiraConnector(_AtlassianConnectorBase):
         # Subtasks
         subtasks = fields.get("subtasks")
         if isinstance(subtasks, list):
-            metadata["subtasks"] = [
-                {
-                    "key": s.get("key"),
-                    "summary": (
-                        s.get("fields", {}).get("summary")
-                        if isinstance(s.get("fields"), dict)
-                        else None
-                    ),
-                    "status": (
-                        s.get("fields", {}).get("status", {}).get("name")
-                        if isinstance(s.get("fields"), dict)
-                        and isinstance(s.get("fields", {}).get("status"), dict)
-                        else None
-                    ),
-                }
-                for s in subtasks
-                if isinstance(s, dict)
-            ]
+            metadata["subtasks"] = [_subtask_metadata(s) for s in subtasks if isinstance(s, dict)]
 
         # Issue links
         issuelinks = fields.get("issuelinks")

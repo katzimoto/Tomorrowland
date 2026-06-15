@@ -41,7 +41,6 @@ class RelatedRepository:
         ).mappings()
         for row in tag_rows:
             key = str(to_uuid(row["document_id"]))
-            result.setdefault(key, {"tags": set(), "entities": set()})
             result[key]["tags"].add(str(row["tag"]))
 
         entity_rows = self._connection.execute(
@@ -57,7 +56,6 @@ class RelatedRepository:
         ).mappings()
         for row in entity_rows:
             key = str(to_uuid(row["document_id"]))
-            result.setdefault(key, {"tags": set(), "entities": set()})
             result[key]["entities"].add(f"{row['type']}:{row['name']}")
         return result
 

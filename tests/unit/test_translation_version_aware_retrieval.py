@@ -1,7 +1,7 @@
 """Unit tests for translation-version-aware retrieval (#734).
 
 Covers:
-- _derive_matched_text_kind logic
+- derive_matched_text_kind logic
 - Citation and RetrievalCandidateTrace carry translation fields
 - TranslationVersionRepository.get_latest_available_version
 - Qdrant payload round-trips for translation fields
@@ -14,46 +14,46 @@ from uuid import uuid4
 
 from services.documents.repository import TranslationVersionRepository
 from services.rag.models import Citation
-from services.rag.service import _derive_matched_text_kind
+from services.rag.service import derive_matched_text_kind
 from services.rag.trace_models import RetrievalCandidateTrace
 
 # ---------------------------------------------------------------------------
-# _derive_matched_text_kind
+# derive_matched_text_kind
 # ---------------------------------------------------------------------------
 
 
 class TestDeriveMatchedTextKind:
-    """Tests for the _derive_matched_text_kind helper."""
+    """Tests for the derive_matched_text_kind helper."""
 
     def test_original_when_no_text_lane(self) -> None:
         """Chunk without text_lane is original."""
-        assert _derive_matched_text_kind({"document_id": "abc"}) == "original"
+        assert derive_matched_text_kind({"document_id": "abc"}) == "original"
 
     def test_original_when_text_lane_is_original(self) -> None:
         """Chunk with text_lane='original' is original."""
-        assert _derive_matched_text_kind({"text_lane": "original"}) == "original"
+        assert derive_matched_text_kind({"text_lane": "original"}) == "original"
 
     def test_high_translation_from_quality(self) -> None:
         """Chunk with text_lane and quality='high' returns high_translation."""
         assert (
-            _derive_matched_text_kind({"text_lane": "translated", "translation_quality": "high"})
+            derive_matched_text_kind({"text_lane": "translated", "translation_quality": "high"})
             == "high_translation"
         )
 
     def test_fast_translation_from_quality(self) -> None:
         """Chunk with text_lane and quality='fast' returns fast_translation."""
         assert (
-            _derive_matched_text_kind({"text_lane": "translated", "translation_quality": "fast"})
+            derive_matched_text_kind({"text_lane": "translated", "translation_quality": "fast"})
             == "fast_translation"
         )
 
     def test_fast_translation_fallback(self) -> None:
         """Chunk with text_lane but no quality metadata falls back to fast."""
-        assert _derive_matched_text_kind({"text_lane": "translated"}) == "fast_translation"
+        assert derive_matched_text_kind({"text_lane": "translated"}) == "fast_translation"
 
     def test_none_for_unexpected_text_lane(self) -> None:
         """No match returns original when text_lane is None."""
-        assert _derive_matched_text_kind({"text_lane": None}) == "original"
+        assert derive_matched_text_kind({"text_lane": None}) == "original"
 
 
 # ---------------------------------------------------------------------------

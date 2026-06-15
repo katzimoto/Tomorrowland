@@ -316,10 +316,7 @@ class ExtractorRegistry:
         # MsgExtractor in _ALIASES, so bypass get() and use XlsExtractor
         # directly (xlrd handles .xls OLE natively; fails fast on .doc/.ppt).
         if sniffed == "application/x-ole-storage":
-            retry_extractor: object | None = None
-            for ext in self._by_mime.get("application/vnd.ms-excel", []):
-                retry_extractor = ext
-                break
+            retry_extractor = next(iter(self._by_mime.get("application/vnd.ms-excel", [])), None)
         else:
             retry_extractor = self.get(sniffed)
 

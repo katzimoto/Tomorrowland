@@ -147,10 +147,8 @@ class ParseConsumer(BaseConsumer):
         if not content_text and doc.path:
             if self._router is not None:
                 routed = self._router.route(Path(doc.path), doc.mime_type, source_id)
-                content_text = routed.result.text
-                location_segments = [seg.to_dict() for seg in routed.result.location_segments]
+                result = routed.result
                 extraction_parser_name = routed.parser_name
-                _extraction_attachments = routed.result.attachments
                 if self._extraction_repo is not None:
                     self._extraction_repo.record(
                         document_id=document_id,
@@ -167,9 +165,9 @@ class ParseConsumer(BaseConsumer):
                 # as "generic" because we don't know which extractor
                 # produced the result.
                 result = self._extractor.extract(Path(doc.path), doc.mime_type)
-                content_text = result.text
-                location_segments = [seg.to_dict() for seg in result.location_segments]
-                _extraction_attachments = result.attachments
+            content_text = result.text
+            location_segments = [seg.to_dict() for seg in result.location_segments]
+            _extraction_attachments = result.attachments
             if location_segments:
                 self._job_repo.update_extraction_metadata(document_id, location_segments)
             # Record layout blocks when we have location segments + a repo.

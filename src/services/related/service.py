@@ -89,9 +89,9 @@ class RelatedService:
         candidates = [
             {
                 "document_id": result.document_id,
-                "title": metadata.get(result.document_id, {}).get("title"),
+                "title": metadata[result.document_id].get("title"),
                 "score": result.score,
-                "source": metadata.get(result.document_id, {}).get("source"),
+                "source": metadata[result.document_id].get("source"),
             }
             for result in related
             if result.document_id in metadata
