@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
@@ -1429,3 +1430,86 @@ def test_admin_config_write_multiple_keys_cache_coherence(
     with migrated_engine.begin() as conn:
         assert get_cached_config(conn, "cache.key.a") == "new-a"
         assert get_cached_config(conn, "cache.key.b") == "value-b"
+
+
+# ---------------------------------------------------------------------------
+# Admin source documents
+# ---------------------------------------------------------------------------
+
+
+def test_admin_get_source_documents_returns_summary_and_rows(
+    migrated_engine: Engine,
+) -> None:
+    """Exercises the admin source documents endpoint including the parser_summary
+    GROUP BY query that regressed under PG16 (https://github.com/user/tomorrowland/pull/789).
+    Uses ``LEFT JOIN LATERAL`` (PG-specific), skipped under SQLite.
+    """
+    engine_url = str(migrated_engine.url)
+    if engine_url.startswith("sqlite"):
+        pytest.skip("Requires PostgreSQL (uses LEFT JOIN LATERAL)")
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+    source_id = uuid4()
+    doc_id = uuid4()
+
+    with migrated_engine.begin() as conn:
+        conn.execute(
+            sa.text("""
+                INSERT INTO ingestion_sources (id, name, type, source_language)
+                VALUES (:id, 'Source Documents Test', 'folder', 'en')
+            """),
+            {"id": source_id.hex},
+        )
+        conn.execute(
+            sa.text("""
+                INSERT INTO documents
+                    (id, source_id, external_id, source, mime_type, title, status)
+                VALUES (:id, :sid, 'file:/data/test.txt', 'folder',
+                        'text/plain', 'Test Doc', 'indexed')
+            """),
+            {"id": doc_id.hex, "sid": source_id.hex},
+        )
+        conn.execute(
+            sa.text("""
+                INSERT INTO document_extractions
+                    (id, document_id, parser_name, parser_version,
+                     duration_ms, confidence, warnings, attempts, created_at)
+                VALUES (:id, :did, 'test_parser', '1.0', 100, 0.95,
+                        :warnings, :attempts, CURRENT_TIMESTAMP)
+            """),
+            {"id": uuid4().hex, "did": doc_id.hex, "warnings": "[]", "attempts": "[]"},
+        )
+        conn.execute(
+            sa.text("""
+                INSERT INTO pipeline_jobs
+                    (id, document_id, source_id, job_type, status,
+                     attempts, max_attempts, created_at, updated_at, stage)
+                VALUES (:id, :did, :sid, 'process_document', 'succeeded',
+                        1, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'done')
+            """),
+            {"id": uuid4().hex, "did": doc_id.hex, "sid": source_id.hex},
+        )
+        conn.execute(
+            sa.text("""
+                INSERT INTO document_payloads (document_id, content_text, created_at, updated_at)
+                VALUES (:did, 'hello world', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """),
+            {"did": doc_id.hex},
+        )
+
+    resp = client.get(
+        f"/admin/sources/{source_id}/documents",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200, resp.text[:500]
+    data = resp.json()
+    assert "documents" in data
+    assert "parser_summary" in data
+    assert data["parser_summary"]["total_documents"] == 1
+    assert data["parser_summary"]["total_extracted"] == 1
+    assert "test_parser" in data["parser_summary"]["documents_by_parser"]
+    assert len(data["documents"]) == 1
+    assert data["documents"][0]["title"] == "Test Doc"

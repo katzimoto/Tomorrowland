@@ -477,7 +477,7 @@ def admin_get_source_documents(
                         pj.status AS parse_status
                     FROM documents d
                     LEFT JOIN LATERAL (
-                        SELECT parser_name, warnings
+                        SELECT parser_name, warnings::text AS warnings
                         FROM document_extractions
                         WHERE document_id = d.id
                         ORDER BY created_at DESC LIMIT 1
