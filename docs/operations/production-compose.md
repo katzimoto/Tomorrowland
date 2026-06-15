@@ -531,7 +531,8 @@ configurable through `.env` variables; defaults use the `tomorrowland_` prefix:
 | `qdrant_data` | `tomorrowland_qdrant_data` | `TOMORROWLAND_QDRANT_VOLUME` |
 | `kafka_data` | `tomorrowland_kafka_data` | `TOMORROWLAND_KAFKA_VOLUME` |
 | `libretranslate_data` | `tomorrowland_libretranslate_data` | `TOMORROWLAND_LIBRETRANSLATE_VOLUME` |
-| `ollama_data` | `tomorrowland_ollama_data` | `TOMORROWLAND_OLLAMA_VOLUME` |
+| `ollama_llm_data` | `tomorrowland_ollama_llm_data` | `TOMORROWLAND_OLLAMA_LLM_VOLUME` |
+| `ollama_embed_data` | `tomorrowland_ollama_embed_data` | `TOMORROWLAND_OLLAMA_EMBED_VOLUME` |
 | `prometheus_data` | `tomorrowland_prometheus_data` | `TOMORROWLAND_PROMETHEUS_VOLUME` |
 | `grafana_data` | `tomorrowland_grafana_data` | `TOMORROWLAND_GRAFANA_VOLUME` |
 
