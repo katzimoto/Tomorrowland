@@ -571,6 +571,38 @@ class TranslationVersionRepository:
             },
         )
 
+    def get_latest_available_version(
+        self,
+        document_id: UUID,
+        target_language: str = "en",
+    ) -> dict[str, Any] | None:
+        """Return the latest available translation version for *document_id*.
+
+        Prefers high-quality versions over fast, newest first within a lane.
+        Returns ``None`` when no available version exists.
+        """
+        row = (
+            self._connection.execute(
+                sa.text("""
+                    SELECT * FROM document_translation_versions
+                    WHERE document_id = :document_id
+                      AND target_language = :target_language
+                      AND status = 'available'
+                    ORDER BY
+                        CASE quality WHEN 'high' THEN 0 ELSE 1 END,
+                        version_number DESC
+                    LIMIT 1
+                    """),
+                {
+                    "document_id": db_uuid(document_id),
+                    "target_language": target_language,
+                },
+            )
+            .mappings()
+            .first()
+        )
+        return dict(row) if row else None
+
     def _get_next_version_number(self, document_id: UUID) -> int:
         """Return the next version number for a document."""
         result = self._connection.execute(

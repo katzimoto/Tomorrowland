@@ -74,6 +74,18 @@ class RetrievalCandidateTrace(BaseModel):
     section_heading: str | None = None
     language: str | None = None
     text_lane: str | None = None
+    translated_from: str | None = None
+
+    # v4: translation-version-aware metadata (#734)
+    matched_text_kind: str | None = None
+    """``original``, ``fast_translation``, or ``high_translation``."""
+    translation_version_id: str | None = None
+    """UUID of the :class:`~services.documents.models.DocumentTranslationVersion`
+    that produced this chunk, when the chunk is translated."""
+    translation_quality: str | None = None
+    """``fast`` or ``high`` — the quality lane."""
+    translation_validation_status: str | None = None
+    """``ok``, ``warning``, or ``failed`` — from QE metadata (#733)."""
 
     # v2 attribution fields
     backends: list[BackendAttributionTrace] = Field(default_factory=list)
