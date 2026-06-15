@@ -413,6 +413,11 @@ def create_message(
                 "section_heading": c.section_heading,
                 "language": c.language,
                 "translated_from": c.translated_from,
+                "text_lane": c.text_lane,
+                "matched_text_kind": c.matched_text_kind,
+                "translation_version_id": c.translation_version_id,
+                "translation_quality": c.translation_quality,
+                "translation_validation_status": c.translation_validation_status,
             }
             for c in result.citations
         ]
