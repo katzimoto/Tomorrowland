@@ -41,8 +41,14 @@ def build_translation_metadata(
     validation_status: str = "unknown",
     fallback_used: bool = False,
     fallback_reason: str | None = None,
+    # Segment-aware validation fields (#728)
+    failed_segment_count: int = 0,
+    placeholder_mismatch_count: int = 0,
+    number_date_mismatch_count: int = 0,
+    length_ratio_outlier_count: int = 0,
+    warnings: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Build a metadata dict for a translation version (#727)."""
+    """Build a metadata dict for a translation version (#727, #728)."""
     meta: dict[str, Any] = {
         "provider": provider,
         "quality_lane": quality_lane,
@@ -61,6 +67,17 @@ def build_translation_metadata(
         meta["model_family"] = model_family
     if fallback_reason is not None:
         meta["fallback_reason"] = fallback_reason
+    # Segment-aware validation fields (#728)
+    if failed_segment_count > 0:
+        meta["failed_segment_count"] = failed_segment_count
+    if placeholder_mismatch_count > 0:
+        meta["placeholder_mismatch_count"] = placeholder_mismatch_count
+    if number_date_mismatch_count > 0:
+        meta["number_date_mismatch_count"] = number_date_mismatch_count
+    if length_ratio_outlier_count > 0:
+        meta["length_ratio_outlier_count"] = length_ratio_outlier_count
+    if warnings:
+        meta["warnings"] = warnings
     return meta
 
 
