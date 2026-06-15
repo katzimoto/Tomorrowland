@@ -100,14 +100,15 @@ def _parse_json_list(raw: object) -> list[str]:
     if raw is None:
         return []
     if isinstance(raw, list):
-        return [str(w) for w in raw]
-    try:
-        parsed = db_resolve_json(raw)
-        if isinstance(parsed, list):
-            return [str(w) for w in parsed]
-    except Exception:
-        pass
-    return [str(raw)]
+        parsed = raw
+    else:
+        try:
+            parsed = db_resolve_json(raw)
+        except Exception:
+            return [str(raw)]
+    if not isinstance(parsed, list):
+        return [str(raw)]
+    return [str(w) for w in parsed]
 
 
 def _approximate_chunk_count(char_count: int) -> int:
@@ -759,8 +760,6 @@ def admin_get_source_documents(
             fallback_chain: list[str] | None = None
             if fallback_chain_raw is not None:
                 fallback_chain = _parse_json_list(fallback_chain_raw) or None
-                if not fallback_chain:
-                    fallback_chain = None
 
             last_error: str | None = None
             if parse_job and parse_job.get("last_error"):

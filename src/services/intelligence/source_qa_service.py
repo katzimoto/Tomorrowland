@@ -29,6 +29,10 @@ def run_source_qa(
     """
     issues: list[str] = []
 
+    def _add_issue(count: int, message: str) -> None:
+        if count > 0:
+            issues.append(f"{count} {message}")
+
     # --- Document breakdown by status ---
     doc_counts = _document_status_breakdown(connection, source_id)
     total = doc_counts["total"]
@@ -38,37 +42,34 @@ def run_source_qa(
 
     # --- Empty / missing content (indexed but no payload text) ---
     empty_chunks = _count_empty_chunks(connection, source_id)
-    if empty_chunks > 0:
-        issues.append(f"{empty_chunks} indexed document(s) have empty or missing content text")
+    _add_issue(empty_chunks, "indexed document(s) have empty or missing content text")
 
     # --- Missing content_text in document_payloads ---
     no_content = _count_missing_content(connection, source_id)
-    if no_content > 0:
-        issues.append(f"{no_content} document(s) have no content payload")
+    _add_issue(no_content, "document(s) have no content payload")
 
     # --- Missing metadata (empty or NULL JSON blob) ---
     no_metadata = _count_missing_metadata(connection, source_id)
-    if no_metadata > 0:
-        issues.append(f"{no_metadata} document(s) have missing or empty metadata")
+    _add_issue(no_metadata, "document(s) have missing or empty metadata")
 
     # --- Missing title ---
     no_title = _count_missing_title(connection, source_id)
-    if no_title > 0:
-        issues.append(f"{no_title} document(s) have no title")
+    _add_issue(no_title, "document(s) have no title")
 
     # --- OCR eligibility ---
     ocr_eligible = _count_ocr_eligible(connection, source_id)
     ocr_maybe_needed = _count_ocr_maybe_needed(connection, source_id)
-    if ocr_maybe_needed > 0:
-        issues.append(f"{ocr_maybe_needed} PDF(s) with empty text may need OCR")
+    _add_issue(ocr_maybe_needed, "PDF(s) with empty text may need OCR")
 
     # --- Index lag (pending documents older than threshold) ---
     lag_count = _count_index_lag(connection, source_id, index_lag_threshold_minutes)
-    if lag_count > 0:
-        issues.append(
-            f"{lag_count} document(s) have been pending for over "
-            f"{index_lag_threshold_minutes} minutes (possible index lag)"
-        )
+    _add_issue(
+        lag_count,
+        (
+            f"document(s) have been pending for over {index_lag_threshold_minutes}"
+            " minutes (possible index lag)"
+        ),
+    )
 
     check = SourceQACheck(
         source_id=source_id,

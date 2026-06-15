@@ -224,21 +224,19 @@ def audit_access(
     """
     require_admin(user)
 
-    simulated_user_id = payload.get("user_id")
-    if simulated_user_id is not None and not isinstance(simulated_user_id, str):
-        raise HTTPException(status_code=422, detail="user_id must be a string or null")
+    def _require_optional(payload: dict[str, object], key: str, expected: type) -> Any | None:
+        value = payload.get(key)
+        if value is not None and not isinstance(value, expected):
+            raise HTTPException(
+                status_code=422,
+                detail=f"{key} must be a {expected.__name__} or null",
+            )
+        return value
 
-    simulated_group_ids = payload.get("group_ids")
-    if simulated_group_ids is not None and not isinstance(simulated_group_ids, list):
-        raise HTTPException(status_code=422, detail="group_ids must be a list or null")
-
-    source_id = payload.get("source_id")
-    if source_id is not None and not isinstance(source_id, str):
-        raise HTTPException(status_code=422, detail="source_id must be a string or null")
-
-    document_id = payload.get("document_id")
-    if document_id is not None and not isinstance(document_id, str):
-        raise HTTPException(status_code=422, detail="document_id must be a string or null")
+    simulated_user_id = _require_optional(payload, "user_id", str)
+    simulated_group_ids = _require_optional(payload, "group_ids", list)
+    source_id = _require_optional(payload, "source_id", str)
+    document_id = _require_optional(payload, "document_id", str)
 
     if not source_id and not document_id:
         raise HTTPException(

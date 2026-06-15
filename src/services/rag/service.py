@@ -92,6 +92,18 @@ def _chunk_dict_key(chunk: dict[str, Any]) -> str:
     return str(cid) if cid else chunk["document_id"]
 
 
+def _add_backend_attribution(
+    attrs: dict[str, list[dict[str, Any]]],
+    results: list[SearchResult],
+    backend: str,
+) -> None:
+    """Append ranked backend attribution entries for each result."""
+    for rank, result in enumerate(results, 1):
+        attrs.setdefault(_chunk_key(result), []).append(
+            {"backend": backend, "score": result.score, "rank": rank}
+        )
+
+
 def _citation_key(c: dict[str, Any]) -> tuple[str, ...]:
     """Stable deduplication key for a citation chunk dict.
 
@@ -855,29 +867,13 @@ class RagService:
 
         # ── Build per-backend attribution map before merging ────────
         backend_attrs: dict[str, list[dict[str, Any]]] = {}
-        for rank, r in enumerate(vector_results, 1):
-            key = _chunk_key(r)
-            backend_attrs.setdefault(key, []).append(
-                {"backend": "vector", "score": r.score, "rank": rank}
-            )
+        _add_backend_attribution(backend_attrs, vector_results, "vector")
         if self._meili is not None:
-            for rank, r in enumerate(bm25_results, 1):
-                key = _chunk_key(r)
-                backend_attrs.setdefault(key, []).append(
-                    {"backend": "bm25", "score": r.score, "rank": rank}
-                )
+            _add_backend_attribution(backend_attrs, bm25_results, "bm25")
             if self._enable_metadata_search:
-                for rank, r in enumerate(meta_results, 1):
-                    key = _chunk_key(r)
-                    backend_attrs.setdefault(key, []).append(
-                        {"backend": "metadata", "score": r.score, "rank": rank}
-                    )
+                _add_backend_attribution(backend_attrs, meta_results, "metadata")
             if self._enable_translated_text:
-                for rank, r in enumerate(trans_results, 1):
-                    key = _chunk_key(r)
-                    backend_attrs.setdefault(key, []).append(
-                        {"backend": "translated", "score": r.score, "rank": rank}
-                    )
+                _add_backend_attribution(backend_attrs, trans_results, "translated")
 
         # ── Sequential merge: BM25 + vector → metadata → translated ──
         if self._meili is not None:
@@ -1099,11 +1095,7 @@ class RagService:
             return chunks, 0
 
         fine_backend_attrs: dict[str, list[dict[str, Any]]] = {}
-        for rank, r in enumerate(fine_results, 1):
-            key = _chunk_key(r)
-            fine_backend_attrs.setdefault(key, []).append(
-                {"backend": "vector", "score": r.score, "rank": rank}
-            )
+        _add_backend_attribution(fine_backend_attrs, fine_results, "vector")
 
         if self._meili is not None:
             fine_merged = merge_results(

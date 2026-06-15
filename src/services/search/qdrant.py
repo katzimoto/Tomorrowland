@@ -37,6 +37,10 @@ _OPTIONAL_PAYLOAD_FIELDS = (
 )
 
 
+def _group_condition(group_ids: list[str]) -> FieldCondition:
+    return FieldCondition(key="group_id", match=MatchAny(any=group_ids))
+
+
 def _point_to_search_result(
     point: Any,
     score: float | None = None,
@@ -134,9 +138,7 @@ class QdrantSearchClient:
                 "chunk_index": chunk["chunk_index"],
                 "text": chunk["text"],
             }
-            payload.update(
-                {k: chunk[k] for k in _OPTIONAL_PAYLOAD_FIELDS if k in chunk}
-            )
+            payload.update({k: chunk[k] for k in _OPTIONAL_PAYLOAD_FIELDS if k in chunk})
             # Qdrant point IDs must be valid UUIDs or unsigned integers.
             # chunk_id is a human-readable string (e.g. "<uuid>-orig-0") that
             # is not itself a valid UUID, so derive a stable UUID5 from it.
@@ -183,7 +185,7 @@ class QdrantSearchClient:
 
         must_conditions: list[FieldCondition] = []
         if group_ids:
-            must_conditions.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
+            must_conditions.append(_group_condition(group_ids))
         elif not allow_all:
             # No group IDs and no admin bypass → return nothing safely.
             return []
@@ -204,8 +206,7 @@ class QdrantSearchClient:
         )
 
         search_results: list[SearchResult] = [
-            _point_to_search_result(point)
-            for point in response.points
+            _point_to_search_result(point) for point in response.points
         ]
 
         return search_results
@@ -234,10 +235,7 @@ class QdrantSearchClient:
             with_payload=True,
         )
 
-        return [
-            _point_to_search_result(point)
-            for point in response.points
-        ]
+        return [_point_to_search_result(point) for point in response.points]
 
     def list_chunks_by_document(
         self,
@@ -269,7 +267,7 @@ class QdrantSearchClient:
             FieldCondition(key="document_id", match=MatchValue(value=document_id)),
         ]
         if group_ids:
-            must_conditions.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
+            must_conditions.append(_group_condition(group_ids))
         scroll_filter = Filter(must=must_conditions)
 
         # Pull all matching points from Qdrant via scroll pagination;
@@ -291,8 +289,7 @@ class QdrantSearchClient:
                 break
 
         results: list[SearchResult] = [
-            _point_to_search_result(point, score=0.0)
-            for point in points
+            _point_to_search_result(point, score=0.0) for point in points
         ]
 
         results.sort(
@@ -323,7 +320,7 @@ class QdrantSearchClient:
             FieldCondition(key="document_id", match=MatchValue(value=document_id)),
         ]
         if group_ids:
-            must_conditions.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
+            must_conditions.append(_group_condition(group_ids))
         count_filter = Filter(must=must_conditions)
 
         count_result = self._client.count(

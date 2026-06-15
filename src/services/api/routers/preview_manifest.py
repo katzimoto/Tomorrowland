@@ -85,16 +85,21 @@ def _kind_for_renderer(renderer: str) -> str:
 
 def _row_to_response(row: PreviewArtifactRow, *, is_admin: bool) -> PreviewManifestResponse:
     manifest = dict(row.manifest or {})
-    manifest.setdefault("document_id", str(row.document_id))
-    manifest.setdefault("cache_key", f"sha256:{row.content_sha256}" if row.content_sha256 else None)
-    manifest.setdefault("kind", _kind_for_renderer(row.renderer))
-    manifest.setdefault("renderer", row.renderer)
-    manifest.setdefault("navigation", {"unit": "none", "count": 0, "items": []})
-    manifest.setdefault("artifacts", [])
-    manifest.setdefault(
-        "evidence",
-        {"supports_text_search": True, "anchor_unit": "body", "regions_available": False},
-    )
+    defaults: dict[str, object] = {
+        "document_id": str(row.document_id),
+        "cache_key": f"sha256:{row.content_sha256}" if row.content_sha256 else None,
+        "kind": _kind_for_renderer(row.renderer),
+        "renderer": row.renderer,
+        "navigation": {"unit": "none", "count": 0, "items": []},
+        "artifacts": [],
+        "evidence": {
+            "supports_text_search": True,
+            "anchor_unit": "body",
+            "regions_available": False,
+        },
+    }
+    for key, value in defaults.items():
+        manifest.setdefault(key, value)
     manifest["status"] = row.status
     if row.status == "failed" and row.error_category:
         manifest["error"] = {
