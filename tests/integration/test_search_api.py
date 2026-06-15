@@ -157,6 +157,7 @@ def test_search_returns_matching_documents(
                 auth_provider="local",
                 jwt_secret=TEST_JWT_SECRET,
                 app_env="dev",
+                search_reranker_enabled=False,
             ),
             qdrant_client=mock_qdrant,
             meili_provider=_meili(migrated_engine),
