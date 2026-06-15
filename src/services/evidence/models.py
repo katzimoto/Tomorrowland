@@ -54,6 +54,12 @@ class EvidencePackItemCreateRequest(BaseModel):
     section_heading: str | None = Field(default=None, max_length=1000)
     translated_text: str | None = Field(default=None, max_length=10000)
     claim: str | None = Field(default=None, max_length=5000)
+    text_lane: str | None = None
+    translated_from: str | None = None
+    matched_text_kind: str | None = None
+    translation_version_id: str | None = None
+    translation_quality: str | None = None
+    translation_validation_status: str | None = None
 
 
 class EvidencePackItemFromCitationRequest(BaseModel):
@@ -73,6 +79,12 @@ class EvidencePackItemFromCitationRequest(BaseModel):
     section_heading: str | None = Field(default=None, max_length=1000)
     translated_text: str | None = Field(default=None, max_length=10000)
     claim: str | None = Field(default=None, max_length=5000)
+    text_lane: str | None = None
+    translated_from: str | None = None
+    matched_text_kind: str | None = None
+    translation_version_id: str | None = None
+    translation_quality: str | None = None
+    translation_validation_status: str | None = None
 
     def to_item_request(self) -> EvidencePackItemCreateRequest:
         """Convert the citation payload into a generic item-create request."""
@@ -86,6 +98,12 @@ class EvidencePackItemFromCitationRequest(BaseModel):
             section_heading=self.section_heading,
             translated_text=self.translated_text,
             claim=self.claim,
+            text_lane=self.text_lane,
+            translated_from=self.translated_from,
+            matched_text_kind=self.matched_text_kind,
+            translation_version_id=self.translation_version_id,
+            translation_quality=self.translation_quality,
+            translation_validation_status=self.translation_validation_status,
         )
 
 
@@ -117,4 +135,10 @@ class EvidencePackItem(BaseModel):
     section_heading: str | None = None
     translated_text: str | None = None
     claim: str | None = None
+    text_lane: str | None = None
+    translated_from: str | None = None
+    matched_text_kind: str | None = None
+    translation_version_id: str | None = None
+    translation_quality: str | None = None
+    translation_validation_status: str | None = None
     created_at: datetime

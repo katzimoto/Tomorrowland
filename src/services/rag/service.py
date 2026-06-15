@@ -56,7 +56,7 @@ def _error_category(exc: Exception) -> str:
     return "unexpected_error"
 
 
-def _derive_matched_text_kind(chunk: dict[str, Any]) -> str:
+def derive_matched_text_kind(chunk: dict[str, Any]) -> str:
     """Derive ``matched_text_kind`` from chunk metadata (#734).
 
     Returns:
@@ -359,7 +359,7 @@ class RagService:
                     section_heading=c.get("section_heading"),
                     language=c.get("language") or c.get("source_language"),
                     translated_from=c.get("translated_from"),
-                    matched_text_kind=_derive_matched_text_kind(c),
+                    matched_text_kind=derive_matched_text_kind(c),
                     translation_version_id=c.get("translation_version_id"),
                     translation_quality=c.get("translation_quality"),
                     translation_validation_status=c.get("translation_validation_status"),
@@ -381,7 +381,7 @@ class RagService:
                     language=c.get("language") or c.get("source_language"),
                     text_lane=c.get("text_lane"),
                     translated_from=c.get("translated_from"),
-                    matched_text_kind=_derive_matched_text_kind(c),
+                    matched_text_kind=derive_matched_text_kind(c),
                     translation_version_id=c.get("translation_version_id"),
                     translation_quality=c.get("translation_quality"),
                     translation_validation_status=c.get("translation_validation_status"),
@@ -558,7 +558,7 @@ class RagService:
                     "section_heading": c.get("section_heading"),
                     "language": c.get("language") or c.get("source_language"),
                     "translated_from": c.get("translated_from"),
-                    "matched_text_kind": _derive_matched_text_kind(c),
+                    "matched_text_kind": derive_matched_text_kind(c),
                     "translation_version_id": c.get("translation_version_id"),
                     "translation_quality": c.get("translation_quality"),
                     "translation_validation_status": c.get("translation_validation_status"),
@@ -580,7 +580,7 @@ class RagService:
                     language=c.get("language") or c.get("source_language"),
                     text_lane=c.get("text_lane"),
                     translated_from=c.get("translated_from"),
-                    matched_text_kind=_derive_matched_text_kind(c),
+                    matched_text_kind=derive_matched_text_kind(c),
                     translation_version_id=c.get("translation_version_id"),
                     translation_quality=c.get("translation_quality"),
                     translation_validation_status=c.get("translation_validation_status"),

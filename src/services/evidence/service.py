@@ -119,6 +119,12 @@ class EvidencePackService:
             section_heading=req.section_heading,
             translated_text=req.translated_text,
             claim=req.claim,
+            text_lane=req.text_lane,
+            translated_from=req.translated_from,
+            matched_text_kind=req.matched_text_kind,
+            translation_version_id=req.translation_version_id,
+            translation_quality=req.translation_quality,
+            translation_validation_status=req.translation_validation_status,
         )
         self._repo.touch_pack(pack_id)
         return item
