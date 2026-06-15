@@ -1,1 +1,0 @@
-"""Translation eval fixtures package."""
