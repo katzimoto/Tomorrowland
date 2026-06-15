@@ -68,6 +68,7 @@ def main() -> None:
     from services.search.factory import build_encoder
     from services.search.meili_provider import MeilisearchSearchProvider
     from services.search.qdrant import QdrantSearchClient
+    from services.translation.ctranslate2_provider import CTranslate2OpusProvider
     from services.translation.libretranslate_provider import LibreTranslateArgosProvider
     from shared.config import Settings
     from shared.rabbit import RabbitClient
@@ -94,6 +95,26 @@ def main() -> None:
         utility_model=settings.effective_utility_model,
     )
 
+    # Construct high-quality translation provider when a bundle is configured (#731)
+    high_provider = None
+    if settings.translation_high_provider_bundle_path:
+        try:
+            high_provider = CTranslate2OpusProvider(
+                bundle_path=settings.translation_high_provider_bundle_path,
+                baseline=translator,
+            )
+            logger.info(
+                "High-quality translation provider loaded: pairs=%d",
+                len(high_provider.capabilities.get("language_pairs", [])),
+            )
+        except Exception:
+            logger.warning(
+                "Failed to load high-quality translation provider from %s; "
+                "falling back to LibreTranslate/Argos baseline",
+                settings.translation_high_provider_bundle_path,
+                exc_info=True,
+            )
+
     worker = SlowWorker(
         document_repository=doc_repo,
         translator=translator,
@@ -102,6 +123,7 @@ def main() -> None:
         version_repository=version_repo,
         meili_provider=meili,
         intelligence_worker=intelligence_worker,
+        high_provider=high_provider,
     )
     consumer = EnrichConsumer(rabbit, job_repo, worker)
     consumer.run()

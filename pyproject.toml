@@ -61,6 +61,13 @@ ocr = [
 docling = [
   "docling>=2.0",
 ]
+# pip install tomorrowland[ctranslate2] — OPUS-MT high-quality translation provider (#731)
+# Requires the ctranslate2 Python package and a translation model bundle.
+# Not required for the default LibreTranslate/Argos translation baseline.
+ctranslate2 = [
+  "ctranslate2>=4.5",
+  "sentencepiece>=0.2",
+]
 
 [project.scripts]
 tomorrowland-parse-worker = "services.pipeline.parse_worker:main"
@@ -122,6 +129,14 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["docling", "docling.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["ctranslate2", "ctranslate2.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["sentencepiece", "sentencepiece.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

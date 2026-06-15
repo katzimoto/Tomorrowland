@@ -104,9 +104,11 @@ class SlowWorker:
         intelligence_worker: IntelligenceWorker | None = None,
         alert_matcher: AlertMatcher | None = None,
         layout_repository: LayoutBlockRepository | None = None,
+        high_provider: TranslationProvider | None = None,
     ) -> None:
         self._doc_repo = document_repository
         self._translator = translator
+        self._high_provider = high_provider
         self._encoder = encoder
         self._qdrant = qdrant_client
         self._meili = meili_provider
@@ -114,6 +116,23 @@ class SlowWorker:
         self._version_repo = version_repository
         self._alert_matcher = alert_matcher
         self._layout_repo = layout_repository
+
+    def _resolve_translator(self, source_lang: str | None, target_lang: str) -> TranslationProvider:
+        """Return the best available translator for a language pair.
+
+        When *high_provider* is configured and declares support for the
+        pair (via capabilities), use it; otherwise fall back to the
+        baseline :attr:`_translator`.
+        """
+        if self._high_provider is not None and source_lang is not None:
+            caps = self._high_provider.capabilities
+            high_pairs = caps.get("language_pairs", [])
+            if any(
+                p.get("source") == source_lang and p.get("target") == target_lang
+                for p in high_pairs
+            ):
+                return self._high_provider
+        return self._translator
 
     def process_document(self, document_id: UUID, content_text: str = "") -> None:
         """Run the enrichment pipeline for a single document.
@@ -198,9 +217,11 @@ class SlowWorker:
                         doc.id,
                     )
 
+            # Resolve translator (high provider or baseline) and route accordingly
+            _active = self._resolve_translator(source_lang, target_lang)
             translated, validation = run_segment_pipeline(
                 text,
-                translate_fn=self._translator.translate,
+                translate_fn=_active.translate,
                 source_lang=source_lang,
                 target_lang=target_lang,
                 layout_blocks=layout_blocks,
@@ -230,7 +251,7 @@ class SlowWorker:
                     reason,
                 )
                 _meta = _build_enrich_metadata(
-                    translator=self._translator,
+                    translator=_active,
                     source_language=source_lang,
                     target_language=target_lang,
                     input_text=text,
@@ -261,7 +282,7 @@ class SlowWorker:
 
             # 4. Store translated text on version with metadata (#727, #728)
             _meta = _build_enrich_metadata(
-                translator=self._translator,
+                translator=_active,
                 source_language=source_lang,
                 target_language=target_lang,
                 input_text=text,
@@ -340,9 +361,10 @@ class SlowWorker:
                     doc.id,
                 )
 
+        _active = self._resolve_translator(source_lang, target_lang)
         translated, _validation = run_segment_pipeline(
             text,
-            translate_fn=self._translator.translate,
+            translate_fn=_active.translate,
             source_lang=source_lang,
             target_lang=target_lang,
             layout_blocks=layout_blocks,
@@ -669,6 +691,7 @@ if __name__ == "__main__":
     from services.intelligence.factory import build_llm_provider
     from services.intelligence.repository import IntelligenceRepository
     from services.search.factory import build_encoder
+    from services.translation.ctranslate2_provider import CTranslate2OpusProvider
     from shared.config import Settings
 
     settings = Settings()
@@ -688,6 +711,25 @@ if __name__ == "__main__":
             utility_model=settings.effective_utility_model,
         )
 
+        # Construct high-quality translation provider when a bundle is configured (#731)
+        high_provider = None
+        if settings.translation_high_provider_bundle_path:
+            try:
+                high_provider = CTranslate2OpusProvider(
+                    bundle_path=settings.translation_high_provider_bundle_path,
+                    baseline=translator,
+                )
+                logger.info(
+                    "High-quality translation provider loaded: pairs=%d",
+                    len(high_provider.capabilities.get("language_pairs", [])),
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to load high-quality translation provider from %s",
+                    settings.translation_high_provider_bundle_path,
+                    exc_info=True,
+                )
+
         worker = SlowWorker(
             document_repository=doc_repo,
             translator=translator,
@@ -696,6 +738,7 @@ if __name__ == "__main__":
             version_repository=version_repo,
             intelligence_worker=intelligence_worker,
             layout_repository=layout_repo,
+            high_provider=high_provider,
         )
 
         run_enrich_loop(
