@@ -528,7 +528,7 @@ class SlowWorker:
                 all_chunk_meta.append(
                     {
                         "lang": doc.target_language,
-                        "suffix": "trans",
+                        "suffix": "tr",
                         "idx": idx,
                         "is_translated": True,
                     }

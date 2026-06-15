@@ -63,7 +63,6 @@ def derive_matched_text_kind(chunk: dict[str, Any]) -> str:
         ``"original"`` when the chunk came from the source document.
         ``"fast_translation"`` when the chunk is a fast-lane translation.
         ``"high_translation"`` when the chunk is a high-quality translation.
-        ``None`` when the kind cannot be determined.
     """
     text_lane = chunk.get("text_lane")
     # No text_lane metadata (None or empty) or explicit original: chunk came
