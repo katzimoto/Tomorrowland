@@ -31,6 +31,8 @@ class SearchResultItem(BaseModel):
     tags: list[str] = Field(default_factory=list)
     translation_quality: str | None = None
     translation_score: float = 0.0
+    translation_version_id: str | None = None
+    matched_text_kind: str | None = None
     score: float
     updated_at: str
     indexed_at: str

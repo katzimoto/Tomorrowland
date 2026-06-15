@@ -56,6 +56,30 @@ def _error_category(exc: Exception) -> str:
     return "unexpected_error"
 
 
+def _derive_matched_text_kind(chunk: dict[str, Any]) -> str:
+    """Derive ``matched_text_kind`` from chunk metadata (#734).
+
+    Returns:
+        ``"original"`` when the chunk came from the source document.
+        ``"fast_translation"`` when the chunk is a fast-lane translation.
+        ``"high_translation"`` when the chunk is a high-quality translation.
+        ``None`` when the kind cannot be determined.
+    """
+    text_lane = chunk.get("text_lane")
+    # No text_lane metadata (None or empty) or explicit original: chunk came
+    # from the source document.
+    if not text_lane or text_lane == "original":
+        return "original"
+    # When text_lane is set (e.g. "translated"), look at quality
+    quality = chunk.get("translation_quality")
+    if quality == "high":
+        return "high_translation"
+    if quality == "fast":
+        return "fast_translation"
+    # Fallback: text_lane indicates translated but quality is unknown
+    return "fast_translation"
+
+
 def _chunk_key(result: SearchResult) -> str:
     """Stable deduplication key for a SearchResult (mirrors merge_results logic)."""
     chunk_id = (result.metadata or {}).get("chunk_id")
@@ -335,6 +359,10 @@ class RagService:
                     section_heading=c.get("section_heading"),
                     language=c.get("language") or c.get("source_language"),
                     translated_from=c.get("translated_from"),
+                    matched_text_kind=_derive_matched_text_kind(c),
+                    translation_version_id=c.get("translation_version_id"),
+                    translation_quality=c.get("translation_quality"),
+                    translation_validation_status=c.get("translation_validation_status"),
                 )
             )
 
@@ -352,6 +380,11 @@ class RagService:
                     section_heading=c.get("section_heading"),
                     language=c.get("language") or c.get("source_language"),
                     text_lane=c.get("text_lane"),
+                    translated_from=c.get("translated_from"),
+                    matched_text_kind=_derive_matched_text_kind(c),
+                    translation_version_id=c.get("translation_version_id"),
+                    translation_quality=c.get("translation_quality"),
+                    translation_validation_status=c.get("translation_validation_status"),
                     backends=[BackendAttributionTrace(**b) for b in c.get("_backends", [])],
                     fused_rank=c.get("_fused_rank"),
                     fused_score=c.get("_fused_score"),
@@ -525,6 +558,10 @@ class RagService:
                     "section_heading": c.get("section_heading"),
                     "language": c.get("language") or c.get("source_language"),
                     "translated_from": c.get("translated_from"),
+                    "matched_text_kind": _derive_matched_text_kind(c),
+                    "translation_version_id": c.get("translation_version_id"),
+                    "translation_quality": c.get("translation_quality"),
+                    "translation_validation_status": c.get("translation_validation_status"),
                 }
             )
 
@@ -542,6 +579,11 @@ class RagService:
                     section_heading=c.get("section_heading"),
                     language=c.get("language") or c.get("source_language"),
                     text_lane=c.get("text_lane"),
+                    translated_from=c.get("translated_from"),
+                    matched_text_kind=_derive_matched_text_kind(c),
+                    translation_version_id=c.get("translation_version_id"),
+                    translation_quality=c.get("translation_quality"),
+                    translation_validation_status=c.get("translation_validation_status"),
                     backends=[BackendAttributionTrace(**b) for b in c.get("_backends", [])],
                     fused_rank=c.get("_fused_rank"),
                     fused_score=c.get("_fused_score"),
@@ -1005,6 +1047,11 @@ class RagService:
                     "source_language": (r.metadata or {}).get("source_language"),
                     "text_lane": (r.metadata or {}).get("text_lane"),
                     "translated_from": (r.metadata or {}).get("translated_from"),
+                    "translation_version_id": (r.metadata or {}).get("translation_version_id"),
+                    "translation_quality": (r.metadata or {}).get("translation_quality"),
+                    "translation_validation_status": (r.metadata or {}).get(
+                        "translation_validation_status"
+                    ),
                     "page_number": (r.metadata or {}).get("page_number"),
                     "section_heading": (r.metadata or {}).get("section_heading"),
                     "_backends": backend_attrs.get(key, []),
@@ -1117,6 +1164,11 @@ class RagService:
                     "source_language": (r.metadata or {}).get("source_language"),
                     "text_lane": (r.metadata or {}).get("text_lane"),
                     "translated_from": (r.metadata or {}).get("translated_from"),
+                    "translation_version_id": (r.metadata or {}).get("translation_version_id"),
+                    "translation_quality": (r.metadata or {}).get("translation_quality"),
+                    "translation_validation_status": (r.metadata or {}).get(
+                        "translation_validation_status"
+                    ),
                     "page_number": (r.metadata or {}).get("page_number"),
                     "section_heading": (r.metadata or {}).get("section_heading"),
                     "_backends": fine_backend_attrs.get(key) or backend_attrs.get(key, []),

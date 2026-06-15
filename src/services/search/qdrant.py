@@ -25,6 +25,9 @@ _OPTIONAL_PAYLOAD_FIELDS = (
     "language",
     "text_lane",
     "translated_from",
+    "translation_version_id",
+    "translation_quality",
+    "translation_validation_status",
     "content_en",
     "content_he",
     "chunk_index",
@@ -131,7 +134,9 @@ class QdrantSearchClient:
                 "chunk_index": chunk["chunk_index"],
                 "text": chunk["text"],
             }
-            payload.update({k: chunk[k] for k in _OPTIONAL_PAYLOAD_FIELDS if k in chunk})
+            payload.update(
+                {k: chunk[k] for k in _OPTIONAL_PAYLOAD_FIELDS if k in chunk}
+            )
             # Qdrant point IDs must be valid UUIDs or unsigned integers.
             # chunk_id is a human-readable string (e.g. "<uuid>-orig-0") that
             # is not itself a valid UUID, so derive a stable UUID5 from it.
@@ -199,7 +204,8 @@ class QdrantSearchClient:
         )
 
         search_results: list[SearchResult] = [
-            _point_to_search_result(point) for point in response.points
+            _point_to_search_result(point)
+            for point in response.points
         ]
 
         return search_results
@@ -228,7 +234,10 @@ class QdrantSearchClient:
             with_payload=True,
         )
 
-        return [_point_to_search_result(point) for point in response.points]
+        return [
+            _point_to_search_result(point)
+            for point in response.points
+        ]
 
     def list_chunks_by_document(
         self,
@@ -282,7 +291,8 @@ class QdrantSearchClient:
                 break
 
         results: list[SearchResult] = [
-            _point_to_search_result(point, score=0.0) for point in points
+            _point_to_search_result(point, score=0.0)
+            for point in points
         ]
 
         results.sort(

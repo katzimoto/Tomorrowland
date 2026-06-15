@@ -26,6 +26,16 @@ class Citation(BaseModel):
     language: str | None = None
     translated_from: str | None = None
 
+    # v4: translation-version-aware metadata (#734)
+    matched_text_kind: str | None = None
+    """``original``, ``fast_translation``, or ``high_translation``."""
+    translation_version_id: str | None = None
+    """UUID of the translation version that produced this citation."""
+    translation_quality: str | None = None
+    """``fast`` or ``high``."""
+    translation_validation_status: str | None = None
+    """``ok``, ``warning``, or ``failed`` — from QE scoring (#733)."""
+
 
 class QuestionRequest(BaseModel):
     """Request body for RAG Q&A."""

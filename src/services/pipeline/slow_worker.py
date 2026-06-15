@@ -284,6 +284,7 @@ class SlowWorker:
                 return
 
             # 4. Store translated text on version with metadata (#727, #728)
+            _version_id_str = str(version_id)
             _meta = _build_enrich_metadata(
                 translator=_active,
                 source_language=source_lang,
@@ -301,6 +302,9 @@ class SlowWorker:
             )
 
             # 4a. Run offline quality estimation when configured (#733).
+            #     When QE results are available, store them in the metadata
+            #     and surface validation_status for translation-version-aware
+            #     retrieval (#734).
             #     Runs after metadata is assembled so QE results can be
             #     merged in.  Failures never affect translation availability.
             if self._qe_scorer is not None and self._qe_scorer.enabled:
@@ -330,8 +334,19 @@ class SlowWorker:
                 provider=_meta.get("provider"),
             )
 
-            # 5. Chunk and index (reuse legacy indexing)
-            self._index_document(doc, translated, original=text)
+            # 5. Chunk and index (reuse legacy indexing).
+            #    Pass translation version metadata so indexed chunks carry
+            #    version awareness for downstream retrieval (#734).
+            _vs_raw = _meta.get("validation_status")
+            _vs = str(_vs_raw) if _vs_raw in ("ok", "warning", "failed") else "ok"
+            self._index_document(
+                doc,
+                translated,
+                original=text,
+                translation_version_id=_version_id_str,
+                translation_quality=str(version.get("quality", "fast")),
+                translation_validation_status=_vs,
+            )
 
             # 6. Update document summary quality
             self._doc_repo.update_translation_quality(doc.id, "high")
@@ -403,8 +418,22 @@ class SlowWorker:
         #    index_worker.py/worker.py after successful vector/keyword insert.
         self._doc_repo.update_translation_quality(doc.id, "high")
 
-    def _index_document(self, doc: Any, translated: str, original: str = "") -> None:
-        """Chunk, embed, and index a document (both original and translated)."""
+    def _index_document(
+        self,
+        doc: Any,
+        translated: str,
+        original: str = "",
+        *,
+        translation_version_id: str = "",
+        translation_quality: str = "fast",
+        translation_validation_status: str = "ok",
+    ) -> None:
+        """Chunk, embed, and index a document (both original and translated).
+
+        When *translation_version_id* is provided, each translated chunk
+        carries the version identity so downstream retrieval can surface
+        which translation version produced the match (#734).
+        """
         document_id = doc.id
         allowed_group_ids = [
             str(group_id) for group_id in self._doc_repo.source_group_ids(doc.source_id)
@@ -485,11 +514,25 @@ class SlowWorker:
 
             for idx, chunk_text_content in enumerate(original_chunks):
                 all_chunk_texts.append(chunk_text_content)
-                all_chunk_meta.append({"lang": doc.source_language, "suffix": "orig", "idx": idx})
+                all_chunk_meta.append(
+                    {
+                        "lang": doc.source_language,
+                        "suffix": "orig",
+                        "idx": idx,
+                        "is_translated": False,
+                    }
+                )
 
             for idx, chunk_text_content in enumerate(translated_chunks):
                 all_chunk_texts.append(chunk_text_content)
-                all_chunk_meta.append({"lang": doc.target_language, "suffix": "trans", "idx": idx})
+                all_chunk_meta.append(
+                    {
+                        "lang": doc.target_language,
+                        "suffix": "trans",
+                        "idx": idx,
+                        "is_translated": True,
+                    }
+                )
 
             # Batch-encode all chunks in a single call
             vectors = self._encoder.encode_batch(all_chunk_texts)
@@ -508,6 +551,16 @@ class SlowWorker:
                     entry["title"] = doc.title
                 if meta["lang"]:
                     entry["language"] = meta["lang"]
+                if meta["is_translated"]:
+                    entry["text_lane"] = "translated"
+                    if doc.source_language:
+                        entry["translated_from"] = doc.source_language
+                    if translation_version_id:
+                        entry["translation_version_id"] = translation_version_id
+                        entry["translation_quality"] = translation_quality
+                        entry["translation_validation_status"] = translation_validation_status
+                else:
+                    entry["text_lane"] = "original"
                 qdrant_chunks.append(entry)
 
             if qdrant_chunks:
