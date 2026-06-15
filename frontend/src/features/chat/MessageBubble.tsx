@@ -12,7 +12,7 @@ interface MessageBubbleProps {
 }
 
 function renderMarkdown(content: string): string {
-  const html = marked.parse(content, { async: false }) as string;
+  const html = marked.parse(content) as string;
   return DOMPurify.sanitize(html, { FORBID_TAGS: ["script", "style"] });
 }
 

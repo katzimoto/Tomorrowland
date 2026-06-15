@@ -6,6 +6,7 @@ import os
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+import pytest
 import sqlalchemy as sa
 from sqlalchemy import Engine
 
@@ -409,7 +410,7 @@ def test_citations_json_round_trip(migrated_engine: Engine) -> None:
     assert len(retrieved) == 1
     assert retrieved[0].citations == citations
     assert retrieved[0].citations[0]["citation_id"] == "abc-123"
-    assert retrieved[0].citations[0]["score"] == 0.92
+    assert retrieved[0].citations[0]["score"] == pytest.approx(0.92)
     # Round-trip via create_message return value
     assert msg.citations == citations
 

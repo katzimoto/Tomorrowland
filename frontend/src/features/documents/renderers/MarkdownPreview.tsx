@@ -73,7 +73,7 @@ export function MarkdownPreview({
   // full re-render; the active mark is promoted via DOM class manipulation.
   const sanitizedHtml = useMemo(() => {
     if (!text) return "";
-    const raw = marked.parse(text, { async: false }) as string;
+    const raw = marked.parse(text) as string;
     const sanitized = DOMPurify.sanitize(raw, SANITIZE_CONFIG);
     if (!searchQuery) return sanitized;
     return highlightInHtml(sanitized, searchQuery).html;

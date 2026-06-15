@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import threading
-import time
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import sqlalchemy as sa
 from sqlalchemy import Engine
@@ -84,10 +83,12 @@ class TestConfigCache:
 
 class TestConfigCacheTTL:
     def test_entry_expires_after_ttl(self) -> None:
-        cache = ConfigCache(ttl_seconds=0.01)
-        cache.set("key", "value")
-        time.sleep(0.02)
-        assert cache.get("key") is None
+        now = 1000.0
+        with patch("time.monotonic", side_effect=lambda: now):
+            cache = ConfigCache(ttl_seconds=0.01)
+            cache.set("key", "value")
+            now = 1000.02
+            assert cache.get("key") is None
 
     def test_entry_still_valid_before_ttl(self) -> None:
         cache = ConfigCache(ttl_seconds=60.0)
@@ -95,12 +96,15 @@ class TestConfigCacheTTL:
         assert cache.get("key") == "value"
 
     def test_get_removes_expired_entry(self) -> None:
-        cache = ConfigCache(ttl_seconds=0.01)
-        cache.set("key", "value")
-        time.sleep(0.02)
-        cache.get("key")  # triggers expiry + deletion
-        # Second get should still be None (entry was deleted)
-        assert cache.get("key") is None
+        now = 2000.0
+        with patch("time.monotonic", side_effect=lambda: now):
+            cache = ConfigCache(ttl_seconds=0.01)
+            cache.set("key", "value")
+            now = 2000.02
+            cache.get("key")  # triggers expiry + deletion
+            now = 2000.03
+            # Second get should still be None (entry was deleted)
+            assert cache.get("key") is None
 
 
 # ---------------------------------------------------------------------------

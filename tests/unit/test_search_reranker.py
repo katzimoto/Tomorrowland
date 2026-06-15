@@ -14,6 +14,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
+import pytest
 
 from services.search.factory import build_reranker
 from services.search.models import SearchResult
@@ -96,7 +97,7 @@ def test_noop_reranker_preserves_result_structure() -> None:
     ]
     result = reranker.rerank("question", results)
     assert result[0].document_id == "doc-1"
-    assert result[0].score == 0.8
+    assert result[0].score == pytest.approx(0.8)
     assert result[0].title == "Doc 1"
     assert result[0].chunk_text == "text"
     assert result[0].metadata == {"chunk_id": "chunk-1"}
@@ -133,9 +134,9 @@ def test_endpoint_reranker_orders_by_score() -> None:
 
     assert [r.document_id for r in result] == ["d2", "d3", "d1"]
     # Scores are replaced with reranker scores
-    assert result[0].score == 0.9
-    assert result[1].score == 0.5
-    assert result[2].score == 0.2
+    assert result[0].score == pytest.approx(0.9)
+    assert result[1].score == pytest.approx(0.5)
+    assert result[2].score == pytest.approx(0.2)
 
 
 def test_endpoint_reranker_filters_below_min_score() -> None:
@@ -279,7 +280,7 @@ def test_endpoint_reranker_preserves_fields_in_result() -> None:
 
     assert len(result) == 1
     assert result[0].document_id == "doc-1"
-    assert result[0].score == 0.95
+    assert result[0].score == pytest.approx(0.95)
     assert result[0].title == "Document Title"
     assert result[0].chunk_text == "The full text"
     assert result[0].metadata == {"source": "upload"}
@@ -414,7 +415,7 @@ def test_llm_reranker_parse_score_from_full_response() -> None:
     assert len(result) == 3
     # Scores: 0.7, 0.4, 0.3 → ordered: d1 (0.7), d2 (0.4), d3 (0.3)
     assert result[0].document_id == "d1"
-    assert result[0].score == 0.7
+    assert result[0].score == pytest.approx(0.7)
 
 
 def test_llm_reranker_handles_llm_error() -> None:
@@ -480,9 +481,9 @@ def test_llm_reranker_score_clamped_to_range() -> None:
     result = reranker.rerank("question", results)
     # "15" → 1.5 → clamped to 1.0
     assert result[0].document_id == "d1"
-    assert result[0].score == 1.0
+    assert result[0].score == pytest.approx(1.0)
     # "-2" → regex matches "2" → 0.2 (already in [0,1])
-    assert result[1].score == 0.2
+    assert result[1].score == pytest.approx(0.2)
 
 
 def test_llm_reranker_unparseable_response_defaults_to_zero() -> None:
@@ -514,7 +515,7 @@ def test_llm_reranker_preserves_fields() -> None:
     result = reranker.rerank("question", results)
     assert len(result) == 1
     assert result[0].document_id == "doc-1"
-    assert result[0].score == 0.7
+    assert result[0].score == pytest.approx(0.7)
     assert result[0].title == "Document Title"
     assert result[0].chunk_text == "Full text"
     assert result[0].metadata == {"source": "upload"}

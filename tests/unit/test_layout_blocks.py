@@ -260,7 +260,7 @@ class TestLayoutBlockRepository:
             last_para = blocks[-1]
 
         assert isinstance(heading.confidence, float)
-        assert heading.confidence == 0.95
+        assert heading.confidence == pytest.approx(0.95)
         assert last_para.confidence is None
 
 

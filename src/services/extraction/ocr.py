@@ -35,8 +35,8 @@ class OcrExtractor:
             return ExtractionResult(text="")
 
         try:
-            image = Image.open(path)
-            result: str = pytesseract.image_to_string(image)
+            with Image.open(path) as image:
+                result: str = pytesseract.image_to_string(image)
             return ExtractionResult(text=result.strip())
         except Exception:
             logger.debug("OCR failed for path=%s", path, exc_info=True)

@@ -72,6 +72,7 @@ export function PdfViewer({ docId, src, searchQuery = "", activeSearchIndex = 0,
     // Start a fresh timer for every new PDF document.
     pdfLoadTimer.current = `pdf-load-${Date.now()}`;
     startNamedPerformanceTimer(pdfLoadTimer.current);
+    let cancelled = false;
     startTransition(() => {
       setLoading(true);
       setError(false);
@@ -81,16 +82,19 @@ export function PdfViewer({ docId, src, searchQuery = "", activeSearchIndex = 0,
     const task = pdfjsLib.getDocument(downloadUrl);
     task.promise.then(
       (doc) => {
+        if (cancelled) return;
         setPdfDoc(doc);
         setNumPages(doc.numPages);
         setLoading(false);
       },
       () => {
+        if (cancelled) return;
         setError(true);
         setLoading(false);
       },
     );
     return () => {
+      cancelled = true;
       task.destroy();
     };
   }, [downloadUrl]);

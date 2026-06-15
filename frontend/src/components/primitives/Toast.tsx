@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle, AlertCircle, AlertTriangle, Info, X } from "lucide-react";
 import { IconButton } from "./IconButton";
 import { ToastContext, type ToastKind } from "./ToastContext";
@@ -14,15 +14,25 @@ let _nextId = 0;
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const timersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((t) => clearTimeout(t));
+      timersRef.current.clear();
+    };
+  }, []);
 
   const dismiss = useCallback((id: number) => {
+    timersRef.current.delete(id);
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   const show = useCallback((kind: ToastKind, message: string) => {
     const id = ++_nextId;
     setToasts((prev) => [...prev, { id, kind, message }]);
-    setTimeout(() => dismiss(id), 4000);
+    const timer = setTimeout(() => dismiss(id), 4000);
+    timersRef.current.set(id, timer);
   }, [dismiss]);
 
   return (

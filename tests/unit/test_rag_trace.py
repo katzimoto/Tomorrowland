@@ -128,7 +128,7 @@ def test_retrieval_candidate_trace_serialises() -> None:
     )
     d = t.model_dump()
     assert d["document_id"] == "doc-1"
-    assert d["score"] == 0.85
+    assert d["score"] == pytest.approx(0.85)
     assert d["chunk_index"] == 0
     assert d["page_number"] == 3
     assert d["section_heading"] == "Results"
@@ -141,7 +141,7 @@ def test_retrieval_stage_trace_serialises() -> None:
     d = t.model_dump()
     assert d["stage"] == "vector"
     assert d["candidate_count"] == 5
-    assert d["timing_ms"] == 12.3
+    assert d["timing_ms"] == pytest.approx(12.3)
 
 
 def test_retrieval_trace_serialises() -> None:
@@ -161,7 +161,7 @@ def test_retrieval_trace_serialises() -> None:
     assert len(d["stages"]) == 2
     assert len(d["candidates"]) == 1
     assert d["reranker_enabled"] is True
-    assert d["total_latency_ms"] == 100.0
+    assert d["total_latency_ms"] == pytest.approx(100.0)
 
 
 def test_retrieval_trace_defaults() -> None:
@@ -170,7 +170,7 @@ def test_retrieval_trace_defaults() -> None:
     assert t.stages == []
     assert t.candidates == []
     assert t.reranker_enabled is False
-    assert t.total_latency_ms == 0.0
+    assert t.total_latency_ms == pytest.approx(0.0)
 
 
 # ---------------------------------------------------------------------------

@@ -56,17 +56,14 @@ class TestRedisClientConnect:
         import builtins
 
         original_import = builtins.__import__
-        try:
 
-            def _block_redis(name, *args, **kwargs):
-                if name == "redis":
-                    raise ImportError("no redis-py")
-                return original_import(name, *args, **kwargs)
+        def _block_redis(name, *args, **kwargs):
+            if name == "redis":
+                raise ImportError("no redis-py")
+            return original_import(name, *args, **kwargs)
 
-            builtins.__import__ = _block_redis
+        with patch("builtins.__import__", side_effect=_block_redis):
             client.connect()
-        finally:
-            builtins.__import__ = original_import
         assert client.connected is False
 
     def test_connected_property_reflects_state(self) -> None:

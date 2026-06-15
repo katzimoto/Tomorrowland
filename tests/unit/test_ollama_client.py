@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -14,19 +14,14 @@ def test_generate_success() -> None:
     mock_response.json.return_value = {"response": "Generated text"}
     mock_response.raise_for_status = MagicMock()
 
-    original_post = httpx.post
-    httpx.post = MagicMock(return_value=mock_response)
-
-    try:
+    with patch("httpx.post", return_value=mock_response) as mock_post:
         result = client.generate("Test prompt")
         assert result == "Generated text"
-        httpx.post.assert_called_once()
-        call_args = httpx.post.call_args
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
         assert call_args[1]["json"]["model"] == "mistral"
         assert call_args[1]["json"]["prompt"] == "Test prompt"
         assert call_args[1]["json"]["stream"] is False
-    finally:
-        httpx.post = original_post
 
 
 def test_generate_with_custom_model() -> None:
@@ -35,15 +30,10 @@ def test_generate_with_custom_model() -> None:
     mock_response.json.return_value = {"response": "Custom model output"}
     mock_response.raise_for_status = MagicMock()
 
-    original_post = httpx.post
-    httpx.post = MagicMock(return_value=mock_response)
-
-    try:
+    with patch("httpx.post", return_value=mock_response) as mock_post:
         result = client.generate("Test prompt", model="llama3")
         assert result == "Custom model output"
-        assert httpx.post.call_args[1]["json"]["model"] == "llama3"
-    finally:
-        httpx.post = original_post
+        assert mock_post.call_args[1]["json"]["model"] == "llama3"
 
 
 def test_generate_http_error() -> None:
@@ -55,14 +45,8 @@ def test_generate_http_error() -> None:
         response=MagicMock(status_code=503),
     )
 
-    original_post = httpx.post
-    httpx.post = MagicMock(return_value=mock_response)
-
-    try:
-        with pytest.raises(httpx.HTTPStatusError):
-            client.generate("Test prompt")
-    finally:
-        httpx.post = original_post
+    with patch("httpx.post", return_value=mock_response), pytest.raises(httpx.HTTPStatusError):
+        client.generate("Test prompt")
 
 
 def test_parse_json_array_valid() -> None:

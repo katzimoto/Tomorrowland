@@ -505,9 +505,9 @@ def update_source_health(
             params["fail_at"] = now
 
         if status == "failed":
-            updates.append("failure_count = failure_count + 1")
+            updates.append("failure_count = COALESCE(failure_count, 0) + 1")
         elif status == "completed_with_warnings":
-            updates.append("warning_count = warning_count + 1")
+            updates.append("warning_count = COALESCE(warning_count, 0) + 1")
 
     if error_summary is not None:
         updates.append("last_sync_error = :last_sync_error")

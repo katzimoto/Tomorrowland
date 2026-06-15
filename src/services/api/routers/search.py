@@ -527,7 +527,11 @@ def _matches_filters(doc: DocumentRow, filters: DocumentSearchFilters) -> bool:
             if doc_dt < cutoff:
                 return False
         except (ValueError, TypeError):
-            pass
+            logger.warning(
+                "Invalid created_after date filter: %r",
+                filters.created_after,
+            )
+            return True
     if filters.created_before:
         try:
             cutoff = datetime.fromisoformat(filters.created_before)
@@ -537,7 +541,11 @@ def _matches_filters(doc: DocumentRow, filters: DocumentSearchFilters) -> bool:
             if doc_dt > cutoff:
                 return False
         except (ValueError, TypeError):
-            pass
+            logger.warning(
+                "Invalid created_before date filter: %r",
+                filters.created_before,
+            )
+            return True
     return True
 
 
