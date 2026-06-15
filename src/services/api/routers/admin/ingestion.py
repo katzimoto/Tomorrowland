@@ -121,7 +121,6 @@ def _publish_pending_rabbit_messages(
         rabbit.publish_with_id("document.parse.requested", body, message_ids[p["job_id"]])
 
 
-@router.post("/admin/ingestion/{source_id}/sync-now")
 def _process_document_item(
     item: Any,
     source_id: UUID,
@@ -249,6 +248,7 @@ def _handle_tombstones(
     )
 
 
+@router.post("/admin/ingestion/{source_id}/sync-now")
 def sync_now(
     source_id: UUID,
     request: Request,
