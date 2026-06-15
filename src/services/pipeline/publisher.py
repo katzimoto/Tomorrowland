@@ -87,12 +87,21 @@ class DocumentPublisher:
         attempt: int = 1,
         content_text: str | None = None,
         translated_text: str | None = None,
+        translation_version_id: str | None = None,
+        translation_quality: str | None = None,
+        translation_validation_status: str | None = None,
     ) -> None:
         extra: dict[str, str] = {}
         if content_text:
             extra["content_text"] = content_text
         if translated_text:
             extra["translated_text"] = translated_text
+        if translation_version_id:
+            extra["translation_version_id"] = translation_version_id
+        if translation_quality:
+            extra["translation_quality"] = translation_quality
+        if translation_validation_status:
+            extra["translation_validation_status"] = translation_validation_status
         self._publish(
             "embed",
             job_id=job_id,

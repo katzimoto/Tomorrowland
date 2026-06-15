@@ -169,6 +169,8 @@ class TranslateConsumer(BaseConsumer):
         did_translate = translated != content_text
         quality = "fast" if did_translate else None
 
+        _version_id_str: str | None = None
+        _vs_str: str | None = None
         if self._version_repo and did_translate:
             # Build translation metadata for fast-lane ingestion (#727, #728)
             _meta = _build_fast_metadata(
@@ -186,25 +188,30 @@ class TranslateConsumer(BaseConsumer):
                 pipeline_validation_status=validation_status,
                 warnings=validation_warnings if validation_warnings else None,
             )
+            _vs_raw = _meta.get("validation_status")
+            _vs_str = str(_vs_raw) if _vs_raw in ("ok", "warning", "failed") else "ok"
             existing = self._version_repo.find_pending_or_running(document_id, target_lang)
             if existing is not None:
+                _version_id_str = str(existing["id"])
                 self._version_repo.update_version_status(
-                    UUID(str(existing["id"])),
+                    UUID(_version_id_str),
                     "available",
                     translated_text=translated,
                     metadata=_meta,
                     provider=_meta.get("provider"),
                 )
             else:
-                self._version_repo.create_version(
-                    document_id=document_id,
-                    label="Ingestion",
-                    quality="fast",
-                    request_type="ingestion",
-                    target_language=target_lang,
-                    translated_text=translated,
-                    metadata=_meta,
-                    provider=_meta.get("provider"),
+                _version_id_str = str(
+                    self._version_repo.create_version(
+                        document_id=document_id,
+                        label="Ingestion",
+                        quality="fast",
+                        request_type="ingestion",
+                        target_language=target_lang,
+                        translated_text=translated,
+                        metadata=_meta,
+                        provider=_meta.get("provider"),
+                    )["id"]
                 )
 
         # Defer document indexing status to the IndexConsumer — do not call
@@ -232,6 +239,9 @@ class TranslateConsumer(BaseConsumer):
             attempt=attempt,
             content_text=content_text,
             translated_text=translated,
+            translation_version_id=_version_id_str,
+            translation_quality=quality,
+            translation_validation_status=_vs_str,
         )
 
 

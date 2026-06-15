@@ -49,6 +49,9 @@ class EmbedConsumer(BaseConsumer):
         correlation_id: str,
         content_text: str = "",
         translated_text: str = "",
+        translation_version_id: str = "",
+        translation_quality: str = "",
+        translation_validation_status: str = "",
     ) -> None:
         doc = self._doc_repo.get_by_id(document_id)
         if doc is None:
@@ -134,6 +137,10 @@ class EmbedConsumer(BaseConsumer):
             entry["text_lane"] = meta["text_lane"]
             if meta.get("source_lang"):
                 entry["translated_from"] = meta["source_lang"]
+            if translation_version_id and meta["text_lane"] == "translated":
+                entry["translation_version_id"] = translation_version_id
+                entry["translation_quality"] = translation_quality
+                entry["translation_validation_status"] = translation_validation_status
             if meta.get("page_number") is not None:
                 entry["page_number"] = meta["page_number"]
             if meta.get("section_heading") is not None:
