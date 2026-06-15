@@ -121,6 +121,133 @@ def _publish_pending_rabbit_messages(
         rabbit.publish_with_id("document.parse.requested", body, message_ids[p["job_id"]])
 
 
+def _process_document_item(
+    item: Any,
+    source_id: UUID,
+    source_row: dict[str, Any],
+    doc_repo: DocumentRepository,
+    job_repo: PipelineJobRepository,
+    connection: sa.Connection,
+    connector_type: str,
+    source_language: str | None,
+    request: Request,
+    results: dict[str, int],
+    pending_rabbit: list[dict[str, Any]],
+    seen_external_ids: set[str],
+) -> None:
+    results["discovered"] += 1
+    seen_external_ids.add(item.external_id)
+    request.app.state.metrics.ingestion_documents_total.labels(
+        safe_label_value(connector_type), "discovered"
+    ).inc()
+    try:
+        stored_path = item.path
+        moved = move_to_originals(item.path, item.mime_type, request.app.state.settings.files_root)
+        if moved is not None:
+            stored_path = moved
+
+        doc = doc_repo.create(
+            source_id=source_id,
+            external_id=item.external_id,
+            source=cast("DocumentSource", source_row["type"]),
+            mime_type=item.mime_type,
+            path=stored_path,
+            title=item.title,
+            source_language=item.source_language or source_language,
+            sha256=item.sha256,
+            metadata=item.metadata,
+        )
+        if doc is None:
+            results["skipped"] += 1
+            request.app.state.metrics.ingestion_documents_total.labels(
+                safe_label_value(connector_type), "skipped"
+            ).inc()
+            return
+
+        effective_lang = item.source_language or source_language
+        if effective_lang is None:
+            logger.warning(
+                "document ingested without source_language: source_id=%s "
+                "external_id=%s mime_type=%s — translation will use LibreTranslate "
+                "auto-detect which may fail. Set source_language on the "
+                "ingestion source.",
+                source_id,
+                item.external_id,
+                item.mime_type,
+            )
+
+        results["created"] += 1
+        try:
+            job_id = job_repo.enqueue_document(
+                document_id=doc.id,
+                source_id=source_id,
+                content_text=item.text_content,
+            )
+            results["enqueued"] += 1
+            pending_rabbit.append(
+                {
+                    "job_id": job_id,
+                    "document_id": doc.id,
+                    "source_id": source_id,
+                    "content_text": item.text_content,
+                }
+            )
+            request.app.state.metrics.ingestion_documents_total.labels(
+                safe_label_value(connector_type), "success"
+            ).inc()
+        except Exception:
+            results["failed_enqueue"] += 1
+            request.app.state.metrics.ingestion_documents_total.labels(
+                safe_label_value(connector_type), "failure"
+            ).inc()
+            connection.execute(
+                sa.text(
+                    "INSERT INTO dlq (id, document_id, error_message, status) "
+                    "VALUES (:id, :document_id, :error_message, 'pending')"
+                ),
+                {
+                    "id": db_uuid(uuid4()),
+                    "document_id": db_uuid(doc.id),
+                    "error_message": "Failed to enqueue document for processing",
+                },
+            )
+    except Exception:
+        results["failed_discovery"] += 1
+        request.app.state.metrics.ingestion_documents_total.labels(
+            safe_label_value(connector_type), "failure"
+        ).inc()
+
+
+def _classify_sync_outcome(results: dict[str, int]) -> tuple[str, str]:
+    if results["discovered"] > 0 and results["failed_discovery"] == results["discovered"]:
+        return "failed", "failed"
+    elif results["failed_enqueue"] > 0 or results["failed_discovery"] > 0:
+        return "completed_with_warnings", "completed_with_warnings"
+    return "success", "completed"
+
+
+def _handle_tombstones(
+    sync_mode: str,
+    connection: sa.Connection,
+    source_id: UUID,
+    seen_external_ids: set[str],
+    request: Request,
+) -> None:
+    if sync_mode != "full_resync":
+        return
+    _cleanup = build_index_cleanup(
+        qdrant_client=getattr(request.app.state, "qdrant_client", None),
+        meili_provider=getattr(request.app.state, "meili_provider", None),
+    )
+    tombstone_missing_documents(
+        connection,
+        source_id,
+        seen_external_ids,
+        reason="not_found_in_sync",
+        index_cleanup=_cleanup,
+    )
+
+
 @router.post("/admin/ingestion/{source_id}/sync-now")
 def sync_now(
     source_id: UUID,
@@ -152,14 +279,8 @@ def sync_now(
 
             connector_type = str(source_row["type"])
 
-            # Create a sync run record
             sync_repo = SyncRunRepository(connection)
 
-            # Guard against concurrent syncs by locking the source row.
-            # SELECT ... FOR UPDATE serializes access so two sync-now calls
-            # or a sync-now + scheduler tick cannot create duplicate sync runs.
-            # SQLite has no row locks (and rejects the FOR UPDATE syntax); it
-            # serializes writes at the db level, so omit the clause there.
             lock_clause = " FOR UPDATE" if connection.dialect.name == "postgresql" else ""
             locked = connection.execute(
                 sa.text(f"SELECT id FROM ingestion_sources WHERE id = :id{lock_clause}"),
@@ -221,128 +342,29 @@ def sync_now(
                 raise _SyncNowError(502, detail) from exc
 
             for item in documents:
-                results["discovered"] += 1
-                seen_external_ids.add(item.external_id)
-                request.app.state.metrics.ingestion_documents_total.labels(
-                    safe_label_value(connector_type), "discovered"
-                ).inc()
-
-                try:
-                    stored_path = item.path
-                    moved = move_to_originals(
-                        item.path, item.mime_type, request.app.state.settings.files_root
-                    )
-                    if moved is not None:
-                        stored_path = moved
-
-                    doc = doc_repo.create(
-                        source_id=source_id,
-                        external_id=item.external_id,
-                        source=cast("DocumentSource", source_row["type"]),
-                        mime_type=item.mime_type,
-                        path=stored_path,
-                        title=item.title,
-                        source_language=item.source_language or source_language,
-                        sha256=item.sha256,
-                        metadata=item.metadata,
-                    )
-                    if doc is None:
-                        results["skipped"] += 1
-                        request.app.state.metrics.ingestion_documents_total.labels(
-                            safe_label_value(connector_type), "skipped"
-                        ).inc()
-                        continue
-
-                    effective_lang = item.source_language or source_language
-                    if effective_lang is None:
-                        logger.warning(
-                            "document ingested without source_language: source_id=%s "
-                            "external_id=%s mime_type=%s — translation will use LibreTranslate "
-                            "auto-detect which may fail. Set source_language on the "
-                            "ingestion source.",
-                            source_id,
-                            item.external_id,
-                            item.mime_type,
-                        )
-
-                    results["created"] += 1
-                    try:
-                        job_id = job_repo.enqueue_document(
-                            document_id=doc.id,
-                            source_id=source_id,
-                            content_text=item.text_content,
-                        )
-                        results["enqueued"] += 1
-
-                        pending_rabbit.append(
-                            {
-                                "job_id": job_id,
-                                "document_id": doc.id,
-                                "source_id": source_id,
-                                "content_text": item.text_content,
-                            }
-                        )
-
-                        request.app.state.metrics.ingestion_documents_total.labels(
-                            safe_label_value(connector_type), "success"
-                        ).inc()
-                    except Exception:
-                        results["failed_enqueue"] += 1
-                        request.app.state.metrics.ingestion_documents_total.labels(
-                            safe_label_value(connector_type), "failure"
-                        ).inc()
-                        connection.execute(
-                            sa.text(
-                                "INSERT INTO dlq (id, document_id, error_message, status) "
-                                "VALUES (:id, :document_id, :error_message, 'pending')"
-                            ),
-                            {
-                                "id": db_uuid(uuid4()),
-                                "document_id": db_uuid(doc.id),
-                                "error_message": "Failed to enqueue document for processing",
-                            },
-                        )
-                except Exception:
-                    results["failed_discovery"] += 1
-                    request.app.state.metrics.ingestion_documents_total.labels(
-                        safe_label_value(connector_type), "failure"
-                    ).inc()
-
-            # --- Tombstone detection (full_resync only) ---
-            # IMPORTANT: index_cleanup deletes from Qdrant/Meili which
-            # are external, non-transactional services.  If the DB commit
-            # fails after the index entries are already deleted the app
-            # enters an orphaned state.  Because this is the last
-            # operation before the ``with connection.begin()`` block exits
-            # (and auto-commits), the window is extremely narrow.
-            if sync_mode == "full_resync":
-                _cleanup = build_index_cleanup(
-                    qdrant_client=getattr(request.app.state, "qdrant_client", None),
-                    meili_provider=getattr(request.app.state, "meili_provider", None),
-                )
-                tombstone_missing_documents(
-                    connection,
+                _process_document_item(
+                    item,
                     source_id,
+                    source_row,
+                    doc_repo,
+                    job_repo,
+                    connection,
+                    connector_type,
+                    source_language,
+                    request,
+                    results,
+                    pending_rabbit,
                     seen_external_ids,
-                    reason="not_found_in_sync",
-                    index_cleanup=_cleanup,
                 )
 
-            if results["discovered"] > 0 and results["failed_discovery"] == results["discovered"]:
-                sync_outcome = "failed"
-                sync_run_status: str = "failed"
-            elif results["failed_enqueue"] > 0 or results["failed_discovery"] > 0:
-                sync_outcome = "completed_with_warnings"
-                sync_run_status = "completed_with_warnings"
-            else:
-                sync_outcome = "success"
-                sync_run_status = "completed"
+            _handle_tombstones(sync_mode, connection, source_id, seen_external_ids, request)
+
+            sync_outcome, sync_run_status = _classify_sync_outcome(results)
 
             request.app.state.metrics.ingestion_syncs_total.labels(
                 safe_label_value(connector_type), sync_outcome
             ).inc()
 
-            # Record final counts before completing — complete() sets the terminal status
             sync_repo.update(
                 sync_run_id,
                 SyncRunUpdate(
@@ -364,12 +386,8 @@ def sync_now(
                 sync_run_id=sync_run_id,
             )
     except _SyncNowError as failure:
-        # The ingestion transaction has rolled back; record the failure in a
-        # fresh, independently-committed transaction so source health and the
-        # sync-run history reflect it.
         _record_sync_failure(request, source_id, connector_type, failure.detail)
         raise HTTPException(status_code=failure.status_code, detail=failure.detail) from failure
-    # Publish to RabbitMQ after transaction commits so consumers see the documents
     _publish_pending_rabbit_messages(request, pending_rabbit)
 
     return {"status": sync_outcome, "sync_run_id": str(sync_run_id), **results}

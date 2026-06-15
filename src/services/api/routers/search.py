@@ -4,6 +4,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
@@ -29,65 +30,97 @@ _MeiliSort = Literal["relevance", "updatedAt:desc", "createdAt:desc", "importedA
 
 logger = logging.getLogger(__name__)
 
+
+@dataclass
+class _SearchDispatch:
+    merged: list[SearchResult] = field(default_factory=list)
+    bm25_results: list[SearchResult] = field(default_factory=list)
+    vector_results: list[SearchResult] = field(default_factory=list)
+    meili_facets: dict[str, dict[str, int]] = field(default_factory=dict)
+    meili_total: int = 0
+    retrieval_degraded: bool = False
+    meili_filters: DocumentSearchFilters = field(default_factory=DocumentSearchFilters)
+
+
 router = APIRouter(tags=["search"])
 
 
-@router.post("/search", response_model=SearchResponse)
-def search(
+def _run_meilisearch(
+    meili_provider: Any,
+    query: str,
+    top_k: int,
+    filters: DocumentSearchFilters,
+    sort: _MeiliSort,
+    user: TokenPayload,
+    http_request: Request,
+) -> tuple[list[SearchResult], dict[str, dict[str, int]], bool, int]:
+    backend_start = time.perf_counter()
+    try:
+        meili_results = meili_provider.search(
+            query=DocumentSearchQuery(
+                q=query,
+                limit=top_k,
+                filters=filters,
+                sort=sort,
+            ),
+            user=user,
+        )
+        http_request.app.state.metrics.search_backend_duration_seconds.labels(
+            "meilisearch", "search"
+        ).observe(time.perf_counter() - backend_start)
+        return meili_results.results, meili_results.facets, False, meili_results.total
+    except Exception:
+        logger.warning(
+            "Meilisearch search degraded route=/search stage=bm25_search correlation_id=%s",
+            get_correlation_id(),
+        )
+        return [], {}, True, 0
+
+
+def _run_qdrant(
+    query_vector: list[float],
+    qdrant_client: QdrantSearchClient,
+    group_ids: list[str],
+    is_admin: bool,
+    qdrant_extra: list[Any] | None,
+    http_request: Request,
+) -> tuple[list[SearchResult], bool]:
+    backend_start = time.perf_counter()
+    try:
+        results = qdrant_client.search(
+            vector=query_vector,
+            group_ids=group_ids,
+            limit=50,
+            allow_all=is_admin,
+            extra_conditions=qdrant_extra or None,
+        )
+        http_request.app.state.metrics.search_backend_duration_seconds.labels(
+            "qdrant", "search"
+        ).observe(time.perf_counter() - backend_start)
+        return results, False
+    except Exception as exc:
+        logger.warning(
+            "Vector search degraded route=/search stage=vector_search "
+            "error_type=%s correlation_id=%s",
+            exc.__class__.__name__,
+            get_correlation_id(),
+        )
+        http_request.app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
+        return [], True
+
+
+def _dispatch_and_merge(
     request: SearchRequest,
     http_request: Request,
-    user: Annotated[TokenPayload, Depends(current_user)],
-) -> SearchResponse:
-    metrics_start = time.perf_counter()
-    group_ids = [str(g) for g in user.groups]
-    is_admin = user.is_admin or http_request.app.state.admins_group_id in group_ids
-    if not group_ids and not is_admin:
-        http_request.app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
-        http_request.app.state.metrics.search_results_count.labels("hybrid").observe(0)
-        http_request.app.state.metrics.search_duration_seconds.labels("hybrid").observe(
-            time.perf_counter() - metrics_start
-        )
-        return SearchResponse(results=[], total=0)
-
-    # Single DB transaction for admin verification + auth groups + search weights.
-    with http_request.app.state.engine.begin() as connection:
-        # Re-verify admin status against the DB to prevent stale-JWT bypass —
-        # reuses the transaction connection instead of opening a new one.
-        if is_admin and not _verify_admin_membership(connection, group_ids):
-            is_admin = False
-
-        if is_admin:
-            search_group_ids: list[str] = []
-        else:
-            _auth_repo = AuthRepository(connection)
-            _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
-            search_group_ids = [str(g) for g in _effective]
-
-        # Cache search weights via config_cache to avoid repeated system_config reads.
-        _vw = get_cached_config(connection, "search.vector_weight")
-        _bw = get_cached_config(connection, "search.bm25_weight")
-        try:
-            vector_weight = float(_vw) if _vw else 0.7
-        except (TypeError, ValueError):
-            vector_weight = 0.7
-        try:
-            bm25_weight = float(_bw) if _bw else 0.3
-        except (TypeError, ValueError):
-            bm25_weight = 0.3
-
-    if not group_ids and not is_admin:
-        return SearchResponse(results=[], total=0)
-
-    # ── Run Meilisearch and Qdrant in parallel ──────────────────────────
-    bm25_results: list[SearchResult] = []
-    meili_facets: dict[str, dict[str, int]] = {}
-    meili_total: int = 0
-    vector_results: list[SearchResult] = []
-
-    # Pre-compute encoder outside the thread pool to avoid extra work.
-    # Wrapped in try/except so an embedding-model outage degrades to
-    # BM25-only results instead of crashing the route with a 500.
+    user: TokenPayload,
+    group_ids: list[str],
+    is_admin: bool,
+    vector_weight: float = 0.7,
+    bm25_weight: float = 0.3,
+) -> _SearchDispatch:
+    """Run Meilisearch and Qdrant in parallel (or fallback). Returns merged results."""
     _settings = http_request.app.state.settings
+
     encoder = build_encoder(_settings, timeout=_settings.search_embedding_timeout)
     try:
         query_vector = encoder.encode(request.query)
@@ -97,6 +130,7 @@ def search(
             get_correlation_id(),
         )
         query_vector = None
+
     qdrant_client = http_request.app.state.qdrant_client or QdrantSearchClient(
         url=_settings.qdrant_url,
         dimension=encoder.dimension,
@@ -107,83 +141,40 @@ def search(
     meili_provider = http_request.app.state.meili_provider
     qdrant_extra = _qdrant_extra_conditions(meili_filters)
 
-    def _run_meilisearch() -> tuple[list[SearchResult], dict[str, dict[str, int]], bool, int]:
-        backend_start = time.perf_counter()
-        try:
-            meili_results = meili_provider.search(
-                query=DocumentSearchQuery(
-                    q=request.query,
-                    limit=request.top_k,
-                    filters=meili_filters,
-                    sort=meili_sort,
-                ),
-                user=user,
-            )
-            http_request.app.state.metrics.search_backend_duration_seconds.labels(
-                "meilisearch", "search"
-            ).observe(time.perf_counter() - backend_start)
-            return (
-                meili_results.results,
-                meili_results.facets,
-                False,
-                meili_results.total,
-            )
-        except Exception:
-            logger.warning(
-                "Meilisearch search degraded route=/search stage=bm25_search correlation_id=%s",
-                get_correlation_id(),
-            )
-            return [], {}, True, 0
+    search_group_ids = group_ids if not is_admin else []
 
-    def _run_qdrant(
-        query_vector: list[float],
-    ) -> tuple[list[SearchResult], bool]:
-        backend_start = time.perf_counter()
-        try:
-            results = qdrant_client.search(
-                vector=query_vector,
-                group_ids=search_group_ids,
-                limit=50,
-                allow_all=is_admin,
-                extra_conditions=qdrant_extra or None,
-            )
-            http_request.app.state.metrics.search_backend_duration_seconds.labels(
-                "qdrant", "search"
-            ).observe(time.perf_counter() - backend_start)
-            return results, False
-        except Exception as exc:
-            logger.warning(
-                "Vector search degraded route=/search stage=vector_search "
-                "error_type=%s correlation_id=%s",
-                exc.__class__.__name__,
-                get_correlation_id(),
-            )
-            http_request.app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
-            return [], True
-
+    bm25_results: list[SearchResult] = []
+    meili_facets: dict[str, dict[str, int]] = {}
+    meili_total: int = 0
+    vector_results: list[SearchResult] = []
     retrieval_degraded = False
 
-    # Fire both backends concurrently.
-    # Note: the closures capture ``http_request`` (a Starlette Request).  We only
-    # read scalar attributes (request.query, app.state.*, settings.*) which are
-    # safe to access from the thread-pool threads.  Do not mutate request.state
-    # or read headers/body from inside these closures.
     if meili_provider is not None and query_vector is not None:
-        # Both backends available — run in parallel.
-        # NOTE: explicit pool + shutdown(wait=False) replaces the context-manager
-        # pattern so a stuck backend thread cannot hold the request open beyond
-        # the configured timeout. See intelligence/worker.py for the same pattern.
         pool = ThreadPoolExecutor(max_workers=2)
         try:
-            meili_future = pool.submit(_run_meilisearch)
-            qdrant_future = pool.submit(_run_qdrant, query_vector)
+            meili_future = pool.submit(
+                _run_meilisearch,
+                meili_provider,
+                request.query,
+                request.top_k,
+                meili_filters,
+                meili_sort,
+                user,
+                http_request,
+            )
+            qdrant_future = pool.submit(
+                _run_qdrant,
+                query_vector,
+                qdrant_client,
+                search_group_ids,
+                is_admin,
+                qdrant_extra,
+                http_request,
+            )
             try:
-                (
-                    bm25_results,
-                    meili_facets,
-                    _meili_degraded,
-                    meili_total,
-                ) = meili_future.result(timeout=30)
+                bm25_results, meili_facets, _meili_degraded, meili_total = meili_future.result(
+                    timeout=30
+                )
             except Exception:
                 bm25_results = []
                 meili_facets = {}
@@ -197,69 +188,94 @@ def search(
                 logger.warning("Qdrant future failed/timed out — no vector results")
             retrieval_degraded = _meili_degraded or _qdrant_degraded
         finally:
-            # Do not wait for stuck threads. A thread already running can't be
-            # cancelled in Python (cancel() returns False once started), so
-            # cancel pending tasks and return without blocking.
             pool.shutdown(wait=False, cancel_futures=True)
     elif meili_provider is not None:
-        # Encoder failed — vector unavailable; BM25-only is a degraded state.
-        bm25_results, meili_facets, _meili_degraded, meili_total = _run_meilisearch()
+        bm25_results, meili_facets, _meili_degraded, meili_total = _run_meilisearch(
+            meili_provider,
+            request.query,
+            request.top_k,
+            meili_filters,
+            meili_sort,
+            user,
+            http_request,
+        )
         retrieval_degraded = True
     elif query_vector is not None:
-        # Meilisearch not configured — run Qdrant only.
-        vector_results, _qdrant_degraded = _run_qdrant(query_vector)
+        vector_results, _qdrant_degraded = _run_qdrant(
+            query_vector,
+            qdrant_client,
+            search_group_ids,
+            is_admin,
+            qdrant_extra,
+            http_request,
+        )
         retrieval_degraded = _qdrant_degraded
     else:
-        # Neither backend available.
-        vector_results = []
         retrieval_degraded = True
 
-    if vector_results:
-        merged = merge_results(
-            bm25_results=bm25_results,
-            vector_results=vector_results,
-            vector_weight=vector_weight,
-            bm25_weight=bm25_weight,
-        )
-    else:
-        merged = merge_results(
-            bm25_results=bm25_results,
-            vector_results=[],
-            vector_weight=0.0,
-            bm25_weight=1.0,
-        )
+    merged = merge_results(
+        bm25_results=bm25_results,
+        vector_results=vector_results or [],
+        vector_weight=vector_weight if vector_results else 0.0,
+        bm25_weight=bm25_weight if vector_results else 1.0,
+    )
 
-    # --- Reranker pass (post-retrieval relevance scoring) ---
+    return _SearchDispatch(
+        merged=merged,
+        bm25_results=bm25_results,
+        vector_results=vector_results,
+        meili_facets=meili_facets,
+        meili_total=meili_total,
+        retrieval_degraded=retrieval_degraded,
+        meili_filters=meili_filters,
+    )
+
+
+def _apply_reranker(
+    http_request: Request,
+    query: str,
+    merged: list[SearchResult],
+) -> tuple[list[SearchResult], bool]:
     _settings = http_request.app.state.settings
-    reranker_applied = False
-    if _settings.search_reranker_enabled and merged:
-        try:
-            reranker = build_reranker(
-                _settings,
-                llm_provider=getattr(http_request.app.state, "llm_provider", None),
-            )
-            rerank_start = time.perf_counter()
-            merged = reranker.rerank(request.query, merged)
-            http_request.app.state.metrics.search_backend_duration_seconds.labels(
-                "reranker", "rerank"
-            ).observe(time.perf_counter() - rerank_start)
-            reranker_applied = True
-        except Exception:
-            logger.warning(
-                "Search reranker degraded route=/search stage=rerank correlation_id=%s",
-                get_correlation_id(),
-            )
-            # Continue with un-reranked results — reranker is best-effort.
+    if not _settings.search_reranker_enabled or not merged:
+        return merged, False
+    try:
+        reranker = build_reranker(
+            _settings,
+            llm_provider=getattr(http_request.app.state, "llm_provider", None),
+        )
+        rerank_start = time.perf_counter()
+        reranked = reranker.rerank(query, merged)
+        http_request.app.state.metrics.search_backend_duration_seconds.labels(
+            "reranker", "rerank"
+        ).observe(time.perf_counter() - rerank_start)
+        return reranked, True
+    except Exception:
+        logger.warning(
+            "Search reranker degraded route=/search stage=rerank correlation_id=%s",
+            get_correlation_id(),
+        )
+        return merged, False
 
-    # Load all merged doc rows in one query — used for both is_latest filtering and enrichment.
-    # Deduplicate before the batch query to avoid redundant IN-clause entries.
+
+def _build_search_response(
+    http_request: Request,
+    request: SearchRequest,
+    merged: list[SearchResult],
+    bm25_results: list[SearchResult],
+    vector_results: list[SearchResult],
+    meili_facets: dict[str, dict[str, int]],
+    meili_total: int,
+    reranker_applied: bool,
+    retrieval_degraded: bool,
+    metrics_start: float,
+) -> SearchResponse:
     all_merged_ids_set: set[UUID] = set()
     for r in merged:
         with suppress(ValueError):
             all_merged_ids_set.add(UUID(r.document_id))
     all_merged_ids = list(all_merged_ids_set)
 
-    # Single DB transaction: load document rows + resolve family current IDs.
     all_docs: dict[str, DocumentRow] = {}
     family_current: dict[UUID, UUID] = {}
     if all_merged_ids:
@@ -267,7 +283,6 @@ def search(
             _doc_repo = DocumentRepository(connection)
             for doc in _doc_repo.list_by_ids(all_merged_ids):
                 all_docs[str(doc.id)] = doc
-            # Resolve family current doc IDs while we still hold the connection.
             _non_latest_fids: list[UUID] = [
                 fid
                 for doc in all_docs.values()
@@ -276,15 +291,9 @@ def search(
             if _non_latest_fids:
                 family_current = _doc_repo.get_family_current_doc_ids(_non_latest_fids)
 
-    # Record candidate_count BEFORE post-filtering so callers can distinguish
-    # how many candidates survived the backend merge from how many were removed
-    # by version/filter enforcement.
     candidate_count = len(merged)
 
-    # Filter merged results: drop orphaned vectors, older versions (unless
-    # requested), and any result that does not satisfy the user's filters.
-    # This post-filter is the uniform enforcement point — Qdrant/vector
-    # candidates that bypass backend-level filtering are caught here.
+    meili_filters = _map_filters(request.filters)
     merged = [
         r
         for r in merged
@@ -303,8 +312,6 @@ def search(
     for r in page:
         doc_row = all_docs.get(r.document_id)
         if doc_row is None:
-            # Orphaned Qdrant vector — document row was deleted but vector not yet purged.
-            # Drop silently to avoid leaking chunk_text after deletion.
             logger.warning(
                 "Orphaned Qdrant vector skipped document_id=%s route=/search correlation=%s",
                 r.document_id,
@@ -355,17 +362,6 @@ def search(
         time.perf_counter() - metrics_start
     )
 
-    # Total is always the post-filter merged list size (the number of items
-    # available for pagination).  This is the only safe value for the frontend's
-    # infinite-scroll pagination logic (loaded < total → more pages).
-    #
-    # total_is_approximate indicates whether the candidate windows from the
-    # backend(s) may have excluded relevant corpus matches:
-    #   - Hybrid or vector-only: True (the vector candidate window constrains the
-    #     result set; the true corpus total may be higher).
-    #   - BM25-only: True only when Meilisearch reported more estimated hits than
-    #     the candidate window returned (corpus exceeds top_k); otherwise the
-    #     window held every match and the total is exact.
     total = len(merged)
     bm25_window_truncated = meili_total > len(bm25_results)
     total_is_approximate = bool(vector_results) or bm25_window_truncated
@@ -382,6 +378,77 @@ def search(
         facets=meili_facets,
         reranker_applied=reranker_applied,
         retrieval_degraded=retrieval_degraded,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Route handler
+# ---------------------------------------------------------------------------
+
+
+@router.post("/search", response_model=SearchResponse)
+def search(
+    request: SearchRequest,
+    http_request: Request,
+    user: Annotated[TokenPayload, Depends(current_user)],
+) -> SearchResponse:
+    metrics_start = time.perf_counter()
+    group_ids = [str(g) for g in user.groups]
+    is_admin = user.is_admin or http_request.app.state.admins_group_id in group_ids
+    if not group_ids and not is_admin:
+        http_request.app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
+        http_request.app.state.metrics.search_results_count.labels("hybrid").observe(0)
+        http_request.app.state.metrics.search_duration_seconds.labels("hybrid").observe(
+            time.perf_counter() - metrics_start
+        )
+        return SearchResponse(results=[], total=0)
+
+    with http_request.app.state.engine.begin() as connection:
+        if is_admin and not _verify_admin_membership(connection, group_ids):
+            is_admin = False
+        search_group_ids: list[str] = []
+        if not is_admin:
+            _auth_repo = AuthRepository(connection)
+            _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+            search_group_ids = [str(g) for g in _effective]
+
+        _vw = get_cached_config(connection, "search.vector_weight")
+        _bw = get_cached_config(connection, "search.bm25_weight")
+        try:
+            vector_weight = float(_vw) if _vw else 0.7
+        except (TypeError, ValueError):
+            vector_weight = 0.7
+        try:
+            bm25_weight = float(_bw) if _bw else 0.3
+        except (TypeError, ValueError):
+            bm25_weight = 0.3
+
+    if not group_ids and not is_admin:
+        return SearchResponse(results=[], total=0)
+
+    dispatch = _dispatch_and_merge(
+        request,
+        http_request,
+        user,
+        search_group_ids,
+        is_admin,
+        vector_weight=vector_weight,
+        bm25_weight=bm25_weight,
+    )
+
+    merged, reranker_applied = _apply_reranker(http_request, request.query, dispatch.merged)
+
+    return _build_search_response(
+        http_request,
+        request,
+        merged,
+        dispatch.bm25_results,
+        dispatch.vector_results,
+        dispatch.meili_facets,
+        dispatch.meili_total,
+        reranker_applied,
+        dispatch.retrieval_degraded,
+        metrics_start,
     )
 
 
