@@ -110,6 +110,12 @@ class QdrantSearchClient:
                 payload["text_lane"] = chunk["text_lane"]
             if "translated_from" in chunk:
                 payload["translated_from"] = chunk["translated_from"]
+            if "translation_version_id" in chunk:
+                payload["translation_version_id"] = chunk["translation_version_id"]
+            if "translation_quality" in chunk:
+                payload["translation_quality"] = chunk["translation_quality"]
+            if "translation_validation_status" in chunk:
+                payload["translation_validation_status"] = chunk["translation_validation_status"]
             if "content_en" in chunk:
                 payload["content_en"] = chunk["content_en"]
             if "content_he" in chunk:
@@ -201,6 +207,9 @@ class QdrantSearchClient:
                 "page_number",
                 "section_heading",
                 "layout_block_id",
+                "translation_version_id",
+                "translation_quality",
+                "translation_validation_status",
             ):
                 if extra_key in payload:
                     meta[extra_key] = payload[extra_key]
@@ -254,6 +263,9 @@ class QdrantSearchClient:
                 "page_number",
                 "section_heading",
                 "layout_block_id",
+                "translation_version_id",
+                "translation_quality",
+                "translation_validation_status",
             ):
                 if extra_key in payload:
                     meta[extra_key] = payload[extra_key]
@@ -334,6 +346,9 @@ class QdrantSearchClient:
                 "page_number",
                 "section_heading",
                 "layout_block_id",
+                "translation_version_id",
+                "translation_quality",
+                "translation_validation_status",
             ):
                 if extra_key in payload:
                     meta[extra_key] = payload[extra_key]
