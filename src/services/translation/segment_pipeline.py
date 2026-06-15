@@ -438,9 +438,15 @@ def run_segment_pipeline(
     Returns:
         ``(translated_text, validation_result)``
     """
-    # 0. Early exit for empty/whitespace-only text
-    if not text.strip():
-        return text, ValidationResult(
+    # 1. Build segments
+    segments = build_segments(text, layout_blocks, max_segment_chars=max_segment_chars)
+
+    # Fall back to whole-text translation when no segments can be built
+    # (empty text, whitespace-only, etc.).  Call translate_fn so that
+    # providers can still run (e.g. for side effects or error propagation).
+    if not segments:
+        result = translate_fn(text, source_lang, target_lang)
+        validation = ValidationResult(
             segment_count=0,
             failed_segment_count=0,
             placeholder_mismatch_count=0,
@@ -449,9 +455,7 @@ def run_segment_pipeline(
             validation_status="ok",
             warnings=[],
         )
-
-    # 1. Build segments
-    segments = build_segments(text, layout_blocks, max_segment_chars=max_segment_chars)
+        return result, validation
 
     # 2. Protect placeholders in each segment
     protected_segments: list[str] = []

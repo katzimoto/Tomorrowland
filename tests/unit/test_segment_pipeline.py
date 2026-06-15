@@ -435,13 +435,16 @@ class TestRunSegmentPipeline:
         assert "Second paragraph" in result
 
     def test_empty_text(self) -> None:
+        # Empty text builds no segments → falls back to whole-text translate_fn
         mock_translate = MagicMock()
+        mock_translate.return_value = ""
         result, validation = run_segment_pipeline(
             "",
             translate_fn=mock_translate,
             source_lang="en",
             target_lang="fr",
         )
+        mock_translate.assert_called_once()
         assert result == ""
         assert validation.segment_count == 0
 
@@ -573,12 +576,14 @@ class TestRunSegmentPipeline:
         assert validation.validation_status in ("ok", "warning", "failed")
 
     def test_whitespace_only_text(self) -> None:
+        # Whitespace-only builds no segments → falls back to whole-text translate_fn
         mock_translate = MagicMock()
+        mock_translate.return_value = "   \n\n   "
         result, validation = run_segment_pipeline(
             "   \n\n   ",
             translate_fn=mock_translate,
             source_lang="en",
             target_lang="fr",
         )
-        mock_translate.assert_not_called()
+        mock_translate.assert_called_once()
         assert validation.segment_count == 0
