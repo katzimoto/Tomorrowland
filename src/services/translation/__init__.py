@@ -3,6 +3,7 @@
 from services.translation.client import LibreTranslateClient, build_translation_metadata
 from services.translation.ctranslate2_provider import CTranslate2OpusProvider
 from services.translation.libretranslate_provider import LibreTranslateArgosProvider
+from services.translation.local_qe_provider import LocalQEProvider
 from services.translation.model_bundle import (
     BundleIntegrityReport,
     BundleValidator,
@@ -11,6 +12,11 @@ from services.translation.model_bundle import (
     parse_manifest,
 )
 from services.translation.provider import TranslationProvider
+from services.translation.qe_provider import (
+    QualityEstimationProvider,
+    QualityEstimationResult,
+)
+from services.translation.qe_scorer import QEScorer, build_qe_scorer
 from services.translation.segment_pipeline import (
     PlaceholderMap,
     Segment,
@@ -29,11 +35,16 @@ __all__ = [
     "CTranslate2OpusProvider",
     "LibreTranslateArgosProvider",
     "LibreTranslateClient",
+    "LocalQEProvider",
     "PlaceholderMap",
+    "QEScorer",
+    "QualityEstimationProvider",
+    "QualityEstimationResult",
     "Segment",
     "TranslationModelManifest",
     "TranslationProvider",
     "ValidationResult",
+    "build_qe_scorer",
     "build_segments",
     "build_translation_metadata",
     "load_manifest_from_path",

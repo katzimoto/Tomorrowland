@@ -24,6 +24,7 @@ from services.search.qdrant import QdrantSearchClient
 from services.translation.client import _safe_str, build_translation_metadata
 from services.translation.libretranslate_provider import LibreTranslateArgosProvider
 from services.translation.provider import TranslationProvider
+from services.translation.qe_scorer import QEScorer, build_qe_scorer
 from services.translation.segment_pipeline import run_segment_pipeline
 from shared.correlation import get_correlation_id
 from shared.metrics import MetricsRegistry
@@ -105,6 +106,7 @@ class SlowWorker:
         alert_matcher: AlertMatcher | None = None,
         layout_repository: LayoutBlockRepository | None = None,
         high_provider: TranslationProvider | None = None,
+        qe_scorer: QEScorer | None = None,
     ) -> None:
         self._doc_repo = document_repository
         self._translator = translator
@@ -116,6 +118,7 @@ class SlowWorker:
         self._version_repo = version_repository
         self._alert_matcher = alert_matcher
         self._layout_repo = layout_repository
+        self._qe_scorer = qe_scorer
 
     def _resolve_translator(self, source_lang: str | None, target_lang: str) -> TranslationProvider:
         """Return the best available translator for a language pair.
@@ -296,6 +299,29 @@ class SlowWorker:
                 warnings=_warnings,
                 pipeline_validation_status=_pipeline_status,
             )
+
+            # 4a. Run offline quality estimation when configured (#733).
+            #     Runs after metadata is assembled so QE results can be
+            #     merged in.  Failures never affect translation availability.
+            if self._qe_scorer is not None and self._qe_scorer.enabled:
+                try:
+                    qe_result = self._qe_scorer.score(
+                        source_text=text,
+                        translated_text=translated,
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                    )
+                    if qe_result.get("status") not in ("disabled", None):
+                        _meta["quality_estimation"] = qe_result
+                except Exception:
+                    logger.warning(
+                        "QE scoring failed for document_id=%s version_id=%s",
+                        doc.id,
+                        version_id,
+                        exc_info=True,
+                    )
+                    _meta["quality_estimation"] = {"status": "failed"}
+
             self._version_repo.update_version_status(
                 version_id,
                 "available",
@@ -730,6 +756,13 @@ if __name__ == "__main__":
                     exc_info=True,
                 )
 
+        # Construct QE scorer when enabled (#733)
+        qe_scorer = build_qe_scorer(
+            enabled=settings.translation_qe_enabled,
+            model_path=settings.translation_qe_model_path,
+            low_score_threshold=settings.translation_qe_low_score_threshold,
+        )
+
         worker = SlowWorker(
             document_repository=doc_repo,
             translator=translator,
@@ -739,6 +772,7 @@ if __name__ == "__main__":
             intelligence_worker=intelligence_worker,
             layout_repository=layout_repo,
             high_provider=high_provider,
+            qe_scorer=qe_scorer,
         )
 
         run_enrich_loop(

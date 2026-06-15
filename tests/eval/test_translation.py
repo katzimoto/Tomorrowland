@@ -18,7 +18,6 @@ from typing import Any
 
 import pytest
 
-from tests.eval.fixtures.translation import TRANSLATION_EVAL_CASES
 from tests.eval.metrics_translation import (
     TranslationCaseResult,
     aggregate_translation_metrics,
@@ -27,6 +26,7 @@ from tests.eval.metrics_translation import (
     placeholder_preservation,
     token_sufficiency,
 )
+from tests.eval.translation_fixtures import TRANSLATION_EVAL_CASES
 
 
 def _build_fast_provider() -> Any:
