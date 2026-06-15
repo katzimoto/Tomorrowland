@@ -3,10 +3,65 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Translation metadata builder (#727)
+# ---------------------------------------------------------------------------
+
+_DEFAULT_PROVIDER = "libretranslate_argos"
+_DEFAULT_MODEL_FAMILY = "argos"
+
+
+def _safe_str(value: object) -> str | None:
+    """Return *value* as a string, or None if it is not a real string.
+
+    Defends against MagicMock and other non-serializable test doubles
+    leaking into JSON metadata (#727).
+    """
+    return value if isinstance(value, str) else None
+
+
+def build_translation_metadata(
+    *,
+    provider: str,
+    provider_version: str | None = None,
+    model_family: str | None = None,
+    quality_lane: str,
+    purpose: str,
+    source_language: str | None,
+    target_language: str,
+    input_text: str,
+    output_text: str,
+    segment_count: int = 0,
+    validation_status: str = "unknown",
+    fallback_used: bool = False,
+    fallback_reason: str | None = None,
+) -> dict[str, Any]:
+    """Build a metadata dict for a translation version (#727)."""
+    meta: dict[str, Any] = {
+        "provider": provider,
+        "quality_lane": quality_lane,
+        "purpose": purpose,
+        "source_language": source_language,
+        "target_language": target_language,
+        "input_char_count": len(input_text),
+        "output_char_count": len(output_text),
+        "segment_count": segment_count,
+        "validation_status": validation_status,
+        "fallback_used": fallback_used,
+    }
+    if provider_version is not None:
+        meta["provider_version"] = provider_version
+    if model_family is not None:
+        meta["model_family"] = model_family
+    if fallback_reason is not None:
+        meta["fallback_reason"] = fallback_reason
+    return meta
 
 
 class LibreTranslateClient:
@@ -26,6 +81,48 @@ class LibreTranslateClient:
         self._timeout = timeout
         self._max_retries = max_retries
         self._client = httpx.Client(timeout=timeout)
+        self._provider: str | None = None
+        self._provider_version: str | None = None
+        self._model_family: str | None = None
+
+    @property
+    def provider(self) -> str:
+        """Return the detected or default provider name."""
+        self._ensure_provider_info()
+        return self._provider or _DEFAULT_PROVIDER
+
+    @property
+    def provider_version(self) -> str | None:
+        """Return the detected provider version, if available."""
+        self._ensure_provider_info()
+        return self._provider_version
+
+    @property
+    def model_family(self) -> str | None:
+        """Return the detected model family, if available."""
+        self._ensure_provider_info()
+        return self._model_family
+
+    def _ensure_provider_info(self) -> None:
+        """Lazily detect provider info from the LibreTranslate /spec endpoint."""
+        if self._provider is not None:
+            return
+        self._provider = _DEFAULT_PROVIDER
+        self._model_family = _DEFAULT_MODEL_FAMILY
+        try:
+            response = self._client.get(
+                f"{self._base_url}/spec",
+                timeout=5.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+            info = data.get("info", {})
+            if info:
+                version = info.get("version")
+                if version:
+                    self._provider_version = f"libretranslate-{version}"
+        except Exception:
+            logger.debug("Could not fetch LibreTranslate /spec; using default provider info")
 
     def translate(
         self,

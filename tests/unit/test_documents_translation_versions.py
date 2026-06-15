@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
@@ -293,3 +294,133 @@ def test_update_version_status_failed_keeps_existing_text(migrated_engine: Engin
     assert rows[0]["status"] == "failed"
     assert rows[0]["translated_text"] == "Partial text"
     assert rows[0]["error_summary"] == "LLM timeout"
+
+
+# ---------------------------------------------------------------------------
+# metadata and provider (#727)
+# ---------------------------------------------------------------------------
+
+
+def test_create_version_stores_metadata(migrated_engine: Engine) -> None:
+    with migrated_engine.begin() as conn:
+        doc_id = _create_doc(conn, source_language="he")
+        repo = TranslationVersionRepository(conn)
+        meta = {
+            "provider": "libretranslate_argos",
+            "quality_lane": "fast",
+            "purpose": "search",
+            "source_language": "he",
+            "target_language": "en",
+            "input_char_count": 20,
+            "output_char_count": 18,
+            "validation_status": "ok",
+            "fallback_used": False,
+        }
+        repo.create_version(
+            doc_id,
+            label="Pipeline",
+            quality="fast",
+            request_type="ingestion",
+            translated_text="Hello world",
+            metadata=meta,
+            provider="libretranslate_argos",
+        )
+        rows = repo.list_versions(doc_id)
+
+    assert len(rows) == 1
+    stored = rows[0]
+    assert _parse_metadata(stored["metadata"]) == meta
+
+
+def test_create_version_metadata_defaults_to_empty_dict(migrated_engine: Engine) -> None:
+    with migrated_engine.begin() as conn:
+        doc_id = _create_doc(conn)
+        repo = TranslationVersionRepository(conn)
+        repo.create_version(doc_id, label="v1", quality="fast", request_type="manual")
+        rows = repo.list_versions(doc_id)
+
+    assert _parse_metadata(rows[0]["metadata"]) == {}
+
+
+def test_update_version_status_stores_metadata(migrated_engine: Engine) -> None:
+    with migrated_engine.begin() as conn:
+        doc_id = _create_doc(conn)
+        repo = TranslationVersionRepository(conn)
+        version = repo.create_version(doc_id, label="v1", quality="fast", request_type="manual")
+        meta = {
+            "provider": "libretranslate_argos",
+            "quality_lane": "fast",
+            "purpose": "search",
+            "validation_status": "ok",
+            "fallback_used": False,
+        }
+        repo.update_version_status(
+            UUID(str(version["id"])),
+            "available",
+            translated_text="Translated",
+            metadata=meta,
+            provider="libretranslate_argos",
+        )
+        rows = repo.list_versions(doc_id)
+
+    assert _parse_metadata(rows[0]["metadata"]) == meta
+
+
+def test_update_version_status_does_not_require_metadata(migrated_engine: Engine) -> None:
+    """Calling update_version_status without metadata or provider is safe."""
+    with migrated_engine.begin() as conn:
+        doc_id = _create_doc(conn)
+        repo = TranslationVersionRepository(conn)
+        version = repo.create_version(doc_id, label="v1", quality="fast", request_type="manual")
+        repo.update_version_status(
+            UUID(str(version["id"])), "running", metadata=None, provider=None
+        )
+        rows = repo.list_versions(doc_id)
+
+    assert rows[0]["status"] == "running"
+    assert rows[0]["started_at"] is not None
+
+
+def test_update_version_status_metadata_coalesce_keeps_existing(migrated_engine: Engine) -> None:
+    """Updating a version with metadata replaces existing metadata."""
+    with migrated_engine.begin() as conn:
+        doc_id = _create_doc(conn)
+        repo = TranslationVersionRepository(conn)
+        existing_meta = {"provider": "libretranslate_argos", "quality_lane": "fast"}
+        version = repo.create_version(
+            doc_id,
+            label="v1",
+            quality="fast",
+            request_type="manual",
+            metadata=existing_meta,
+        )
+        new_meta = {
+            "provider": "libretranslate_argos",
+            "quality_lane": "high",
+            "purpose": "display",
+        }
+        repo.update_version_status(
+            UUID(str(version["id"])),
+            "running",
+            metadata=new_meta,
+            provider="libretranslate_argos",
+        )
+        rows = repo.list_versions(doc_id)
+
+    assert _parse_metadata(rows[0]["metadata"]) == new_meta
+
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+
+def _parse_metadata(value: object) -> dict:
+    """Parse a metadata value that may be a JSON string from SQLite."""
+    if isinstance(value, str):
+        return json.loads(value)  # type: ignore[no-any-return]
+    if isinstance(value, dict):
+        return value  # type: ignore[return-value]
+    if value is None:
+        return {}
+    return {}
