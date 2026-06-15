@@ -211,6 +211,23 @@
   border-bottom-color: var(--color-accent, var(--color-text-primary));
 }
 
+.sheetTabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: var(--space-1);
+  padding: 0 5px;
+  min-width: 18px;
+  height: 16px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  background: var(--color-accent, #3b82f6);
+  border-radius: 9999px;
+  vertical-align: middle;
+}
+
 .sheetGridScroll {
   flex: 1;
   min-height: 0;

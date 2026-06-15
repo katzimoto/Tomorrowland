@@ -12,7 +12,9 @@ vi.mock("@/api/preview", async (importOriginal) => ({
 
 const mockedArtifact = vi.mocked(previewApi.getPreviewArtifactText);
 
-function manifest(sheets: { index: number; label: string; artifact_id: string }[]): PreviewManifest {
+function manifest(
+  sheets: { index: number; label: string; artifact_id: string }[],
+): PreviewManifest {
   return {
     document_id: "doc-1",
     cache_key: "sha256:abc",
@@ -22,11 +24,19 @@ function manifest(sheets: { index: number; label: string; artifact_id: string }[
     error: null,
     generated_at: null,
     retry_after_ms: null,
-    navigation: { unit: "sheet", count: sheets.length, items: sheets },
+    navigation: {
+      unit: "sheet",
+      count: sheets.length,
+      items: sheets,
+    },
     artifacts: [],
     email: null,
     office: null,
-    evidence: { supports_text_search: true, anchor_unit: "body", regions_available: false },
+    evidence: {
+      supports_text_search: true,
+      anchor_unit: "body",
+      regions_available: false,
+    },
   };
 }
 
@@ -41,7 +51,7 @@ beforeEach(() => {
       },
       "sheet-1": {
         name: "Q2",
-        rows: [["secret"]],
+        rows: [["secret"], ["Another Rent item"]],
         truncated: { rows: true, cols: false },
       },
     };
@@ -58,7 +68,9 @@ describe("SheetViewer", () => {
   it("renders the first sheet grid with tabs", async () => {
     render(<SheetViewer manifest={manifest(sheets)} docId="doc-1" />);
     expect(await screen.findByText("Rent")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Budget" })).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("tab", { name: "Budget" }),
+    ).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Q2" })).toBeInTheDocument();
   });
 
@@ -80,6 +92,56 @@ describe("SheetViewer", () => {
         onMatchCountChange={onMatchCountChange}
       />,
     );
-    await waitFor(() => expect(onMatchCountChange).toHaveBeenCalledWith(1));
+    // "Rent" appears once in "Budget" (sheet-0) and once in "Q2" (sheet-1:
+    // "Another Rent item").  Total across all sheets = 2.
+    await waitFor(() =>
+      expect(onMatchCountChange).toHaveBeenCalledWith(2),
+    );
+  });
+
+  it("reports zero when no sheets match the query", async () => {
+    const onMatchCountChange = vi.fn();
+    render(
+      <SheetViewer
+        manifest={manifest(sheets)}
+        docId="doc-1"
+        searchQuery="NONEXISTENT"
+        onMatchCountChange={onMatchCountChange}
+      />,
+    );
+    await waitFor(() =>
+      expect(onMatchCountChange).toHaveBeenCalledWith(0),
+    );
+  });
+
+  it("shows match count badges on tabs that contain matches (#748)", async () => {
+    render(
+      <SheetViewer
+        manifest={manifest(sheets)}
+        docId="doc-1"
+        searchQuery="Rent"
+      />,
+    );
+    // Both sheets contain "Rent" — each tab should show a badge.
+    await waitFor(() => {
+      const badges = screen.getAllByText("1", { selector: "span" });
+      expect(badges).toHaveLength(2);
+    });
+    // The Budget tab has exactly 1 "Rent" match.
+    const budgetTab = screen.getByRole("tab", { name: /Budget/ });
+    expect(budgetTab).toContainHTML("1");
+
+    // Switch to Q2 — should highlight "Another Rent item" there.
+    fireEvent.click(screen.getByRole("tab", { name: /Q2/ }));
+    expect(await screen.findByText("Another Rent item")).toBeInTheDocument();
+  });
+
+  it("does not show badges when there is no search query", async () => {
+    render(<SheetViewer manifest={manifest(sheets)} docId="doc-1" />);
+    await screen.findByText("Rent");
+    // No search query → no badges.
+    expect(
+      screen.queryByText(/^\d+$/, { selector: "span" }),
+    ).not.toBeInTheDocument();
   });
 });
