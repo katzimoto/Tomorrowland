@@ -32,6 +32,66 @@ from shared.db import db_resolve_json, to_uuid
 # non-OCR parsers that extract text natively from the file format).
 _OCR_PARSERS: frozenset[str] = frozenset({"OcrExtractor"})
 
+# ── Minimal SQLAlchemy Core table definitions ──────────────────────────
+# Used by ``admin_get_source_documents`` to let SQLAlchemy generate correct
+# GROUP BY clauses instead of relying on hand-written raw SQL.  Columns
+# listed here are only those referenced by the Core queries below; add
+# columns when new queries consume them.
+_metadata = sa.MetaData()
+
+_documents = sa.Table(
+    "documents",
+    _metadata,
+    sa.Column("id", sa.Uuid(as_uuid=False)),
+    sa.Column("source_id", sa.Uuid(as_uuid=False)),
+    sa.Column("mime_type", sa.String),
+    sa.Column("title", sa.String),
+    sa.Column("external_id", sa.String),
+    sa.Column("status", sa.String),
+    sa.Column("source_language", sa.String),
+    sa.Column("translation_quality", sa.String),
+    sa.Column("created_at", sa.DateTime),
+)
+
+_document_extractions = sa.Table(
+    "document_extractions",
+    _metadata,
+    sa.Column("id", sa.Uuid(as_uuid=False)),
+    sa.Column("document_id", sa.Uuid(as_uuid=False)),
+    sa.Column("parser_name", sa.String),
+    sa.Column("parser_version", sa.String),
+    sa.Column("attempts", sa.JSON),
+    sa.Column("confidence", sa.Float),
+    sa.Column("warnings", sa.JSON),
+    sa.Column("duration_ms", sa.Float),
+    sa.Column("created_at", sa.DateTime),
+)
+
+_document_payloads = sa.Table(
+    "document_payloads",
+    _metadata,
+    sa.Column("document_id", sa.Uuid(as_uuid=False)),
+    sa.Column("content_text", sa.Text),
+    sa.Column("created_at", sa.DateTime),
+    sa.Column("updated_at", sa.DateTime),
+)
+
+_pipeline_jobs = sa.Table(
+    "pipeline_jobs",
+    _metadata,
+    sa.Column("id", sa.Uuid(as_uuid=False)),
+    sa.Column("document_id", sa.Uuid(as_uuid=False)),
+    sa.Column("source_id", sa.Uuid(as_uuid=False)),
+    sa.Column("job_type", sa.String),
+    sa.Column("status", sa.String),
+    sa.Column("stage", sa.String),
+    sa.Column("attempts", sa.Integer),
+    sa.Column("max_attempts", sa.Integer),
+    sa.Column("last_error", sa.Text),
+    sa.Column("created_at", sa.DateTime),
+    sa.Column("updated_at", sa.DateTime),
+)
+
 router = APIRouter(tags=["admin"])
 
 
@@ -466,38 +526,63 @@ def admin_get_source_documents(
             "avg_char_count": 0,
         }
         if total > 0:
+            # Query built with SQLAlchemy Core so that GROUP BY is
+            # generated automatically — hand-written sa.text() is
+            # prone to missing GROUP BY or grouping on JSON columns.
+            e_sum = (
+                sa.select(
+                    _document_extractions.c.parser_name,
+                    sa.cast(_document_extractions.c.warnings, sa.Text).label("warnings"),
+                )
+                .where(_document_extractions.c.document_id == _documents.c.id)
+                .order_by(_document_extractions.c.created_at.desc())
+                .limit(1)
+                .lateral("e_sum")
+            )
+            p_sum = (
+                sa.select(
+                    sa.func.length(_document_payloads.c.content_text).label("char_count"),
+                )
+                .where(_document_payloads.c.document_id == _documents.c.id)
+                .limit(1)
+                .lateral("p_sum")
+            )
+            pj = (
+                sa.select(_pipeline_jobs.c.status)
+                .where(
+                    sa.and_(
+                        _pipeline_jobs.c.document_id == _documents.c.id,
+                        _pipeline_jobs.c.job_type == "process_document",
+                    )
+                )
+                .order_by(_pipeline_jobs.c.created_at.desc())
+                .limit(1)
+                .lateral("pj")
+            )
+            summary_query = (
+                sa.select(
+                    e_sum.c.parser_name,
+                    sa.func.count().label("doc_count"),
+                    _documents.c.mime_type,
+                    e_sum.c.warnings.label("extraction_warnings"),
+                    p_sum.c.char_count,
+                    pj.c.status.label("parse_status"),
+                )
+                .select_from(_documents)
+                .outerjoin(e_sum, sa.true())
+                .outerjoin(p_sum, sa.true())
+                .outerjoin(pj, sa.true())
+                .where(_documents.c.source_id == sa.bindparam("source_id"))
+                .group_by(
+                    e_sum.c.parser_name,
+                    _documents.c.mime_type,
+                    e_sum.c.warnings,
+                    p_sum.c.char_count,
+                    pj.c.status,
+                )
+            )
             summary_rows = connection.execute(
-                sa.text("""
-                    SELECT
-                        e_sum.parser_name,
-                        COUNT(*) AS doc_count,
-                        d.mime_type,
-                        e_sum.warnings AS extraction_warnings,
-                        p_sum.char_count,
-                        pj.status AS parse_status
-                    FROM documents d
-                    LEFT JOIN LATERAL (
-                        SELECT parser_name, warnings
-                        FROM document_extractions
-                        WHERE document_id = d.id
-                        ORDER BY created_at DESC LIMIT 1
-                    ) e_sum ON true
-                    LEFT JOIN LATERAL (
-                        SELECT LENGTH(content_text) AS char_count
-                        FROM document_payloads
-                        WHERE document_id = d.id
-                        LIMIT 1
-                    ) p_sum ON true
-                    LEFT JOIN LATERAL (
-                        SELECT status
-                        FROM pipeline_jobs
-                        WHERE document_id = d.id AND job_type = 'process_document'
-                        ORDER BY created_at DESC LIMIT 1
-                    ) pj ON true
-                    WHERE d.source_id = :source_id
-                    GROUP BY e_sum.parser_name, d.mime_type, e_sum.warnings,
-                             p_sum.char_count, pj.status
-                    """),
+                summary_query,
                 {"source_id": source_id.hex},
             ).mappings()
 
