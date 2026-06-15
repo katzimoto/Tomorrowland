@@ -495,6 +495,8 @@ def admin_get_source_documents(
                         ORDER BY created_at DESC LIMIT 1
                     ) pj ON true
                     WHERE d.source_id = :source_id
+                    GROUP BY e_sum.parser_name, d.mime_type, e_sum.warnings,
+                             p_sum.char_count, pj.status
                     """),
                 {"source_id": source_id.hex},
             ).mappings()
@@ -505,14 +507,15 @@ def admin_get_source_documents(
             total_failed = 0
             total_char_count = 0
             for srow in summary_rows:
+                doc_count = srow.get("doc_count", 1) or 1
                 pname = srow.get("parser_name")
                 if pname:
-                    parser_counts[pname] = parser_counts.get(pname, 0) + 1
-                    total_extracted += 1
+                    parser_counts[pname] = parser_counts.get(pname, 0) + doc_count
+                    total_extracted += doc_count
                 else:
                     # Dead-letter parse job → failed
                     if srow.get("parse_status") == "dead_letter":
-                        total_failed += 1
+                        total_failed += doc_count
 
                 # OCR-done inference: count extracted docs likely OCR-processed
                 mime = srow.get("mime_type") or ""
@@ -526,10 +529,10 @@ def admin_get_source_documents(
                         )
                     )
                 ):
-                    total_ocr_done += 1
+                    total_ocr_done += doc_count
 
                 cc = srow.get("char_count") or 0
-                total_char_count += cc
+                total_char_count += cc * doc_count
 
             parser_summary["documents_by_parser"] = parser_counts
             parser_summary["total_extracted"] = total_extracted
