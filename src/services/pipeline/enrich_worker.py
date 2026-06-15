@@ -70,6 +70,7 @@ def main() -> None:
     from services.search.qdrant import QdrantSearchClient
     from services.translation.ctranslate2_provider import CTranslate2OpusProvider
     from services.translation.libretranslate_provider import LibreTranslateArgosProvider
+    from services.translation.qe_scorer import build_qe_scorer
     from shared.config import Settings
     from shared.rabbit import RabbitClient
 
@@ -115,6 +116,13 @@ def main() -> None:
                 exc_info=True,
             )
 
+    # Construct QE scorer when enabled (#733)
+    qe_scorer = build_qe_scorer(
+        enabled=settings.translation_qe_enabled,
+        model_path=settings.translation_qe_model_path,
+        low_score_threshold=settings.translation_qe_low_score_threshold,
+    )
+
     worker = SlowWorker(
         document_repository=doc_repo,
         translator=translator,
@@ -124,6 +132,7 @@ def main() -> None:
         meili_provider=meili,
         intelligence_worker=intelligence_worker,
         high_provider=high_provider,
+        qe_scorer=qe_scorer,
     )
     consumer = EnrichConsumer(rabbit, job_repo, worker)
     consumer.run()

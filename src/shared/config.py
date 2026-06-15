@@ -231,6 +231,21 @@ class Settings(BaseSettings):
     # Requires: pip install tomorrowland[ctranslate2]
     translation_high_provider_bundle_path: str = ""
 
+    # --- Translation quality estimation (#733) ---
+    # Enable offline, reference-free quality estimation for translation
+    # versions.  When enabled the enrich worker scores translated segments
+    # after a version becomes available and stores the results in
+    # translation-version metadata.
+    # Disabled by default — no QE model is required for normal operation.
+    translation_qe_enabled: bool = False
+    # Path to a local QE model directory or file.  When set and
+    # translation_qe_enabled is True, the provider loads the model;
+    # when empty, a simple heuristic scorer is used for testing.
+    translation_qe_model_path: str = ""
+    # Segments scoring below this threshold (0.0–1.0) are flagged as
+    # "low score" and included in version metadata warnings.
+    translation_qe_low_score_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+
     @property
     def cors_origin_list(self) -> list[str]:
         """Return configured CORS origins from a comma-separated setting."""
