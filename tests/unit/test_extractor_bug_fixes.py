@@ -500,10 +500,10 @@ def test_translate_consumer_uses_doc_target_language() -> None:
 
     # Translator must have been called with target_lang="de", not "en"
     mock_translator.translate.assert_called_once()
-    call_kwargs = mock_translator.translate.call_args
-    assert call_kwargs.kwargs.get("target_lang") == "de", (
-        f"Expected target_lang='de' but got {call_kwargs.kwargs.get('target_lang')!r}"
-    )
+    # run_segment_pipeline calls translate_fn(text, source_lang, target_lang)
+    # with positional args — check args[2] (third positional arg)
+    call_args = mock_translator.translate.call_args
+    assert call_args.args[2] == "de", f"Expected target_lang='de' but got {call_args.args[2]!r}"
 
     # Version lookup and creation must use "de", not "en"
     mock_version_repo.find_pending_or_running.assert_called_with(document_id, "de")
@@ -551,7 +551,7 @@ def test_translate_consumer_defaults_target_lang_to_en_when_doc_missing() -> Non
         content_text="Bonjour",
     )
 
-    # Must fall back to "en"
-    call_kwargs = mock_translator.translate.call_args
-    assert call_kwargs.kwargs.get("target_lang") == "en"
+    # Must fall back to "en" — check positional arg from segment pipeline
+    call_args = mock_translator.translate.call_args
+    assert call_args.args[2] == "en"
     mock_version_repo.find_pending_or_running.assert_called_with(document_id, "en")

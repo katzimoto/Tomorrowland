@@ -6,11 +6,13 @@ import logging
 from typing import Any
 from uuid import UUID
 
+from services.documents.layout_block_repository import LayoutBlockRepository
 from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
 from services.translation.client import LibreTranslateClient, _safe_str, build_translation_metadata
+from services.translation.segment_pipeline import run_segment_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +26,25 @@ def _build_fast_metadata(
     output_text: str,
     fallback_used: bool = False,
     fallback_reason: str | None = None,
+    # Segment-aware validation fields (#728)
+    segment_count: int = 0,
+    failed_segment_count: int = 0,
+    placeholder_mismatch_count: int = 0,
+    number_date_mismatch_count: int = 0,
+    length_ratio_outlier_count: int = 0,
+    warnings: list[str] | None = None,
+    pipeline_validation_status: str | None = None,
 ) -> dict[str, Any]:
-    """Build translation metadata for fast-lane ingestion (#727)."""
+    """Build translation metadata for fast-lane ingestion (#727, #728)."""
     provider = (_safe_str(translator.provider) if translator else None) or "libretranslate_argos"
     provider_version = _safe_str(translator.provider_version) if translator else None
     model_family = _safe_str(translator.model_family) if translator else None
-    validation_status = "warning" if fallback_used else "ok"
+    # Pipeline status takes precedence over fallback-derived status (#728)
+    validation_status = (
+        pipeline_validation_status
+        if pipeline_validation_status is not None
+        else ("warning" if fallback_used else "ok")
+    )
     return build_translation_metadata(
         provider=provider,
         provider_version=provider_version,
@@ -40,9 +55,15 @@ def _build_fast_metadata(
         target_language=target_language,
         input_text=input_text,
         output_text=output_text,
+        segment_count=segment_count,
         validation_status=validation_status,
         fallback_used=fallback_used,
         fallback_reason=fallback_reason,
+        failed_segment_count=failed_segment_count,
+        placeholder_mismatch_count=placeholder_mismatch_count,
+        number_date_mismatch_count=number_date_mismatch_count,
+        length_ratio_outlier_count=length_ratio_outlier_count,
+        warnings=warnings,
     )
 
 
@@ -58,6 +79,7 @@ class TranslateConsumer(BaseConsumer):
         translator: LibreTranslateClient | None = None,
         version_repo: TranslationVersionRepository | None = None,
         doc_repo: DocumentRepository | None = None,
+        layout_repo: LayoutBlockRepository | None = None,
         health_port: int = 8082,
     ) -> None:
         super().__init__(rabbit, job_repo, health_port)
@@ -65,6 +87,7 @@ class TranslateConsumer(BaseConsumer):
         self._translator = translator
         self._version_repo = version_repo
         self._doc_repo = doc_repo
+        self._layout_repo = layout_repo
 
     def handle_message(
         self,
@@ -94,12 +117,50 @@ class TranslateConsumer(BaseConsumer):
             )
             return
 
+        # Load layout blocks for segment-aware translation (#728)
+        layout_blocks: list[dict[str, Any]] | None = None
+        if self._layout_repo is not None and self._translator is not None:
+            try:
+                layout_blocks_raw = self._layout_repo.list_by_document(document_id)
+                if layout_blocks_raw:
+                    layout_blocks = [
+                        {"text": block.text, "block_type": block.block_type}
+                        for block in layout_blocks_raw
+                        if block.text
+                    ]
+            except Exception:
+                logger.debug(
+                    "Layout block load failed for document_id=%s, "
+                    "falling back to paragraph segmentation",
+                    document_id,
+                )
+                layout_blocks = None
+
         translated = content_text
+        validation_warnings: list[str] = []
+        validation_segment_count = 0
+        validation_failed = 0
+        validation_ph_mismatch = 0
+        validation_num_date = 0
+        validation_len_outlier = 0
         if self._translator:
-            translated = (
-                self._translator.translate(content_text, source_lang=lang, target_lang=target_lang)
-                or content_text
+            translated, validation = run_segment_pipeline(
+                content_text,
+                translate_fn=self._translator.translate,
+                source_lang=lang,
+                target_lang=target_lang,
+                layout_blocks=layout_blocks,
             )
+            validation_segment_count = validation.segment_count
+            validation_failed = validation.failed_segment_count
+            validation_ph_mismatch = validation.placeholder_mismatch_count
+            validation_num_date = validation.number_date_mismatch_count
+            validation_len_outlier = validation.length_ratio_outlier_count
+            validation_status = validation.validation_status
+            if validation.warnings:
+                validation_warnings = validation.warnings
+            if not translated:
+                translated = content_text
 
         self._job_repo.update_translated_text(document_id, translated)
         self._job_repo.mark_running_stage(job_id, "translated")
@@ -108,7 +169,7 @@ class TranslateConsumer(BaseConsumer):
         quality = "fast" if did_translate else None
 
         if self._version_repo and did_translate:
-            # Build translation metadata for fast-lane ingestion (#727)
+            # Build translation metadata for fast-lane ingestion (#727, #728)
             _meta = _build_fast_metadata(
                 translator=self._translator,
                 source_language=lang,
@@ -116,6 +177,13 @@ class TranslateConsumer(BaseConsumer):
                 input_text=content_text,
                 output_text=translated,
                 fallback_used=False,
+                segment_count=validation_segment_count,
+                failed_segment_count=validation_failed,
+                placeholder_mismatch_count=validation_ph_mismatch,
+                number_date_mismatch_count=validation_num_date,
+                length_ratio_outlier_count=validation_len_outlier,
+                pipeline_validation_status=validation_status,
+                warnings=validation_warnings if validation_warnings else None,
             )
             existing = self._version_repo.find_pending_or_running(document_id, target_lang)
             if existing is not None:
@@ -171,6 +239,7 @@ def main() -> None:
 
     import sqlalchemy as sa
 
+    from services.documents.layout_block_repository import LayoutBlockRepository
     from services.documents.repository import DocumentRepository, TranslationVersionRepository
     from services.pipeline.jobs import PipelineJobRepository
     from services.pipeline.publisher import DocumentPublisher
@@ -188,6 +257,7 @@ def main() -> None:
     publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
     translator = LibreTranslateClient(base_url=settings.libretranslate_url)
     version_repo = TranslationVersionRepository(connection)
+    layout_repo = LayoutBlockRepository(connection)
     consumer = TranslateConsumer(
         rabbit=rabbit,
         job_repo=job_repo,
@@ -195,5 +265,6 @@ def main() -> None:
         translator=translator,
         version_repo=version_repo,
         doc_repo=doc_repo,
+        layout_repo=layout_repo,
     )
     consumer.run()

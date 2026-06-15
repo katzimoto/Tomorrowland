@@ -10,6 +10,7 @@ from uuid import UUID
 
 from services.alerts.service import AlertMatcher
 from services.chunking.splitter import chunk_text
+from services.documents.layout_block_repository import LayoutBlockRepository
 from services.documents.repository import (
     DocumentRepository,
     TranslationVersionRepository,
@@ -21,6 +22,7 @@ from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.meili_types import ChunkMetadata, SearchChunkRecord
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient, _safe_str, build_translation_metadata
+from services.translation.segment_pipeline import run_segment_pipeline
 from shared.correlation import get_correlation_id
 from shared.metrics import MetricsRegistry
 
@@ -38,12 +40,25 @@ def _build_enrich_metadata(
     output_text: str,
     fallback_used: bool = False,
     fallback_reason: str | None = None,
+    # Segment-aware validation fields (#728)
+    segment_count: int = 0,
+    failed_segment_count: int = 0,
+    placeholder_mismatch_count: int = 0,
+    number_date_mismatch_count: int = 0,
+    length_ratio_outlier_count: int = 0,
+    warnings: list[str] | None = None,
+    pipeline_validation_status: str | None = None,
 ) -> dict[str, Any]:
-    """Build translation metadata for high-lane enrichment (#727)."""
+    """Build translation metadata for high-lane enrichment (#727, #728)."""
     provider = (_safe_str(translator.provider) if translator else None) or "libretranslate_argos"
     provider_version = _safe_str(translator.provider_version) if translator else None
     model_family = _safe_str(translator.model_family) if translator else None
-    validation_status = "warning" if fallback_used else "ok"
+    # Pipeline status takes precedence over fallback-derived status (#728)
+    validation_status = (
+        pipeline_validation_status
+        if pipeline_validation_status is not None
+        else ("warning" if fallback_used else "ok")
+    )
     return build_translation_metadata(
         provider=provider,
         provider_version=provider_version,
@@ -54,9 +69,15 @@ def _build_enrich_metadata(
         target_language=target_language,
         input_text=input_text,
         output_text=output_text,
+        segment_count=segment_count,
         validation_status=validation_status,
         fallback_used=fallback_used,
         fallback_reason=fallback_reason,
+        failed_segment_count=failed_segment_count,
+        placeholder_mismatch_count=placeholder_mismatch_count,
+        number_date_mismatch_count=number_date_mismatch_count,
+        length_ratio_outlier_count=length_ratio_outlier_count,
+        warnings=warnings,
     )
 
 
@@ -80,6 +101,7 @@ class SlowWorker:
         meili_provider: MeilisearchSearchProvider | None = None,
         intelligence_worker: IntelligenceWorker | None = None,
         alert_matcher: AlertMatcher | None = None,
+        layout_repository: LayoutBlockRepository | None = None,
     ) -> None:
         self._doc_repo = document_repository
         self._translator = translator
@@ -89,6 +111,7 @@ class SlowWorker:
         self._intelligence = intelligence_worker
         self._version_repo = version_repository
         self._alert_matcher = alert_matcher
+        self._layout_repo = layout_repository
 
     def process_document(self, document_id: UUID, content_text: str = "") -> None:
         """Run the enrichment pipeline for a single document.
@@ -152,13 +175,41 @@ class SlowWorker:
             text = content_text
 
             # 2. Translate to the document's configured target language
+            #    Use segment-aware pipeline when layout blocks are available (#728)
             source_lang = doc.source_language
             target_lang = doc.target_language or "en"
-            translated = self._translator.translate(
+
+            # Load layout blocks for segment-aware translation
+            layout_blocks: list[dict[str, Any]] | None = None
+            if self._layout_repo is not None:
+                try:
+                    layout_blocks_raw = self._layout_repo.list_by_document(doc.id)
+                    if layout_blocks_raw:
+                        layout_blocks = [
+                            {"text": block.text, "block_type": block.block_type}
+                            for block in layout_blocks_raw
+                            if block.text
+                        ]
+                except Exception:
+                    logger.debug(
+                        "Could not load layout blocks for document_id=%s",
+                        doc.id,
+                    )
+
+            translated, validation = run_segment_pipeline(
                 text,
+                translate_fn=self._translator.translate,
                 source_lang=source_lang,
                 target_lang=target_lang,
+                layout_blocks=layout_blocks,
             )
+            _seg_count = validation.segment_count
+            _seg_failed = validation.failed_segment_count
+            _ph_mismatch = validation.placeholder_mismatch_count
+            _num_date = validation.number_date_mismatch_count
+            _len_outlier = validation.length_ratio_outlier_count
+            _warnings = validation.warnings if validation.warnings else None
+            _pipeline_status: str | None = validation.validation_status
 
             # 3. No-op guard: translation returned the same text (document already
             #    in the target language, or LibreTranslate failed auto-detect).
@@ -184,6 +235,13 @@ class SlowWorker:
                     output_text=translated,
                     fallback_used=True,
                     fallback_reason=reason,
+                    segment_count=_seg_count,
+                    failed_segment_count=_seg_failed,
+                    placeholder_mismatch_count=_ph_mismatch,
+                    number_date_mismatch_count=_num_date,
+                    length_ratio_outlier_count=_len_outlier,
+                    warnings=_warnings,
+                    pipeline_validation_status=_pipeline_status,
                 )
                 self._version_repo.update_version_status(
                     version_id,
@@ -199,7 +257,7 @@ class SlowWorker:
                 self._doc_repo.update_translation_quality(doc.id, "high")
                 return
 
-            # 4. Store translated text on version with metadata (#727)
+            # 4. Store translated text on version with metadata (#727, #728)
             _meta = _build_enrich_metadata(
                 translator=self._translator,
                 source_language=source_lang,
@@ -207,6 +265,13 @@ class SlowWorker:
                 input_text=text,
                 output_text=translated,
                 fallback_used=False,
+                segment_count=_seg_count,
+                failed_segment_count=_seg_failed,
+                placeholder_mismatch_count=_ph_mismatch,
+                number_date_mismatch_count=_num_date,
+                length_ratio_outlier_count=_len_outlier,
+                warnings=_warnings,
+                pipeline_validation_status=_pipeline_status,
             )
             self._version_repo.update_version_status(
                 version_id,
@@ -252,10 +317,33 @@ class SlowWorker:
         text = content_text
 
         # 2. Translate to the document's configured target language
-        translated = self._translator.translate(
+        #    Use segment-aware pipeline (#728)
+        source_lang = doc.source_language
+        target_lang = doc.target_language or "en"
+
+        # Load layout blocks for segment-aware translation
+        layout_blocks: list[dict[str, Any]] | None = None
+        if self._layout_repo is not None:
+            try:
+                layout_blocks_raw = self._layout_repo.list_by_document(doc.id)
+                if layout_blocks_raw:
+                    layout_blocks = [
+                        {"text": block.text, "block_type": block.block_type}
+                        for block in layout_blocks_raw
+                        if block.text
+                    ]
+            except Exception:
+                logger.debug(
+                    "Could not load layout blocks for document_id=%s",
+                    doc.id,
+                )
+
+        translated, _validation = run_segment_pipeline(
             text,
-            source_lang=doc.source_language,
-            target_lang=doc.target_language or "en",
+            translate_fn=self._translator.translate,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            layout_blocks=layout_blocks,
         )
 
         # 3. Chunk and index
@@ -587,6 +675,7 @@ if __name__ == "__main__":
     with engine.begin() as conn:
         doc_repo = DocumentRepository(conn)
         version_repo = TranslationVersionRepository(conn)
+        layout_repo = LayoutBlockRepository(conn)
         qdrant_client = QdrantSearchClient(url=settings.qdrant_url)
         translator = LibreTranslateClient(base_url=settings.libretranslate_url)
         encoder = build_encoder(settings)
@@ -604,6 +693,7 @@ if __name__ == "__main__":
             qdrant_client=qdrant_client,
             version_repository=version_repo,
             intelligence_worker=intelligence_worker,
+            layout_repository=layout_repo,
         )
 
         run_enrich_loop(
