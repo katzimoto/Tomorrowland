@@ -278,14 +278,11 @@ class BundleIntegrityReport:
     @property
     def issues(self) -> list[str]:
         """All validation issues concatenated."""
-        result: list[str] = []
-        for path in self.missing_files:
-            result.append(f"missing: {path}")
-        for path in self.checksum_mismatches:
-            result.append(f"checksum mismatch: {path}")
-        for path in self.extra_unlisted_files:
-            result.append(f"extra unlisted file: {path}")
-        return result
+        return [
+            *[f"missing: {path}" for path in self.missing_files],
+            *[f"checksum mismatch: {path}" for path in self.checksum_mismatches],
+            *[f"extra unlisted file: {path}" for path in self.extra_unlisted_files],
+        ]
 
 
 class BundleValidator:

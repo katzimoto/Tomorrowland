@@ -67,6 +67,11 @@ def _citation_accuracy(
     return len(overlap) / len(gold_ids)
 
 
+def _str_list(case: dict[str, object], key: str) -> list[str]:
+    value = case.get(key, [])
+    return value if isinstance(value, list) else []
+
+
 def _aggregate_metrics(case_results: list[dict[str, object]]) -> _RetrievalMetrics:
     metrics = _RetrievalMetrics(total_cases=len(case_results))
     ks = [1, 3, 5, 10]
@@ -83,12 +88,9 @@ def _aggregate_metrics(case_results: list[dict[str, object]]) -> _RetrievalMetri
     expansion_passed = 0
 
     for case in case_results:
-        retrieved_raw = case.get("retrieved_ids", [])
-        retrieved: list[str] = retrieved_raw  # type: ignore[assignment]
-        gold_raw = case.get("gold_ids", [])
-        gold: set[str] = set(gold_raw)  # type: ignore[call-overload]
-        cited_raw = case.get("cited_ids", [])
-        cited: list[str] = cited_raw  # type: ignore[assignment]
+        retrieved = _str_list(case, "retrieved_ids")
+        gold = set(_str_list(case, "gold_ids"))
+        cited = _str_list(case, "cited_ids")
 
         if gold:
             for k in ks:
@@ -102,12 +104,14 @@ def _aggregate_metrics(case_results: list[dict[str, object]]) -> _RetrievalMetri
             if not case.get("has_answer"):
                 no_answer_correct += 1
 
-        metrics.unauthorized_leakage_count += len(
-            case.get("unauthorized_docs_cited", [])  # type: ignore[arg-type]
-        )
+        unauthorized = case.get("unauthorized_docs_cited", [])
+        if isinstance(unauthorized, list):
+            metrics.unauthorized_leakage_count += len(unauthorized)
 
-        for stage, ms in case.get("latency_by_stage", {}).items():  # type: ignore[attr-defined]
-            latency_accumulator.setdefault(stage, []).append(ms)
+        latency_by_stage = case.get("latency_by_stage")
+        if isinstance(latency_by_stage, dict):
+            for stage, ms in latency_by_stage.items():
+                latency_accumulator.setdefault(stage, []).append(ms)
 
         if case.get("passed"):
             metrics.passed_cases += 1

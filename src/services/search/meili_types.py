@@ -23,24 +23,14 @@ def build_metadata_text(metadata: ChunkMetadata) -> str:
     fileExtension (sensitive, internal, or better as exact filters).
     """
     parts: list[str] = []
-    if metadata.file_name:
-        parts.append(metadata.file_name)
-    if metadata.author:
-        parts.append(metadata.author)
-    if metadata.owner:
-        parts.append(metadata.owner)
-    if metadata.tags:
-        parts.extend(metadata.tags)
-    if metadata.labels:
-        parts.extend(metadata.labels)
-    if metadata.topics:
-        parts.extend(metadata.topics)
-    if metadata.project:
-        parts.append(metadata.project)
-    if metadata.workspace:
-        parts.append(metadata.workspace)
-    if metadata.collection:
-        parts.append(metadata.collection)
+    for field in ("file_name", "author", "owner", "project", "workspace", "collection"):
+        value = getattr(metadata, field)
+        if value:
+            parts.append(value)
+    for field in ("tags", "labels", "topics"):
+        values = getattr(metadata, field)
+        if values:
+            parts.extend(values)
     return " ".join(parts)
 
 
