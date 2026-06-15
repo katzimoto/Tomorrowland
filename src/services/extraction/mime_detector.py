@@ -68,6 +68,7 @@ def _get_magika() -> Any:
 # This ensures the extension-based fallback path works for these formats
 # even when libmagic is not installed.
 mimetypes.add_type("application/vnd.ms-outlook", ".msg")
+mimetypes.add_type("application/ms-onenote", ".one")
 mimetypes.add_type("text/plain", ".log")
 mimetypes.add_type("text/plain", ".ini")
 mimetypes.add_type("text/plain", ".conf")
@@ -93,6 +94,24 @@ _OOXML_MARKERS: tuple[tuple[str, str], ...] = (
     ("xl/", _XLSX_MIME),
     ("ppt/", _PPTX_MIME),
 )
+
+
+def sniff_onenote_mime(path: Path) -> str | None:
+    """Return ``application/ms-onenote`` when the file starts with OneNote magic.
+
+    This is a stdlib-only fallback for ``.one`` files that arrive without an
+    extension or are labelled generically by upstream detectors.
+    """
+    one_magic_headers = (
+        b"\xe4\x52\x5c\x7b\x8c\xd8\xa7\x4d\xae\xb1\x53\x78\xd0\x29\x96\xd3",
+        b"\xa1\x2f\xff\x43\xd9\xef\x76\x4c\x9e\xe2\x10\xea\x57\x22\x76\x5f",
+    )
+    try:
+        with open(path, "rb") as fh:
+            header = fh.read(16)
+    except OSError:
+        return None
+    return "application/ms-onenote" if header in one_magic_headers else None
 
 
 def sniff_office_mime(path: Path) -> str | None:
@@ -196,6 +215,13 @@ class MimeDetector:
                         # .eml files).
                         if magika_mime in self._GENERIC_TYPES and guessed:
                             return guessed
+                        # If Magika returns a generic octet-stream for an
+                        # extensionless file, give OneNote magic sniffing a
+                        # chance before giving up.
+                        if magika_mime == "application/octet-stream" and not guessed:
+                            onenote = sniff_onenote_mime(path)
+                            if onenote:
+                                return onenote
                         return magika_mime
             except Exception:
                 logger.debug("magika failed for path=%s; falling back", path)
@@ -204,6 +230,10 @@ class MimeDetector:
         if _MAGIC_AVAILABLE:
             try:
                 detected: str = _magic.from_file(str(path), mime=True)
+                if detected == "application/octet-stream" and not guessed:
+                    onenote = sniff_onenote_mime(path)
+                    if onenote:
+                        return onenote
                 if detected and detected != "application/octet-stream":
                     # Prefer a specific extension-based type over a generic
                     # libmagic result (e.g. message/rfc822 over text/plain for
@@ -227,6 +257,10 @@ class MimeDetector:
         sniffed = sniff_office_mime(path)
         if sniffed:
             return sniffed
+
+        onenote = sniff_onenote_mime(path)
+        if onenote:
+            return onenote
 
         return "application/octet-stream"
 
