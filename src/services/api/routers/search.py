@@ -19,6 +19,7 @@ from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
 from services.documents.models import DocumentRow
 from services.documents.repository import DocumentRepository
+from services.rag.service import derive_matched_text_kind
 from services.search.factory import build_encoder, build_reranker
 from services.search.hybrid import SearchResult, merge_results
 from services.search.meili_types import DocumentSearchFilters, DocumentSearchQuery
@@ -345,6 +346,8 @@ def _build_search_response(
                 tags=list(tags),
                 translation_quality=doc_row.translation_quality,
                 translation_score=_translation_score(doc_row.translation_quality),
+                translation_version_id=(r.metadata or {}).get("translation_version_id"),
+                matched_text_kind=derive_matched_text_kind(r.metadata or {}),
                 score=r.score,
                 updated_at=_fmt_dt(doc_row.updated_at) or now,
                 indexed_at=_fmt_dt(doc_row.created_at) or now,

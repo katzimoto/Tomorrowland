@@ -57,6 +57,12 @@ def _item_response(item: EvidencePackItem) -> dict[str, Any]:
         "section_heading": item.section_heading,
         "translated_text": item.translated_text,
         "claim": item.claim,
+        "text_lane": item.text_lane,
+        "translated_from": item.translated_from,
+        "matched_text_kind": item.matched_text_kind,
+        "translation_version_id": item.translation_version_id,
+        "translation_quality": item.translation_quality,
+        "translation_validation_status": item.translation_validation_status,
         "created_at": _fmt_dt(item.created_at),
     }
 

@@ -179,6 +179,12 @@ class EvidencePackRepository:
         section_heading: str | None = None,
         translated_text: str | None = None,
         claim: str | None = None,
+        text_lane: str | None = None,
+        translated_from: str | None = None,
+        matched_text_kind: str | None = None,
+        translation_version_id: str | None = None,
+        translation_quality: str | None = None,
+        translation_validation_status: str | None = None,
     ) -> EvidencePackItem:
         """Insert an item into a pack and return the persisted row."""
         item_id = uuid4()
@@ -188,16 +194,28 @@ class EvidencePackRepository:
                     INSERT INTO evidence_pack_items (
                         id, evidence_pack_id, document_id, chunk_id, citation_id,
                         page_number, section_heading, text_excerpt, translated_text,
-                        claim, item_type, created_at
+                        claim, item_type,
+                        text_lane, translated_from, matched_text_kind,
+                        translation_version_id, translation_quality,
+                        translation_validation_status,
+                        created_at
                     )
                     VALUES (
                         :id, :evidence_pack_id, :document_id, :chunk_id, :citation_id,
                         :page_number, :section_heading, :text_excerpt, :translated_text,
-                        :claim, :item_type, CURRENT_TIMESTAMP
+                        :claim, :item_type,
+                        :text_lane, :translated_from, :matched_text_kind,
+                        :translation_version_id, :translation_quality,
+                        :translation_validation_status,
+                        CURRENT_TIMESTAMP
                     )
                     RETURNING id, evidence_pack_id, document_id, chunk_id, citation_id,
                               page_number, section_heading, text_excerpt, translated_text,
-                              claim, item_type, created_at
+                              claim, item_type,
+                              text_lane, translated_from, matched_text_kind,
+                              translation_version_id, translation_quality,
+                              translation_validation_status,
+                              created_at
                     """),
                 {
                     "id": db_uuid(item_id),
@@ -211,6 +229,12 @@ class EvidencePackRepository:
                     "translated_text": translated_text,
                     "claim": claim,
                     "item_type": item_type,
+                    "text_lane": text_lane,
+                    "translated_from": translated_from,
+                    "matched_text_kind": matched_text_kind,
+                    "translation_version_id": translation_version_id,
+                    "translation_quality": translation_quality,
+                    "translation_validation_status": translation_validation_status,
                 },
             )
             .mappings()
@@ -227,7 +251,11 @@ class EvidencePackRepository:
                 sa.text("""
                     SELECT id, evidence_pack_id, document_id, chunk_id, citation_id,
                            page_number, section_heading, text_excerpt, translated_text,
-                           claim, item_type, created_at
+                           claim, item_type,
+                           text_lane, translated_from, matched_text_kind,
+                           translation_version_id, translation_quality,
+                           translation_validation_status,
+                           created_at
                     FROM evidence_pack_items
                     WHERE id = :id
                     """),
@@ -245,7 +273,11 @@ class EvidencePackRepository:
                 sa.text("""
                     SELECT id, evidence_pack_id, document_id, chunk_id, citation_id,
                            page_number, section_heading, text_excerpt, translated_text,
-                           claim, item_type, created_at
+                           claim, item_type,
+                           text_lane, translated_from, matched_text_kind,
+                           translation_version_id, translation_quality,
+                           translation_validation_status,
+                           created_at
                     FROM evidence_pack_items
                     WHERE evidence_pack_id = :evidence_pack_id
                     ORDER BY created_at ASC
@@ -296,5 +328,11 @@ class EvidencePackRepository:
             section_heading=row.get("section_heading"),
             translated_text=row.get("translated_text"),
             claim=row.get("claim"),
+            text_lane=row.get("text_lane"),
+            translated_from=row.get("translated_from"),
+            matched_text_kind=row.get("matched_text_kind"),
+            translation_version_id=row.get("translation_version_id"),
+            translation_quality=row.get("translation_quality"),
+            translation_validation_status=row.get("translation_validation_status"),
             created_at=row["created_at"],
         )
