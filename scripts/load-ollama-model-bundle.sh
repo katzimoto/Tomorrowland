@@ -7,7 +7,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/load-ollama-model-bundle.sh --bundle <path> --compose-file <path> --env-file <path> [--project-name <name>]
 
-Load a Tomorrowland Ollama model bundle into the Compose ollama_data volume.
+Load a Tomorrowland Ollama model bundle into the Compose ollama_llm_data volume.
 This script is non-destructive: it does not run docker compose down -v and it
 copies bundle model files into the target volume without deleting existing models.
 USAGE
@@ -107,13 +107,13 @@ if [[ -z "$project_name" ]]; then
 fi
 [[ -n "$project_name" ]] || fail "could not determine Compose project name; pass --project-name"
 compose_args=(-p "$project_name" --env-file "$env_file" -f "$compose_file")
-volume_name="$(env_value TOMORROWLAND_OLLAMA_VOLUME "tomorrowland_ollama_data")"
+volume_name="$(env_value TOMORROWLAND_OLLAMA_LLM_VOLUME "tomorrowland_ollama_llm_data")"
 
 log "Ensuring target Docker volume exists: $volume_name"
 docker volume inspect "$volume_name" >/dev/null 2>&1 || docker volume create "$volume_name" >/dev/null
 
-log "Stopping Ollama service before copying model files (volumes preserved)"
-docker compose "${compose_args[@]}" stop ollama >/dev/null 2>&1 || log "Ollama service was not running or could not be stopped; continuing"
+log "Stopping Ollama LLM service before copying model files (volumes preserved)"
+docker compose "${compose_args[@]}" stop ollama-llm >/dev/null 2>&1 || log "Ollama LLM service was not running or could not be stopped; continuing"
 
 ollama_image="$(docker compose "${compose_args[@]}" config --images | awk '/ollama/ {print; exit}')"
 [[ -n "$ollama_image" ]] || ollama_image="ollama/ollama:latest"
@@ -125,8 +125,8 @@ docker run --rm \
   "$ollama_image" \
   sh -c 'mkdir -p /target/models && cp -a /bundle-models/. /target/models/' >/dev/null
 
-log "Starting Ollama service"
-docker compose "${compose_args[@]}" up -d ollama >/dev/null
+log "Starting Ollama LLM service"
+docker compose "${compose_args[@]}" up -d ollama-llm >/dev/null
 
 cat <<NEXT
 [load-ollama-model-bundle] Model bundle loaded.

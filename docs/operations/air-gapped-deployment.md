@@ -859,7 +859,7 @@ or marked unavailable by the application.
 - Ollama model weights remain a separate release asset rather than being
   embedded in the platform archive. Model bundles are optional add-on artifacts. Operators may omit or replace the
   default `qwen3:4b` bundle; local Q&A/RAG features are degraded until a matching
-  model is loaded into `ollama_data`.
+  model is loaded into `ollama_llm_data`.
 - NiFi event ingestion requires operator-provided drain invocation; no
   dedicated NiFi drain worker or live NiFi/Kafka CI validation is included.
 - Atlassian-native permission synchronization is not present; use Tomorrowland

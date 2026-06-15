@@ -16,7 +16,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11+-blue?style=flat-square" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/react-19-61dafb?style=flat-square" alt="React 19">
-  <img src="https://img.shields.io/badge/version-0.6.0--rc-dc3545?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.6.0-dc3545?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/license-proprietary-red?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/PRs-welcome-2ea043?style=flat-square" alt="PRs Welcome">
 </p>
