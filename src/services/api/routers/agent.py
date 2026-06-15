@@ -149,6 +149,8 @@ class AgentPassage(BaseModel):
     page_number: int | None = None
     section_heading: str | None = None
     language: str | None = None
+    text_lane: str | None = None
+    translated_from: str | None = None
 
 
 class AgentPassagesResponse(BaseModel):
@@ -173,6 +175,12 @@ class AgentAskCitation(BaseModel):
     page_number: int | None = None
     section_heading: str | None = None
     language: str | None = None
+    text_lane: str | None = None
+    translated_from: str | None = None
+    matched_text_kind: str | None = None
+    translation_version_id: str | None = None
+    translation_quality: str | None = None
+    translation_validation_status: str | None = None
 
 
 class AgentAskResponse(BaseModel):
@@ -514,7 +522,9 @@ def get_passages(
             text=r.chunk_text or "",
             page_number=(r.metadata or {}).get("page_number"),
             section_heading=(r.metadata or {}).get("section_heading"),
-            language=(r.metadata or {}).get("source_language"),
+            language=(r.metadata or {}).get("language"),
+            text_lane=(r.metadata or {}).get("text_lane"),
+            translated_from=(r.metadata or {}).get("translated_from"),
         )
         for r in chunk_results
     ]
@@ -652,6 +662,12 @@ def ask_corpus(
                     page_number=c.page_number,
                     section_heading=c.section_heading,
                     language=c.language,
+                    text_lane=c.text_lane,
+                    translated_from=c.translated_from,
+                    matched_text_kind=c.matched_text_kind,
+                    translation_version_id=c.translation_version_id,
+                    translation_quality=c.translation_quality,
+                    translation_validation_status=c.translation_validation_status,
                 )
             )
 
