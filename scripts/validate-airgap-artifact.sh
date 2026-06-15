@@ -69,6 +69,7 @@ required_files=(
   "scripts/validate-airgap-artifact.sh"
   "scripts/load-ollama-model-bundle.sh"
   "scripts/validate-ollama-model.sh"
+  "scripts/load-translation-model-bundle.sh"
   "scripts/validate-translation-languages.sh"
   "scripts/preflight-upgrade-check.sh"
   "scripts/backup-airgap-data.sh"

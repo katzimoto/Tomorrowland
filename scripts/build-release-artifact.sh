@@ -94,6 +94,7 @@ required_files=(
   "scripts/validate-airgap-artifact.sh"
   "scripts/load-ollama-model-bundle.sh"
   "scripts/validate-ollama-model.sh"
+  "scripts/load-translation-model-bundle.sh"
   "scripts/validate-translation-languages.sh"
   "scripts/preflight-upgrade-check.sh"
   "scripts/backup-airgap-data.sh"
@@ -224,6 +225,7 @@ cp scripts/load-airgap-images.sh "$release_dir/scripts/load-airgap-images.sh"
 cp scripts/validate-airgap-artifact.sh "$release_dir/scripts/validate-airgap-artifact.sh"
 cp scripts/load-ollama-model-bundle.sh "$release_dir/scripts/load-ollama-model-bundle.sh"
 cp scripts/validate-ollama-model.sh "$release_dir/scripts/validate-ollama-model.sh"
+cp scripts/load-translation-model-bundle.sh "$release_dir/scripts/load-translation-model-bundle.sh"
 cp scripts/validate-translation-languages.sh "$release_dir/scripts/validate-translation-languages.sh"
 cp scripts/preflight-upgrade-check.sh "$release_dir/scripts/preflight-upgrade-check.sh"
 cp scripts/backup-airgap-data.sh "$release_dir/scripts/backup-airgap-data.sh"
@@ -329,6 +331,7 @@ checksum_inputs=(
   scripts/validate-airgap-artifact.sh
   scripts/load-ollama-model-bundle.sh
   scripts/validate-ollama-model.sh
+  scripts/load-translation-model-bundle.sh
   scripts/validate-translation-languages.sh
   scripts/preflight-upgrade-check.sh
   scripts/backup-airgap-data.sh

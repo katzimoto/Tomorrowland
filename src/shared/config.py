@@ -213,6 +213,14 @@ class Settings(BaseSettings):
 
     supported_translation_source_languages: str = "en,he,zh,ko,th,ar,fr,ru,es"
 
+    # --- Translation model bundle (#730) ---
+    # Path to an extracted translation model bundle directory containing
+    # manifest.json and model files. When set, translation providers that
+    # support local model loading will validate and load models from this
+    # path at startup. Leave empty when models are baked into the provider
+    # Docker image (as with the default LibreTranslate Argos setup).
+    translation_model_bundle_path: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         """Return configured CORS origins from a comma-separated setting."""
