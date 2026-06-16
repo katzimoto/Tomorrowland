@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **OneNote `.one` file extraction (#810)**: adds offline extraction support for local
+  Microsoft OneNote section files. New `OneNoteExtractor` in
+  `src/services/extraction/onenote.py` uses the optional `pyOneNote` parser to extract
+  page titles, outline text, embedded-file/image placeholders, and page-boundary
+  location segments. Registered under MIME type `application/ms-onenote`; extension
+  `.one` and OneNote magic bytes are both recognised by `MimeDetector`. Embedded
+  objects are surfaced as safe metadata placeholders rather than executed or expanded
+  as child documents. Parsing failures and missing `pyOneNote` degrade gracefully to
+  empty text. 14 unit tests covering detection, single/multi-page extraction, embedded
+  object placeholders, duplicate-text deduplication, corrupt-file handling, and
+  registry integration.
 - **Translation model bundle contract (#730)**: defines a self-contained, offline-loadable
   translation model bundle format for future providers (OPUS-MT, NLLB, CTranslate2).
   `models/translation/manifest.schema.json` — JSON Schema v1.0 for the manifest format

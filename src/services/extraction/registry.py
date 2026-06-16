@@ -19,6 +19,7 @@ from services.extraction.json_extractor import JsonExtractor
 from services.extraction.mime_detector import sniff_office_mime
 from services.extraction.msg_extractor import MsgExtractor
 from services.extraction.odt import OdtExtractor
+from services.extraction.onenote import OneNoteExtractor
 from services.extraction.opendocument import OdpExtractor, OdsExtractor
 from services.extraction.pdf import PdfExtractor
 from services.extraction.plain import PlainExtractor
@@ -159,6 +160,7 @@ class ExtractorRegistry:
         self._register("application/epub+zip", EpubExtractor())
         self._register("message/rfc822", EmlExtractor())
         self._register("application/vnd.ms-outlook", MsgExtractor())
+        self._register("application/ms-onenote", OneNoteExtractor())
         self._register("application/zip", ZipExtractor())
         self._register("application/x-tar", TarExtractor())
         self._register("application/gzip", TarExtractor())
