@@ -587,10 +587,9 @@ def admin_reload_providers(
     requiring a service restart.
     """
     require_admin(user)
-    request.app.state.provider_registry.reload()
-    resolver = getattr(request.app.state, "task_default_resolver", None)
-    if resolver is not None:
-        resolver.reload()
+    # Reload through the canonical runtime boundary, which refreshes both the
+    # provider registry and the task-default resolver from the database (#813).
+    request.app.state.model_runtime.reload()
     return {"reloaded": True}
 
 

@@ -123,6 +123,7 @@ nav:
           - Document Comments: design/document-comments-spec.md
       - Platform:
           - Sources & Permissions: design/sources-permissions-model.md
+          - Model-Provider Runtime: design/model-provider-runtime.md
           - Translation Versions: design/translation-versions-spec.md
           - Pipeline Tasks: design/pipeline-tasks.md
           - SQLModel Bounded Models: architecture/sqlmodel-bounded-models.md
