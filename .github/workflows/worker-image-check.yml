@@ -1,0 +1,43 @@
+name: Worker image check
+
+on:
+  pull_request:
+    paths:
+      - "pyproject.toml"
+      - "docker-compose.yml"
+      - "docker/**"
+      - "src/services/pipeline/**"
+      - ".github/workflows/worker-image-check.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "pyproject.toml"
+      - "docker-compose.yml"
+      - "docker/**"
+      - "src/services/pipeline/**"
+      - ".github/workflows/worker-image-check.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: worker-image-check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  worker-image-check:
+    name: Build worker images and verify entrypoints
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      COMPOSE_PROJECT_NAME: tomorrowland_worker_check_${{ github.run_id }}_${{ github.run_attempt }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build images and verify worker entrypoints
+        run: bash scripts/dev/check-worker-images.sh
