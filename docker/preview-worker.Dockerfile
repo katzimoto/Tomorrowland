@@ -22,6 +22,7 @@ RUN apt-get update \
         fonts-dejavu \
     && rm -rf /var/lib/apt/lists/*
 
-USER appuser
-
+# Do not set USER here. The inherited backend entrypoint runs as root to
+# chown /data and then drops to appuser via gosu; gosu cannot switch users
+# when already running as appuser ("operation not permitted").
 CMD ["tomorrowland-preview-worker"]
