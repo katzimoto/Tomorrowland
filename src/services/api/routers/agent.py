@@ -603,7 +603,7 @@ def ask_corpus(
         rag = RagService(
             qdrant_client=qdrant_client,
             encoder=encoder,
-            ollama_client=request.app.state.llm_provider,
+            ollama_client=request.app.state.model_runtime.get_chat_provider("rag_answer"),
             connection=connection,
             system_prompt=system_prompt,
             max_chunks=settings.rag_max_chunks,

@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Canonical model-provider runtime boundary (#813A/B/E)**: introduces
+  `ModelRuntime` (`src/services/intelligence/runtime.py`, on
+  `app.state.model_runtime`) as the single boundary product code calls to obtain
+  a model client by *purpose/task*. It composes the existing foundation
+  (`build_llm_provider` env fallback, `TaskDefaultResolver` DB defaults,
+  `ProviderRegistry`) — no parallel registry — with explicit precedence
+  (`DB admin task default > env/bundled fallback`) and air-gap policy: when
+  `AIR_GAPPED=true`, task defaults pointing at `external` (cloud) providers are
+  refused and fall back to the local provider, so air-gapped deployments never
+  silently egress. Document chat (answer generation, query rewrite, reranker
+  selection), agent/researcher RAG answer generation, and the intelligence
+  trigger now resolve through the runtime instead of constructing clients ad hoc.
+  A regression guardrail test
+  (`tests/unit/test_no_direct_model_construction.py`) forbids direct
+  `OllamaClient` / `OpenAICompatibleLLMProvider` / `build_llm_provider`
+  construction outside allowlisted factory/runtime/bootstrap modules. New
+  `AIR_GAPPED` setting; design doc at `docs/design/model-provider-runtime.md`.
+  Env-based deployments remain fully backward compatible. Bundled local-model
+  images (#813C) and admin-UI polish (#813D) are tracked as follow-ups.
 - **Runtime configuration admin UI (#812)**: adds an admin-only surface for inspecting
   and overriding environment-backed settings without shell access. New typed config
   registry (`src/services/api/config_registry.py`) declares a curated, categorized subset

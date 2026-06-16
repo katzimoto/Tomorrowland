@@ -18,6 +18,7 @@ from services.extraction.registry import ExtractorRegistry
 from services.intelligence.factory import build_llm_provider
 from services.intelligence.llm_provider import LLMProvider
 from services.intelligence.provider_registry import ProviderRegistry
+from services.intelligence.runtime import ModelRuntime
 from services.intelligence.task_defaults import TaskDefaultResolver
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.qdrant import QdrantSearchClient
@@ -121,6 +122,17 @@ def create_app(
     except Exception:
         logger.warning("TaskDefaultResolver.load() failed — tables may not exist yet")
     app.state.task_default_resolver = task_default_resolver
+
+    # Canonical model-runtime boundary (#813).  Product code resolves a model
+    # client by task/purpose through this object — never by constructing
+    # providers or reading env values ad hoc.  Composes the DB task-default
+    # resolver with the env/bundled fallback and applies air-gap policy.
+    app.state.model_runtime = ModelRuntime(
+        settings=app.state.settings,
+        env_provider=app.state.llm_provider,
+        resolver=task_default_resolver,
+        provider_registry=provider_registry,
+    )
 
     if meili_provider is not None:
         app.state.meili_provider = meili_provider

@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     llm_model: str = ""
     llm_api_key: str = ""
 
+    # When true, the model runtime refuses to dispatch to providers whose
+    # locality is ``external`` (cloud/SaaS), even if an admin task default points
+    # at one.  Such tasks fall back to the local env/bundled provider instead.
+    air_gapped: bool = False
+
     auth_provider: Literal["local", "ldap", "both"] = "both"
     ldap_url: str = "ldap://domain-controller:389"
     ldap_base_dn: str = "DC=company,DC=local"

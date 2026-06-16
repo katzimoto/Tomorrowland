@@ -43,7 +43,7 @@ def trigger_intelligence(
 
         try:
             intelligence_repo = IntelligenceRepository(connection)
-            ollama_client = request.app.state.llm_provider
+            ollama_client = request.app.state.model_runtime.get_chat_provider("summarization")
             resolver: TaskDefaultResolver | None = getattr(
                 request.app.state, "task_default_resolver", None
             )
@@ -87,7 +87,7 @@ def regenerate_summary(
 
         try:
             intelligence_repo = IntelligenceRepository(connection)
-            ollama_client = request.app.state.llm_provider
+            ollama_client = request.app.state.model_runtime.get_chat_provider("summarization")
             resolver: TaskDefaultResolver | None = getattr(
                 request.app.state, "task_default_resolver", None
             )
