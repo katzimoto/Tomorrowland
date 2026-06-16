@@ -385,7 +385,83 @@ export const adminApi = {
       "/admin/permission-simulator/audit",
       payload,
     ),
+
+  // --- Runtime configuration (#812) ---
+  listRuntimeConfig: () =>
+    api.get<RuntimeConfigList>("/admin/runtime-config"),
+  updateRuntimeConfig: (key: string, value: RuntimeConfigValue) =>
+    api.patch<RuntimeConfigSetting>(`/admin/runtime-config/${key}`, { value }),
+  resetRuntimeConfig: (key: string) =>
+    api.delete<RuntimeConfigSetting>(`/admin/runtime-config/${key}`),
+  validateRuntimeConfig: (key: string, value: RuntimeConfigValue) =>
+    api.post<RuntimeConfigValidateResult>("/admin/runtime-config/validate", {
+      key,
+      value,
+    }),
+  reloadRuntimeConfig: () =>
+    api.post<{ reloaded: boolean; note: string }>(
+      "/admin/runtime-config/reload",
+      {},
+    ),
+  runtimeConfigAudit: () =>
+    api.get<RuntimeConfigAuditEntry[]>("/admin/runtime-config/audit"),
 };
+
+export type RuntimeConfigValue = string | number | boolean | null;
+
+export type RuntimeConfigType =
+  | "string"
+  | "int"
+  | "float"
+  | "bool"
+  | "enum"
+  | "json"
+  | "secret";
+
+export interface RuntimeConfigSetting {
+  key: string;
+  category: string;
+  display_name: string;
+  description: string;
+  type: RuntimeConfigType;
+  is_secret: boolean;
+  is_sensitive: boolean;
+  is_runtime_editable: boolean;
+  requires_restart: boolean;
+  requires_worker_restart: boolean;
+  requires_reindex: boolean;
+  requires_resync: boolean;
+  enum_values: string[] | null;
+  min_value: number | null;
+  max_value: number | null;
+  source: "default" | "env" | "database_override";
+  safe_default?: RuntimeConfigValue;
+  configured_value?: RuntimeConfigValue;
+  current_effective_value?: RuntimeConfigValue;
+  configured?: boolean;
+  override_present: boolean;
+  override_updated_at: string | null;
+}
+
+export interface RuntimeConfigList {
+  settings: RuntimeConfigSetting[];
+  categories: string[];
+  precedence: string;
+}
+
+export interface RuntimeConfigValidateResult {
+  valid: boolean;
+  value?: RuntimeConfigValue;
+  error?: string;
+}
+
+export interface RuntimeConfigAuditEntry {
+  id: string;
+  user_id: string | null;
+  action: string;
+  key: string | null;
+  created_at: string | null;
+}
 
 export interface IngestionStatusJob {
   id: string;

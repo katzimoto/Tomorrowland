@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Runtime configuration admin UI (#812)**: adds an admin-only surface for inspecting
+  and overriding environment-backed settings without shell access. New typed config
+  registry (`src/services/api/config_registry.py`) declares a curated, categorized subset
+  of `Settings` with per-entry metadata (type, secret/sensitive flags, runtime-editability,
+  restart/reindex/resync requirements, validation rules). New admin API under
+  `/admin/runtime-config` (`GET` list, `GET {key}`, `PATCH {key}`, `DELETE {key}`,
+  `POST /validate`, `POST /reload`, `GET /audit`) backed by a new
+  `admin_runtime_config_overrides` table (migration `cfg9a1b2d3e4`) and
+  `RuntimeConfigRepository`. Precedence is explicit and tested:
+  `deployment-locked env > database override > env value > application default`. Secrets are
+  always read-only and redacted (never returned, logged, or stored as new plaintext);
+  non-editable settings are visible as read-only. Validated PATCHes reject unknown keys
+  (fail closed), non-editable keys, secrets, and type/range/enum violations, and write audit
+  events without raw values. New frontend page at `/admin/config`
+  (`AdminRuntimeConfigPage`) groups settings by category with search/filter, per-type
+  editors (bool/int/float/enum/string), restart-required warnings, reset-to-default, a
+  reload action, and a recent-changes audit list. 14 backend integration tests and 4
+  frontend tests.
 - **OneNote `.one` file extraction (#810)**: adds offline extraction support for local
   Microsoft OneNote section files. New `OneNoteExtractor` in
   `src/services/extraction/onenote.py` uses the optional `pyOneNote` parser to extract

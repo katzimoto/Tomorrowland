@@ -97,6 +97,7 @@ nav:
       - Pipeline Workers: operations/pipeline-workers.md
       - Model Providers: operations/model-providers.md
       - MCP Adapter: operations/mcp-adapter.md
+      - Runtime Configuration: operations/runtime-configuration.md
       - API Logging: operations/api-logging.md
       - Release Notes: operations/release-notes-rc.md
       - Split Airgap Artifacts: operations/split-airgap-artifacts.md
