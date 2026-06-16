@@ -227,6 +227,7 @@ def create_app(
     )
     from services.api.routers.admin.quality_lab import router as admin_quality_lab_router
     from services.api.routers.admin.rabbit import router as admin_rabbit_router
+    from services.api.routers.admin.runtime_config import router as admin_runtime_config_router
     from services.api.routers.admin.source_profiles import router as admin_source_profiles_router
     from services.api.routers.admin.source_qa import router as admin_source_qa_router
     from services.api.routers.admin.sources import router as admin_sources_router
@@ -271,6 +272,7 @@ def create_app(
     app.include_router(admin_parsers_router)
     app.include_router(admin_permission_simulator_router)
     app.include_router(admin_rabbit_router)
+    app.include_router(admin_runtime_config_router)
     app.include_router(admin_source_profiles_router)
     app.include_router(admin_source_qa_router)
     app.include_router(admin_sync_runs_router)

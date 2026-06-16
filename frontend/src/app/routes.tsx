@@ -46,6 +46,7 @@ const AdminGroupDetailPage = lazyRoute(() => import("@/features/admin/AdminGroup
 const AdminUsersPage = lazyRoute(() => import("@/features/admin/AdminUsersPage"), "AdminUsersPage");
 const AdminUserDetailPage = lazyRoute(() => import("@/features/admin/AdminUserDetailPage"), "AdminUserDetailPage");
 const AdminModelProvidersPage = lazyRoute(() => import("@/features/admin/AdminModelProvidersPage"), "AdminModelProvidersPage");
+const AdminRuntimeConfigPage = lazyRoute(() => import("@/features/admin/AdminRuntimeConfigPage"), "AdminRuntimeConfigPage");
 const AdminLdapPage = lazyRoute(() => import("@/features/admin/AdminLdapPage"), "AdminLdapPage");
 const QualityLabPage = lazyRoute(() => import("@/features/admin/QualityLabPage"), "QualityLabPage");
 const PermissionSimulatorPage = lazyRoute(() => import("@/features/admin/PermissionSimulatorPage"), "PermissionSimulatorPage");
@@ -262,6 +263,12 @@ const adminLdapRoute = createRoute({
   component: AdminLdapPage,
 });
 
+const adminRuntimeConfigRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/config",
+  component: AdminRuntimeConfigPage,
+});
+
 const qualityLabRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/admin/quality-lab",
@@ -301,6 +308,7 @@ const routeTree = rootRoute.addChildren([
     adminUserDetailRoute,
     adminModelProvidersRoute,
     adminLdapRoute,
+    adminRuntimeConfigRoute,
     qualityLabRoute,
     permissionSimulatorRoute,
   ]),
