@@ -121,7 +121,11 @@ def _dispatch_and_merge(
     """Run Meilisearch and Qdrant in parallel (or fallback). Returns merged results."""
     _settings = http_request.app.state.settings
 
-    encoder = build_encoder(_settings, timeout=_settings.search_embedding_timeout)
+    encoder = build_encoder(
+        _settings,
+        timeout=_settings.search_embedding_timeout,
+        resolver=getattr(http_request.app.state, "task_default_resolver", None),
+    )
     try:
         query_vector = encoder.encode(request.query)
     except Exception:
@@ -243,6 +247,7 @@ def _apply_reranker(
         reranker = build_reranker(
             _settings,
             llm_provider=getattr(http_request.app.state, "llm_provider", None),
+            resolver=getattr(http_request.app.state, "task_default_resolver", None),
         )
         rerank_start = time.perf_counter()
         reranked = reranker.rerank(query, merged)

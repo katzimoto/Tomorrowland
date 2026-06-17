@@ -716,20 +716,26 @@ if __name__ == "__main__":
 
     from services.intelligence.factory import build_llm_provider
     from services.intelligence.repository import IntelligenceRepository
+    from services.intelligence.task_defaults import build_task_resolver
     from services.search.factory import build_encoder
     from services.translation.ctranslate2_provider import CTranslate2OpusProvider
     from shared.config import Settings
+    from shared.runtime_config import apply_model_config_overrides
 
     settings = Settings()
     engine = create_engine(settings.postgres_url)
+    resolver = build_task_resolver(engine, settings)
 
     with engine.begin() as conn:
+        # Apply admin translation/QE model overrides (system_config); embedding
+        # resolves through the model-provider registry (resolver).
+        settings = apply_model_config_overrides(settings, conn)
         doc_repo = DocumentRepository(conn)
         version_repo = TranslationVersionRepository(conn)
         layout_repo = LayoutBlockRepository(conn)
         qdrant_client = QdrantSearchClient(url=settings.qdrant_url)
         translator = LibreTranslateArgosProvider(base_url=settings.libretranslate_url)
-        encoder = build_encoder(settings)
+        encoder = build_encoder(settings, resolver=resolver)
 
         intelligence_worker = IntelligenceWorker(
             repository=IntelligenceRepository(conn),

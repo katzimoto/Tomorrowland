@@ -53,6 +53,24 @@ class TaskResolution:
 # ---------------------------------------------------------------------------
 
 
+def build_task_resolver(engine: Engine, settings: Settings) -> TaskDefaultResolver:
+    """Build and load a resolver for a worker process.
+
+    Returns a loaded resolver, or an unloaded one when the model-provider tables
+    are unavailable (callers fall back to environment/settings behaviour).
+    """
+    resolver = TaskDefaultResolver(
+        engine=engine,
+        settings=settings,
+        credential_store_key=settings.credential_store_key,
+    )
+    try:
+        resolver.load()
+    except Exception:
+        logger.warning("TaskDefaultResolver.load() failed in worker — tables may not exist yet")
+    return resolver
+
+
 def build_llm_from_resolution(resolution: TaskResolution) -> LLMProvider:
     """Build an ``LLMProvider`` from a resolved task default.
 

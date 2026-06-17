@@ -328,7 +328,7 @@ def create_message(
                     detail="You do not belong to any groups with document access.",
                 )
 
-        encoder = build_encoder(settings)
+        encoder = build_encoder(settings, resolver=resolver)
         qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
             url=settings.qdrant_url,
             dimension=encoder.dimension,
@@ -577,7 +577,7 @@ def create_message_stream(
                     status_code=403, detail="You do not belong to any groups with document access."
                 )
 
-        encoder = build_encoder(settings)
+        encoder = build_encoder(settings, resolver=resolver)
         qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
             url=settings.qdrant_url,
             dimension=encoder.dimension,

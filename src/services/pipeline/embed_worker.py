@@ -178,6 +178,7 @@ def main() -> None:
     import sqlalchemy as sa
 
     from services.documents.repository import DocumentRepository
+    from services.intelligence.task_defaults import build_task_resolver
     from services.pipeline.jobs import PipelineJobRepository
     from services.pipeline.publisher import DocumentPublisher
     from services.search.factory import build_encoder
@@ -188,12 +189,13 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
     settings = Settings()
     engine = sa.create_engine(settings.postgres_url)
+    resolver = build_task_resolver(engine, settings)
     connection = engine.connect()
     rabbit = RabbitClient(settings.rabbitmq_url, enabled=True)
     job_repo = PipelineJobRepository(connection)
     doc_repo = DocumentRepository(connection)
     publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
-    encoder = build_encoder(settings)
+    encoder = build_encoder(settings, resolver=resolver)
     qdrant = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
     consumer = EmbedConsumer(
         rabbit=rabbit,

@@ -21,17 +21,38 @@ from .reranker import (
 logger = logging.getLogger(__name__)
 
 
+def _resolution_dimension(resolution: Any, settings: Settings) -> int:
+    """Embedding dimension from a task default's parameters, else settings.
+
+    A task default may carry ``{"dimension": N}`` (or ``embedding_dimension``)
+    in its parameters; otherwise the environment value is used. Changing the
+    dimension still requires a re-index.
+    """
+    params = getattr(resolution, "parameters", None)
+    if params:
+        raw = params.get("dimension") or params.get("embedding_dimension")
+        if raw is not None:
+            return int(raw)
+    return settings.embedding_dimension
+
+
 def build_encoder(
     settings: Settings,
     *,
     timeout: float | None = None,
+    resolver: Any | None = None,
 ) -> TextEncoder:
-    """Build and return a text encoder based on *settings*.
+    """Build and return a text encoder.
 
-    Provider resolution:
-    - If ``embedding_provider`` is explicitly set, use it.
-    - Otherwise default to ``ollama`` in production and ``deterministic-test``
-      in dev/test.
+    Model selection:
+    - When *resolver* has an ``embedding`` task default configured (Model
+      Providers UI), its provider/model/endpoint is used. Reloading the
+      registry (``/admin/model-providers/reload``) picks up changes without a
+      restart.
+    - Otherwise the environment ``embedding_*`` settings apply:
+        - If ``embedding_provider`` is explicitly set, use it.
+        - Otherwise default to ``ollama`` in production and
+          ``deterministic-test`` in dev/test.
 
     Production safety:
     - ``APP_ENV=prod`` rejects the ``deterministic-test`` provider unless
@@ -42,6 +63,27 @@ def build_encoder(
             current environment.
         ValueError: when the configured provider is unknown.
     """
+    resolution = resolver.resolve("embedding") if resolver is not None and resolver.loaded else None
+    if resolution is not None and resolution.model_name:
+        base_url = resolution.base_url or settings.embedding_url or settings.ollama_url
+        eff_timeout = timeout if timeout is not None else settings.embedding_timeout
+        dimension = _resolution_dimension(resolution, settings)
+        if resolution.provider_type == "ollama":
+            return OllamaEmbeddingEncoder(
+                base_url=base_url,
+                model=resolution.model_name,
+                dimension=dimension,
+                max_tokens=settings.embedding_max_tokens,
+                timeout=eff_timeout,
+            )
+        return OpenAICompatibleEmbeddingEncoder(
+            base_url=base_url,
+            model=resolution.model_name,
+            dimension=dimension,
+            api_key=resolution.api_key or settings.embedding_api_key,
+            timeout=eff_timeout,
+        )
+
     provider = settings.embedding_provider
     if not provider:
         provider = "ollama" if settings.app_env == "prod" else "deterministic-test"
@@ -85,6 +127,7 @@ def build_reranker(
     settings: Settings,
     *,
     llm_provider: Any | None = None,
+    resolver: Any | None = None,
 ) -> SearchReranker:
     """Build and return a search reranker based on *settings*.
 
@@ -94,14 +137,20 @@ def build_reranker(
        (preferred — calls a dedicated cross-encoder service).
     3. Otherwise, fall back to the LLM-based (Ollama prompt) reranker.
        Requires *llm_provider* to be passed in.
+
+    When *resolver* has a ``reranking`` task default, its model name overrides
+    the environment reranker model (consistent with the chat reranker path).
     """
+    resolution = resolver.resolve("reranking") if resolver is not None and resolver.loaded else None
+    resolved_model = resolution.model_name if resolution is not None else None
+
     if not settings.search_reranker_enabled:
         return NoOpSearchReranker()
 
     if settings.search_reranker_url:
         return EndpointSearchReranker(
             url=settings.search_reranker_url,
-            model=settings.search_reranker_model,
+            model=resolved_model or settings.search_reranker_model,
             min_score=settings.search_reranker_min_score,
             top_n=settings.search_reranker_depth,
             timeout=settings.search_reranker_timeout,
@@ -119,5 +168,5 @@ def build_reranker(
         llm_provider=llm_provider,
         min_score=settings.search_reranker_min_score,
         top_n=settings.search_reranker_depth,
-        model=settings.effective_reranker_model,
+        model=resolved_model or settings.effective_reranker_model,
     )

@@ -172,7 +172,10 @@ def trigger_alert_matching(
         content = (payload.get("content_text", "") if payload else None) or ""
         matcher = AlertMatcher(
             repository=AlertRepository(connection),
-            encoder=build_encoder(request.app.state.settings),
+            encoder=build_encoder(
+                request.app.state.settings,
+                resolver=getattr(request.app.state, "task_default_resolver", None),
+            ),
             default_threshold=default_alert_threshold(connection),
         )
         created = matcher.match_document(doc, content)

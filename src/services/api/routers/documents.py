@@ -566,7 +566,10 @@ def related_documents(
         else:
             return {"document_id": str(document_id), "related": []}
 
-        encoder = build_encoder(request.app.state.settings)
+        encoder = build_encoder(
+            request.app.state.settings,
+            resolver=getattr(request.app.state, "task_default_resolver", None),
+        )
         qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
             url=request.app.state.settings.qdrant_url,
             dimension=encoder.dimension,
@@ -614,7 +617,10 @@ def expertise(
             _auth_repo = AuthRepository(connection)
             _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
             group_ids = [str(g) for g in _effective]
-        encoder = build_encoder(request.app.state.settings)
+        encoder = build_encoder(
+            request.app.state.settings,
+            resolver=getattr(request.app.state, "task_default_resolver", None),
+        )
         qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
             url=request.app.state.settings.qdrant_url,
             dimension=encoder.dimension,

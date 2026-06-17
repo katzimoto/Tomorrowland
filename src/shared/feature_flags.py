@@ -35,6 +35,11 @@ SYSTEM_CONFIG_DEFAULTS: Final[MappingProxyType[str, JsonValue]] = MappingProxyTy
         "llm.auto_tag_prompt": (
             "Assign 3-7 short topic tags to the following document as a JSON array."
         ),
+        # Local translation/QE model bundle overrides (file paths). Empty string
+        # => use the environment default (Settings). Endpoint-backed models
+        # (embedding, reranker, generation) are configured via Model Providers.
+        "model.translation_qe_model_path": "",
+        "model.translation_high_bundle_path": "",
         "search.vector_weight": 0.7,
         "search.bm25_weight": 0.3,
         "search.related_docs_limit": 5,

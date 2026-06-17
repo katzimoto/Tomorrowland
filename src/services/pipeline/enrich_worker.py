@@ -64,6 +64,7 @@ def main() -> None:
     from services.documents.repository import DocumentRepository, TranslationVersionRepository
     from services.intelligence.factory import build_llm_provider
     from services.intelligence.repository import IntelligenceRepository
+    from services.intelligence.task_defaults import build_task_resolver
     from services.intelligence.worker import IntelligenceWorker
     from services.search.factory import build_encoder
     from services.search.meili_provider import MeilisearchSearchProvider
@@ -73,17 +74,23 @@ def main() -> None:
     from services.translation.qe_scorer import build_qe_scorer
     from shared.config import Settings
     from shared.rabbit import RabbitClient
+    from shared.runtime_config import apply_model_config_overrides
 
     logging.basicConfig(level=logging.INFO)
     settings = Settings()
     engine = sa.create_engine(settings.postgres_url)
+    resolver = build_task_resolver(engine, settings)
     connection = engine.connect()
+    # Apply admin translation/QE model overrides (system_config) so the worker
+    # picks up Admin → Configuration changes on its next start. Embedding/reranker
+    # models resolve through the model-provider registry (resolver) instead.
+    settings = apply_model_config_overrides(settings, connection)
     rabbit = RabbitClient(settings.rabbitmq_url, enabled=True)
     job_repo = PipelineJobRepository(connection)
     doc_repo = DocumentRepository(connection)
     version_repo = TranslationVersionRepository(connection)
     translator = LibreTranslateArgosProvider(base_url=settings.libretranslate_url)
-    encoder = build_encoder(settings)
+    encoder = build_encoder(settings, resolver=resolver)
     qdrant_client = QdrantSearchClient(url=settings.qdrant_url)
     meili_client = meilisearch.Client(
         settings.meilisearch_url,

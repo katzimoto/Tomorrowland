@@ -61,12 +61,17 @@ def admin_list_config(
     entries: list[dict[str, Any]] = []
     for key in sorted(set(SYSTEM_CONFIG_DEFAULTS) | set(rows)):
         if key in rows:
+            decoded = _decode_config_value(rows[key]["value"])
+            # Treat a stored value that equals its registered default as "default"
+            # so sentinel keys (e.g. empty model overrides) are not shown as
+            # overridden.
+            is_default = key in SYSTEM_CONFIG_DEFAULTS and decoded == SYSTEM_CONFIG_DEFAULTS[key]
             entries.append(
                 {
                     "key": key,
-                    "value": _mask_config_value(key, _decode_config_value(rows[key]["value"])),
+                    "value": _mask_config_value(key, decoded),
                     "updated_at": _fmt_dt(rows[key]["updated_at"]),
-                    "is_default": False,
+                    "is_default": is_default,
                 }
             )
         else:

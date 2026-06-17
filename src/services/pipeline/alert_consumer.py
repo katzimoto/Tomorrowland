@@ -60,6 +60,7 @@ def main() -> None:
     from services.alerts.repository import AlertRepository
     from services.alerts.service import AlertMatcher
     from services.documents.repository import DocumentRepository
+    from services.intelligence.task_defaults import build_task_resolver
     from services.search.factory import build_encoder
     from shared.config import Settings
     from shared.rabbit import RabbitClient
@@ -67,12 +68,13 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
     settings = Settings()
     engine = sa.create_engine(settings.postgres_url)
+    resolver = build_task_resolver(engine, settings)
     with engine.connect() as conn:
         rabbit = RabbitClient(settings.rabbitmq_url, enabled=True)
         job_repo = PipelineJobRepository(conn)
         doc_repo = DocumentRepository(conn)
         alert_repo = AlertRepository(conn)
-        encoder = build_encoder(settings)
+        encoder = build_encoder(settings, resolver=resolver)
         matcher = AlertMatcher(alert_repo, encoder)
         consumer = AlertConsumer(rabbit, job_repo, matcher, doc_repo)
         consumer.run()

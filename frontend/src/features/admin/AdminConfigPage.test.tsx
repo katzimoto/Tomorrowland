@@ -30,6 +30,18 @@ const mockConfig: SystemConfigEntry[] = [
     is_default: true,
   },
   { key: "search.vector_weight", value: 0.7, updated_at: null, is_default: true },
+  {
+    key: "model.translation_qe_model_path",
+    value: "",
+    updated_at: null,
+    is_default: true,
+  },
+  {
+    key: "model.translation_high_bundle_path",
+    value: "",
+    updated_at: null,
+    is_default: true,
+  },
 ];
 
 const adminApi = vi.mocked(adminApiModule.adminApi);
@@ -52,7 +64,16 @@ describe("AdminConfigPage", () => {
     render(<AdminConfigPage />);
     expect(await screen.findByText("Feature Flags")).toBeInTheDocument();
     expect(screen.getByText("LLM Model & Prompts")).toBeInTheDocument();
+    expect(screen.getByText("Translation Model Bundles")).toBeInTheDocument();
     expect(screen.getByText("Search & Retrieval")).toBeInTheDocument();
+  });
+
+  it("renders translation bundle overrides as blank, editable inputs", async () => {
+    render(<AdminConfigPage />);
+    await screen.findByText("Translation Model Bundles");
+    const row = screen.getByText("model.translation_qe_model_path").closest("tr")!;
+    const input = within(row).getByRole("textbox") as HTMLInputElement;
+    expect(input.value).toBe("");
   });
 
   it("marks default vs overridden values", async () => {

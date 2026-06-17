@@ -300,7 +300,11 @@ def search_documents(
 
         vector_results: list[SearchResult] = []
         try:
-            encoder = build_encoder(settings, timeout=settings.search_embedding_timeout)
+            encoder = build_encoder(
+                settings,
+                timeout=settings.search_embedding_timeout,
+                resolver=getattr(request.app.state, "task_default_resolver", None),
+            )
             qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
                 url=settings.qdrant_url, dimension=encoder.dimension
             )
@@ -340,6 +344,7 @@ def search_documents(
                 reranker = build_reranker(
                     settings,
                     llm_provider=getattr(request.app.state, "llm_provider", None),
+                    resolver=getattr(request.app.state, "task_default_resolver", None),
                 )
                 merged = reranker.rerank(body.query, merged)
             except Exception:
@@ -486,7 +491,9 @@ def get_passages(
             )
             return AgentPassagesResponse(document_id=str(document_id), passages=[], total=0)
 
-    encoder = build_encoder(settings, timeout=settings.search_embedding_timeout)
+    encoder = build_encoder(
+        settings, timeout=settings.search_embedding_timeout, engine=request.app.state.engine
+    )
     qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
         url=settings.qdrant_url, dimension=encoder.dimension
     )
@@ -576,7 +583,9 @@ def ask_corpus(
             auth_repo = AuthRepository(connection)
             assert_doc_access(document_uuid, user, auth_repo)
 
-        encoder = build_encoder(settings)
+        encoder = build_encoder(
+            settings, resolver=getattr(request.app.state, "task_default_resolver", None)
+        )
         qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
             url=settings.qdrant_url, dimension=encoder.dimension
         )
@@ -711,7 +720,9 @@ def get_related_documents(
             )
             return AgentRelatedResponse(document_id=str(document_id), related=[])
 
-        encoder = build_encoder(settings)
+        encoder = build_encoder(
+            settings, resolver=getattr(request.app.state, "task_default_resolver", None)
+        )
         qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
             url=settings.qdrant_url, dimension=encoder.dimension
         )

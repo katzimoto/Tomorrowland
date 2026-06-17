@@ -2,13 +2,26 @@ from __future__ import annotations
 
 import pytest
 
+from services.intelligence.task_defaults import TaskResolution
 from services.search.encoder import (
     DeterministicTestEncoder,
     OllamaEmbeddingEncoder,
     OpenAICompatibleEmbeddingEncoder,
 )
-from services.search.factory import build_encoder
+from services.search.factory import build_encoder, build_reranker
+from services.search.reranker import EndpointSearchReranker, LLMSearchReranker
 from shared.config import Settings
+
+
+class _FakeResolver:
+    """Minimal stand-in for TaskDefaultResolver in unit tests."""
+
+    def __init__(self, resolutions: dict[str, TaskResolution], *, loaded: bool = True) -> None:
+        self._resolutions = resolutions
+        self.loaded = loaded
+
+    def resolve(self, task_type: str) -> TaskResolution | None:
+        return self._resolutions.get(task_type)
 
 
 def test_factory_builds_deterministic_test_encoder() -> None:
@@ -218,3 +231,82 @@ def test_settings_search_embedding_timeout_default() -> None:
 def test_settings_search_embedding_timeout_customisable() -> None:
     settings = Settings(search_embedding_timeout=10.0)
     assert settings.search_embedding_timeout == 10.0
+
+
+# ---------------------------------------------------------------------------
+# Resolver-driven model selection (Model Providers registry)
+# ---------------------------------------------------------------------------
+
+
+def test_embedding_task_default_overrides_env_model() -> None:
+    settings = Settings(_env_file=None, app_env="dev", embedding_model="env-model")
+    resolver = _FakeResolver(
+        {
+            "embedding": TaskResolution(
+                provider_name="local",
+                provider_type="ollama",
+                model_name="registry-embed",
+                base_url="http://prov:11434",
+                parameters={"dimension": 1024},
+            )
+        }
+    )
+    encoder = build_encoder(settings, resolver=resolver)
+
+    assert isinstance(encoder, OllamaEmbeddingEncoder)
+    assert encoder._model == "registry-embed"
+    assert encoder._base_url == "http://prov:11434"
+    assert encoder._dimension == 1024
+
+
+def test_embedding_openai_compatible_task_default() -> None:
+    settings = Settings(_env_file=None, app_env="dev")
+    resolver = _FakeResolver(
+        {
+            "embedding": TaskResolution(
+                provider_name="proxy",
+                provider_type="openai-compatible",
+                model_name="text-embedding-3-small",
+                base_url="http://proxy:8000",
+                api_key="sk-x",
+            )
+        }
+    )
+    encoder = build_encoder(settings, resolver=resolver)
+
+    assert isinstance(encoder, OpenAICompatibleEmbeddingEncoder)
+    assert encoder._model == "text-embedding-3-small"
+    assert encoder._api_key == "sk-x"
+
+
+def test_embedding_falls_back_to_env_when_resolver_unloaded() -> None:
+    settings = Settings(_env_file=None, app_env="dev", embedding_provider="deterministic-test")
+    resolver = _FakeResolver({"embedding": TaskResolution("p", "ollama", "x")}, loaded=False)
+    encoder = build_encoder(settings, resolver=resolver)
+
+    assert isinstance(encoder, DeterministicTestEncoder)
+
+
+def test_reranking_task_default_overrides_endpoint_model() -> None:
+    settings = Settings(
+        _env_file=None,
+        search_reranker_enabled=True,
+        search_reranker_url="http://rerank:8080",
+        search_reranker_model="env-rerank",
+    )
+    resolver = _FakeResolver(
+        {"reranking": TaskResolution("p", "openai-compatible", "registry-rerank")}
+    )
+    reranker = build_reranker(settings, resolver=resolver)
+
+    assert isinstance(reranker, EndpointSearchReranker)
+    assert reranker._model == "registry-rerank"
+
+
+def test_reranking_task_default_overrides_llm_model() -> None:
+    settings = Settings(_env_file=None, search_reranker_enabled=True, search_reranker_url="")
+    resolver = _FakeResolver({"reranking": TaskResolution("p", "ollama", "registry-rerank")})
+    reranker = build_reranker(settings, llm_provider=object(), resolver=resolver)
+
+    assert isinstance(reranker, LLMSearchReranker)
+    assert reranker._model == "registry-rerank"

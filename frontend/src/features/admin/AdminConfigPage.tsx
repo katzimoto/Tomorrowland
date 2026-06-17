@@ -40,6 +40,13 @@ const GROUP_DEFS: { id: string; title: string; description: string; prefixes: st
     prefixes: ["llm."],
   },
   {
+    id: "model",
+    title: "Translation Model Bundles",
+    description:
+      "Local file-path overrides for the high-quality translation and QE model bundles. Leave blank to use the environment default; applied on the next worker start. Embedding, reranker, and chat models are configured under Model Providers.",
+    prefixes: ["model."],
+  },
+  {
     id: "search",
     title: "Search & Retrieval",
     description: "Hybrid search weighting and related-document limits.",

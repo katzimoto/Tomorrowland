@@ -66,11 +66,41 @@ for controlled rollout (still default `false`):
 | `feature.document_chat_hierarchy_expansion`   | `FEATURE_DOCUMENT_CHAT_HIERARCHY_EXPANSION`      | `false` |
 | `feature.document_chat_coarse_to_fine_routing`| `FEATURE_DOCUMENT_CHAT_COARSE_TO_FINE_ROUTING`   | `false` |
 
-**LLM model selection.** Per-task model/provider routing (chat, utility,
-reranking, embedding, …) lives in **Admin → Model Providers**: register a
-provider, discover/declare model descriptors, set per-task defaults, then
-**Reload** to apply without a restart. The `llm.model` config key is a simple
-default-name fallback for deployments that do not use the provider registry.
+### Model selection — two mechanisms
+
+Endpoint-backed models and local model bundles are configured differently:
+
+**1. Endpoint-backed models → Model Providers registry.** Embedding, search
+reranker, and chat/utility *generation* models are selected through
+**Admin → Model Providers**: register a provider, declare model descriptors, set
+the per-task default (`chat`, `utility`, `reranking`, `embedding`, …), then
+**Reload** (`/admin/model-providers/reload`). The `TaskDefaultResolver` is
+in-memory (no per-request DB hit); the API picks up a reload immediately and
+workers (`embed`/`enrich`/`slow`/`alert`) build a resolver at startup. When no
+task default exists, `build_encoder`/`build_reranker` fall back to the
+environment `embedding_*` / `search_reranker_*` settings unchanged.
+
+| Task type   | Selects                              | Notes |
+|-------------|--------------------------------------|-------|
+| `embedding` | `build_encoder` model/provider/url   | **Re-embed after changing** — query and index vectors must use the same model. Optional `parameters.dimension` overrides the vector size. |
+| `reranking` | `build_reranker` model (and chat reranker) | Endpoint (TEI `/rerank`) or Ollama-prompt fallback, gated by `search_reranker_enabled`. |
+| `chat` / `utility` | generation LLM provider/model | Used by RAG, summaries, tags, etc. |
+
+The `llm.model` config key is a simple default-name fallback for deployments
+that do not use the provider registry.
+
+**2. Local model bundles → Configuration (Translation Model Bundles group).**
+The high-quality translation provider (CTranslate2/OPUS) and the QE scorer load
+**local file bundles**, not endpoints, so they do not fit the provider registry.
+Their paths are overridable from **Admin → Configuration**; each key is an
+**empty-string sentinel** (blank ⇒ use the environment value). Applied by the
+enrich/slow workers on their next start.
+
+| Config key                          | Overrides (`Settings`)                  |
+|-------------------------------------|-----------------------------------------|
+| `model.translation_qe_model_path`   | `translation_qe_model_path`             |
+| `model.translation_high_bundle_path`| `translation_high_provider_bundle_path` |
+
 Startup/infrastructure-only flags (Meilisearch index topology, extraction
 binaries such as OCR/Docling, preview rendering) remain env-only because they
 are read at service/worker boot, not per request.

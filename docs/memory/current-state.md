@@ -104,10 +104,30 @@ Branch `claude/admin-ui-flags-llm-config-fr5eqd`.
   + `ENV_FEATURE_TO_CONFIG_KEY`; new `resolve_feature_flag()` helper in `_helpers.py`
   resolves DB-override-then-env; wired at the 3 `RagService` build sites in
   `chat.py` (x2) and `agent.py`.
-- **LLM model config** was already fully UI-driven via Admin → Model Providers
-  (providers/descriptors/per-task defaults/discover/test/**reload**). Left as-is;
-  config page links to it. Startup/infra flags (Meilisearch topology, OCR/Docling
-  extraction, preview render) remain env-only by design (read at boot, not per request).
+- **LLM generation model config** was already fully UI-driven via Admin → Model
+  Providers (providers/descriptors/per-task defaults/discover/test/**reload**).
+- **Model overrides (2nd slice — resolver-based).** Validation found embedding,
+  search-path reranker, translation-QE, and translation-HQ-bundle were env-only.
+  Design decision (after review): **endpoint-backed models go through the existing
+  model-provider registry / `TaskDefaultResolver`, not a parallel system_config
+  path.** `build_encoder`/`build_reranker` now take an optional `resolver=` and
+  honor the `embedding`/`reranking` task defaults (activating the previously-dead
+  `embedding` task type); fall back to env when no default. Wired at every
+  encoder/reranker call site (search/chat/agent/documents/alerts pass
+  `request.app.state.task_default_resolver`; workers build one via
+  `task_defaults.build_task_resolver(engine, settings)`). Resolver is in-memory
+  (no per-request DB); reload via existing `/admin/model-providers/reload` (API)
+  or worker restart. Embedding change ⇒ re-embed (query+index must match);
+  optional `parameters.dimension` on the task default sets vector size.
+  **Local model bundles** (QE + HQ-translation CTranslate2/OPUS) are file paths,
+  not endpoints, so they don't fit the registry → kept on `system_config`
+  `model.translation_qe_model_path` / `model.translation_high_bundle_path`
+  (empty sentinel = use env), read by enrich/slow workers via
+  `shared/runtime_config.apply_model_config_overrides`. Config-page list marks
+  stored==default as Default (sentinels show Default); "Translation Model Bundles"
+  group on the config page. Tests: `test_search_factory.py` (resolver paths),
+  `test_runtime_config.py`. Startup/infra flags (Meilisearch topology, OCR/Docling
+  extraction, preview render) remain env-only by design.
 - Tests: `tests/integration/test_admin.py` (default-only upsert),
   `tests/unit/test_feature_flag_resolution.py`, `AdminConfigPage.test.tsx`. Verified:
   ruff, mkdocs --strict, backend config/chat/agent suites, frontend admin tests (100), tsc, eslint.
