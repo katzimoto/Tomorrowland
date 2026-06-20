@@ -370,3 +370,47 @@ def test_citation_model_text_lane_defaults_to_none() -> None:
     c = Citation(document_id=_DOC_A, chunk_text="text", score=0.9)
     assert c.text_lane is None
     assert c.chunk_id is None
+
+
+# ---------------------------------------------------------------------------
+# Context / citation alignment: passage [n] must equal citation card [n]
+# ---------------------------------------------------------------------------
+
+
+def test_dedupe_and_budget_removes_duplicate_keys() -> None:
+    srv = _make_service()
+    chunks: list[dict[str, Any]] = [
+        {"document_id": _DOC_A, "chunk_id": "a", "doc_title": "A", "chunk_text": "x", "score": 0.9},
+        {"document_id": _DOC_A, "chunk_id": "a", "doc_title": "A", "chunk_text": "x", "score": 0.8},
+    ]
+    result = srv._dedupe_and_budget(chunks)
+    assert [c["chunk_id"] for c in result] == ["a"]
+
+
+def test_dedupe_and_budget_trims_to_word_budget() -> None:
+    srv = _make_service()
+    chunks: list[dict[str, Any]] = [
+        {
+            "document_id": _DOC_A,
+            "chunk_id": "a",
+            "doc_title": "A",
+            "chunk_text": "w " * 30,
+            "score": 0.9,
+        },
+        {
+            "document_id": _DOC_B,
+            "chunk_id": "b",
+            "doc_title": "B",
+            "chunk_text": "w " * 30,
+            "score": 0.8,
+        },
+    ]
+    srv._max_tokens_context = 40  # only the first ~32-word passage fits
+    result = srv._dedupe_and_budget(chunks)
+    context = srv._assemble_context(result)
+
+    # The citation list (built from result) and the numbered context agree:
+    # one passage in, one card out, and no orphaned [2] marker.
+    assert [c["chunk_id"] for c in result] == ["a"]
+    assert context.startswith("[1] A:")
+    assert "[2]" not in context
