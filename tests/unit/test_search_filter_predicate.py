@@ -336,6 +336,23 @@ class TestMatchesFiltersDateTo:
         doc = _doc()
         assert _matches_filters(doc, _filters(created_before="not-a-date")) is True
 
+    def test_doc_created_during_boundary_day_passes(self) -> None:
+        # Bare-date upper bound must include the whole calendar day, not just
+        # its first instant: a doc created at 14:00 on the bound day is kept.
+        doc = _doc(created_at=datetime(2025, 12, 31, 14, 0, tzinfo=UTC))
+        assert _matches_filters(doc, _filters(created_before="2025-12-31")) is True
+
+    def test_doc_at_start_of_next_day_excluded(self) -> None:
+        doc = _doc(created_at=datetime(2026, 1, 1, 0, 0, tzinfo=UTC))
+        assert _matches_filters(doc, _filters(created_before="2025-12-31")) is False
+
+    def test_invalid_after_does_not_disable_before_filter(self) -> None:
+        # A malformed created_after bound must not short-circuit the predicate
+        # and silently drop a valid created_before filter.
+        doc = _doc(created_at=datetime(2026, 6, 1, tzinfo=UTC))
+        f = _filters(created_after="garbage", created_before="2025-12-31")
+        assert _matches_filters(doc, f) is False
+
     def test_date_range_both_bounds(self) -> None:
         doc_in = _doc(created_at=datetime(2025, 6, 15, tzinfo=UTC))
         doc_before = _doc(created_at=datetime(2025, 1, 1, tzinfo=UTC))

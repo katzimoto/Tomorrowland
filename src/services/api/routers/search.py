@@ -5,7 +5,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
@@ -497,6 +497,21 @@ def _qdrant_extra_conditions(filters: DocumentSearchFilters) -> list[FieldCondit
     return conditions
 
 
+def _parse_filter_bound(value: str) -> tuple[datetime, bool]:
+    """Parse an ISO date/datetime search-filter bound into an aware datetime.
+
+    Returns the parsed datetime (naive inputs are assumed UTC) together with a
+    flag that is True when *value* is a bare calendar date with no time
+    component, so callers can apply inclusive whole-day semantics to an upper
+    bound. A bare date carries no ``:`` separator, which distinguishes
+    ``"2025-12-31"`` from ``"2025-12-31T00:00:00"``.
+    """
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed, ":" not in value
+
+
 def _matches_filters(doc: DocumentRow, filters: DocumentSearchFilters) -> bool:
     """Return True if *doc* satisfies every active user filter.
 
@@ -523,32 +538,29 @@ def _matches_filters(doc: DocumentRow, filters: DocumentSearchFilters) -> bool:
             return False
     if filters.created_after:
         try:
-            cutoff = datetime.fromisoformat(filters.created_after)
-            if cutoff.tzinfo is None:
-                cutoff = cutoff.replace(tzinfo=UTC)
+            cutoff, _ = _parse_filter_bound(filters.created_after)
+        except (ValueError, TypeError):
+            # An unparseable bound is ignored (it cannot be enforced) but must
+            # not short-circuit the remaining filters below.
+            logger.warning("Invalid created_after date filter: %r", filters.created_after)
+        else:
             doc_dt = doc.created_at if doc.created_at.tzinfo else doc.created_at.replace(tzinfo=UTC)
             if doc_dt < cutoff:
                 return False
-        except (ValueError, TypeError):
-            logger.warning(
-                "Invalid created_after date filter: %r",
-                filters.created_after,
-            )
-            return True
     if filters.created_before:
         try:
-            cutoff = datetime.fromisoformat(filters.created_before)
-            if cutoff.tzinfo is None:
-                cutoff = cutoff.replace(tzinfo=UTC)
-            doc_dt = doc.created_at if doc.created_at.tzinfo else doc.created_at.replace(tzinfo=UTC)
-            if doc_dt > cutoff:
-                return False
+            cutoff, date_only = _parse_filter_bound(filters.created_before)
         except (ValueError, TypeError):
-            logger.warning(
-                "Invalid created_before date filter: %r",
-                filters.created_before,
-            )
-            return True
+            logger.warning("Invalid created_before date filter: %r", filters.created_before)
+        else:
+            doc_dt = doc.created_at if doc.created_at.tzinfo else doc.created_at.replace(tzinfo=UTC)
+            if date_only:
+                # A bare date upper bound is inclusive of the whole calendar day,
+                # so compare against the start of the next day rather than midnight.
+                if doc_dt >= cutoff + timedelta(days=1):
+                    return False
+            elif doc_dt > cutoff:
+                return False
     return True
 
 
