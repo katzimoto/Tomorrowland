@@ -15,10 +15,12 @@ import { useT } from "@/i18n";
 import styles from "./AdminSourcesPage.module.css";
 
 function formatDateTime(value: string) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  }).format(d);
 }
 
 const _JOB_LABELS: Record<string, string> = {

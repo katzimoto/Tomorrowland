@@ -62,10 +62,12 @@ function mapAction(issue: string): string {
 
 function formatDateTime(value: string | null) {
   if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  }).format(d);
 }
 
 // --- Component ---

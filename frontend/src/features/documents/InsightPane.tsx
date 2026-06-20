@@ -28,6 +28,7 @@ import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { Tabs } from "@/components/primitives/Tabs";
 import { useToast } from "@/components/primitives/ToastContext";
 import { useT } from "@/i18n/index";
+import { formatDate } from "@/lib/datetime";
 import { DocumentChatPanel } from "@/features/chat/DocumentChatPanel";
 import type { DocumentPreview } from "@/api/documents";
 import type { InsightPaneTab } from "./insightPaneTabs";
@@ -105,10 +106,7 @@ function SummaryTab({ docId }: { docId: string }) {
     <div className={styles.summaryBlock}>
       <p className={styles.summaryText}>{data.summary}</p>
       <p className={styles.meta}>
-        {t.insight.generatedBy(
-          data.model,
-          new Date(data.updated_at).toLocaleDateString()
-        )}
+        {t.insight.generatedBy(data.model, formatDate(data.updated_at))}
       </p>
       <EntitiesSection docId={docId} />
       <TagsSection docId={docId} />
@@ -394,7 +392,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
                   : t.insight.annotationPrivate}
               </Badge>
               <span className={styles.commentDate}>
-                {new Date(a.created_at).toLocaleDateString()}
+                {formatDate(a.created_at)}
               </span>
               {a.can_modify && (
                 <button
@@ -485,7 +483,7 @@ function VersionsTab({ docId }: { docId: string }) {
               isLatest={v.is_latest}
             />
             <span className={styles.entityCount}>
-              {new Date(v.created_at).toLocaleDateString()}
+              {formatDate(v.created_at)}
             </span>
           </Link>
         </li>

@@ -6,6 +6,7 @@ import { getActivity } from "@/api/history";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { useT, type Translations } from "@/i18n/index";
+import { formatDate } from "@/lib/datetime";
 import styles from "./HistoryPage.module.css";
 
 function mimeShortLabel(mime: string, t: Translations): string {
@@ -87,7 +88,7 @@ export function HistoryPage() {
                   </div>
                   {item.viewed_at && (
                     <span className={styles.date}>
-                      {new Date(item.viewed_at).toLocaleDateString()}
+                      {formatDate(item.viewed_at)}
                     </span>
                   )}
                 </button>
