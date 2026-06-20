@@ -324,9 +324,11 @@ class RagService:
                 time.perf_counter() - phase_start
             )
 
-        # 5. Assemble context
+        # 5. Assemble context. Dedupe + budget-trim once so the numbered
+        # context passages and the citation list stay 1:1 aligned.
         phase_start = time.perf_counter()
-        context = self._assemble_context(chunks)
+        context_chunks = self._dedupe_and_budget(chunks)
+        context = self._assemble_context(context_chunks)
         if metrics is not None:
             metrics.rag_duration_seconds.labels("assembly").observe(
                 time.perf_counter() - phase_start
@@ -348,34 +350,29 @@ class RagService:
                 time.perf_counter() - phase_start
             )
 
-        # 5. Build citations (deduplicated by chunk identity and text lane)
-        seen_citation_keys: set[tuple[str, ...]] = set()
-        citations = []
-        for c in chunks:
-            ck = _citation_key(c)
-            if ck in seen_citation_keys:
-                continue
-            seen_citation_keys.add(ck)
-            citations.append(
-                Citation(
-                    document_id=c["document_id"],
-                    doc_title=c.get("doc_title"),
-                    chunk_text=c["chunk_text"],
-                    score=c["score"],
-                    chunk_index=c.get("chunk_index"),
-                    chunk_id=c.get("chunk_id"),
-                    text_lane=c.get("text_lane"),
-                    source_id=c.get("source_id"),
-                    page_number=c.get("page_number"),
-                    section_heading=c.get("section_heading"),
-                    language=c.get("language") or c.get("source_language"),
-                    translated_from=c.get("translated_from"),
-                    matched_text_kind=derive_matched_text_kind(c),
-                    translation_version_id=c.get("translation_version_id"),
-                    translation_quality=c.get("translation_quality"),
-                    translation_validation_status=c.get("translation_validation_status"),
-                )
+        # 5. Build citations from the same list that produced the numbered
+        # context, so citation card [n] matches context passage [n].
+        citations = [
+            Citation(
+                document_id=c["document_id"],
+                doc_title=c.get("doc_title"),
+                chunk_text=c["chunk_text"],
+                score=c["score"],
+                chunk_index=c.get("chunk_index"),
+                chunk_id=c.get("chunk_id"),
+                text_lane=c.get("text_lane"),
+                source_id=c.get("source_id"),
+                page_number=c.get("page_number"),
+                section_heading=c.get("section_heading"),
+                language=c.get("language") or c.get("source_language"),
+                translated_from=c.get("translated_from"),
+                matched_text_kind=derive_matched_text_kind(c),
+                translation_version_id=c.get("translation_version_id"),
+                translation_quality=c.get("translation_quality"),
+                translation_validation_status=c.get("translation_validation_status"),
             )
+            for c in context_chunks
+        ]
 
         trace = RetrievalTrace(
             stages=stages,
@@ -530,7 +527,9 @@ class RagService:
             return
 
         yield ("phase", {"phase": "reading_sources"})
-        context = self._assemble_context(chunks)
+        # Dedupe + budget-trim once so context passage [n] == citation card [n].
+        context_chunks = self._dedupe_and_budget(chunks)
+        context = self._assemble_context(context_chunks)
 
         yield ("phase", {"phase": "generating"})
         prompt = self._build_prompt(question, context)
@@ -547,34 +546,30 @@ class RagService:
 
         answer_text = "".join(answer_text_parts)
 
-        seen_citation_keys_stream: set[tuple[str, ...]] = set()
-        citations = []
-        for c in chunks:
-            ck = _citation_key(c)
-            if ck in seen_citation_keys_stream:
-                continue
-            seen_citation_keys_stream.add(ck)
-            citations.append(
-                {
-                    "citation_id": str(uuid4()),
-                    "document_id": c["document_id"],
-                    "doc_title": c.get("doc_title"),
-                    "chunk_text": c["chunk_text"],
-                    "score": c["score"],
-                    "chunk_index": c.get("chunk_index"),
-                    "chunk_id": c.get("chunk_id"),
-                    "text_lane": c.get("text_lane"),
-                    "source_id": c.get("source_id"),
-                    "page_number": c.get("page_number"),
-                    "section_heading": c.get("section_heading"),
-                    "language": c.get("language") or c.get("source_language"),
-                    "translated_from": c.get("translated_from"),
-                    "matched_text_kind": derive_matched_text_kind(c),
-                    "translation_version_id": c.get("translation_version_id"),
-                    "translation_quality": c.get("translation_quality"),
-                    "translation_validation_status": c.get("translation_validation_status"),
-                }
-            )
+        # Citations come from the same list that produced the numbered context,
+        # so citation card [n] matches context passage [n].
+        citations = [
+            {
+                "citation_id": str(uuid4()),
+                "document_id": c["document_id"],
+                "doc_title": c.get("doc_title"),
+                "chunk_text": c["chunk_text"],
+                "score": c["score"],
+                "chunk_index": c.get("chunk_index"),
+                "chunk_id": c.get("chunk_id"),
+                "text_lane": c.get("text_lane"),
+                "source_id": c.get("source_id"),
+                "page_number": c.get("page_number"),
+                "section_heading": c.get("section_heading"),
+                "language": c.get("language") or c.get("source_language"),
+                "translated_from": c.get("translated_from"),
+                "matched_text_kind": derive_matched_text_kind(c),
+                "translation_version_id": c.get("translation_version_id"),
+                "translation_quality": c.get("translation_quality"),
+                "translation_validation_status": c.get("translation_validation_status"),
+            }
+            for c in context_chunks
+        ]
 
         trace = RetrievalTrace(
             stages=stages,
@@ -1210,6 +1205,31 @@ class RagService:
             return [r for r in results if (r.metadata or {}).get("source_id") in allowed]
         # all_accessible_documents / folder: no document-id filter here
         return results
+
+    def _dedupe_and_budget(self, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Return chunks deduplicated by citation identity and trimmed to the
+        context word budget.
+
+        Both the numbered LLM context and the returned citation list are built
+        from this single list, so context passage ``[n]`` always refers to the
+        same source as citation card ``[n]``. The word accounting mirrors
+        :meth:`_assemble_context` exactly so it never drops a further passage.
+        """
+        result: list[dict[str, Any]] = []
+        seen: set[tuple[str, ...]] = set()
+        total_words = 0
+        for c in chunks:
+            ck = _citation_key(c)
+            if ck in seen:
+                continue
+            title = c.get("doc_title") or "Untitled"
+            passage_words = len(f"[1] {title}:\n{c['chunk_text']}".split())
+            if total_words + passage_words > self._max_tokens_context and result:
+                break
+            seen.add(ck)
+            result.append(c)
+            total_words += passage_words
+        return result
 
     def _assemble_context(self, chunks: list[dict[str, Any]]) -> str:
         """Build a context string from retrieved chunks, bounded by word count.
