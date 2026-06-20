@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **MMR diversification for RAG retrieval**: adds optional Maximal Marginal
+  Relevance re-selection of the post-rerank candidate set
+  (`src/services/rag/mmr.py`) so the LLM context budget is not spent on
+  near-duplicate passages (e.g. consecutive chunks of the same section). At each
+  step a candidate is scored `lambda * relevance - (1 - lambda) * max_similarity`
+  against the already-selected chunks; relevance is the upstream rank order and
+  redundancy is a lexical token-cosine over chunk text (candidate embedding
+  vectors are not carried through the permission-filtered fusion path today, so
+  embedding-cosine redundancy is a tracked follow-up). Gated behind
+  `FEATURE_DOCUMENT_CHAT_MMR` (default off) with `DOCUMENT_CHAT_MMR_LAMBDA`
+  (default 0.5; 1.0 = pure relevance / no diversification). Wired into both the
+  buffered and streaming document-chat answer paths; default behaviour is
+  unchanged.
 - **Asymmetric embedding instruction prefixes**: instruction-tuned embedding
   models (qwen3-embedding, nomic-embed-text, multilingual E5) are trained to
   receive a short task/role prefix on the query side — and, for some models, the

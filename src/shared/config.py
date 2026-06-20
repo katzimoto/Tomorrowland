@@ -151,6 +151,11 @@ class Settings(BaseSettings):
     feature_document_chat_translated_text: bool = True
     feature_document_chat_hierarchy_expansion: bool = True
     feature_document_chat_coarse_to_fine_routing: bool = True
+    # MMR diversification of the post-rerank candidate set (default off until
+    # eval confirms no recall regression). ``mmr_lambda`` trades relevance
+    # (1.0 = pure relevance, no diversification) against diversity (0.0).
+    feature_document_chat_mmr: bool = False
+    document_chat_mmr_lambda: float = Field(default=0.5, ge=0.0, le=1.0)
     feature_document_chat_streaming: bool = True
     # Enable local-dev LLM documentation & model recommendations for CPU-only
     # machines with limited RAM (e.g. 16GB, no discrete GPU). Default: false
