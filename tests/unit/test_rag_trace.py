@@ -64,6 +64,8 @@ def _make_service(
 
     encoder = MagicMock()
     encoder.encode.return_value = [0.1, 0.2, 0.3]
+    # RAG retrieval embeds the query via encode_query (asymmetric encoder API).
+    encoder.encode_query.return_value = [0.1, 0.2, 0.3]
 
     llm = MagicMock()
     llm.generate.return_value = "Generated answer."
@@ -886,7 +888,7 @@ def test_embedding_failure_sets_retrieval_degraded() -> None:
     """retrieval_degraded must be True when encoder.encode raises."""
     chunks = [_make_chunk()]
     srv = _make_service(chunks=[], meili_chunks=chunks)
-    srv._encoder.encode.side_effect = RuntimeError("embedding service unavailable")
+    srv._encoder.encode_query.side_effect = RuntimeError("embedding service unavailable")
     result = srv.answer("test question", group_ids=["group-1"])
     assert result.retrieval_trace is not None
     assert result.retrieval_trace.retrieval_degraded is True
@@ -896,7 +898,7 @@ def test_embedding_failure_bm25_candidates_returned() -> None:
     """When encoding fails, BM25 candidates from Meilisearch must still be returned."""
     chunks = [_make_chunk()]
     srv = _make_service(chunks=[], meili_chunks=chunks)
-    srv._encoder.encode.side_effect = RuntimeError("embedding service unavailable")
+    srv._encoder.encode_query.side_effect = RuntimeError("embedding service unavailable")
     result = srv.answer("test question", group_ids=["group-1"])
     assert result.retrieval_trace is not None
     assert len(result.retrieval_trace.candidates) >= 1
@@ -906,7 +908,7 @@ def test_embedding_failure_metadata_candidates_returned() -> None:
     """When encoding fails, metadata-search candidates must still be returned."""
     chunks = [_make_chunk()]
     srv = _make_service(chunks=[], meili_chunks=chunks, enable_metadata_search=True)
-    srv._encoder.encode.side_effect = RuntimeError("embedding service unavailable")
+    srv._encoder.encode_query.side_effect = RuntimeError("embedding service unavailable")
     result = srv.answer("test question", group_ids=["group-1"])
     assert result.retrieval_trace is not None
     assert len(result.retrieval_trace.candidates) >= 1
@@ -916,7 +918,7 @@ def test_embedding_failure_translated_candidates_returned() -> None:
     """When encoding fails, translated-text candidates must still be returned."""
     chunks = [_make_chunk()]
     srv = _make_service(chunks=[], meili_chunks=chunks, enable_translated_text=True)
-    srv._encoder.encode.side_effect = RuntimeError("embedding service unavailable")
+    srv._encoder.encode_query.side_effect = RuntimeError("embedding service unavailable")
     result = srv.answer("test question", group_ids=["group-1"])
     assert result.retrieval_trace is not None
     assert len(result.retrieval_trace.candidates) >= 1
@@ -925,7 +927,7 @@ def test_embedding_failure_translated_candidates_returned() -> None:
 def test_embedding_failure_all_lexical_empty_returns_no_answer() -> None:
     """When encoding fails and all lexical branches return nothing, return no-answer."""
     srv = _make_service(chunks=[], meili_chunks=[])
-    srv._encoder.encode.side_effect = RuntimeError("embedding service unavailable")
+    srv._encoder.encode_query.side_effect = RuntimeError("embedding service unavailable")
     result = srv.answer("test question", group_ids=["group-1"])
     assert result.retrieval_trace is not None
     assert result.retrieval_trace.candidates == []
@@ -936,7 +938,7 @@ def test_embedding_failure_trace_marks_query_embedding_backend() -> None:
     """degraded_backends must include a 'query_embedding' entry when encoding fails."""
     chunks = [_make_chunk()]
     srv = _make_service(chunks=[], meili_chunks=chunks)
-    srv._encoder.encode.side_effect = RuntimeError("embedding service unavailable")
+    srv._encoder.encode_query.side_effect = RuntimeError("embedding service unavailable")
     result = srv.answer("test question", group_ids=["group-1"])
     assert result.retrieval_trace is not None
     backend_names = [d.backend for d in result.retrieval_trace.degraded_backends]
@@ -946,7 +948,7 @@ def test_embedding_failure_trace_marks_query_embedding_backend() -> None:
 def test_embedding_failure_no_raw_exception_in_trace() -> None:
     """DegradedBackendInfo must not contain raw exception text when encoding fails."""
     srv = _make_service(chunks=[], meili_chunks=[])
-    srv._encoder.encode.side_effect = RuntimeError("contains sensitive path /internal/model")
+    srv._encoder.encode_query.side_effect = RuntimeError("contains sensitive path /internal/model")
     result = srv.answer("test question", group_ids=["group-1"])
     assert result.retrieval_trace is not None
     for d in result.retrieval_trace.degraded_backends:
@@ -959,7 +961,7 @@ def test_embedding_failure_stream_path_consistent() -> None:
     """answer_stream must also degrade gracefully when encoding fails."""
     chunks = [_make_chunk()]
     srv = _make_service(chunks=[], meili_chunks=chunks)
-    srv._encoder.encode.side_effect = RuntimeError("embedding service unavailable")
+    srv._encoder.encode_query.side_effect = RuntimeError("embedding service unavailable")
     events = list(srv.answer_stream("test question", group_ids=["group-1"]))
     done_events = [e for e in events if e[0] == "done"]
     assert len(done_events) == 1
@@ -987,7 +989,7 @@ def test_embedding_failure_reranker_runs_on_lexical_candidates() -> None:
         }
     ]
     srv = _make_service(chunks=[], meili_chunks=chunks, reranker=reranker)
-    srv._encoder.encode.side_effect = RuntimeError("embedding service unavailable")
+    srv._encoder.encode_query.side_effect = RuntimeError("embedding service unavailable")
     result = srv.answer("test question", group_ids=["group-1"])
     assert result.retrieval_trace is not None
     assert result.retrieval_trace.reranker_enabled is True
