@@ -231,9 +231,31 @@ def _handle_tombstones(
     connection: sa.Connection,
     source_id: UUID,
     seen_external_ids: set[str],
+    results: dict[str, int],
     request: Request,
 ) -> None:
     if sync_mode != "full_resync":
+        return
+    # A full_resync tombstones (and removes from search) every document not
+    # seen during this run. Guard against wiping a source on a bad sync:
+    #   - an empty seen set (e.g. a transient empty fetch) would delete
+    #     every document for the source;
+    #   - any discovery failure means the seen set may be incomplete, so
+    #     unseen documents cannot be trusted to be genuinely gone.
+    if not seen_external_ids:
+        logger.warning(
+            "full_resync tombstone skipped for source_id=%s: no documents were "
+            "seen this sync (refusing to delete the entire source)",
+            source_id,
+        )
+        return
+    if results.get("failed_discovery", 0) > 0:
+        logger.warning(
+            "full_resync tombstone skipped for source_id=%s: %d discovery "
+            "failure(s) make the seen set unreliable",
+            source_id,
+            results["failed_discovery"],
+        )
         return
     _cleanup = build_index_cleanup(
         qdrant_client=getattr(request.app.state, "qdrant_client", None),
@@ -357,7 +379,9 @@ def sync_now(
                     seen_external_ids,
                 )
 
-            _handle_tombstones(sync_mode, connection, source_id, seen_external_ids, request)
+            _handle_tombstones(
+                sync_mode, connection, source_id, seen_external_ids, results, request
+            )
 
             sync_outcome, sync_run_status = _classify_sync_outcome(results)
 
