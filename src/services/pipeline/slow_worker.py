@@ -534,8 +534,8 @@ class SlowWorker:
                     }
                 )
 
-            # Batch-encode all chunks in a single call
-            vectors = self._encoder.encode_batch(all_chunk_texts)
+            # Batch-encode all chunks in a single call (passages → document prefix)
+            vectors = self._encoder.encode_documents(all_chunk_texts)
 
             for i, meta in enumerate(all_chunk_meta):
                 entry: dict[str, Any] = {

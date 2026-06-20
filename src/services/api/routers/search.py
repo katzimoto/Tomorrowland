@@ -124,7 +124,7 @@ def _dispatch_and_merge(
 
     encoder = build_encoder(_settings, timeout=_settings.search_embedding_timeout)
     try:
-        query_vector = encoder.encode(request.query)
+        query_vector = encoder.encode_query(request.query)
     except Exception:
         logger.warning(
             "Embedding encode failed — falling back to BM25-only search correlation_id=%s",

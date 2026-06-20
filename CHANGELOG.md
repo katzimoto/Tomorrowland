@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Asymmetric embedding instruction prefixes**: instruction-tuned embedding
+  models (qwen3-embedding, nomic-embed-text, multilingual E5) are trained to
+  receive a short task/role prefix on the query side — and, for some models, the
+  document side — and encoding queries and passages symmetrically (no prefix)
+  leaves retrieval accuracy on the table. The encoder protocol now exposes
+  `encode_query` / `encode_documents` alongside the raw `encode` / `encode_batch`
+  primitives (`src/services/search/encoder.py`), driven by two new settings
+  `EMBEDDING_QUERY_PREFIX` / `EMBEDDING_DOCUMENT_PREFIX`. All embedding call sites
+  (index-time chunk embedding, search/RAG/agent query embedding, alerts and
+  related-document matching) were updated to use the query- or document-specific
+  path according to their actual semantics. Defaults are empty (no prefix), so
+  upgrades are fully backward compatible and require no reindex; recommended
+  per-model values are documented in `.env.example`. Changing only the query
+  prefix never requires a reindex; changing the document prefix does.
 - **Canonical model-provider runtime boundary (#813A/B/E)**: introduces
   `ModelRuntime` (`src/services/intelligence/runtime.py`, on
   `app.state.model_runtime`) as the single boundary product code calls to obtain

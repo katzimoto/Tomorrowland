@@ -178,6 +178,16 @@ class Settings(BaseSettings):
     )
     embedding_max_tokens: int = 1024
     embedding_timeout: float = 180.0
+    # Asymmetric instruction prefixes for instruction-tuned embedding models.
+    # Applied by ``encode_query`` / ``encode_documents`` to queries and passages
+    # respectively. Empty by default = no prefix (fully backward compatible, no
+    # reindex required). Recommended values per model are documented in
+    # ``.env.example``. NOTE: changing EMBEDDING_DOCUMENT_PREFIX changes how
+    # passages are embedded and therefore requires a full reindex to stay
+    # consistent with the existing vector collection; changing only
+    # EMBEDDING_QUERY_PREFIX does not.
+    embedding_query_prefix: str = ""
+    embedding_document_prefix: str = ""
     # Short timeout used specifically during the search request path so that a
     # slow/unavailable embedding service degrades to lexical-only results rather
     # than blocking until nginx times out (110 s). Kept well below nginx's read

@@ -311,7 +311,7 @@ def search_documents(
             qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
                 url=settings.qdrant_url, dimension=encoder.dimension
             )
-            query_vector = encoder.encode(body.query)
+            query_vector = encoder.encode_query(body.query)
             vector_results = qdrant_client.search(
                 vector=query_vector,
                 group_ids=group_ids,

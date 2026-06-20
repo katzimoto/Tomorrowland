@@ -71,7 +71,9 @@ class RelatedService:
         if not query_text:
             return []
 
-        vector = self._encoder.encode(query_text)
+        # "More like this" is document-to-document: encode the source document's
+        # own text with the same (document) prefix the indexed passages used.
+        vector = self._encoder.encode_documents([query_text])[0]
         results = self._qdrant.search(
             vector=vector,
             group_ids=group_ids,
@@ -126,7 +128,7 @@ class RelatedService:
         self, topic: str, group_ids: list[str], allow_all: bool = False
     ) -> list[dict[str, Any]]:
         """Return users with activity related to a topic."""
-        vector = self._encoder.encode(topic)
+        vector = self._encoder.encode_query(topic)
         results = self._qdrant.search(
             vector=vector,
             group_ids=group_ids,
@@ -176,14 +178,14 @@ class RelatedService:
         # baseline, so subscription signals are skipped to avoid leaking
         # subscriber identity across tenants (H4).
         if not allow_all and group_ids:
-            topic_vector = self._encoder.encode(topic)
+            topic_vector = self._encoder.encode_query(topic)
             for subscription in self._repository.active_subscriptions():
                 sub_user_id = UUID(str(subscription["user_id"]))
                 if not self._repository.user_shares_group(sub_user_id, group_ids):
                     continue
                 subscription_query = str(subscription["query"])
                 similarity = _cosine_similarity(
-                    topic_vector, self._encoder.encode(subscription_query)
+                    topic_vector, self._encoder.encode_query(subscription_query)
                 )
                 if not _topics_match(topic, subscription_query, similarity):
                     continue

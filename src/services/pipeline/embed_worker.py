@@ -117,7 +117,7 @@ class EmbedConsumer(BaseConsumer):
                     }
                 )
 
-        vectors = self._encoder.encode_batch(chunk_texts)
+        vectors = self._encoder.encode_documents(chunk_texts)
 
         qdrant_chunks: list[dict[str, Any]] = []
         for i, meta in enumerate(chunk_meta):

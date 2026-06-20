@@ -139,6 +139,49 @@ def test_factory_openai_compatible_requires_embedding_url() -> None:
         build_encoder(settings)
 
 
+# ---------------------------------------------------------------------------
+# Asymmetric embedding prefixes
+# ---------------------------------------------------------------------------
+
+
+def test_factory_threads_embedding_prefixes_into_ollama() -> None:
+    settings = Settings(
+        app_env="dev",
+        embedding_provider="ollama",
+        embedding_query_prefix="Q: ",
+        embedding_document_prefix="D: ",
+    )
+    encoder = build_encoder(settings)
+
+    assert isinstance(encoder, OllamaEmbeddingEncoder)
+    assert encoder._query_prefix == "Q: "
+    assert encoder._document_prefix == "D: "
+
+
+def test_factory_threads_embedding_prefixes_into_openai_compatible() -> None:
+    settings = Settings(
+        app_env="dev",
+        embedding_provider="openai-compatible",
+        embedding_url="http://openai-proxy:8000",
+        embedding_query_prefix="query: ",
+        embedding_document_prefix="passage: ",
+    )
+    encoder = build_encoder(settings)
+
+    assert isinstance(encoder, OpenAICompatibleEmbeddingEncoder)
+    assert encoder._query_prefix == "query: "
+    assert encoder._document_prefix == "passage: "
+
+
+def test_factory_embedding_prefixes_default_empty() -> None:
+    settings = Settings(app_env="prod", embedding_provider="ollama")
+    encoder = build_encoder(settings)
+
+    assert isinstance(encoder, OllamaEmbeddingEncoder)
+    assert encoder._query_prefix == ""
+    assert encoder._document_prefix == ""
+
+
 def test_factory_openai_compatible_forwards_api_key() -> None:
     settings = Settings(
         app_env="dev",

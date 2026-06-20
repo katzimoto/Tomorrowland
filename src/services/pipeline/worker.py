@@ -460,7 +460,7 @@ class PipelineWorker:
                     }
                 )
 
-            vectors = self._encoder.encode_batch(chunk_texts)
+            vectors = self._encoder.encode_documents(chunk_texts)
 
             for i, meta in enumerate(chunk_meta):
                 qdrant_chunks.append(

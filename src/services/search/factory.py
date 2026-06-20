@@ -63,6 +63,8 @@ def build_encoder(
             dimension=settings.embedding_dimension,
             max_tokens=settings.embedding_max_tokens,
             timeout=timeout if timeout is not None else settings.embedding_timeout,
+            query_prefix=settings.embedding_query_prefix,
+            document_prefix=settings.embedding_document_prefix,
         )
 
     if provider == "openai-compatible":
@@ -76,6 +78,8 @@ def build_encoder(
             dimension=settings.embedding_dimension,
             api_key=settings.embedding_api_key,
             timeout=timeout if timeout is not None else settings.embedding_timeout,
+            query_prefix=settings.embedding_query_prefix,
+            document_prefix=settings.embedding_document_prefix,
         )
 
     raise ValueError(f"Unknown embedding provider: {provider}")

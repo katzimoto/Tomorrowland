@@ -662,7 +662,7 @@ class RagService:
         _embedding_failed = False
         query_vector: list[float] = []
         try:
-            query_vector = self._encoder.encode(question)
+            query_vector = self._encoder.encode_query(question)
         except Exception as exc:
             _embedding_failed = True
             _retrieval_degraded = True
