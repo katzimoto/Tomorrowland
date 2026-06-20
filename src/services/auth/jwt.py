@@ -37,12 +37,19 @@ class JwtService:
         except jwt.PyJWTError as exc:
             raise HTTPException(status_code=401, detail="Invalid token") from exc
 
-        return TokenPayload(
-            sub=UUID(payload["sub"]),
-            email=payload["email"],
-            display_name=payload.get("display_name"),
-            is_admin=payload["is_admin"],
-            groups=[UUID(group_id) for group_id in payload["groups"]],
-            auth_source=payload["auth_source"],
-            exp=payload["exp"],
-        )
+        # A signature-valid token can still carry missing, mistyped, or
+        # malformed claims (e.g. absent "groups", a non-UUID "sub"). Treat any
+        # such failure as an authentication error rather than letting an
+        # unhandled KeyError/ValueError surface as a 500.
+        try:
+            return TokenPayload(
+                sub=UUID(payload["sub"]),
+                email=payload["email"],
+                display_name=payload.get("display_name"),
+                is_admin=payload["is_admin"],
+                groups=[UUID(group_id) for group_id in payload["groups"]],
+                auth_source=payload["auth_source"],
+                exp=payload["exp"],
+            )
+        except (KeyError, ValueError, TypeError) as exc:
+            raise HTTPException(status_code=401, detail="Invalid token") from exc

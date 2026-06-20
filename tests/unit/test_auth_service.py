@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import jwt as pyjwt
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import Engine
@@ -17,6 +18,33 @@ class FakeLdap:
         if password != "ldap-secret":
             return None
         return LdapProfile(email=email, display_name="LDAP User", group_names=["ldap-users"])
+
+
+def test_decode_rejects_token_with_missing_claims() -> None:
+    # Signature is valid but required claims are absent -> 401, not a 500.
+    secret = "x" * 32
+    token = pyjwt.encode({"sub": "not-a-uuid"}, secret, algorithm="HS256")
+    with pytest.raises(HTTPException) as excinfo:
+        JwtService(secret).decode(token)
+    assert excinfo.value.status_code == 401
+
+
+def test_decode_rejects_token_with_non_uuid_sub() -> None:
+    secret = "x" * 32
+    token = pyjwt.encode(
+        {
+            "sub": "not-a-uuid",
+            "email": "a@b.c",
+            "is_admin": False,
+            "groups": [],
+            "auth_source": "local",
+        },
+        secret,
+        algorithm="HS256",
+    )
+    with pytest.raises(HTTPException) as excinfo:
+        JwtService(secret).decode(token)
+    assert excinfo.value.status_code == 401
 
 
 def test_password_hash_round_trip() -> None:
