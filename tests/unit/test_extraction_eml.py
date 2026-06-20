@@ -77,3 +77,29 @@ def test_eml_extract_attachments_empty_for_no_attachments(tmp_path: Path) -> Non
 def test_eml_extract_attachments_empty_for_missing_file(tmp_path: Path) -> None:
     extractor = EmlExtractor()
     assert extractor.extract(tmp_path / "nonexistent.eml").attachments == []
+
+
+def test_eml_multipart_alternative_body_not_duplicated(tmp_path: Path) -> None:
+    msg = email.mime.multipart.MIMEMultipart("alternative")
+    msg["Subject"] = "Alt"
+    msg.attach(email.mime.text.MIMEText("Hello world body", "plain"))
+    msg.attach(email.mime.text.MIMEText("<p>Hello world body</p>", "html"))
+    eml_file = tmp_path / "alt.eml"
+    eml_file.write_bytes(msg.as_bytes())
+
+    result = EmlExtractor().extract(eml_file)
+    # Plain is preferred; the shared body appears once, not duplicated.
+    assert result.text.count("Hello world body") == 1
+
+
+def test_eml_html_only_uses_html_with_block_spacing(tmp_path: Path) -> None:
+    msg = email.mime.text.MIMEText("<p>First line</p><p>Second line</p>", "html")
+    msg["Subject"] = "HTML only"
+    eml_file = tmp_path / "html.eml"
+    eml_file.write_bytes(msg.as_bytes())
+
+    result = EmlExtractor().extract(eml_file)
+    assert "First line" in result.text
+    assert "Second line" in result.text
+    # Block boundaries add whitespace so paragraphs don't run together.
+    assert "First lineSecond line" not in result.text

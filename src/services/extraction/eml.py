@@ -56,12 +56,45 @@ class EmlExtractor:
                     return str(value)
 
             class _HTMLToText(HTMLParser):
+                # Tags whose boundaries should become whitespace so adjacent
+                # block content does not run together ("line1line2").
+                _BLOCK_TAGS = {
+                    "p",
+                    "div",
+                    "br",
+                    "li",
+                    "tr",
+                    "ul",
+                    "ol",
+                    "table",
+                    "h1",
+                    "h2",
+                    "h3",
+                    "h4",
+                    "h5",
+                    "h6",
+                    "blockquote",
+                    "section",
+                    "article",
+                    "header",
+                    "footer",
+                    "pre",
+                }
+
                 def __init__(self) -> None:
                     super().__init__(convert_charrefs=True)
                     self._parts: list[str] = []
 
                 def handle_data(self, data: str) -> None:
                     self._parts.append(data)
+
+                def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                    if tag == "br":
+                        self._parts.append("\n")
+
+                def handle_endtag(self, tag: str) -> None:
+                    if tag in self._BLOCK_TAGS:
+                        self._parts.append("\n")
 
                 def get_text(self) -> str:
                     return "".join(self._parts)
@@ -70,7 +103,12 @@ class EmlExtractor:
             for name, value in msg.items():
                 headers.append(f"{name}: {_decode_header(value)}")
 
-            body_parts: list[str] = []
+            # Collect plain and HTML bodies separately. multipart/alternative
+            # emails carry the same content as both text/plain and text/html;
+            # appending both doubles the indexed body, so prefer plain and fall
+            # back to HTML only when no plain text was found.
+            plain_parts: list[str] = []
+            html_parts: list[str] = []
             attachment_lines: list[str] = []
             attachments: list[AttachmentData] = []
 
@@ -120,9 +158,9 @@ class EmlExtractor:
 
                 if ctype == "text/plain":
                     if isinstance(payload, str):
-                        body_parts.append(payload)
+                        plain_parts.append(payload)
                     elif isinstance(payload, (bytes, bytearray)):
-                        body_parts.append(
+                        plain_parts.append(
                             payload.decode(part.get_content_charset("utf-8"), errors="replace")
                         )
                 elif ctype == "text/html":
@@ -135,7 +173,9 @@ class EmlExtractor:
                         )
                     parser = _HTMLToText()
                     parser.feed(html_text)
-                    body_parts.append(parser.get_text())
+                    html_parts.append(parser.get_text())
+
+            body_parts = plain_parts or html_parts
 
             sections: list[str] = []
             if headers:
