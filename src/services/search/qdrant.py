@@ -1,20 +1,31 @@
 from __future__ import annotations
 
 import uuid as _uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
+    BinaryQuantization,
+    BinaryQuantizationConfig,
     Distance,
     FieldCondition,
     Filter,
     MatchAny,
     MatchValue,
     PointStruct,
+    QuantizationConfig,
+    QuantizationSearchParams,
+    ScalarQuantization,
+    ScalarQuantizationConfig,
+    ScalarType,
+    SearchParams,
     VectorParams,
 )
 
 from services.search.hybrid import SearchResult
+
+if TYPE_CHECKING:
+    from shared.config import Settings
 
 COLLECTION_NAME_PREFIX = "tomorrowland_chunks"
 
@@ -66,10 +77,49 @@ class QdrantSearchClient:
         self,
         url: str = "http://localhost:6333",
         dimension: int = 384,
+        *,
+        quantization: str = "",
+        search_rescore: bool = True,
+        search_oversampling: float = 2.0,
     ) -> None:
         self._client = QdrantClient(url=url)
         self._dimension = dimension
         self._collection_name = f"{COLLECTION_NAME_PREFIX}_{dimension}"
+        self._quantization = quantization
+        self._search_rescore = search_rescore
+        self._search_oversampling = search_oversampling
+
+    @classmethod
+    def from_settings(cls, settings: Settings, *, dimension: int) -> QdrantSearchClient:
+        """Build a client with vector-store tuning resolved from *settings*."""
+        return cls(
+            url=settings.qdrant_url,
+            dimension=dimension,
+            quantization=settings.qdrant_quantization,
+            search_rescore=settings.qdrant_search_rescore,
+            search_oversampling=settings.qdrant_search_oversampling,
+        )
+
+    def _quantization_config(self) -> QuantizationConfig | None:
+        """Build the Qdrant quantization config, or None when disabled."""
+        if self._quantization == "scalar":
+            return ScalarQuantization(
+                scalar=ScalarQuantizationConfig(type=ScalarType.INT8, always_ram=True)
+            )
+        if self._quantization == "binary":
+            return BinaryQuantization(binary=BinaryQuantizationConfig(always_ram=True))
+        return None
+
+    def _search_params(self) -> SearchParams | None:
+        """Per-query rescore/oversampling params, or None when quantization is off."""
+        if not self._quantization:
+            return None
+        return SearchParams(
+            quantization=QuantizationSearchParams(
+                rescore=self._search_rescore,
+                oversampling=self._search_oversampling,
+            )
+        )
 
     @property
     def collection_name(self) -> str:
@@ -87,6 +137,7 @@ class QdrantSearchClient:
         self._client.create_collection(
             collection_name=self._collection_name,
             vectors_config=VectorParams(size=self._dimension, distance=Distance.COSINE),
+            quantization_config=self._quantization_config(),
         )
 
     def _ensure_vector_dimension(self, vector: list[float]) -> None:
@@ -203,6 +254,7 @@ class QdrantSearchClient:
             query_filter=query_filter,
             limit=limit,
             with_payload=True,
+            search_params=self._search_params(),
         )
 
         search_results: list[SearchResult] = [
@@ -233,6 +285,7 @@ class QdrantSearchClient:
             query_filter=query_filter,
             limit=limit,
             with_payload=True,
+            search_params=self._search_params(),
         )
 
         return [_point_to_search_result(point) for point in response.points]

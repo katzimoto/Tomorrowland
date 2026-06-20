@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Qdrant vector quantization (#826, first slice)**: adds optional scalar (int8)
+  or binary quantization plus query-time rescore/oversampling to
+  `QdrantSearchClient` to cut vector-store memory at scale (int8 ≈ 4×, binary ≈
+  32× smaller). New settings `QDRANT_QUANTIZATION` (`""|scalar|binary`),
+  `QDRANT_SEARCH_RESCORE`, `QDRANT_SEARCH_OVERSAMPLING`, and a
+  `QdrantSearchClient.from_settings(...)` factory. Quantization is configured at
+  collection-creation time and wired into the dedicated embed consumer, so
+  enabling it on an existing deployment requires recreating/reindexing the
+  collection. Default (empty) is fully backward compatible — no quantization
+  config is sent and search behaviour is unchanged. Wiring the remaining
+  indexers and API search paths (and reconciling their dimension handling) is a
+  tracked follow-up.
 - **MMR diversification for RAG retrieval**: adds optional Maximal Marginal
   Relevance re-selection of the post-rerank candidate set
   (`src/services/rag/mmr.py`) so the LLM context budget is not spent on

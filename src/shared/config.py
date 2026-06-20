@@ -21,6 +21,17 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
     kafka_broker: str = "kafka:9092"
     qdrant_url: str = "http://qdrant:6333"
+    # Vector-store quantization (#826). Empty = current behaviour (raw float32
+    # vectors), so upgrades need no reindex. "scalar" = int8 (~4x smaller, high
+    # accuracy); "binary" = ~32x smaller, relies on rescore to keep recall.
+    # Quantization is configured at collection-creation time, so enabling it on
+    # an existing deployment requires recreating/reindexing the collection.
+    qdrant_quantization: str = ""  # "" | "scalar" | "binary"
+    # When quantization is on, re-score the quantized candidates against the
+    # full-precision vectors (recovers recall, esp. for binary) and over-fetch
+    # by this factor before rescoring.
+    qdrant_search_rescore: bool = True
+    qdrant_search_oversampling: float = Field(default=2.0, ge=1.0)
     files_root: Path = Path("/data")
     jwt_secret: str = "change-me-in-production"
     cors_origins: str = "http://localhost:8080"

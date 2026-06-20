@@ -201,7 +201,7 @@ def main() -> None:
     doc_repo = DocumentRepository(connection)
     publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
     encoder = build_encoder(settings)
-    qdrant = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
+    qdrant = QdrantSearchClient.from_settings(settings, dimension=encoder.dimension)
     consumer = EmbedConsumer(
         rabbit=rabbit,
         job_repo=job_repo,
