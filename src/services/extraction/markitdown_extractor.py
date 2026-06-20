@@ -23,6 +23,15 @@ from services.extraction.base import ExtractionResult, Extractor
 logger = logging.getLogger(__name__)
 
 
+def _md_cell(value: str) -> str:
+    """Make *value* safe for a Markdown table cell.
+
+    A literal ``|`` would start a new column and a newline would start a new
+    row, corrupting the table, so escape the pipe and flatten line breaks.
+    """
+    return value.replace("|", "\\|").replace("\r", " ").replace("\n", " ").strip()
+
+
 # ---------------------------------------------------------------------------
 # Per-format Markdown converters
 # ---------------------------------------------------------------------------
@@ -54,7 +63,7 @@ def _docx_to_markdown(path: Path) -> str:
                 if tc_id in seen_tc:
                     continue
                 seen_tc.add(tc_id)
-                cells.append(cell.text.strip().replace("\n", " "))
+                cells.append(_md_cell(cell.text))
             rows.append(cells)
         if not rows:
             return ""
@@ -152,7 +161,7 @@ def _xlsx_to_markdown(path: Path) -> str:
         ws = wb[sheet_name]
         rows: list[list[str]] = []
         for row in ws.iter_rows(values_only=True):
-            cells = [str(c) if c is not None else "" for c in row]
+            cells = [_md_cell(str(c)) if c is not None else "" for c in row]
             if any(cells):
                 rows.append(cells)
         if not rows:

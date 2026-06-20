@@ -228,3 +228,31 @@ class TestMarkItDownExtractor:
         )
         result = extractor.extract(path)
         assert result.attachments == []
+
+
+# ---------------------------------------------------------------------------
+# Markdown table cell escaping
+# ---------------------------------------------------------------------------
+
+
+class TestMarkdownCellEscaping:
+    def test_xlsx_escapes_pipe_in_cell(self, tmp_path: Path) -> None:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Header", "Other"])
+        ws.append(["a | b", "ok"])
+        path = tmp_path / "pipe.xlsx"
+        wb.save(str(path))
+        md = _xlsx_to_markdown(path)
+        # The literal pipe is escaped so it cannot start a spurious column.
+        assert "a \\| b" in md
+
+    def test_docx_escapes_pipe_in_table_cell(self, tmp_path: Path) -> None:
+        doc = Document()
+        table = doc.add_table(rows=1, cols=2)
+        table.cell(0, 0).text = "x | y"
+        table.cell(0, 1).text = "z"
+        path = tmp_path / "pipe.docx"
+        doc.save(str(path))
+        md = _docx_to_markdown(path)
+        assert "x \\| y" in md
