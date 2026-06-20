@@ -78,7 +78,10 @@ export function ChatWindow({
     if (!s) return;
     setMessages((prev) => {
       const withoutOptimistic = prev.filter(
-        (m) => m.id !== s.optimistic.id && !m.id.startsWith("stream-"),
+        (m) =>
+          m.id !== s.optimistic.id &&
+          m.id !== s.userMsg.id &&
+          !m.id.startsWith("stream-"),
       );
       const streaming: ChatMessage = {
         id: s.streamId,
