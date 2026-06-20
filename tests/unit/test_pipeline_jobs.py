@@ -87,6 +87,89 @@ def engine() -> Engine:
     return eng
 
 
+def _seed_source_and_doc(conn: sa.Connection) -> tuple[UUID, UUID]:
+    source_id = uuid4()
+    document_id = uuid4()
+    conn.execute(
+        sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
+        {"id": source_id.hex, "name": "test", "type": "folder"},
+    )
+    conn.execute(
+        sa.text(
+            "INSERT INTO documents (id, source_id, external_id, source, mime_type) "
+            "VALUES (:id, :source_id, :eid, :source, :mime)"
+        ),
+        {
+            "id": document_id.hex,
+            "source_id": source_id.hex,
+            "eid": "ext1",
+            "source": "folder",
+            "mime": "text/plain",
+        },
+    )
+    return source_id, document_id
+
+
+def test_reclaim_stale_running_job_to_retry(engine: Engine) -> None:
+    with engine.begin() as conn:
+        source_id, document_id = _seed_source_and_doc(conn)
+        repo = PipelineJobRepository(conn)
+        job_id = repo.enqueue_document(document_id, source_id)
+        assert repo.claim_next("worker-1") is not None
+        # Simulate a worker that claimed the job and then died long ago.
+        conn.execute(
+            sa.text("UPDATE pipeline_jobs SET locked_at = :old WHERE id = :id"),
+            {"old": datetime(2020, 1, 1, tzinfo=UTC), "id": job_id.hex},
+        )
+
+        assert repo.reclaim_stale_jobs(lock_ttl_seconds=900) == 1
+
+        row = conn.execute(
+            sa.text("SELECT status, locked_by, locked_at FROM pipeline_jobs WHERE id = :id"),
+            {"id": job_id.hex},
+        ).one()
+        assert row.status == "retry"
+        assert row.locked_by is None
+        assert row.locked_at is None
+        # The reclaimed job is now claimable again.
+        assert repo.claim_next("worker-2") is not None
+
+
+def test_reclaim_stale_exhausted_job_to_dead_letter(engine: Engine) -> None:
+    with engine.begin() as conn:
+        source_id, document_id = _seed_source_and_doc(conn)
+        repo = PipelineJobRepository(conn)
+        job_id = repo.enqueue_document(document_id, source_id)
+        conn.execute(
+            sa.text(
+                "UPDATE pipeline_jobs SET status = 'running', attempts = 5, max_attempts = 5, "
+                "locked_by = 'worker-1', locked_at = :old WHERE id = :id"
+            ),
+            {"old": datetime(2020, 1, 1, tzinfo=UTC), "id": job_id.hex},
+        )
+
+        assert repo.reclaim_stale_jobs(lock_ttl_seconds=900) == 1
+
+        status = conn.execute(
+            sa.text("SELECT status FROM pipeline_jobs WHERE id = :id"),
+            {"id": job_id.hex},
+        ).scalar()
+        assert status == "dead_letter"
+
+
+def test_reclaim_leaves_fresh_running_job(engine: Engine) -> None:
+    with engine.begin() as conn:
+        source_id, document_id = _seed_source_and_doc(conn)
+        repo = PipelineJobRepository(conn)
+        repo.enqueue_document(document_id, source_id)
+        assert repo.claim_next("worker-1") is not None  # locked_at = now (fresh)
+
+        assert repo.reclaim_stale_jobs(lock_ttl_seconds=900) == 0
+
+        status = conn.execute(sa.text("SELECT status FROM pipeline_jobs")).scalar()
+        assert status == "running"
+
+
 def test_creates_pending_job(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()

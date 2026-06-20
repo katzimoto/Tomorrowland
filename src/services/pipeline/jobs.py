@@ -348,6 +348,54 @@ class PipelineJobRepository:
             },
         )
 
+    def reclaim_stale_jobs(self, lock_ttl_seconds: int) -> int:
+        """Reset jobs stuck in ``running`` past the lock TTL so they run again.
+
+        A worker that dies mid-job (OOM, SIGKILL, container eviction) leaves
+        its job in ``running`` with no path back: ``claim_next`` only selects
+        ``pending``/``retry`` and dead-letter requeue only touches
+        ``dead_letter``. This reaper makes such jobs eligible again once their
+        ``locked_at`` is older than *lock_ttl_seconds*, so a crashed worker no
+        longer orphans a document indefinitely. Jobs whose attempt budget is
+        already exhausted go straight to ``dead_letter`` instead of looping.
+        Rows without a ``locked_at`` are left untouched.
+
+        Returns the number of jobs reclaimed.
+        """
+        now = datetime.now(UTC)
+        cutoff = now - timedelta(seconds=lock_ttl_seconds)
+        result = self._connection.execute(
+            sa.text("""
+                UPDATE pipeline_jobs
+                SET status = CASE
+                        WHEN attempts >= max_attempts THEN 'dead_letter'
+                        ELSE 'retry'
+                    END,
+                    last_error = :last_error,
+                    run_after = :run_after,
+                    locked_by = NULL,
+                    locked_at = NULL,
+                    updated_at = :updated_at
+                WHERE status = 'running'
+                  AND locked_at IS NOT NULL
+                  AND locked_at < :cutoff
+            """),
+            {
+                "last_error": _sanitize_error("timeout", stage="process"),
+                "run_after": now,
+                "updated_at": now,
+                "cutoff": cutoff,
+            },
+        )
+        count = result.rowcount or 0
+        if count:
+            logger.warning(
+                "Reclaimed %d stale running job(s) with locks older than %ds",
+                count,
+                lock_ttl_seconds,
+            )
+        return count
+
     def get_payload(self, document_id: UUID) -> dict[str, Any] | None:
         """Return the stored document payload for a document_id."""
         row = (

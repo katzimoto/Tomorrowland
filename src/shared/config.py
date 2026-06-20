@@ -156,6 +156,11 @@ class Settings(BaseSettings):
     # machines with limited RAM (e.g. 16GB, no discrete GPU). Default: false
     feature_local_llm_dev: bool = False
     auto_enrich_threshold: int = Field(default=5, ge=0)
+    # Pipeline jobs claimed by a worker that then crashes (OOM, SIGKILL,
+    # container eviction) stay in ``running`` forever. The slow/enrich worker
+    # reclaims such jobs back to ``retry`` once their lock is older than this
+    # TTL so a crashed worker never orphans a document indefinitely.
+    pipeline_lock_ttl_seconds: int = Field(default=900, gt=0)
 
     embedding_provider: str = ""
     # Also readable as OLLAMA_EMBED_MODEL.

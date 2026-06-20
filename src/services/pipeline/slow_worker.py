@@ -727,25 +727,56 @@ def run_enrich_once(
     return True
 
 
+def _reclaim_stale_jobs(
+    job_repo: PipelineJobRepository, lock_ttl_seconds: int, worker_id: str
+) -> None:
+    """Reclaim jobs orphaned in ``running`` by a crashed worker. Best-effort."""
+    try:
+        reclaimed = job_repo.reclaim_stale_jobs(lock_ttl_seconds)
+        job_repo.commit()
+        if reclaimed:
+            logger.warning(
+                "enrich worker reclaimed stale jobs: worker_id=%s count=%d",
+                worker_id,
+                reclaimed,
+            )
+    except Exception:
+        logger.exception("stale-job reclaim failed: worker_id=%s", worker_id)
+
+
 def run_enrich_loop(
     job_repo: PipelineJobRepository,
     worker: SlowWorker,
     worker_id: str = "enrich-worker",
     poll_interval: float = 1.0,
     metrics: MetricsRegistry | None = None,
+    lock_ttl_seconds: int = 900,
+    reaper_interval: float = 60.0,
 ) -> None:
-    """Run ``run_enrich_once`` in a loop until interrupted."""
+    """Run ``run_enrich_once`` in a loop until interrupted.
+
+    Periodically reclaims jobs left in ``running`` by a crashed worker so a
+    dead worker never orphans a document. The reaper runs once at startup and
+    then every ``reaper_interval`` seconds.
+    """
     logger.info(
-        "enrich worker started: worker_id=%s poll_interval=%.1f",
+        "enrich worker started: worker_id=%s poll_interval=%.1f lock_ttl=%ds",
         worker_id,
         poll_interval,
+        lock_ttl_seconds,
     )
+    _reclaim_stale_jobs(job_repo, lock_ttl_seconds, worker_id)
+    last_reap = time.monotonic()
     try:
         while True:
             if metrics is not None:
                 metrics.worker_heartbeat_timestamp_seconds.labels(
                     worker_type="enrich", worker_id=worker_id
                 ).set_to_current_time()
+
+            if time.monotonic() - last_reap >= reaper_interval:
+                _reclaim_stale_jobs(job_repo, lock_ttl_seconds, worker_id)
+                last_reap = time.monotonic()
 
             try:
                 ran = run_enrich_once(job_repo, worker, worker_id=worker_id, metrics=metrics)
@@ -832,4 +863,5 @@ if __name__ == "__main__":
             PipelineJobRepository(conn),
             worker,
             worker_id="enrich-worker",
+            lock_ttl_seconds=settings.pipeline_lock_ttl_seconds,
         )
