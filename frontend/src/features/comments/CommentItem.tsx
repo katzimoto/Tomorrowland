@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { deleteComment, type Comment } from "@/api/comments";
 import type { CurrentUser } from "@/api/auth";
 import { Button } from "@/components/primitives/Button";
+import { formatDateTime } from "@/lib/datetime";
 import { CommentEditForm } from "./CommentEditForm";
 import styles from "./Comments.module.css";
 
@@ -45,8 +46,8 @@ export function CommentItem({ docId, comment }: CommentItemProps) {
     <article className={styles.item} aria-label={`Comment by ${authorName(comment)}`}>
       <div className={styles.meta}>
         <strong>{authorName(comment)}</strong>
-        <time dateTime={comment.created_at}>{new Date(comment.created_at).toLocaleString()}</time>
-        {comment.updated_at && <span>Edited <time dateTime={comment.updated_at}>{new Date(comment.updated_at).toLocaleString()}</time></span>}
+        <time dateTime={comment.created_at}>{formatDateTime(comment.created_at)}</time>
+        {comment.updated_at && <span>Edited <time dateTime={comment.updated_at}>{formatDateTime(comment.updated_at)}</time></span>}
       </div>
       {editing ? (
         <CommentEditForm docId={docId} commentId={comment.id} initialBody={comment.body} onCancel={() => setEditing(false)} onSaved={() => setEditing(false)} />

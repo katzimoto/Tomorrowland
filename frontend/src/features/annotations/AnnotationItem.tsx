@@ -10,6 +10,7 @@ import {
 } from "@/api/annotations";
 import type { CurrentUser } from "@/api/auth";
 import { Button } from "@/components/primitives/Button";
+import { formatDate } from "@/lib/datetime";
 import { AnnotationEditor } from "./AnnotationEditor";
 import { PrivacyLabel } from "./PrivacyLabel";
 import styles from "./Annotations.module.css";
@@ -135,7 +136,7 @@ export function AnnotationItem({ docId, annotation, currentUser }: AnnotationIte
                       {r.author_name ?? "Reader"}
                     </span>
                     <span className={styles.replyDate}>
-                      {new Date(r.created_at).toLocaleDateString()}
+                      {formatDate(r.created_at)}
                     </span>
                     {r.can_modify && (
                       <button

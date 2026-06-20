@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { markRead, type Notification } from "@/api/notifications";
 import { Badge } from "@/components/primitives/Badge";
+import { formatDate } from "@/lib/datetime";
 import styles from "./NotificationsPage.module.css";
 
 interface NotificationItemProps {
@@ -84,7 +85,7 @@ export const NotificationItem = memo(function NotificationItem({
       <div className={styles.rowMeta}>
         {!notification.read && <Badge variant="warning">New</Badge>}
         <span className={styles.date}>
-          {new Date(notification.created_at).toLocaleDateString()}
+          {formatDate(notification.created_at)}
         </span>
       </div>
     </button>

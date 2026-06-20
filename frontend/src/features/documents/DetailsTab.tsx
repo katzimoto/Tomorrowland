@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { DocumentPreview } from "@/api/documents";
 import { UserTagEditor } from "./UserTagEditor";
 import { FilterLink } from "./FilterLink";
+import { formatDateTime } from "@/lib/datetime";
 import styles from "./DetailsTab.module.css";
 
 const MIME_LABELS: Record<string, string> = {
@@ -36,10 +37,6 @@ const MIME_LABELS: Record<string, string> = {
 
 function mimeLabel(mime: string): string {
   return MIME_LABELS[mime] ?? mime.split("/")[1]?.replace(/[^a-z]/gi, " ") ?? mime;
-}
-
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString();
 }
 
 function formatFileSize(bytes: number | string): string {

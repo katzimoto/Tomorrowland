@@ -8,7 +8,9 @@ import { SkeletonRow } from "@/components/primitives/Skeleton";
 import styles from "./EvidencePacksPage.module.css";
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",

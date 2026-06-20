@@ -34,6 +34,7 @@ function MimeIcon({ mimeType }: { mimeType: string }) {
 
 function formatDate(iso: string, today: string, daysAgo: (n: number) => string): string {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
   const now = Date.now();
   const diff = now - d.getTime();
   if (diff < 86_400_000) return today;

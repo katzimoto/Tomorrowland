@@ -1,5 +1,6 @@
 import { Badge } from "@/components/primitives/Badge";
 import type { DocumentPreview } from "@/api/documents";
+import { formatDate } from "@/lib/datetime";
 import styles from "./TrustDisplay.module.css";
 
 interface TrustDisplayProps {
@@ -16,7 +17,7 @@ export function TrustDisplay({ preview }: TrustDisplayProps) {
     preview.translation_quality === "fast" ? "Fast translation" : "Not translated";
 
   const indexedDate = preview.metadata["indexed_at"]
-    ? new Date(String(preview.metadata["indexed_at"])).toLocaleDateString()
+    ? formatDate(String(preview.metadata["indexed_at"]))
     : null;
 
   return (
