@@ -41,6 +41,21 @@ class ChunkPosition(BaseModel):
     end_offset: int | None = None
 
 
+def _iso_to_epoch_seconds(value: str) -> int | None:
+    """Parse an ISO date/datetime string to integer epoch seconds (UTC).
+
+    Naive inputs are assumed to be UTC. Returns ``None`` when *value* cannot be
+    parsed, so a malformed timestamp never aborts indexing.
+    """
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (ValueError, TypeError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return int(parsed.timestamp())
+
+
 class ChunkMetadata(BaseModel):
     # Source provenance — loosely typed to accommodate connector expansion
     source_id: str | None = None
@@ -80,9 +95,33 @@ class ChunkMetadata(BaseModel):
     updated_at: str | None = None
     imported_at: str | None = None
 
+    # Epoch-seconds mirrors of the ISO timestamps above, derived automatically.
+    # Meilisearch range filters (>=, <=, TO) operate on numbers only, so
+    # date-range search and chronological sort rely on these numeric fields
+    # rather than the ISO strings (which are retained for display).
+    created_at_ts: int | None = None
+    updated_at_ts: int | None = None
+    imported_at_ts: int | None = None
+
     # Internal — stored for dedup/staleness; excluded from filterable and displayed attributes
     version: str | None = None
     checksum: str | None = None
+
+    @model_validator(mode="after")
+    def _derive_epoch_timestamps(self) -> ChunkMetadata:
+        for iso_field, ts_field in (
+            ("created_at", "created_at_ts"),
+            ("updated_at", "updated_at_ts"),
+            ("imported_at", "imported_at_ts"),
+        ):
+            if getattr(self, ts_field) is not None:
+                continue
+            iso = getattr(self, iso_field)
+            if iso:
+                epoch = _iso_to_epoch_seconds(iso)
+                if epoch is not None:
+                    setattr(self, ts_field, epoch)
+        return self
 
 
 class SearchChunkRecord(BaseModel):

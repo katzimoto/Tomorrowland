@@ -77,6 +77,10 @@ _FILTERABLE_ATTRIBUTES: list[str] = [
     "metadata.created_at",
     "metadata.updated_at",
     "metadata.imported_at",
+    # Numeric epoch mirrors — Meilisearch range filters work on numbers only.
+    "metadata.created_at_ts",
+    "metadata.updated_at_ts",
+    "metadata.imported_at_ts",
     # Intentionally excluded: metadata.checksum, metadata.version (internal fields)
 ]
 
@@ -84,9 +88,10 @@ _FILTERABLE_ATTRIBUTES: list[str] = [
 # Sortable attributes
 # ---------------------------------------------------------------------------
 _SORTABLE_ATTRIBUTES: list[str] = [
-    "metadata.created_at",
-    "metadata.updated_at",
-    "metadata.imported_at",
+    # Numeric epoch mirrors sort chronologically regardless of timezone offset.
+    "metadata.created_at_ts",
+    "metadata.updated_at_ts",
+    "metadata.imported_at_ts",
     "chunk_index",
     "position.page_number",
 ]
