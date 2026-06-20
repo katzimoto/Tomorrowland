@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from services.auth.models import TokenPayload, UserIdentity
@@ -11,9 +13,7 @@ from services.search.meili_acl import (
 )
 from services.search.meili_filter import (
     build_eq,
-    build_gte,
     build_in,
-    build_lte,
 )
 from services.search.meili_settings import (
     INDEX_NAME,
@@ -35,12 +35,34 @@ from shared.metrics import MetricsRegistry
 # Client type is Any to avoid a hard import error before the package is installed.
 _MeilisearchClient = Any
 
+logger = logging.getLogger(__name__)
+
+_SECONDS_PER_DAY = 86_400
+
 _SORT_MAP: dict[str, list[str]] = {
     "relevance": [],
-    "updatedAt:desc": ["metadata.updated_at:desc"],
-    "createdAt:desc": ["metadata.created_at:desc"],
-    "importedAt:desc": ["metadata.imported_at:desc"],
+    "updatedAt:desc": ["metadata.updated_at_ts:desc"],
+    "createdAt:desc": ["metadata.created_at_ts:desc"],
+    "importedAt:desc": ["metadata.imported_at_ts:desc"],
 }
+
+
+def _iso_bound_to_epoch(value: str) -> tuple[int, bool] | None:
+    """Convert an ISO date/datetime filter bound to epoch seconds.
+
+    Returns ``(epoch_seconds, date_only)`` or ``None`` when *value* is
+    unparseable. ``date_only`` is True for a bare calendar date with no time
+    component, so callers can apply inclusive whole-day semantics to an upper
+    bound. A bare date carries no ``:`` separator.
+    """
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (ValueError, TypeError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return int(parsed.timestamp()), ":" not in value
+
 
 # Maximum chunks fetched when scanning a document's existing index records.
 _MAX_CHUNK_SCAN = 10_000
@@ -65,13 +87,26 @@ def _build_user_filter(filters: DocumentSearchFilters) -> str:
         if clause:
             parts.append(clause)
 
-    def _gte(field: str, value: str | None) -> None:
-        if value:
-            parts.append(build_gte(field, value))
+    def _date_after(field_ts: str, value: str | None) -> None:
+        if not value:
+            return
+        bound = _iso_bound_to_epoch(value)
+        if bound is None:
+            logger.warning("Ignoring unparseable date filter %s: %r", field_ts, value)
+            return
+        parts.append(f"{field_ts} >= {bound[0]}")
 
-    def _lte(field: str, value: str | None) -> None:
-        if value:
-            parts.append(build_lte(field, value))
+    def _date_before(field_ts: str, value: str | None) -> None:
+        if not value:
+            return
+        bound = _iso_bound_to_epoch(value)
+        if bound is None:
+            logger.warning("Ignoring unparseable date filter %s: %r", field_ts, value)
+            return
+        epoch, date_only = bound
+        # A bare date upper bound is inclusive of the whole calendar day.
+        upper = epoch + _SECONDS_PER_DAY - 1 if date_only else epoch
+        parts.append(f"{field_ts} <= {upper}")
 
     _in("metadata.source", filters.source)
     _in("metadata.document_type", filters.document_type)
@@ -86,10 +121,10 @@ def _build_user_filter(filters: DocumentSearchFilters) -> str:
     _in("metadata.project", filters.project)
     _in("metadata.workspace", filters.workspace)
     _in("metadata.collection", filters.collection)
-    _gte("metadata.created_at", filters.created_after)
-    _lte("metadata.created_at", filters.created_before)
-    _gte("metadata.updated_at", filters.updated_after)
-    _gte("metadata.imported_at", filters.imported_after)
+    _date_after("metadata.created_at_ts", filters.created_after)
+    _date_before("metadata.created_at_ts", filters.created_before)
+    _date_after("metadata.updated_at_ts", filters.updated_after)
+    _date_after("metadata.imported_at_ts", filters.imported_after)
 
     if not parts:
         return ""

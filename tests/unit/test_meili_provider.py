@@ -8,6 +8,7 @@ import pytest
 from services.search.meili_provider import MeilisearchSearchProvider, _build_user_filter
 from services.search.meili_settings import INDEX_NAME, SHADOW_INDEX_NAME
 from services.search.meili_types import (
+    ChunkMetadata,
     DocumentSearchFilters,
     DocumentSearchQuery,
     SearchChunkRecord,
@@ -289,9 +290,49 @@ def test_build_user_filter_multiple_values() -> None:
 
 
 def test_build_user_filter_date_gte() -> None:
+    # 2024-01-01T00:00:00Z == 1704067200 epoch seconds. Meilisearch range
+    # filters operate on numbers, so the bound is emitted against the numeric
+    # _ts mirror field rather than the ISO string.
     f = DocumentSearchFilters(created_after="2024-01-01T00:00:00Z")
     result = _build_user_filter(f)
-    assert 'metadata.created_at >= "2024-01-01T00:00:00Z"' in result
+    assert "metadata.created_at_ts >= 1704067200" in result
+
+
+def test_build_user_filter_date_before_bare_date_is_inclusive_of_whole_day() -> None:
+    # A bare date upper bound covers the entire calendar day: midnight epoch
+    # (1704067200) plus 86399 seconds == 1704153599 (23:59:59 on 2024-01-01).
+    f = DocumentSearchFilters(created_before="2024-01-01")
+    result = _build_user_filter(f)
+    assert "metadata.created_at_ts <= 1704153599" in result
+
+
+def test_build_user_filter_date_before_explicit_datetime_exact() -> None:
+    f = DocumentSearchFilters(created_before="2024-01-01T00:00:00Z")
+    result = _build_user_filter(f)
+    assert "metadata.created_at_ts <= 1704067200" in result
+
+
+def test_build_user_filter_invalid_date_ignored() -> None:
+    f = DocumentSearchFilters(created_after="not-a-date")
+    assert _build_user_filter(f) == ""
+
+
+def test_chunk_metadata_derives_epoch_timestamps() -> None:
+    meta = ChunkMetadata(created_at="2024-01-01T00:00:00Z", updated_at="2024-01-01")
+    assert meta.created_at_ts == 1704067200
+    assert meta.updated_at_ts == 1704067200
+    # No imported_at provided -> no derived epoch.
+    assert meta.imported_at_ts is None
+
+
+def test_chunk_metadata_invalid_timestamp_leaves_epoch_none() -> None:
+    meta = ChunkMetadata(created_at="not-a-date")
+    assert meta.created_at_ts is None
+
+
+def test_chunk_metadata_explicit_epoch_not_overwritten() -> None:
+    meta = ChunkMetadata(created_at="2024-01-01T00:00:00Z", created_at_ts=999)
+    assert meta.created_at_ts == 999
 
 
 def test_build_user_filter_multiple_fields_joined_with_and() -> None:
