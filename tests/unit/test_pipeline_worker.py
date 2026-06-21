@@ -132,6 +132,12 @@ class _FakeEncoder:
             raise RuntimeError("raw_chunk_marker")
         return [[0.1, 0.2, 0.3] for _ in texts]
 
+    def encode_query(self, text: str) -> list[float]:
+        return self.encode(text)
+
+    def encode_documents(self, texts: list[str]) -> list[list[float]]:
+        return self.encode_batch(texts)
+
 
 class _FakeQdrant:
     def __init__(self, *, fail: bool = False) -> None:

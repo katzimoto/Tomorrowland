@@ -85,6 +85,7 @@ class _FakeQdrantStore:
         query_filter: object,
         limit: int,
         with_payload: bool,
+        search_params: object = None,
     ) -> MagicMock:
         import math
 

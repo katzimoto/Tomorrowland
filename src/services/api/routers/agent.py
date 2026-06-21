@@ -311,7 +311,7 @@ def search_documents(
             qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
                 url=settings.qdrant_url, dimension=encoder.dimension
             )
-            query_vector = encoder.encode(body.query)
+            query_vector = encoder.encode_query(body.query)
             vector_results = qdrant_client.search(
                 vector=query_vector,
                 group_ids=group_ids,
@@ -613,6 +613,8 @@ def ask_corpus(
             reranker=NoOpReranker(),
             enable_hierarchy_expansion=settings.feature_document_chat_hierarchy_expansion,
             enable_coarse_to_fine_routing=settings.feature_document_chat_coarse_to_fine_routing,
+            enable_mmr=settings.feature_document_chat_mmr,
+            mmr_lambda=settings.document_chat_mmr_lambda,
         )
 
         try:

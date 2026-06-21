@@ -117,7 +117,7 @@ class EmbedConsumer(BaseConsumer):
                     }
                 )
 
-        vectors = self._encoder.encode_batch(chunk_texts)
+        vectors = self._encoder.encode_documents(chunk_texts)
 
         qdrant_chunks: list[dict[str, Any]] = []
         for i, meta in enumerate(chunk_meta):
@@ -201,7 +201,7 @@ def main() -> None:
     doc_repo = DocumentRepository(connection)
     publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
     encoder = build_encoder(settings)
-    qdrant = QdrantSearchClient(url=settings.qdrant_url, dimension=encoder.dimension)
+    qdrant = QdrantSearchClient.from_settings(settings, dimension=encoder.dimension)
     consumer = EmbedConsumer(
         rabbit=rabbit,
         job_repo=job_repo,

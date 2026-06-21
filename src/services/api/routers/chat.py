@@ -355,6 +355,8 @@ def create_message(
             enable_translated_text=settings.feature_document_chat_translated_text,
             enable_hierarchy_expansion=settings.feature_document_chat_hierarchy_expansion,
             enable_coarse_to_fine_routing=settings.feature_document_chat_coarse_to_fine_routing,
+            enable_mmr=settings.feature_document_chat_mmr,
+            mmr_lambda=settings.document_chat_mmr_lambda,
         )
 
         phase_start = time.perf_counter()

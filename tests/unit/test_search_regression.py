@@ -42,10 +42,13 @@ def test_no_direct_encoder_construction_outside_factory() -> None:
         # Factory is the one allowed place; tests are allowed to construct directly
         if "factory.py" in str(path) or "/tests/" in str(path):
             continue
-        text = path.read_text(encoding="utf-8")
-        for name in forbidden:
-            if name in text:
-                hits.append(f"{path}: {name}")
+        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            # Class *definitions* (and their base-class lists) are not construction;
+            # e.g. ``class DeterministicTestEncoder(_PrefixedEncodingMixin):``.
+            if line.lstrip().startswith("class "):
+                continue
+            if any(name in line for name in forbidden):
+                hits.append(f"{path}:{line_no}")
                 break
     assert not hits, "Forbidden direct encoder construction found in:\n" + "\n".join(hits)
 

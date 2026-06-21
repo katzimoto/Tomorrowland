@@ -26,10 +26,10 @@ class AlertMatcher:
 
     def match_document(self, doc: DocumentRow, content: str) -> int:
         """Create notifications for active subscriptions matching a document."""
-        doc_vector = self._encoder.encode(content)
+        doc_vector = self._encoder.encode_documents([content])[0]
         created = 0
         for subscription in self._repository.active_subscriptions_for_doc(doc.id):
-            query_vector = self._encoder.encode(str(subscription["query"]))
+            query_vector = self._encoder.encode_query(str(subscription["query"]))
             similarity = _cosine_similarity(doc_vector, query_vector)
             threshold = (
                 self._default_threshold

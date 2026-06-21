@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx
 
@@ -14,7 +14,23 @@ logger = logging.getLogger(__name__)
 
 
 class TextEncoder(Protocol):
-    """Protocol for text-to-vector encoders."""
+    """Protocol for text-to-vector encoders.
+
+    Implementations expose two parallel APIs:
+
+    * the *raw* ``encode`` / ``encode_batch`` primitives, which embed text
+      exactly as given; and
+    * the *asymmetric* ``encode_query`` / ``encode_documents`` helpers, which
+      apply the configured query/document instruction prefix before embedding.
+
+    Instruction-tuned embedding models (e.g. ``qwen3-embedding``,
+    ``nomic-embed-text``, multilingual E5) are trained to receive a short
+    task/role prefix on the query side and — depending on the model — a
+    document-side prefix too. Encoding queries and passages symmetrically
+    (no prefix) leaves measurable retrieval accuracy on the table. Callers
+    should therefore use ``encode_query`` for user queries and
+    ``encode_documents`` for chunks/passages being indexed or compared.
+    """
 
     @property
     def dimension(self) -> int:
@@ -22,15 +38,54 @@ class TextEncoder(Protocol):
         ...
 
     def encode(self, text: str) -> list[float]:
-        """Return a vector for *text*."""
+        """Return a vector for *text* with no prefix applied."""
         ...
 
     def encode_batch(self, texts: list[str]) -> list[list[float]]:
-        """Return a list of vectors for *texts*."""
+        """Return a list of vectors for *texts* with no prefix applied."""
+        ...
+
+    def encode_query(self, text: str) -> list[float]:
+        """Return a vector for a search *query*, applying the query prefix."""
+        ...
+
+    def encode_documents(self, texts: list[str]) -> list[list[float]]:
+        """Return vectors for *texts* (passages), applying the document prefix."""
         ...
 
 
-class DeterministicTestEncoder:
+class _PrefixedEncodingMixin:
+    """Adds asymmetric query/document encoding on top of an encoder.
+
+    Concrete encoders provide the raw ``encode`` / ``encode_batch`` primitives
+    and set ``_query_prefix`` / ``_document_prefix`` (both default to ``""``,
+    i.e. no prefix and fully backward-compatible). This mixin layers the
+    instruction-prefixing on top so every encoder gets consistent
+    ``encode_query`` / ``encode_documents`` behaviour without duplicating the
+    prefix logic.
+    """
+
+    _query_prefix: str = ""
+    _document_prefix: str = ""
+
+    if TYPE_CHECKING:
+        # Provided by the concrete encoder this mixin is combined with.
+        def encode(self, text: str) -> list[float]: ...
+
+        def encode_batch(self, texts: list[str]) -> list[list[float]]: ...
+
+    def encode_query(self, text: str) -> list[float]:
+        """Embed a search query, prepending ``_query_prefix`` when set."""
+        return self.encode(f"{self._query_prefix}{text}" if self._query_prefix else text)
+
+    def encode_documents(self, texts: list[str]) -> list[list[float]]:
+        """Embed passages, prepending ``_document_prefix`` to each when set."""
+        if self._document_prefix:
+            texts = [f"{self._document_prefix}{t}" for t in texts]
+        return self.encode_batch(texts)
+
+
+class DeterministicTestEncoder(_PrefixedEncodingMixin):
     """Deterministic test encoder that produces 384-dimensional vectors.
 
     Vectors are derived from the SHA-256 hash of the input text. This encoder
@@ -70,7 +125,7 @@ class DeterministicTestEncoder:
         return [self.encode(text) for text in texts]
 
 
-class OpenAICompatibleEmbeddingEncoder:
+class OpenAICompatibleEmbeddingEncoder(_PrefixedEncodingMixin):
     """Encoder using an OpenAI-compatible ``/v1/embeddings`` endpoint.
 
     Supports providers such as Ollama (``/v1/embeddings``), LiteLLM, or any
@@ -94,12 +149,16 @@ class OpenAICompatibleEmbeddingEncoder:
         dimension: int = 768,
         api_key: str = "",
         timeout: float = 180.0,
+        query_prefix: str = "",
+        document_prefix: str = "",
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._dimension = dimension
         self._api_key = api_key
         self._timeout = timeout
+        self._query_prefix = query_prefix
+        self._document_prefix = document_prefix
 
     @property
     def dimension(self) -> int:
@@ -190,7 +249,7 @@ def _estimate_tokens(text: str) -> int:
     return max(1, int(len(text) / 4.0))
 
 
-class OllamaEmbeddingEncoder:
+class OllamaEmbeddingEncoder(_PrefixedEncodingMixin):
     """Production encoder using Ollama's modern embedding endpoint.
 
     Calls the Ollama ``/api/embed`` endpoint for both single-text and batch
@@ -209,12 +268,16 @@ class OllamaEmbeddingEncoder:
         dimension: int = 768,
         timeout: float = 180.0,
         max_tokens: int | None = None,
+        query_prefix: str = "",
+        document_prefix: str = "",
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._dimension = dimension
         self._timeout = timeout
         self._max_tokens = max_tokens
+        self._query_prefix = query_prefix
+        self._document_prefix = document_prefix
 
     @property
     def dimension(self) -> int:

@@ -21,6 +21,17 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
     kafka_broker: str = "kafka:9092"
     qdrant_url: str = "http://qdrant:6333"
+    # Vector-store quantization (#826). Empty = current behaviour (raw float32
+    # vectors), so upgrades need no reindex. "scalar" = int8 (~4x smaller, high
+    # accuracy); "binary" = ~32x smaller, relies on rescore to keep recall.
+    # Quantization is configured at collection-creation time, so enabling it on
+    # an existing deployment requires recreating/reindexing the collection.
+    qdrant_quantization: str = ""  # "" | "scalar" | "binary"
+    # When quantization is on, re-score the quantized candidates against the
+    # full-precision vectors (recovers recall, esp. for binary) and over-fetch
+    # by this factor before rescoring.
+    qdrant_search_rescore: bool = True
+    qdrant_search_oversampling: float = Field(default=2.0, ge=1.0)
     files_root: Path = Path("/data")
     jwt_secret: str = "change-me-in-production"
     cors_origins: str = "http://localhost:8080"
@@ -151,6 +162,11 @@ class Settings(BaseSettings):
     feature_document_chat_translated_text: bool = True
     feature_document_chat_hierarchy_expansion: bool = True
     feature_document_chat_coarse_to_fine_routing: bool = True
+    # MMR diversification of the post-rerank candidate set (default off until
+    # eval confirms no recall regression). ``mmr_lambda`` trades relevance
+    # (1.0 = pure relevance, no diversification) against diversity (0.0).
+    feature_document_chat_mmr: bool = False
+    document_chat_mmr_lambda: float = Field(default=0.5, ge=0.0, le=1.0)
     feature_document_chat_streaming: bool = True
     # Enable local-dev LLM documentation & model recommendations for CPU-only
     # machines with limited RAM (e.g. 16GB, no discrete GPU). Default: false
@@ -178,6 +194,16 @@ class Settings(BaseSettings):
     )
     embedding_max_tokens: int = 1024
     embedding_timeout: float = 180.0
+    # Asymmetric instruction prefixes for instruction-tuned embedding models.
+    # Applied by ``encode_query`` / ``encode_documents`` to queries and passages
+    # respectively. Empty by default = no prefix (fully backward compatible, no
+    # reindex required). Recommended values per model are documented in
+    # ``.env.example``. NOTE: changing EMBEDDING_DOCUMENT_PREFIX changes how
+    # passages are embedded and therefore requires a full reindex to stay
+    # consistent with the existing vector collection; changing only
+    # EMBEDDING_QUERY_PREFIX does not.
+    embedding_query_prefix: str = ""
+    embedding_document_prefix: str = ""
     # Short timeout used specifically during the search request path so that a
     # slow/unavailable embedding service degrades to lexical-only results rather
     # than blocking until nginx times out (110 s). Kept well below nginx's read

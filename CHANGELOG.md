@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Qdrant vector quantization (#826, first slice)**: adds optional scalar (int8)
+  or binary quantization plus query-time rescore/oversampling to
+  `QdrantSearchClient` to cut vector-store memory at scale (int8 ≈ 4×, binary ≈
+  32× smaller). New settings `QDRANT_QUANTIZATION` (`""|scalar|binary`),
+  `QDRANT_SEARCH_RESCORE`, `QDRANT_SEARCH_OVERSAMPLING`, and a
+  `QdrantSearchClient.from_settings(...)` factory. Quantization is configured at
+  collection-creation time and wired into the dedicated embed consumer, so
+  enabling it on an existing deployment requires recreating/reindexing the
+  collection. Default (empty) is fully backward compatible — no quantization
+  config is sent and search behaviour is unchanged. Wiring the remaining
+  indexers and API search paths (and reconciling their dimension handling) is a
+  tracked follow-up.
+- **MMR diversification for RAG retrieval**: adds optional Maximal Marginal
+  Relevance re-selection of the post-rerank candidate set
+  (`src/services/rag/mmr.py`) so the LLM context budget is not spent on
+  near-duplicate passages (e.g. consecutive chunks of the same section). At each
+  step a candidate is scored `lambda * relevance - (1 - lambda) * max_similarity`
+  against the already-selected chunks; relevance is the upstream rank order and
+  redundancy is a lexical token-cosine over chunk text (candidate embedding
+  vectors are not carried through the permission-filtered fusion path today, so
+  embedding-cosine redundancy is a tracked follow-up). Gated behind
+  `FEATURE_DOCUMENT_CHAT_MMR` (default off) with `DOCUMENT_CHAT_MMR_LAMBDA`
+  (default 0.5; 1.0 = pure relevance / no diversification). Wired into both the
+  buffered and streaming document-chat answer paths; default behaviour is
+  unchanged.
+- **Asymmetric embedding instruction prefixes**: instruction-tuned embedding
+  models (qwen3-embedding, nomic-embed-text, multilingual E5) are trained to
+  receive a short task/role prefix on the query side — and, for some models, the
+  document side — and encoding queries and passages symmetrically (no prefix)
+  leaves retrieval accuracy on the table. The encoder protocol now exposes
+  `encode_query` / `encode_documents` alongside the raw `encode` / `encode_batch`
+  primitives (`src/services/search/encoder.py`), driven by two new settings
+  `EMBEDDING_QUERY_PREFIX` / `EMBEDDING_DOCUMENT_PREFIX`. All embedding call sites
+  (index-time chunk embedding, search/RAG/agent query embedding, alerts and
+  related-document matching) were updated to use the query- or document-specific
+  path according to their actual semantics. Defaults are empty (no prefix), so
+  upgrades are fully backward compatible and require no reindex; recommended
+  per-model values are documented in `.env.example`. Changing only the query
+  prefix never requires a reindex; changing the document prefix does.
 - **Canonical model-provider runtime boundary (#813A/B/E)**: introduces
   `ModelRuntime` (`src/services/intelligence/runtime.py`, on
   `app.state.model_runtime`) as the single boundary product code calls to obtain

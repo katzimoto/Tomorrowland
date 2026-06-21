@@ -23,6 +23,7 @@ from services.search.qdrant import QdrantSearchClient
 from shared.metrics import current_metrics
 
 from .context_packer import expand_chunks
+from .mmr import mmr_reorder
 from .models import AnswerResponse, Citation
 from .trace_models import (
     BackendAttributionTrace,
@@ -171,6 +172,8 @@ class RagService:
         enable_translated_text: bool = False,
         enable_hierarchy_expansion: bool = False,
         enable_coarse_to_fine_routing: bool = False,
+        enable_mmr: bool = False,
+        mmr_lambda: float = 0.5,
     ) -> None:
         self._qdrant = qdrant_client
         self._encoder = encoder
@@ -208,6 +211,21 @@ class RagService:
         self._enable_translated_text = enable_translated_text
         self._enable_hierarchy_expansion = enable_hierarchy_expansion
         self._enable_coarse_to_fine_routing = enable_coarse_to_fine_routing
+        self._enable_mmr = enable_mmr
+        self._mmr_lambda = mmr_lambda
+
+    def _select_final_chunks(
+        self, chunks: list[dict[str, Any]], effective_top_k: int
+    ) -> list[dict[str, Any]]:
+        """Pick the final ``effective_top_k`` chunks for context assembly.
+
+        When MMR is enabled, diversify the post-rerank candidate set so the
+        context budget is not spent on near-duplicate passages; otherwise keep
+        the existing relevance-order truncation.
+        """
+        if self._enable_mmr and len(chunks) > 1:
+            return mmr_reorder(chunks, lambda_=self._mmr_lambda, top_k=effective_top_k)
+        return chunks[:effective_top_k]
 
     def answer(
         self,
@@ -307,7 +325,7 @@ class RagService:
         if self._score_threshold > 0.0:
             chunks = [c for c in chunks if c["score"] >= self._score_threshold]
         score_threshold_filtered_count = before_threshold - len(chunks)
-        chunks = chunks[:effective_top_k]
+        chunks = self._select_final_chunks(chunks, effective_top_k)
         stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
 
         # 4. Hierarchy-aware context expansion
@@ -488,7 +506,7 @@ class RagService:
         if self._score_threshold > 0.0:
             chunks = [c for c in chunks if c["score"] >= self._score_threshold]
         score_threshold_filtered_count = before_threshold - len(chunks)
-        chunks = chunks[:effective_top_k]
+        chunks = self._select_final_chunks(chunks, effective_top_k)
         stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
 
         # Hierarchy-aware context expansion
@@ -662,7 +680,7 @@ class RagService:
         _embedding_failed = False
         query_vector: list[float] = []
         try:
-            query_vector = self._encoder.encode(question)
+            query_vector = self._encoder.encode_query(question)
         except Exception as exc:
             _embedding_failed = True
             _retrieval_degraded = True
