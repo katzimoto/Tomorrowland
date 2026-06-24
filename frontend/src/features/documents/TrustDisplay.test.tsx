@@ -31,6 +31,19 @@ describe("TrustDisplay", () => {
     expect(screen.getByText("Fast translation")).toBeInTheDocument();
   });
 
+  it("shows fast badge plus pending indicator while high quality is queued", () => {
+    render(
+      <TrustDisplay
+        preview={{ ...base, translation_quality: "fast", high_quality_pending: true }}
+      />
+    );
+    // The available fast translation is still labelled correctly...
+    expect(screen.getByText("Fast translation")).toBeInTheDocument();
+    // ...and the queued upgrade is surfaced separately (not "Not translated").
+    expect(screen.getByText("High-quality translation in progress")).toBeInTheDocument();
+    expect(screen.queryByText("Not translated")).not.toBeInTheDocument();
+  });
+
   it("shows view count when > 0", () => {
     render(<TrustDisplay preview={{ ...base, view_count: 5 }} />);
     expect(screen.getByText("5 views")).toBeInTheDocument();

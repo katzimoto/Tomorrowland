@@ -23,6 +23,9 @@ export function TrustDisplay({ preview }: TrustDisplayProps) {
   return (
     <div className={styles.trust}>
       <Badge variant={variant}>{label}</Badge>
+      {preview.high_quality_pending && (
+        <Badge variant="neutral">High-quality translation in progress</Badge>
+      )}
       {indexedDate && (
         <span className={styles.meta}>Indexed {indexedDate}</span>
       )}

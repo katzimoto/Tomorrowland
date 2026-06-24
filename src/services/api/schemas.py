@@ -68,6 +68,7 @@ class PreviewResponse(BaseModel):
     mime_type: str
     translation_quality: str | None = None
     translation_score: float = 0.0
+    high_quality_pending: bool = False
     view_count: int = 0
     metadata: dict[str, Any]
     snippet: str

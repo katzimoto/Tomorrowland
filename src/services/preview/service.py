@@ -131,11 +131,25 @@ class PreviewService:
             show_original=show_original,
         )
 
+        # Report the *effective* quality of the translation actually shown,
+        # not the documents.translation_quality column. That column also holds
+        # the transient "pending_high" state while a high-quality translation
+        # is queued, which would otherwise mislabel an already-available fast
+        # translation as "Not translated" in the UI. When viewing the original,
+        # no translation is in view so the effective quality is None.
+        effective_quality = (
+            None
+            if show_original
+            else self.get_active_translation_quality(document_id, translation_version_id)
+        )
+        high_quality_pending = row["translation_quality"] == "pending_high"
+
         return {
             "document_id": str(document_id),
             "title": row["title"],
             "mime_type": row["mime_type"],
-            "translation_quality": row["translation_quality"],
+            "translation_quality": effective_quality,
+            "high_quality_pending": high_quality_pending,
             "metadata": _parse_metadata(row["metadata"]),
             "snippet": snippet,
             "view_count": view_count,
@@ -181,24 +195,60 @@ class PreviewService:
     ) -> str | None:
         """Resolve the full translated text for *document_id*.
 
-        When *translation_version_id* is provided and the version is
-        available and belongs to the same document, returns that version's
-        translated text.  When omitted, returns the latest available
-        translation.  Falls back to ``document_payloads.translated_text``
-        for documents processed before version records existed.
-        Returns ``None`` when no translation is found.
+        Thin wrapper over :meth:`_resolve_translation`; see that method for
+        the version → latest → legacy-payload resolution order and the no-op
+        filtering rules. Returns ``None`` when no translation is found.
+        """
+        resolved = self._resolve_translation(document_id, translation_version_id)
+        return resolved["text"] if resolved else None
 
-        In all three lookup paths, versions / payloads whose
-        ``translated_text`` equals the original ``content_text`` are
-        skipped — they represent no-op translations (document already in the
-        target language or LibreTranslate returned the input unchanged) and
-        would otherwise show original-language text in the translation view.
+    def get_active_translation_quality(
+        self,
+        document_id: UUID,
+        translation_version_id: UUID | None = None,
+    ) -> str | None:
+        """Return the quality (``"fast"`` / ``"high"``) of the translation that
+        would actually be shown for *document_id*, or ``None`` when no
+        translation resolves.
+
+        This is the *effective* quality of the resolved version — not the
+        ``documents.translation_quality`` column, which also carries the
+        transient ``"pending_high"`` state while a high-quality translation is
+        queued.  Callers that need to render a fidelity badge should use this
+        so a queued high-quality job does not mislabel an already-available
+        fast translation as "Not translated".
+        """
+        resolved = self._resolve_translation(document_id, translation_version_id)
+        return resolved["quality"] if resolved else None
+
+    def _resolve_translation(
+        self,
+        document_id: UUID,
+        translation_version_id: UUID | None = None,
+    ) -> dict[str, str] | None:
+        """Resolve the translation to show for *document_id*.
+
+        Returns ``{"text": ..., "quality": ...}`` or ``None``. Resolution
+        order:
+
+        1. The specific ``translation_version_id`` when provided, available,
+           and belonging to *document_id*.
+        2. The latest available version (highest ``version_number``).
+        3. ``document_payloads.translated_text`` for documents processed
+           before version records existed (reported as ``"fast"``, the only
+           quality the legacy ingestion lane produced).
+
+        In all three paths, versions / payloads whose ``translated_text``
+        equals the original ``content_text`` are skipped — they represent
+        no-op translations (document already in the target language or
+        LibreTranslate returned the input unchanged) and would otherwise show
+        original-language text in the translation view.
         """
         if translation_version_id is not None:
             version_row = (
                 self._connection.execute(
                     sa.text("""
-                        SELECT dv.translated_text, dv.document_id
+                        SELECT dv.translated_text, dv.document_id, dv.quality
                         FROM document_translation_versions dv
                         LEFT JOIN document_payloads dp
                                ON dp.document_id = dv.document_id
@@ -219,12 +269,15 @@ class PreviewService:
                 and to_uuid(version_row["document_id"]) == document_id
                 and version_row["translated_text"]
             ):
-                return str(version_row["translated_text"])
+                return {
+                    "text": str(version_row["translated_text"]),
+                    "quality": str(version_row["quality"]),
+                }
 
         latest_row = (
             self._connection.execute(
                 sa.text("""
-                    SELECT dtv.translated_text
+                    SELECT dtv.translated_text, dtv.quality
                     FROM document_translation_versions dtv
                     LEFT JOIN document_payloads dp
                            ON dp.document_id = dtv.document_id
@@ -243,7 +296,10 @@ class PreviewService:
             .first()
         )
         if latest_row and latest_row["translated_text"]:
-            return str(latest_row["translated_text"])
+            return {
+                "text": str(latest_row["translated_text"]),
+                "quality": str(latest_row["quality"]),
+            }
 
         payload_row = (
             self._connection.execute(
@@ -262,7 +318,7 @@ class PreviewService:
             .first()
         )
         if payload_row and payload_row["translated_text"]:
-            return str(payload_row["translated_text"])
+            return {"text": str(payload_row["translated_text"]), "quality": "fast"}
 
         return None
 

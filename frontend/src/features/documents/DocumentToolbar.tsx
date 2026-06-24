@@ -90,7 +90,7 @@ export function DocumentToolbar({
             onSelect={onVersionChange}
             onShowOriginalChange={onShowOriginalChange}
           />
-          {preview.translation_quality !== "high" && (
+          {preview.translation_quality !== "high" && !preview.high_quality_pending && (
             <Button
               variant="secondary"
               size="sm"

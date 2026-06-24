@@ -138,6 +138,20 @@ All notable changes to this project will be documented in this file.
   Eval harness (`tests/eval/test_translation.py`, `@pytest.mark.eval`) compares
   fast vs high providers head-to-head. 19 unit tests for all metric functions.
 
+### Fixed
+- **Translation viewer mislabelled "Not translated" while a high-quality
+  translation was queued**: the document preview surfaced the raw
+  `documents.translation_quality` column, which carries the transient
+  `pending_high` state after a high-quality translation is requested. The
+  frontend only understands `fast`/`high`/`null`, so an already-available *fast*
+  translation rendered as "Not translated" with a "Viewing extracted text"
+  banner even though translated text was shown. The preview API now reports the
+  *effective* quality of the version actually displayed (via
+  `PreviewService.get_active_translation_quality`) plus a separate
+  `high_quality_pending` flag. `TrustDisplay` shows the correct "Fast
+  translation" badge with a "High-quality translation in progress" indicator,
+  and the "Request translation" button is hidden while an upgrade is queued.
+
 ## [0.6.0] - 2026-06-15
 
 ### Added
