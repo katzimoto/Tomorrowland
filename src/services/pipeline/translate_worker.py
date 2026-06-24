@@ -8,6 +8,7 @@ from uuid import UUID
 
 from services.documents.layout_block_repository import LayoutBlockRepository
 from services.documents.repository import DocumentRepository, TranslationVersionRepository
+from services.extraction.language import LanguageDetector
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
@@ -16,6 +17,47 @@ from services.translation.provider import TranslationProvider
 from services.translation.segment_pipeline import run_segment_pipeline
 
 logger = logging.getLogger(__name__)
+
+_LANGUAGE_DETECTOR = LanguageDetector()
+
+# LibreTranslate language packs shipped with the (air-gapped) deployment.
+# Detection results outside this set are ignored so we never send an
+# unsupported source code, which LibreTranslate rejects with HTTP 400.
+_SUPPORTED_SOURCE_LANGUAGES = frozenset({"ar", "en", "es", "fr", "he", "ko", "ru", "th", "zh"})
+
+# A handful of Han characters is a strong, length-independent signal that the
+# text is Chinese — far more reliable here than statistical detectors.
+_CJK_MIN_CHARS = 8
+
+
+def _count_han(text: str) -> int:
+    """Count CJK Unified Ideographs (Han characters) in *text*."""
+    return sum(1 for ch in text if "一" <= ch <= "鿿")
+
+
+def _detect_source_language(content_text: str) -> str | None:
+    """Best-effort source language when the document's own is unknown.
+
+    LibreTranslate's built-in ``auto`` detection is unreliable for CJK text — it
+    reports English with zero confidence and returns the input unchanged,
+    producing a "translation" that is still in the source language. Statistical
+    detection (langdetect) also mis-fires when CJK is mixed with ASCII (e.g. a
+    Chinese document peppered with English keywords gets labelled Vietnamese).
+
+    So we first use a script-based shortcut for Han characters, then fall back
+    to langdetect for everything else, normalising to a base code LibreTranslate
+    accepts (e.g. ``zh-cn`` -> ``zh``). Results outside the supported set, or
+    inconclusive detection, return ``None`` — leaving the existing ``auto``
+    behaviour untouched.
+    """
+    if _count_han(content_text) >= _CJK_MIN_CHARS:
+        return "zh" if "zh" in _SUPPORTED_SOURCE_LANGUAGES else None
+
+    detected = _LANGUAGE_DETECTOR.detect(content_text)
+    if not detected:
+        return None
+    base = detected.split("-")[0]
+    return base if base in _SUPPORTED_SOURCE_LANGUAGES else None
 
 
 def _build_fast_metadata(
@@ -117,6 +159,12 @@ class TranslateConsumer(BaseConsumer):
                 content_text=content_text,
             )
             return
+
+        # When the document's source language was never determined upstream,
+        # detect it here rather than relying on LibreTranslate's unreliable
+        # ``auto`` mode (which silently no-ops on CJK text).
+        if lang is None:
+            lang = _detect_source_language(content_text)
 
         # Load layout blocks for segment-aware translation (#728)
         layout_blocks: list[dict[str, Any]] | None = None
