@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import random
+import time
 from typing import Any
 
 import httpx
@@ -92,7 +94,7 @@ class LibreTranslateClient:
         self,
         base_url: str = "http://localhost:5000",
         timeout: float = 30.0,
-        max_retries: int = 1,
+        max_retries: int = 3,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
@@ -176,12 +178,19 @@ class LibreTranslateClient:
                 if hasattr(exc, "response") and exc.response is not None:
                     extra = f" body={exc.response.text[:500]}"
                 if attempt < self._max_retries:
+                    # Exponential backoff with jitter: 1s → 2s → 4s → ...
+                    # capped at 10s, plus up to 25% random jitter to prevent
+                    # thundering herd when LibreTranslate restarts.
+                    delay = min(2**attempt, 10.0)
+                    delay += delay * random.uniform(0, 0.25)
                     logger.warning(
-                        "Translation attempt %d failed (%s)%s, retrying",
+                        "Translation attempt %d failed (%s)%s, retrying in %.1fs",
                         attempt + 1,
                         exc,
                         extra,
+                        delay,
                     )
+                    time.sleep(delay)
                     continue
             except httpx.RequestError as exc:
                 last_exc = exc

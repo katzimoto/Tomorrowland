@@ -24,7 +24,7 @@ class LibreTranslateArgosProvider(TranslationProvider):
         self,
         base_url: str = "http://localhost:5000",
         timeout: float = 30.0,
-        max_retries: int = 1,
+        max_retries: int = 3,
     ) -> None:
         self._client = LibreTranslateClient(
             base_url=base_url,
