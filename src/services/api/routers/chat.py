@@ -20,6 +20,7 @@ from services.auth.repository import AuthRepository
 from services.chat import ChatMessage, ChatRepository, ChatSession, rewrite_query
 from services.chat.models import ChatMessageCreate, ChatScope, ChatSessionCreate, ChatSessionUpdate
 from services.rag.reranker import CrossEncoderReranker, NoOpReranker
+from services.rag.semantic_cache import SemanticCache
 from services.rag.service import RagService
 from services.search.factory import build_encoder
 from services.search.qdrant import QdrantSearchClient
@@ -357,6 +358,7 @@ def create_message(
             enable_coarse_to_fine_routing=settings.feature_document_chat_coarse_to_fine_routing,
             enable_mmr=settings.feature_document_chat_mmr,
             mmr_lambda=settings.document_chat_mmr_lambda,
+            semantic_cache=SemanticCache(qdrant_client, encoder, settings),
         )
 
         phase_start = time.perf_counter()
@@ -587,6 +589,7 @@ def create_message_stream(
             enable_metadata_search=settings.feature_document_chat_metadata_search,
             enable_translated_text=settings.feature_document_chat_translated_text,
             enable_hierarchy_expansion=settings.feature_document_chat_hierarchy_expansion,
+            semantic_cache=SemanticCache(qdrant_client, encoder, settings),
         )
 
         # Persist the user message now that scope validation passed.
