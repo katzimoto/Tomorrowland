@@ -71,11 +71,22 @@ class RabbitClient:
             ch.queue_declare(
                 queue=queue,
                 durable=True,
-                arguments={"x-dead-letter-exchange": _DLQ_EXCHANGE},
+                arguments={
+                    "x-dead-letter-exchange": _DLQ_EXCHANGE,
+                    "x-queue-type": "quorum",
+                    "x-max-length": 50_000,
+                },
             )
             ch.queue_bind(queue=queue, exchange=_MAIN_EXCHANGE, routing_key=queue)
             dlq = queue.replace("requested", "dead")
-            ch.queue_declare(queue=dlq, durable=True)
+            ch.queue_declare(
+                queue=dlq,
+                durable=True,
+                arguments={
+                    "x-queue-type": "quorum",
+                    "x-max-length": 25_000,
+                },
+            )
             ch.queue_bind(queue=dlq, exchange=_DLQ_EXCHANGE, routing_key="#")
             retry = queue.replace("requested", "retry")
             ch.queue_declare(
@@ -85,6 +96,7 @@ class RabbitClient:
                     "x-dead-letter-exchange": _MAIN_EXCHANGE,
                     "x-dead-letter-routing-key": queue,
                     "x-message-ttl": 30000,
+                    "x-queue-type": "quorum",
                 },
             )
             ch.queue_bind(queue=retry, exchange=_RETRY_EXCHANGE, routing_key=queue)
