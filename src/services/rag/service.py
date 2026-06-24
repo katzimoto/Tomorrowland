@@ -7,6 +7,7 @@ import time
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Any, TypedDict
 from uuid import UUID, uuid4
 
@@ -45,6 +46,20 @@ class _RetrievalExtras(TypedDict):
     degraded_backends: list[DegradedBackendInfo]
     scope_filtered_count: int
     dedup_count: int
+
+
+@dataclass
+class _PostRetrievalResult:
+    """Intermediate pipeline state shared by answer() and answer_stream()."""
+
+    chunks: list[dict[str, Any]]
+    context_chunks: list[dict[str, Any]]
+    context: str
+    stages: list[RetrievalStageTrace]
+    packing_trace: ContextPackingTrace
+    reranker_dropped_count: int
+    score_threshold_filtered_count: int
+    reranker_enabled: bool
 
 
 def _error_category(exc: Exception) -> str:
@@ -227,6 +242,167 @@ class RagService:
             return mmr_reorder(chunks, lambda_=self._mmr_lambda, top_k=effective_top_k)
         return chunks[:effective_top_k]
 
+    # ── Shared post-retrieval pipeline ──────────────────────────────────
+
+    def _post_retrieval_pipeline(
+        self,
+        question: str,
+        chunks: list[dict[str, Any]],
+        stages: list[RetrievalStageTrace],
+        effective_top_k: int,
+        metrics: Any,
+    ) -> _PostRetrievalResult:
+        """Run reranker → threshold → selection → expansion → context assembly.
+
+        Shared by both ``answer()`` and ``answer_stream()`` to eliminate the
+        ~200 lines of duplicated pipeline logic between the two methods.
+        """
+        reranker_enabled = self._reranker is not None
+        reranker_dropped_count = 0
+
+        # 1. Rerank (when a reranker is configured)
+        if self._reranker is not None:
+            pre_rerank_info: dict[str, tuple[int, float]] = {
+                _chunk_dict_key(c): (i + 1, c["score"]) for i, c in enumerate(chunks)
+            }
+            phase_start = time.perf_counter()
+            chunks = self._reranker.rerank(chunks, question)
+            if metrics is not None:
+                metrics.rag_duration_seconds.labels("rerank").observe(
+                    time.perf_counter() - phase_start
+                )
+            stages.append(self._build_stage_trace("rerank", len(chunks), phase_start))
+            reranker_dropped_count = len(pre_rerank_info) - len(chunks)
+            for i, c in enumerate(chunks):
+                key = _chunk_dict_key(c)
+                if key in pre_rerank_info:
+                    input_rank, input_score = pre_rerank_info[key]
+                    c["_pre_rerank_rank"] = input_rank
+                    c["_pre_rerank_score"] = input_score
+                    c["_post_rerank_rank"] = i + 1
+
+        # 2. Filter by score threshold + truncate to effective_top_k
+        t_final = time.perf_counter()
+        before_threshold = len(chunks)
+        score_threshold_filtered_count = 0
+        if self._score_threshold > 0.0:
+            chunks = [c for c in chunks if c["score"] >= self._score_threshold]
+            score_threshold_filtered_count = before_threshold - len(chunks)
+        chunks = self._select_final_chunks(chunks, effective_top_k)
+        stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
+
+        # 3. Hierarchy-aware context expansion
+        phase_start = time.perf_counter()
+        layout_repo = LayoutBlockRepository(self._connection)
+        chunks, packing_trace = expand_chunks(
+            chunks,
+            layout_repo=layout_repo,
+            enabled=self._enable_hierarchy_expansion,
+            budget_words=self._max_tokens_context,
+        )
+        if metrics is not None:
+            metrics.rag_duration_seconds.labels("context_packing").observe(
+                time.perf_counter() - phase_start
+            )
+
+        # 4. Assemble context — dedupe + budget-trim so context [n] == citation [n]
+        phase_start = time.perf_counter()
+        context_chunks = self._dedupe_and_budget(chunks)
+        context = self._assemble_context(context_chunks)
+        if metrics is not None:
+            metrics.rag_duration_seconds.labels("assembly").observe(
+                time.perf_counter() - phase_start
+            )
+
+        return _PostRetrievalResult(
+            chunks=chunks,
+            context_chunks=context_chunks,
+            context=context,
+            stages=stages,
+            packing_trace=packing_trace,
+            reranker_dropped_count=reranker_dropped_count,
+            score_threshold_filtered_count=score_threshold_filtered_count,
+            reranker_enabled=reranker_enabled,
+        )
+
+    @staticmethod
+    def _build_base_citation(c: dict[str, Any]) -> dict[str, Any]:
+        """Build a base citation dict from a chunk — shared by both answer paths."""
+        return {
+            "document_id": c["document_id"],
+            "doc_title": c.get("doc_title"),
+            "chunk_text": c["chunk_text"],
+            "score": c["score"],
+            "chunk_index": c.get("chunk_index"),
+            "chunk_id": c.get("chunk_id"),
+            "text_lane": c.get("text_lane"),
+            "source_id": c.get("source_id"),
+            "page_number": c.get("page_number"),
+            "section_heading": c.get("section_heading"),
+            "language": c.get("language") or c.get("source_language"),
+            "translated_from": c.get("translated_from"),
+            "matched_text_kind": derive_matched_text_kind(c),
+            "translation_version_id": c.get("translation_version_id"),
+            "translation_quality": c.get("translation_quality"),
+            "translation_validation_status": c.get("translation_validation_status"),
+        }
+
+    def _build_retrieval_trace(
+        self,
+        request_start: float,
+        result: _PostRetrievalResult,
+        retrieval_degraded: bool,
+        retrieval_extras: _RetrievalExtras,
+    ) -> RetrievalTrace:
+        """Build the full RetrievalTrace from pipeline results — shared by both answer paths."""
+        return RetrievalTrace(
+            stages=result.stages,
+            candidates=[
+                RetrievalCandidateTrace(
+                    document_id=c["document_id"],
+                    chunk_id=c.get("chunk_id"),
+                    chunk_index=c.get("chunk_index"),
+                    score=c["score"],
+                    source_id=c.get("source_id"),
+                    doc_title=c.get("doc_title"),
+                    page_number=c.get("page_number"),
+                    section_heading=c.get("section_heading"),
+                    language=c.get("language") or c.get("source_language"),
+                    text_lane=c.get("text_lane"),
+                    translated_from=c.get("translated_from"),
+                    matched_text_kind=derive_matched_text_kind(c),
+                    translation_version_id=c.get("translation_version_id"),
+                    translation_quality=c.get("translation_quality"),
+                    translation_validation_status=c.get("translation_validation_status"),
+                    backends=[BackendAttributionTrace(**b) for b in c.get("_backends", [])],
+                    fused_rank=c.get("_fused_rank"),
+                    fused_score=c.get("_fused_score"),
+                    reranker_delta=(
+                        RerankerDeltaTrace(
+                            input_rank=c["_pre_rerank_rank"],
+                            input_score=c["_pre_rerank_score"],
+                            reranker_score=c.get("_reranker_score"),
+                            output_rank=c.get("_post_rerank_rank"),
+                            dropped=False,
+                        )
+                        if "_pre_rerank_rank" in c
+                        else None
+                    ),
+                    final_context_rank=i + 1,
+                )
+                for i, c in enumerate(result.chunks)
+            ],
+            reranker_enabled=result.reranker_enabled,
+            retrieval_degraded=retrieval_degraded,
+            total_latency_ms=(time.perf_counter() - request_start) * 1000,
+            degraded_backends=retrieval_extras["degraded_backends"],
+            scope_filtered_count=retrieval_extras["scope_filtered_count"],
+            dedup_count=retrieval_extras["dedup_count"],
+            score_threshold_filtered_count=result.score_threshold_filtered_count,
+            reranker_dropped_count=result.reranker_dropped_count,
+            context_packing=result.packing_trace,
+        )
+
     def answer(
         self,
         question: str,
@@ -267,16 +443,18 @@ class RagService:
             )
 
         if not chunks:
-            trace = RetrievalTrace(
+            empty_result = _PostRetrievalResult(
+                chunks=[],
+                context_chunks=[],
+                context="",
                 stages=stages,
-                candidates=[],
+                packing_trace=ContextPackingTrace(),
+                reranker_dropped_count=0,
+                score_threshold_filtered_count=0,
                 reranker_enabled=self._reranker is not None,
-                retrieval_degraded=retrieval_degraded,
-                total_latency_ms=(time.perf_counter() - request_start) * 1000,
-                degraded_backends=retrieval_extras["degraded_backends"],
-                scope_filtered_count=retrieval_extras["scope_filtered_count"],
-                dedup_count=retrieval_extras["dedup_count"],
-                context_packing=ContextPackingTrace(),
+            )
+            trace = self._build_retrieval_trace(
+                request_start, empty_result, retrieval_degraded, retrieval_extras
             )
             if metrics is not None:
                 metrics.rag_requests_total.labels("success").inc()
@@ -294,66 +472,11 @@ class RagService:
                 model=self._ollama.model,
             )
 
-        # 2. Rerank (when a reranker is configured)
-        reranker_enabled = self._reranker is not None
-        reranker_dropped_count = 0
-        if self._reranker is not None:
-            # Record pre-reranker ranks/scores for delta tracking
-            pre_rerank_info: dict[str, tuple[int, float]] = {
-                _chunk_dict_key(c): (i + 1, c["score"]) for i, c in enumerate(chunks)
-            }
-            phase_start = time.perf_counter()
-            chunks = self._reranker.rerank(chunks, question)
-            if metrics is not None:
-                metrics.rag_duration_seconds.labels("rerank").observe(
-                    time.perf_counter() - phase_start
-                )
-            stages.append(self._build_stage_trace("rerank", len(chunks), phase_start))
-            reranker_dropped_count = len(pre_rerank_info) - len(chunks)
-            # Embed reranker delta into surviving chunk dicts
-            for i, c in enumerate(chunks):
-                key = _chunk_dict_key(c)
-                if key in pre_rerank_info:
-                    input_rank, input_score = pre_rerank_info[key]
-                    c["_pre_rerank_rank"] = input_rank
-                    c["_pre_rerank_score"] = input_score
-                    c["_post_rerank_rank"] = i + 1
+        # 2-5. Shared post-retrieval pipeline
+        result = self._post_retrieval_pipeline(question, chunks, stages, effective_top_k, metrics)
 
-        # 3. Filter by score threshold (after reranker has re-scored), then truncate to top_k
-        t_final = time.perf_counter()
-        before_threshold = len(chunks)
-        if self._score_threshold > 0.0:
-            chunks = [c for c in chunks if c["score"] >= self._score_threshold]
-        score_threshold_filtered_count = before_threshold - len(chunks)
-        chunks = self._select_final_chunks(chunks, effective_top_k)
-        stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
-
-        # 4. Hierarchy-aware context expansion
-        phase_start = time.perf_counter()
-        layout_repo = LayoutBlockRepository(self._connection)
-        chunks, packing_trace = expand_chunks(
-            chunks,
-            layout_repo=layout_repo,
-            enabled=self._enable_hierarchy_expansion,
-            budget_words=self._max_tokens_context,
-        )
-        if metrics is not None:
-            metrics.rag_duration_seconds.labels("context_packing").observe(
-                time.perf_counter() - phase_start
-            )
-
-        # 5. Assemble context. Dedupe + budget-trim once so the numbered
-        # context passages and the citation list stay 1:1 aligned.
-        phase_start = time.perf_counter()
-        context_chunks = self._dedupe_and_budget(chunks)
-        context = self._assemble_context(context_chunks)
-        if metrics is not None:
-            metrics.rag_duration_seconds.labels("assembly").observe(
-                time.perf_counter() - phase_start
-            )
-
-        # 5. Generate answer
-        prompt = self._build_prompt(question, context)
+        # 6. Generate answer
+        prompt = self._build_prompt(question, result.context)
         phase_start = time.perf_counter()
         try:
             answer_text = self._ollama.generate(prompt)
@@ -361,83 +484,19 @@ class RagService:
             # Best-effort: return context-only fallback
             answer_text = (
                 "I encountered an issue generating an answer. "
-                "Here are the relevant passages I found:\n\n" + context
+                "Here are the relevant passages I found:\n\n" + result.context
             )
         if metrics is not None:
             metrics.rag_duration_seconds.labels("generation").observe(
                 time.perf_counter() - phase_start
             )
 
-        # 5. Build citations from the same list that produced the numbered
-        # context, so citation card [n] matches context passage [n].
-        citations = [
-            Citation(
-                document_id=c["document_id"],
-                doc_title=c.get("doc_title"),
-                chunk_text=c["chunk_text"],
-                score=c["score"],
-                chunk_index=c.get("chunk_index"),
-                chunk_id=c.get("chunk_id"),
-                text_lane=c.get("text_lane"),
-                source_id=c.get("source_id"),
-                page_number=c.get("page_number"),
-                section_heading=c.get("section_heading"),
-                language=c.get("language") or c.get("source_language"),
-                translated_from=c.get("translated_from"),
-                matched_text_kind=derive_matched_text_kind(c),
-                translation_version_id=c.get("translation_version_id"),
-                translation_quality=c.get("translation_quality"),
-                translation_validation_status=c.get("translation_validation_status"),
-            )
-            for c in context_chunks
-        ]
+        # 7. Build citations from the same list that produced the numbered
+        #    context, so citation card [n] matches context passage [n].
+        citations = [Citation(**self._build_base_citation(c)) for c in result.context_chunks]
 
-        trace = RetrievalTrace(
-            stages=stages,
-            candidates=[
-                RetrievalCandidateTrace(
-                    document_id=c["document_id"],
-                    chunk_id=c.get("chunk_id"),
-                    chunk_index=c.get("chunk_index"),
-                    score=c["score"],
-                    source_id=c.get("source_id"),
-                    doc_title=c.get("doc_title"),
-                    page_number=c.get("page_number"),
-                    section_heading=c.get("section_heading"),
-                    language=c.get("language") or c.get("source_language"),
-                    text_lane=c.get("text_lane"),
-                    translated_from=c.get("translated_from"),
-                    matched_text_kind=derive_matched_text_kind(c),
-                    translation_version_id=c.get("translation_version_id"),
-                    translation_quality=c.get("translation_quality"),
-                    translation_validation_status=c.get("translation_validation_status"),
-                    backends=[BackendAttributionTrace(**b) for b in c.get("_backends", [])],
-                    fused_rank=c.get("_fused_rank"),
-                    fused_score=c.get("_fused_score"),
-                    reranker_delta=(
-                        RerankerDeltaTrace(
-                            input_rank=c["_pre_rerank_rank"],
-                            input_score=c["_pre_rerank_score"],
-                            reranker_score=c.get("_reranker_score"),
-                            output_rank=c.get("_post_rerank_rank"),
-                            dropped=False,
-                        )
-                        if "_pre_rerank_rank" in c
-                        else None
-                    ),
-                    final_context_rank=i + 1,
-                )
-                for i, c in enumerate(chunks)
-            ],
-            reranker_enabled=reranker_enabled,
-            retrieval_degraded=retrieval_degraded,
-            total_latency_ms=(time.perf_counter() - request_start) * 1000,
-            degraded_backends=retrieval_extras["degraded_backends"],
-            scope_filtered_count=retrieval_extras["scope_filtered_count"],
-            dedup_count=retrieval_extras["dedup_count"],
-            score_threshold_filtered_count=score_threshold_filtered_count,
-            reranker_dropped_count=reranker_dropped_count,
-            context_packing=packing_trace,
+        trace = self._build_retrieval_trace(
+            request_start, result, retrieval_degraded, retrieval_extras
         )
 
         if metrics is not None:
@@ -483,54 +542,12 @@ class RagService:
             scope=scope,
         )
 
-        reranker_enabled = self._reranker is not None
-        reranker_dropped_count = 0
-        if self._reranker is not None:
-            pre_rerank_info = {
-                _chunk_dict_key(c): (i + 1, c["score"]) for i, c in enumerate(chunks)
-            }
-            phase_start = time.perf_counter()
-            chunks = self._reranker.rerank(chunks, question)
-            stages.append(self._build_stage_trace("rerank", len(chunks), phase_start))
-            reranker_dropped_count = len(pre_rerank_info) - len(chunks)
-            for i, c in enumerate(chunks):
-                key = _chunk_dict_key(c)
-                if key in pre_rerank_info:
-                    input_rank, input_score = pre_rerank_info[key]
-                    c["_pre_rerank_rank"] = input_rank
-                    c["_pre_rerank_score"] = input_score
-                    c["_post_rerank_rank"] = i + 1
+        # 2-5. Shared post-retrieval pipeline
+        result = self._post_retrieval_pipeline(question, chunks, stages, effective_top_k, None)
 
-        t_final = time.perf_counter()
-        before_threshold = len(chunks)
-        if self._score_threshold > 0.0:
-            chunks = [c for c in chunks if c["score"] >= self._score_threshold]
-        score_threshold_filtered_count = before_threshold - len(chunks)
-        chunks = self._select_final_chunks(chunks, effective_top_k)
-        stages.append(self._build_stage_trace("final_context", len(chunks), t_final))
-
-        # Hierarchy-aware context expansion
-        layout_repo = LayoutBlockRepository(self._connection)
-        chunks, packing_trace = expand_chunks(
-            chunks,
-            layout_repo=layout_repo,
-            enabled=self._enable_hierarchy_expansion,
-            budget_words=self._max_tokens_context,
-        )
-
-        if not chunks:
-            trace = RetrievalTrace(
-                stages=stages,
-                candidates=[],
-                reranker_enabled=reranker_enabled,
-                retrieval_degraded=retrieval_degraded,
-                total_latency_ms=(time.perf_counter() - request_start) * 1000,
-                degraded_backends=retrieval_extras["degraded_backends"],
-                scope_filtered_count=retrieval_extras["scope_filtered_count"],
-                dedup_count=retrieval_extras["dedup_count"],
-                score_threshold_filtered_count=score_threshold_filtered_count,
-                reranker_dropped_count=reranker_dropped_count,
-                context_packing=packing_trace,
+        if not result.chunks:
+            trace = self._build_retrieval_trace(
+                request_start, result, retrieval_degraded, retrieval_extras
             )
             yield (
                 "done",
@@ -545,12 +562,8 @@ class RagService:
             return
 
         yield ("phase", {"phase": "reading_sources"})
-        # Dedupe + budget-trim once so context passage [n] == citation card [n].
-        context_chunks = self._dedupe_and_budget(chunks)
-        context = self._assemble_context(context_chunks)
-
         yield ("phase", {"phase": "generating"})
-        prompt = self._build_prompt(question, context)
+        prompt = self._build_prompt(question, result.context)
         answer_text_parts: list[str] = []
         try:
             for token in self._ollama.generate_stream(prompt):
@@ -559,7 +572,7 @@ class RagService:
         except Exception:
             answer_text_parts.append(
                 "I encountered an issue generating an answer. "
-                "Here are the relevant passages I found:\n\n" + context
+                "Here are the relevant passages I found:\n\n" + result.context
             )
 
         answer_text = "".join(answer_text_parts)
@@ -567,74 +580,12 @@ class RagService:
         # Citations come from the same list that produced the numbered context,
         # so citation card [n] matches context passage [n].
         citations = [
-            {
-                "citation_id": str(uuid4()),
-                "document_id": c["document_id"],
-                "doc_title": c.get("doc_title"),
-                "chunk_text": c["chunk_text"],
-                "score": c["score"],
-                "chunk_index": c.get("chunk_index"),
-                "chunk_id": c.get("chunk_id"),
-                "text_lane": c.get("text_lane"),
-                "source_id": c.get("source_id"),
-                "page_number": c.get("page_number"),
-                "section_heading": c.get("section_heading"),
-                "language": c.get("language") or c.get("source_language"),
-                "translated_from": c.get("translated_from"),
-                "matched_text_kind": derive_matched_text_kind(c),
-                "translation_version_id": c.get("translation_version_id"),
-                "translation_quality": c.get("translation_quality"),
-                "translation_validation_status": c.get("translation_validation_status"),
-            }
-            for c in context_chunks
+            {"citation_id": str(uuid4()), **self._build_base_citation(c)}
+            for c in result.context_chunks
         ]
 
-        trace = RetrievalTrace(
-            stages=stages,
-            candidates=[
-                RetrievalCandidateTrace(
-                    document_id=c["document_id"],
-                    chunk_id=c.get("chunk_id"),
-                    chunk_index=c.get("chunk_index"),
-                    score=c["score"],
-                    source_id=c.get("source_id"),
-                    doc_title=c.get("doc_title"),
-                    page_number=c.get("page_number"),
-                    section_heading=c.get("section_heading"),
-                    language=c.get("language") or c.get("source_language"),
-                    text_lane=c.get("text_lane"),
-                    translated_from=c.get("translated_from"),
-                    matched_text_kind=derive_matched_text_kind(c),
-                    translation_version_id=c.get("translation_version_id"),
-                    translation_quality=c.get("translation_quality"),
-                    translation_validation_status=c.get("translation_validation_status"),
-                    backends=[BackendAttributionTrace(**b) for b in c.get("_backends", [])],
-                    fused_rank=c.get("_fused_rank"),
-                    fused_score=c.get("_fused_score"),
-                    reranker_delta=(
-                        RerankerDeltaTrace(
-                            input_rank=c["_pre_rerank_rank"],
-                            input_score=c["_pre_rerank_score"],
-                            reranker_score=c.get("_reranker_score"),
-                            output_rank=c.get("_post_rerank_rank"),
-                            dropped=False,
-                        )
-                        if "_pre_rerank_rank" in c
-                        else None
-                    ),
-                    final_context_rank=i + 1,
-                )
-                for i, c in enumerate(chunks)
-            ],
-            reranker_enabled=reranker_enabled,
-            retrieval_degraded=retrieval_degraded,
-            total_latency_ms=(time.perf_counter() - request_start) * 1000,
-            degraded_backends=retrieval_extras["degraded_backends"],
-            scope_filtered_count=retrieval_extras["scope_filtered_count"],
-            dedup_count=retrieval_extras["dedup_count"],
-            score_threshold_filtered_count=score_threshold_filtered_count,
-            reranker_dropped_count=reranker_dropped_count,
-            context_packing=packing_trace,
+        trace = self._build_retrieval_trace(
+            request_start, result, retrieval_degraded, retrieval_extras
         )
 
         yield (
