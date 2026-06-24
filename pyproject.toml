@@ -109,7 +109,10 @@ ignore = ["TC001", "TC002", "TC003"]
 
 [tool.mypy]
 strict = true
-python_version = "3.11"
+# Match the runtime/CI interpreter (3.13). Pinning this to 3.11 made mypy reject
+# PEP 695 `type` statements in modern numpy stubs (numpy/__init__.pyi), aborting
+# the whole `mypy src` job before any project code was checked.
+python_version = "3.13"
 mypy_path = "src"
 files = ["src", "tests"]
 
@@ -123,6 +126,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["langdetect", "langdetect.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["yaml", "yaml.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
