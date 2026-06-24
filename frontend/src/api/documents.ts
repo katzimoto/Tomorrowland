@@ -15,6 +15,10 @@ export interface DocumentPreview {
   mime_type: string;
   translation_quality: "fast" | "high" | null;
   translation_score: number;
+  /** True when a high-quality translation has been requested and is still
+   *  queued/running. The shown translation (if any) is reflected by
+   *  `translation_quality`; this flag surfaces the in-progress upgrade. */
+  high_quality_pending?: boolean;
   metadata: Record<string, unknown>;
   snippet: string;
   view_count: number;

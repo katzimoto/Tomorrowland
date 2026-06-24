@@ -366,6 +366,110 @@ def test_preview_with_show_original_returns_original_text(
     assert response.json()["snippet"] == "Original file content only."
 
 
+def test_preview_reports_effective_quality_while_high_quality_pending(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    """A queued high-quality translation must not mislabel an available fast one.
+
+    Regression: documents.translation_quality carries the transient
+    "pending_high" state while a high-quality job is queued. The preview used
+    to surface that raw value, so the frontend (which only knows fast/high/null)
+    rendered an already-available fast translation as "Not translated". The
+    preview must instead report the *effective* quality of the version shown
+    (fast) plus a separate high_quality_pending flag.
+    """
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.txt"
+    test_file.write_text("Original file content.")
+
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+
+    with migrated_engine.begin() as connection:
+        version_repo = TranslationVersionRepository(connection)
+        created = version_repo.create_version(
+            document_id=UUID(document_id),
+            label="Ingestion",
+            quality="fast",
+            request_type="ingestion",
+            target_language="en",
+        )
+        version_repo.update_version_status(
+            UUID(str(created["id"])),
+            "available",
+            translated_text="Fast translated content.",
+        )
+        # A high-quality translation has since been requested/queued.
+        DocumentRepository(connection).update_translation_quality(UUID(document_id), "pending_high")
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["snippet"] == "Fast translated content."
+    # Effective quality of the shown version, not the raw pending_high column.
+    assert data["translation_quality"] == "fast"
+    assert data["translation_score"] == 0.5
+    assert data["high_quality_pending"] is True
+
+
+def test_preview_reports_high_quality_when_available(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    """An available high-quality version reports quality=high, not pending."""
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.txt"
+    test_file.write_text("Original file content.")
+
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+
+    with migrated_engine.begin() as connection:
+        version_repo = TranslationVersionRepository(connection)
+        created = version_repo.create_version(
+            document_id=UUID(document_id),
+            label="Manual",
+            quality="high",
+            request_type="manual",
+            target_language="en",
+        )
+        version_repo.update_version_status(
+            UUID(str(created["id"])),
+            "available",
+            translated_text="High quality translated content.",
+        )
+        DocumentRepository(connection).update_translation_quality(UUID(document_id), "high")
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _user_token(client)
+
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["translation_quality"] == "high"
+    assert data["high_quality_pending"] is False
+
+
 def test_preview_falls_back_to_document_payloads_translated_text(
     migrated_engine: Engine,
     tmp_path: Path,

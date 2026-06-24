@@ -161,6 +161,7 @@ def preview(
             mime_type=result["mime_type"],
             translation_quality=result["translation_quality"],
             translation_score=_translation_score(result["translation_quality"]),
+            high_quality_pending=result["high_quality_pending"],
             metadata=result["metadata"],
             snippet=result["snippet"],
             view_count=result["view_count"],
