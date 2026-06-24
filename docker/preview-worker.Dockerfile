@@ -22,6 +22,8 @@ RUN apt-get update \
         fonts-dejavu \
     && rm -rf /var/lib/apt/lists/*
 
-USER appuser
-
+# Do NOT set `USER appuser` here. This image inherits the backend's
+# ENTRYPOINT (/entrypoint.sh), which chowns /data as root and then drops to
+# appuser via `gosu`. Starting as a non-root user makes that gosu call fail
+# with "operation not permitted", crash-looping the worker.
 CMD ["tomorrowland-preview-worker"]
