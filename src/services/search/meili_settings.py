@@ -271,10 +271,10 @@ INDEX_SETTINGS: dict[str, Any] = {
     "faceting": _FACETING,
     "displayedAttributes": _DISPLAYED_ATTRIBUTES,
     # Performance: cap total ranked hits at a realistic user-facing maximum
-    # (default 1000 is wasted computation).  Switch to attribute-level
-    # proximity for a ~2x search pipeline speed-up when word-level proximity
-    # is not strictly required.
-    "maxTotalHits": 200,
+    # (default 1000 is wasted computation).
+    "pagination": {"maxTotalHits": 200},
+    # Switch to attribute-level proximity for a ~2x search pipeline speed-up
+    # when word-level proximity is not strictly required.
     "proximityPrecision": "byAttribute",
 }
 
