@@ -291,23 +291,69 @@ def request_translation(
             source_id=doc.source_id,
             job_type="enrich_document",
         )
+        source_id = doc.source_id
 
-        rabbit = getattr(request.app.state, "rabbit", None)
-        if rabbit is not None and getattr(rabbit, "_enabled", False):
-            from services.pipeline.publisher import DocumentPublisher
+    # Publish AFTER the enqueue transaction commits so the enrich worker cannot
+    # consume the message before the job row is visible. Mirror the
+    # preview-manifest / ingestion endpoints: the API keeps no persistent broker
+    # connection, so fall back to a fresh RabbitClient when app.state.rabbit is
+    # absent. Without this the job row was written but never published, leaving
+    # the manual high-quality translation stuck "pending" forever.
+    _publish_enrich_request(request, document_id=document_id, source_id=source_id, job_id=job_id)
 
-            publisher = DocumentPublisher(job_repo=job_repo, rabbit=rabbit)
-            publisher.publish_enrich(
+    return {
+        "document_id": str(document_id),
+        "translation_version_id": str(version["id"]),
+        "status": version["status"],
+    }
+
+
+def _publish_enrich_request(
+    request: Request,
+    *,
+    document_id: UUID,
+    source_id: UUID,
+    job_id: UUID,
+) -> None:
+    """Publish a ``document.enrich.requested`` message for a queued enrich job.
+
+    No-op when RabbitMQ is disabled. Broker-unreachable errors are logged and
+    swallowed: the job row stays ``pending`` and a manual broker drain / retry
+    can still drive it, rather than failing the user's translation request.
+    """
+    settings = request.app.state.settings
+    if not settings.rabbitmq_enabled:
+        logger.info(
+            "enrich publish skipped (rabbitmq disabled): document_id=%s job_id=%s",
+            document_id,
+            job_id,
+        )
+        return
+
+    from services.pipeline.publisher import DocumentPublisher
+    from shared.rabbit import RabbitClient, RabbitConnectionError
+
+    rabbit = getattr(request.app.state, "rabbit", None) or RabbitClient(
+        settings.rabbitmq_url, enabled=True
+    )
+    try:
+        rabbit.connect()
+        rabbit.declare_topology()
+        with request.app.state.engine.begin() as connection:
+            job_repo = PipelineJobRepository(connection)
+            DocumentPublisher(job_repo=job_repo, rabbit=rabbit).publish_enrich(
                 job_id=job_id,
                 document_id=document_id,
-                source_id=doc.source_id,
+                source_id=source_id,
             )
-
-        return {
-            "document_id": str(document_id),
-            "translation_version_id": str(version["id"]),
-            "status": version["status"],
-        }
+    except RabbitConnectionError as exc:
+        logger.warning(
+            "enrich publish skipped (broker unreachable): document_id=%s error=%s",
+            document_id,
+            exc,
+        )
+    finally:
+        rabbit.close()
 
 
 @router.get("/documents/{document_id}/translation-versions")
