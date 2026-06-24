@@ -38,18 +38,20 @@ logger = logging.getLogger(__name__)
 
 CACHE_COLLECTION = "rag_cache"
 
+# Per-collection-name guard so _ensure_collection() only runs once per process
+# per collection, avoiding a Qdrant get_collections() call on every request.
+_collections_initialised: set[str] = set()
+
 
 @dataclass
 class CachedAnswer:
-    """Serializable cache payload stored as Qdrant point payload."""
+    """Serialisable cache payload stored as Qdrant point payload."""
 
     question: str
     answer: str
     model: str
     citations_json: str  # JSON-serialised list of Citation dicts
     trace_json: str  # JSON-serialised RetrievalTrace
-    embedding_model: str
-    embedding_dimension: int
     cached_at_ts: float = field(default_factory=time.time)
 
 
@@ -62,6 +64,7 @@ class SemanticCache:
         encoder: Any,
         settings: Settings,
     ) -> None:
+        global _collections_initialised
         self._qdrant = qdrant_client
         self._encoder = encoder
         self._settings = settings
@@ -69,7 +72,9 @@ class SemanticCache:
         self._threshold = settings.rag_semantic_cache_similarity_threshold
         self._ttl = settings.rag_semantic_cache_ttl_seconds
         self._model_tag = f"{settings.embedding_model}:{encoder.dimension}"
-        self._ensure_collection()
+        if self._collection not in _collections_initialised:
+            self._ensure_collection()
+            _collections_initialised.add(self._collection)
 
     @property
     def enabled(self) -> bool:
@@ -131,8 +136,6 @@ class SemanticCache:
             model=payload.get("model", ""),
             citations_json=payload.get("citations_json", "[]"),
             trace_json=payload.get("trace_json", "{}"),
-            embedding_model=payload.get("embedding_model", ""),
-            embedding_dimension=payload.get("embedding_dimension", 0),
             cached_at_ts=payload.get("cached_at_ts", 0.0),
         )
 
