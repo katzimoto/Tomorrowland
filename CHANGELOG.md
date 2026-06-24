@@ -139,6 +139,17 @@ All notable changes to this project will be documented in this file.
   fast vs high providers head-to-head. 19 unit tests for all metric functions.
 
 ### Fixed
+- **Manual "Request translation" stuck "pending" forever**: `POST
+  /documents/{id}/translate` created the high-quality translation version and an
+  `enrich_document` pipeline job, but only published to RabbitMQ when a
+  pre-connected `app.state.rabbit` was present — which the API never sets. The
+  job row was written and never dispatched, so the enrich worker never ran. The
+  endpoint now publishes the `document.enrich.requested` message after the
+  enqueue transaction commits, falling back to a fresh `RabbitClient` like the
+  preview-manifest / ingestion endpoints (broker-unreachable errors are logged
+  and swallowed; the row stays pending for a later drain). Added integration
+  tests asserting the endpoint actually publishes (a class of bug the previous
+  tests, which only ran with `RABBITMQ_ENABLED=false`, could not catch).
 - **Translation viewer mislabelled "Not translated" while a high-quality
   translation was queued**: the document preview surfaced the raw
   `documents.translation_quality` column, which carries the transient

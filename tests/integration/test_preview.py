@@ -778,3 +778,186 @@ def test_preview_relationships_child_sees_parent(migrated_engine: Engine, tmp_pa
     assert len(rels) == 1
     assert rels[0]["direction"] == "parent"
     assert rels[0]["title"] == "Email Parent"
+
+
+class _FakeRabbit:
+    """Records publishes without touching a real broker.
+
+    Mirrors the subset of ``shared.rabbit.RabbitClient`` the API uses so a test
+    can assert that an endpoint actually *publishes* a stage message instead of
+    only writing a ``pending`` job row.
+    """
+
+    def __init__(self) -> None:
+        self.connected = False
+        self.topology_declared = False
+        self.closed = False
+        self.published: list[tuple[str, dict[str, object]]] = []
+
+    def connect(self) -> None:
+        self.connected = True
+
+    def declare_topology(self) -> None:
+        self.topology_declared = True
+
+    def publish(self, routing_key: str, body: dict[str, object]) -> str:
+        self.published.append((routing_key, body))
+        return "msg-enrich-1"
+
+    def publish_with_id(self, routing_key: str, body: dict[str, object], message_id: str) -> str:
+        self.published.append((routing_key, body))
+        return message_id
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_request_translation_publishes_enrich_message(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    """Manual translation must publish an enrich message, not just queue a row.
+
+    Regression: the endpoint created the translation version and pipeline job
+    but only published when a pre-connected ``app.state.rabbit`` happened to be
+    present (it never is on the API), so the high-quality translation sat
+    "pending" forever. The request must drive the job onto the broker.
+    """
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.txt"
+    test_file.write_text("Original content to translate.")
+
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+
+    # The test harness forces RABBITMQ_ENABLED=false (conftest); enable it
+    # explicitly here and inject a fake broker so the publish path runs without
+    # a real connection.
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(
+                auth_provider="local",
+                jwt_secret=TEST_JWT_SECRET,
+                rabbitmq_enabled=True,
+            ),
+        )
+    )
+    fake = _FakeRabbit()
+    client.app.state.rabbit = fake
+    token = _user_token(client)
+
+    response = client.post(
+        f"/documents/{document_id}/translate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending"
+
+    # The enrich message must have been published for this document...
+    enrich = [body for rk, body in fake.published if rk == "document.enrich.requested"]
+    assert len(enrich) == 1, f"expected one enrich publish, got {fake.published}"
+    assert enrich[0]["document_id"] == document_id
+    assert fake.connected and fake.topology_declared and fake.closed
+
+    # ...and the publish must be recorded back onto the job row.
+    with migrated_engine.begin() as connection:
+        row = (
+            connection.execute(
+                sa.text(
+                    "SELECT rabbit_message_id FROM pipeline_jobs "
+                    "WHERE document_id = :d AND job_type = 'enrich_document'"
+                ),
+                {"d": db_uuid(UUID(document_id))},
+            )
+            .mappings()
+            .first()
+        )
+    assert row is not None
+    assert row["rabbit_message_id"] == "msg-enrich-1"
+
+
+def test_request_translation_skips_publish_when_rabbitmq_disabled(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    """With RabbitMQ disabled the version is still queued but nothing publishes."""
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.txt"
+    test_file.write_text("Original content to translate.")
+
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(
+                auth_provider="local",
+                jwt_secret=TEST_JWT_SECRET,
+                rabbitmq_enabled=False,
+            ),
+        )
+    )
+    fake = _FakeRabbit()
+    client.app.state.rabbit = fake
+    token = _user_token(client)
+
+    response = client.post(
+        f"/documents/{document_id}/translate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending"
+    assert fake.published == []
+
+
+def test_request_translation_idempotent_does_not_republish(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    """A second request while one is pending returns it without re-publishing."""
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.txt"
+    test_file.write_text("Original content to translate.")
+
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(
+                auth_provider="local",
+                jwt_secret=TEST_JWT_SECRET,
+                rabbitmq_enabled=True,
+            ),
+        )
+    )
+    fake = _FakeRabbit()
+    client.app.state.rabbit = fake
+    token = _user_token(client)
+
+    first = client.post(
+        f"/documents/{document_id}/translate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    second = client.post(
+        f"/documents/{document_id}/translate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["translation_version_id"] == first.json()["translation_version_id"]
+    # Only the first request publishes; the second short-circuits on the
+    # existing pending version.
+    assert len(fake.published) == 1
