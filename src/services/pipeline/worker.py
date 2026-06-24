@@ -424,7 +424,7 @@ class PipelineWorker:
                 doc_title=doc.title,
                 encoder=self._encoder,
                 qdrant=self._qdrant,
-                connection=self._doc_repo._connection,
+                connection=getattr(self._doc_repo, "_connection", None),  # type: ignore[arg-type]
                 source_id=str(doc.source_id),
                 metrics=self._metrics,
             )
