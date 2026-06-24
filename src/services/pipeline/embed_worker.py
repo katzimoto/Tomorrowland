@@ -7,8 +7,8 @@ from typing import Any
 from uuid import UUID
 
 from services.chunking.splitter import chunk_text, resolve_chunk_locations
-from services.documents.layout_block_repository import LayoutBlockRepository
 from services.documents.repository import DocumentRepository
+from services.pipeline._chunk_indexer import build_and_upsert_qdrant_chunks
 from services.pipeline.consumer_base import BaseConsumer
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.publisher import DocumentPublisher
@@ -117,52 +117,20 @@ class EmbedConsumer(BaseConsumer):
                     }
                 )
 
-        vectors = self._encoder.encode_documents(chunk_texts)
-
-        qdrant_chunks: list[dict[str, Any]] = []
-        for i, meta in enumerate(chunk_meta):
-            entry: dict[str, Any] = {
-                "chunk_id": f"{document_id}-{meta['suffix']}-{meta['idx']}",
-                "document_id": str(document_id),
-                "group_id": allowed_group_ids,
-                "chunk_index": meta["idx"],
-                "text": chunk_texts[i],
-                "vector": vectors[i],
-                "source_id": str(source_id),
-            }
-            if doc.title:
-                entry["title"] = doc.title
-            if meta["lang"]:
-                entry["language"] = meta["lang"]
-            entry["text_lane"] = meta["text_lane"]
-            if meta.get("source_lang"):
-                entry["translated_from"] = meta["source_lang"]
-            if translation_version_id and meta["text_lane"] == "translated":
-                entry["translation_version_id"] = translation_version_id
-                entry["translation_quality"] = translation_quality
-                entry["translation_validation_status"] = translation_validation_status
-            if meta.get("page_number") is not None:
-                entry["page_number"] = meta["page_number"]
-            if meta.get("section_heading") is not None:
-                entry["section_heading"] = meta["section_heading"]
-            qdrant_chunks.append(entry)
-
-        if qdrant_chunks:
-            # PR3: resolve layout_block_id for precise chunk→block linkage.
-            # Layout blocks are written by parse_worker before embed runs,
-            # so they should exist for most documents.
-            from services.rag.layout_hierarchy import resolve_chunk_layout_block_ids
-
-            try:
-                layout_repo = LayoutBlockRepository(self._doc_repo._connection)
-                resolve_chunk_layout_block_ids(qdrant_chunks, document_id, layout_repo)
-            except Exception:
-                logger.debug(
-                    "layout_block_id resolution skipped for document_id=%s",
-                    document_id,
-                )
-
-            self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
+        build_and_upsert_qdrant_chunks(
+            document_id=document_id,
+            chunk_texts=chunk_texts,
+            chunk_meta=chunk_meta,
+            allowed_group_ids=allowed_group_ids,
+            doc_title=doc.title,
+            encoder=self._encoder,
+            qdrant=self._qdrant,
+            connection=self._doc_repo._connection,
+            source_id=str(source_id),
+            translation_version_id=translation_version_id,
+            translation_quality=translation_quality,
+            translation_validation_status=translation_validation_status,
+        )
 
         self._job_repo.mark_running_stage(job_id, "embedded")
         # Final index pass (enrich=True): refreshes Meilisearch and fires

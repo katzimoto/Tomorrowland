@@ -13,12 +13,12 @@ from uuid import UUID
 
 from services.alerts.service import AlertMatcher
 from services.chunking.splitter import chunk_text, resolve_chunk_locations
-from services.documents.layout_block_repository import LayoutBlockRepository
 from services.documents.repository import DocumentRelationshipRepository, DocumentRepository
 from services.extraction.base import AttachmentData, ExtractionResult
 from services.extraction.language import LanguageDetector
 from services.extraction.registry import ExtractorRegistry
 from services.intelligence.worker import IntelligenceWorker
+from services.pipeline._chunk_indexer import build_and_upsert_qdrant_chunks
 from services.search.encoder import TextEncoder
 from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.meili_types import ChunkMetadata, SearchChunkRecord
@@ -376,51 +376,8 @@ class PipelineWorker:
         allowed_group_ids: list[str],
         text: str,
     ) -> None:
-        """Index chunks in Qdrant (degraded/best-effort; failures are logged only)."""
+        """Index chunks in Qdrant via the shared chunk indexer."""
         try:
-            qdrant_chunks: list[dict[str, Any]] = []
-
-            def _build_chunk(
-                chunk_text_content: str,
-                vector: list[float],
-                idx: int,
-                *,
-                lang: str | None,
-                suffix: str,
-                text_lane: str = "original",
-                translated_from: str | None = None,
-                translation_version_id: str = "",
-                translation_quality: str = "",
-                translation_validation_status: str = "",
-                page_number: int | None = None,
-                section_heading: str | None = None,
-            ) -> dict[str, Any]:
-                entry: dict[str, Any] = {
-                    "chunk_id": f"{document_id}-{suffix}-{idx}",
-                    "document_id": str(document_id),
-                    "group_id": allowed_group_ids,
-                    "chunk_index": idx,
-                    "text": chunk_text_content,
-                    "vector": vector,
-                    "source_id": str(doc.source_id),
-                    "text_lane": text_lane,
-                }
-                if doc.title:
-                    entry["title"] = doc.title
-                if lang:
-                    entry["language"] = lang
-                if translated_from:
-                    entry["translated_from"] = translated_from
-                if translation_version_id:
-                    entry["translation_version_id"] = translation_version_id
-                    entry["translation_quality"] = translation_quality
-                    entry["translation_validation_status"] = translation_validation_status
-                if page_number is not None:
-                    entry["page_number"] = page_number
-                if section_heading is not None:
-                    entry["section_heading"] = section_heading
-                return entry
-
             location_segments_dicts: list[dict[str, Any]] = []
             if _extraction_result is not None and _extraction_result.location_segments:
                 location_segments_dicts = [
@@ -439,7 +396,6 @@ class PipelineWorker:
                         "lang": doc.source_language,
                         "suffix": "orig",
                         "text_lane": "original",
-                        "translated_from": None,
                         "idx": idx,
                         "page_number": loc.get("page_number"),
                         "section_heading": loc.get("section_heading"),
@@ -453,49 +409,25 @@ class PipelineWorker:
                         "lang": doc.target_language,
                         "suffix": "tr",
                         "text_lane": "translated",
-                        "translated_from": doc.source_language,
+                        "source_lang": doc.source_language,
                         "idx": idx,
                         "page_number": None,
                         "section_heading": None,
                     }
                 )
 
-            vectors = self._encoder.encode_documents(chunk_texts)
-
-            for i, meta in enumerate(chunk_meta):
-                qdrant_chunks.append(
-                    _build_chunk(
-                        chunk_texts[i],
-                        vectors[i],
-                        meta["idx"],
-                        lang=meta["lang"],
-                        suffix=meta["suffix"],
-                        text_lane=meta.get("text_lane", "original"),
-                        translated_from=meta.get("translated_from"),
-                        page_number=meta.get("page_number"),
-                        section_heading=meta.get("section_heading"),
-                    )
-                )
-
-            if qdrant_chunks:
-                from services.rag.layout_hierarchy import resolve_chunk_layout_block_ids
-
-                try:
-                    layout_repo = LayoutBlockRepository(self._doc_repo._connection)
-                    resolve_chunk_layout_block_ids(qdrant_chunks, document_id, layout_repo)
-                except Exception:
-                    logger.debug(
-                        "layout_block_id resolution skipped for document_id=%s",
-                        document_id,
-                    )
-
-                start = time.perf_counter()
-                self._qdrant.upsert_chunks(qdrant_chunks, delete_existing=True)
-                if self._metrics is not None:
-                    self._metrics.search_backend_duration_seconds.labels(
-                        "qdrant", "upsert"
-                    ).observe(time.perf_counter() - start)
-                    self._metrics.search_index_documents.labels("qdrant").inc()
+            build_and_upsert_qdrant_chunks(
+                document_id=document_id,
+                chunk_texts=chunk_texts,
+                chunk_meta=chunk_meta,
+                allowed_group_ids=allowed_group_ids,
+                doc_title=doc.title,
+                encoder=self._encoder,
+                qdrant=self._qdrant,
+                connection=self._doc_repo._connection,
+                source_id=str(doc.source_id),
+                metrics=self._metrics,
+            )
         except Exception as exc:
             logger.error(
                 "Vector indexing failed for document_id=%s error_type=%s correlation=%s",
