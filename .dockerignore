@@ -1,17 +1,29 @@
+# Version control / CI
 .git
+.github
+
+# Python caches and build artifacts (root and nested)
 .pytest_cache
 .ruff_cache
 .mypy_cache
 .venv
-__pycache__
-*.pyc
-*.pyo
-*.pyd
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Secrets
 .env
 .env.*
 !.env.example
-dist
-build
-node_modules
+
+# JS/TS build output and dependencies (root and nested, e.g. frontend/node_modules)
+**/node_modules
+**/dist
+**/build
+
+# Test/coverage reports (root and nested)
 coverage
 htmlcov
+**/coverage
+**/htmlcov

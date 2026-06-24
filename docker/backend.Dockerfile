@@ -14,13 +14,15 @@ RUN apt-get update \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 COPY pyproject.toml uv.lock ./
-RUN uv pip install --no-cache --system -r pyproject.toml
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system -r pyproject.toml
 
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY src ./src
 
-RUN uv pip install --no-cache --system .
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system .
 
 # Non-root user. /data is the files-volume mount point; we chown it here so
 # that new volume deployments get the correct ownership automatically. For

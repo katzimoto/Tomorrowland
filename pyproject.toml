@@ -78,6 +78,7 @@ tomorrowland-index-worker = "services.pipeline.index_worker:main"
 tomorrowland-intelligence-worker = "services.pipeline.intelligence_consumer:main"
 tomorrowland-alert-worker = "services.pipeline.alert_consumer:main"
 tomorrowland-enrich-worker = "services.pipeline.enrich_worker:main"
+tomorrowland-preview-worker = "services.pipeline.preview_worker:main"
 tomorrowland-mcp-server = "services.mcp.server:main"
 
 [build-system]
