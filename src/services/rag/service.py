@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from collections.abc import Generator
@@ -26,6 +27,7 @@ from shared.metrics import current_metrics
 from .context_packer import expand_chunks
 from .mmr import mmr_reorder
 from .models import AnswerResponse, Citation
+from .semantic_cache import SemanticCache
 from .trace_models import (
     BackendAttributionTrace,
     ContextPackingTrace,
@@ -189,6 +191,7 @@ class RagService:
         enable_coarse_to_fine_routing: bool = False,
         enable_mmr: bool = False,
         mmr_lambda: float = 0.5,
+        semantic_cache: SemanticCache | None = None,
     ) -> None:
         self._qdrant = qdrant_client
         self._encoder = encoder
@@ -228,6 +231,7 @@ class RagService:
         self._enable_coarse_to_fine_routing = enable_coarse_to_fine_routing
         self._enable_mmr = enable_mmr
         self._mmr_lambda = mmr_lambda
+        self._cache = semantic_cache
 
     def _select_final_chunks(
         self, chunks: list[dict[str, Any]], effective_top_k: int
@@ -424,9 +428,31 @@ class RagService:
         Returns:
             An AnswerResponse with the generated answer and citations.
         """
-        effective_top_k = top_k if top_k is not None else self._max_chunks
         metrics = current_metrics()
         request_start = time.perf_counter()
+        # 0. Check semantic cache before running the full pipeline.
+        if self._cache is not None:
+            cached = self._cache.get(question)
+            if cached is not None:
+                citations_raw = json.loads(cached.citations_json)
+                citations = [Citation(**c) for c in citations_raw]
+                trace_dict = json.loads(cached.trace_json)
+                trace = RetrievalTrace(**trace_dict) if trace_dict else None
+                if metrics is not None:
+                    metrics.rag_requests_total.labels("cache_hit").inc()
+                    metrics.rag_citations_count.observe(len(citations))
+                    metrics.rag_duration_seconds.labels("total").observe(
+                        time.perf_counter() - request_start
+                    )
+                return AnswerResponse(
+                    question=question,
+                    answer=cached.answer,
+                    citations=citations,
+                    retrieval_trace=trace,
+                    model=cached.model,
+                )
+
+        effective_top_k = top_k if top_k is not None else self._max_chunks
         # 1. Retrieve relevant chunks
         phase_start = time.perf_counter()
         chunks, stages, retrieval_degraded, retrieval_extras = self._retrieve_chunks(
@@ -478,6 +504,7 @@ class RagService:
         # 6. Generate answer
         prompt = self._build_prompt(question, result.context)
         phase_start = time.perf_counter()
+        generation_ok = True
         try:
             answer_text = self._ollama.generate(prompt)
         except Exception:
@@ -486,6 +513,7 @@ class RagService:
                 "I encountered an issue generating an answer. "
                 "Here are the relevant passages I found:\n\n" + result.context
             )
+            generation_ok = False
         if metrics is not None:
             metrics.rag_duration_seconds.labels("generation").observe(
                 time.perf_counter() - phase_start
@@ -504,14 +532,24 @@ class RagService:
             metrics.rag_citations_count.observe(len(citations))
             metrics.rag_duration_seconds.labels("total").observe(
                 time.perf_counter() - request_start
-            )
-        return AnswerResponse(
+            )  # Store in semantic cache for future hits (best-effort).
+        # Only cache successful generations; never cache error fallback messages.
+        response_obj = AnswerResponse(
             question=question,
             answer=answer_text,
             citations=citations,
             retrieval_trace=trace,
             model=self._ollama.model,
         )
+        if self._cache is not None and generation_ok:
+            self._cache.put(
+                question=question,
+                answer=answer_text,
+                model=self._ollama.model,
+                citations_json=json.dumps([c.model_dump() for c in citations]),
+                trace_json=trace.model_dump_json() if trace else "{}",
+            )
+        return response_obj
 
     def answer_stream(
         self,

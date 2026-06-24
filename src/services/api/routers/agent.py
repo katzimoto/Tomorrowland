@@ -35,6 +35,7 @@ from services.intelligence.repository import IntelligenceRepository
 from services.permissions.enforcer import assert_doc_access
 from services.pipeline.jobs import PipelineJobRepository
 from services.rag.reranker import NoOpReranker
+from services.rag.semantic_cache import SemanticCache
 from services.rag.service import RagService
 from services.related.repository import RelatedRepository
 from services.related.service import RelatedService
@@ -615,6 +616,7 @@ def ask_corpus(
             enable_coarse_to_fine_routing=settings.feature_document_chat_coarse_to_fine_routing,
             enable_mmr=settings.feature_document_chat_mmr,
             mmr_lambda=settings.document_chat_mmr_lambda,
+            semantic_cache=SemanticCache(qdrant_client, encoder, settings),
         )
 
         try:

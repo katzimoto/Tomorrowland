@@ -168,6 +168,15 @@ class Settings(BaseSettings):
     feature_document_chat_mmr: bool = False
     document_chat_mmr_lambda: float = Field(default=0.5, ge=0.0, le=1.0)
     feature_document_chat_streaming: bool = True
+    # Semantic query cache (#839).  When enabled, answer() checks a Qdrant-based
+    # cache of past query-answer pairs before running the full retrieval+
+    # generation pipeline.  A cosine-similarity threshold of 0.90 balances
+    # hit-rate against precision; raise to 0.95 for high-compliance domains.
+    # Cache entries expire after TTL seconds (default 86_400 = 24 h).
+    rag_semantic_cache_enabled: bool = False
+    rag_semantic_cache_similarity_threshold: float = Field(default=0.90, ge=0.0, le=1.0)
+    rag_semantic_cache_ttl_seconds: int = Field(default=86_400, gt=0)
+    rag_semantic_cache_collection: str = "rag_cache"
     # Enable local-dev LLM documentation & model recommendations for CPU-only
     # machines with limited RAM (e.g. 16GB, no discrete GPU). Default: false
     feature_local_llm_dev: bool = False
