@@ -1,5 +1,5 @@
 import { EventSourceParserStream } from "eventsource-parser/stream";
-import { api } from "./client";
+import { api, csrfToken } from "./client";
 
 export type ChatScopeType =
   | "all_accessible_documents"
@@ -182,14 +182,15 @@ export async function sendChatMessageStream(
   input: { content: string; top_k?: number },
   onEvent: (event: ChatStreamEvent) => void,
 ): Promise<void> {
-  const token = sessionStorage.getItem("tomorrowland_token");
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const csrf = csrfToken();
+  if (csrf) headers["X-CSRF-Token"] = csrf;
 
   const res = await fetch(`/api/chat/sessions/${sessionId}/messages/stream`, {
     method: "POST",
     headers,
     body: JSON.stringify(input),
+    credentials: "same-origin",
   });
 
   if (!res.ok) {

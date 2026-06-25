@@ -95,6 +95,9 @@ class Settings(BaseSettings):
     air_gapped: bool = False
 
     auth_provider: Literal["local", "ldap", "both"] = "both"
+    # Mark the auth/CSRF cookies as Secure (HTTPS-only). Leave false for local
+    # http dev; set true in production where the app is served over HTTPS.
+    auth_cookie_secure: bool = False
     ldap_url: str = "ldap://domain-controller:389"
     ldap_base_dn: str = "DC=company,DC=local"
     ldap_bind_user: str = "cn=svc-search,DC=company,DC=local"

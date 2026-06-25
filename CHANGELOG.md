@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Cookie-based session auth**: the access token now lives in an `HttpOnly`
+  cookie (`tomorrowland_token`) instead of `sessionStorage`, paired with a
+  readable double-submit CSRF cookie (`tomorrowland_csrf`). Because cookies are
+  shared across browser tabs, opening a document link in a new tab no longer
+  forces a re-login. The `Authorization: Bearer` header path still works for API
+  clients and tests; unsafe (POST/PUT/PATCH/DELETE) cookie-authenticated
+  requests must send a matching `X-CSRF-Token` header. New setting
+  `AUTH_COOKIE_SECURE` (default `false`) marks the cookies HTTPS-only for
+  production.
+
 ### Added
 - **Qdrant vector quantization (#826, first slice)**: adds optional scalar (int8)
   or binary quantization plus query-time rescore/oversampling to

@@ -159,12 +159,11 @@ export function DocumentToolbar({
             variant="secondary"
             size="sm"
             onClick={() => {
-              const token = sessionStorage.getItem("tomorrowland_token");
               const url = getDownloadUrl(preview.document_id, {
                 showOriginal: activeMode !== "translation",
                 translationVersionId: activeMode === "translation" ? selectedVersionId : undefined,
               });
-              fetch(url, { headers: { Authorization: `Bearer ${token || ""}` } })
+              fetch(url, { credentials: "same-origin" })
                 .then((r) => {
                   if (!r.ok) throw new Error(`HTTP ${r.status}`);
                   return r.blob();
