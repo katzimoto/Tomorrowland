@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 import time
 from collections.abc import Awaitable, Callable
 from uuid import uuid4
@@ -37,15 +38,30 @@ from shared.redis_client import RedisClient
 from shared.request_context import reset_request_id, set_request_id
 
 AUTH_SCHEME = "Bearer "
+# Auth is carried either by an Authorization: Bearer header (API clients, tests)
+# or by an HttpOnly cookie (browser sessions). The readable CSRF cookie backs a
+# double-submit guard for cookie-authenticated unsafe requests.
+AUTH_COOKIE_NAME = "tomorrowland_token"
+CSRF_COOKIE_NAME = "tomorrowland_csrf"
+CSRF_HEADER_NAME = "x-csrf-token"
+_CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+_CSRF_EXEMPT_PATHS = frozenset({"/auth/login", "/auth/signup"})
 logger = logging.getLogger(__name__)
 
 
-def current_user(request: Request) -> TokenPayload:
-    """Decode the bearer token for the current request."""
+def _request_token(request: Request) -> str | None:
+    """Extract the access token from the Authorization header or auth cookie."""
     authorization = request.headers.get("authorization")
-    if authorization is None or not authorization.startswith(AUTH_SCHEME):
+    if authorization and authorization.startswith(AUTH_SCHEME):
+        return authorization.removeprefix(AUTH_SCHEME)
+    return request.cookies.get(AUTH_COOKIE_NAME)
+
+
+def current_user(request: Request) -> TokenPayload:
+    """Decode the access token (Authorization header or auth cookie)."""
+    token = _request_token(request)
+    if not token:
         raise HTTPException(status_code=401, detail="Missing bearer token")
-    token = authorization.removeprefix(AUTH_SCHEME)
     jwt_service = JwtService(secret=request.app.state.settings.jwt_secret)
     return jwt_service.decode(token)
 
@@ -181,6 +197,32 @@ def create_app(
         settings=app.state.settings,
         metrics=app.state.metrics,
     )
+
+    @app.middleware("http")
+    async def csrf_protection_middleware(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """Double-submit CSRF guard for cookie-authenticated unsafe requests.
+
+        Only enforced when the request authenticates via the auth cookie and
+        carries no Authorization header. Bearer-token clients are exempt because
+        browsers never attach those automatically, so they are not CSRF-prone.
+        """
+        if (
+            request.method not in _CSRF_SAFE_METHODS
+            and request.url.path not in _CSRF_EXEMPT_PATHS
+            and not request.headers.get("authorization")
+            and request.cookies.get(AUTH_COOKIE_NAME)
+        ):
+            sent = request.headers.get(CSRF_HEADER_NAME)
+            expected = request.cookies.get(CSRF_COOKIE_NAME)
+            if not sent or not expected or not secrets.compare_digest(sent, expected):
+                return Response(
+                    content="CSRF token missing or invalid",
+                    status_code=403,
+                    media_type="text/plain",
+                )
+        return await call_next(request)
 
     @app.middleware("http")
     async def request_observability_middleware(

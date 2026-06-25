@@ -13,25 +13,23 @@ interface LoginResponse {
   token_type: string;
 }
 
+// The access token now lives in an HttpOnly cookie that JS cannot read. The
+// server pairs it with a readable CSRF cookie, whose presence we use as the
+// synchronous "is logged in" signal for route guards. Both cookies are shared
+// across tabs, so opening a document in a new tab keeps the session.
+const CSRF_COOKIE = "tomorrowland_csrf";
+
 export const authStorage = {
-  setToken(token: string) {
-    sessionStorage.setItem("tomorrowland_token", token);
-  },
   clearToken() {
-    sessionStorage.removeItem("tomorrowland_token");
+    document.cookie = `${CSRF_COOKIE}=; Max-Age=0; path=/`;
   },
   hasToken(): boolean {
-    return !!sessionStorage.getItem("tomorrowland_token");
+    return new RegExp(`(?:^|; )${CSRF_COOKIE}=`).test(document.cookie);
   },
 };
 
 export async function login(email: string, password: string): Promise<void> {
-  const res = await api.post<LoginResponse>(
-    "/auth/login",
-    { email, password },
-    { skipAuthRedirect: true },
-  );
-  authStorage.setToken(res.access_token);
+  await api.post<LoginResponse>("/auth/login", { email, password }, { skipAuthRedirect: true });
 }
 
 export async function signUp(
@@ -39,12 +37,11 @@ export async function signUp(
   password: string,
   displayName?: string,
 ): Promise<void> {
-  const res = await api.post<LoginResponse>(
+  await api.post<LoginResponse>(
     "/auth/signup",
     { email, password, display_name: displayName },
     { skipAuthRedirect: true },
   );
-  authStorage.setToken(res.access_token);
 }
 
 export async function logout(): Promise<void> {

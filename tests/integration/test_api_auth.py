@@ -42,6 +42,45 @@ def test_auth_api_login_me_logout_and_admin_guard(migrated_engine: Engine) -> No
     assert admin.status_code == 200
 
 
+def test_auth_api_login_sets_cookies_and_authenticates_without_header(
+    migrated_engine: Engine,
+) -> None:
+    with migrated_engine.begin() as connection:
+        repository = AuthRepository(connection)
+        repository.create_local_user(
+            email="cookie@example.com",
+            password_hash=hash_password("secret"),
+            display_name="Cookie",
+            is_admin=False,
+            group_names=["users"],
+        )
+
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+
+    login = client.post("/auth/login", json={"email": "cookie@example.com", "password": "secret"})
+    assert login.status_code == 200
+    assert "tomorrowland_token" in login.cookies
+    assert "tomorrowland_csrf" in login.cookies
+
+    # Cookie auth: /auth/me works with no Authorization header (TestClient sends
+    # the cookie jar automatically).
+    me = client.get("/auth/me")
+    assert me.status_code == 200
+    assert me.json()["email"] == "cookie@example.com"
+
+    # Unsafe cookie-authenticated request without the CSRF header is rejected.
+    blocked = client.post("/auth/logout")
+    assert blocked.status_code == 403
+
+    # With the matching double-submit CSRF header it succeeds and clears cookies.
+    csrf = client.cookies["tomorrowland_csrf"]
+    logout = client.post("/auth/logout", headers={"X-CSRF-Token": csrf})
+    assert logout.status_code == 200
+    assert logout.json() == {"ok": True}
+
+
 def test_auth_api_rejects_invalid_credentials_and_missing_token(migrated_engine: Engine) -> None:
     client = TestClient(
         create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))

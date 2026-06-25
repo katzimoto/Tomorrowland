@@ -81,9 +81,8 @@ export function FidelityStatusBar({
             <button
               className={styles.link}
               onClick={() => {
-                const token = sessionStorage.getItem("tomorrowland_token");
                 const url = downloadUrl;
-                fetch(url, { headers: { Authorization: `Bearer ${token || ""}` } })
+                fetch(url, { credentials: "same-origin" })
                   .then((r) => {
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     return r.blob();

@@ -30,8 +30,21 @@ export class ApiError extends Error {
   }
 }
 
-function getToken(): string | null {
-  return sessionStorage.getItem("tomorrowland_token");
+const CSRF_COOKIE = "tomorrowland_csrf";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+function readCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/** The double-submit CSRF token for hand-rolled fetches (e.g. streaming). */
+export function csrfToken(): string | null {
+  return readCookie(CSRF_COOKIE);
+}
+
+function clearCsrfCookie() {
+  document.cookie = `${CSRF_COOKIE}=; Max-Age=0; path=/`;
 }
 
 function redirectToExpiredLogin() {
@@ -41,12 +54,17 @@ function redirectToExpiredLogin() {
 }
 
 function buildHeaders(requestInit: ApiRequestInit): Record<string, string> {
-  const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(requestInit.headers as Record<string, string>),
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  // Auth travels via the HttpOnly cookie sent automatically with credentials.
+  // Unsafe methods carry the double-submit CSRF token read from its cookie.
+  const method = (requestInit.method ?? "GET").toUpperCase();
+  if (!SAFE_METHODS.has(method)) {
+    const csrf = readCookie(CSRF_COOKIE);
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
   return headers;
 }
 
@@ -54,9 +72,13 @@ async function requestText(path: string, init: ApiRequestInit = {}): Promise<str
   const { skipAuthRedirect = false, ...requestInit } = init;
   const headers = buildHeaders(requestInit);
   delete headers["Content-Type"];
-  const res = await fetch(`${BASE}${path}`, { ...requestInit, headers });
+  const res = await fetch(`${BASE}${path}`, {
+    ...requestInit,
+    headers,
+    credentials: "same-origin",
+  });
   if (res.status === 401 && !skipAuthRedirect) {
-    sessionStorage.removeItem("tomorrowland_token");
+    clearCsrfCookie();
     redirectToExpiredLogin();
     throw new ApiError(401, "Session expired");
   }
@@ -70,11 +92,15 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
   const { skipAuthRedirect = false, ...requestInit } = init;
   const headers = buildHeaders(requestInit);
 
-  const res = await fetch(`${BASE}${path}`, { ...requestInit, headers });
+  const res = await fetch(`${BASE}${path}`, {
+    ...requestInit,
+    headers,
+    credentials: "same-origin",
+  });
 
   if (res.status === 401 && !skipAuthRedirect) {
-    // Clear stale token and redirect to login
-    sessionStorage.removeItem("tomorrowland_token");
+    // Clear the stale CSRF cookie so the route guard redirects, then redirect.
+    clearCsrfCookie();
     redirectToExpiredLogin();
     throw new ApiError(401, "Session expired");
   }
